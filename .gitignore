@@ -1,0 +1,11 @@
+# Python virtual environment
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Ignore all generated world-weave files...
+*.wwf
+# ...but DO NOT ignore the example key.
+!electronistu_mage_weave.wwf
