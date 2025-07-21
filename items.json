@@ -1,0 +1,80 @@
+[
+  {
+    "name": "Iron Dagger",
+    "type": "Weapon",
+    "slot": "main_hand",
+    "base_value": 10
+  },
+  {
+    "name": "Steel Shortsword",
+    "type": "Weapon",
+    "slot": "main_hand",
+    "base_value": 25
+  },
+  {
+    "name": "Iron Greatsword",
+    "type": "Weapon",
+    "slot": "main_hand",
+    "base_value": 50
+  },
+  {
+    "name": "Wooden Shield",
+    "type": "Armor",
+    "slot": "off_hand",
+    "base_value": 15
+  },
+  {
+    "name": "Padded Tunic",
+    "type": "Armor",
+    "slot": "chest",
+    "base_value": 5
+  },
+  {
+    "name": "Leather Armor",
+    "type": "Armor",
+    "slot": "chest",
+    "base_value": 20
+  },
+  {
+    "name": "Chainmail",
+    "type": "Armor",
+    "slot": "chest",
+    "base_value": 75
+  },
+  {
+    "name": "Leather Trousers",
+    "type": "Armor",
+    "slot": "legs",
+    "base_value": 10
+  },
+  {
+    "name": "Iron Greaves",
+    "type": "Armor",
+    "slot": "legs",
+    "base_value": 40
+  },
+  {
+    "name": "Healing Poultice",
+    "type": "Consumable",
+    "slot": "none",
+    "base_value": 15
+  },
+  {
+    "name": "Goblin Ear",
+    "type": "Misc",
+    "slot": "none",
+    "base_value": 1
+  },
+  {
+    "name": "Wolf Pelt",
+    "type": "Misc",
+    "slot": "none",
+    "base_value": 5
+  },
+  {
+    "name": "Silver Ring",
+    "type": "Armor",
+    "slot": "ring",
+    "base_value": 30
+  }
+]
