@@ -1,0 +1,556 @@
+[WORLD_STATE]
+INSTANCE_ID:20250725184152-194d7580
+TOTAL_GOLD:100000
+CURRENT_TICK:12:00
+
+[PLAYER_CHARACTER_V3]
+PC_NAME:electronistu|AGE:41|SEX:Male|RACE:Human|CLS:Mage|ALIGN:Chaotic|GOLD:0|KN_LOC:PykeEnd|STATS:STR-8,DEX-11,CON-9,INT-18,WIS-15,CHA-9|ABILITIES:
+
+[EQUIPMENT]
+Gunnar Ironhand|chest:Padded Tunic,ring:Silver Ring
+Gerda Ironhand|chest:Leather Armor,main_hand:Iron Dagger
+Sigrid Ironhand|chest:Padded Tunic
+Roric Ironhand|chest:Padded Tunic
+Erik Ironhand|chest:Padded Tunic,legs:Leather Trousers
+Astrid Ironhand|chest:Padded Tunic
+Gunnar Swiftfoot|chest:Padded Tunic,legs:Leather Trousers
+Sif Swiftfoot|chest:Padded Tunic,ring:Silver Ring
+Bjorn Swiftfoot|chest:Padded Tunic
+Sten Swiftfoot|chest:Padded Tunic,legs:Leather Trousers
+Ingrid Swiftfoot|chest:Padded Tunic,legs:Leather Trousers
+Bjorn Stonefist|chest:Padded Tunic,legs:Leather Trousers
+Ingrid Stonefist|chest:Leather Armor,main_hand:Iron Dagger
+Astrid Stonefist|chest:Padded Tunic
+Falk Longbeard|chest:Padded Tunic,legs:Leather Trousers
+Falk Ironhand|chest:Padded Tunic,legs:Leather Trousers
+Freya Ironhand|chest:Leather Armor,main_hand:Iron Dagger
+Arne Greymane|chest:Padded Tunic,legs:Leather Trousers
+Gerda Greymane|chest:Padded Tunic
+Bjorn Longbeard|chest:Chainmail,legs:Iron Greaves,main_hand:Steel Shortsword,off_hand:Wooden Shield
+Freya Longbeard|chest:Padded Tunic,ring:Silver Ring
+Roric Longbeard|chest:Padded Tunic
+Astrid Longbeard|chest:Padded Tunic
+Roric Greymane|chest:Leather Armor,main_hand:Iron Dagger
+Hilda Greymane|chest:Chainmail,legs:Iron Greaves,main_hand:Steel Shortsword,off_hand:Wooden Shield
+Erik Greymane|chest:Padded Tunic
+Sif Greymane|chest:Padded Tunic,legs:Leather Trousers
+Falk Greymane|chest:Padded Tunic
+Sigrid Greymane|chest:Padded Tunic
+Astrid Greymane|chest:Padded Tunic,legs:Leather Trousers
+Ingrid Greymane|chest:Padded Tunic,legs:Leather Trousers
+Bjorn Greymane|chest:Padded Tunic
+Freya Greymane|chest:Padded Tunic
+Erik Longbeard|chest:Leather Armor,main_hand:Iron Dagger
+Bjorn Ironhand|chest:Chainmail,legs:Iron Greaves,main_hand:Steel Shortsword,off_hand:Wooden Shield
+Sten Greymane|chest:Padded Tunic
+Gunnar Stonefist|chest:Leather Armor,main_hand:Iron Dagger
+Freya Stonefist|chest:Padded Tunic,ring:Silver Ring
+Falk Swiftfoot|chest:Leather Armor,main_hand:Iron Dagger
+Hilda Swiftfoot|chest:Padded Tunic,ring:Silver Ring
+Sten Ironhand|chest:Leather Armor,main_hand:Iron Dagger
+Sten Stonefist|chest:Chainmail,legs:Iron Greaves,main_hand:Steel Shortsword,off_hand:Wooden Shield
+Sigrid Stonefist|chest:Padded Tunic
+Gunnar Greymane|chest:Padded Tunic,ring:Silver Ring
+Erik Swiftfoot|chest:Padded Tunic,ring:Silver Ring
+Astrid Swiftfoot|chest:Padded Tunic
+Arne Longbeard|chest:Padded Tunic,ring:Silver Ring
+Gerda Longbeard|chest:Chainmail,legs:Iron Greaves,main_hand:Steel Shortsword,off_hand:Wooden Shield
+Gunnar Longbeard|chest:Padded Tunic
+Sten Longbeard|chest:Padded Tunic
+Roric Stonefist|chest:Leather Armor,main_hand:Iron Dagger
+Sif Ironhand|chest:Padded Tunic
+Arne Swiftfoot|chest:Chainmail,legs:Iron Greaves,main_hand:Steel Shortsword,off_hand:Wooden Shield
+Sigrid Swiftfoot|chest:Padded Tunic
+Ingrid Ironhand|chest:Leather Armor,main_hand:Iron Dagger
+Ingrid Longbeard|chest:Chainmail,legs:Iron Greaves,main_hand:Steel Shortsword,off_hand:Wooden Shield
+Roric Swiftfoot|chest:Padded Tunic
+Hilda Longbeard|chest:Padded Tunic
+Sigrid Longbeard|chest:Chainmail,legs:Iron Greaves,main_hand:Steel Shortsword,off_hand:Wooden Shield
+Hilda Ironhand|chest:Padded Tunic
+Gerda Stonefist|chest:Padded Tunic
+Sif Longbeard|chest:Padded Tunic
+Freya Swiftfoot|chest:Padded Tunic,legs:Leather Trousers
+Sif Stonefist|chest:Padded Tunic,ring:Silver Ring
+Arne Ironhand|chest:Padded Tunic,legs:Leather Trousers
+Arne Stonefist|chest:Chainmail,legs:Iron Greaves,main_hand:Steel Shortsword,off_hand:Wooden Shield
+Gerda Swiftfoot|chest:Padded Tunic
+Erik Stonefist|chest:Padded Tunic,ring:Silver Ring
+Hilda Stonefist|chest:Padded Tunic
+Falk Stonefist|chest:Chainmail,legs:Iron Greaves,main_hand:Steel Shortsword,off_hand:Wooden Shield
+
+[CODED_MAP_V3]
+..........................................
+....++++++++SSS+++++++++++++++++++++++....
+....+.....++SSS++SSSSS+..............+....
+....+.....+.SSS..SSSSS+..............+....
+....+.....+.++...SSSSS+..............+....
+....+.....+.+SSS+SSSSS+..............+....
+....+.....+.+SSS.SSSSS+..............+....
+....+.....+.+SSS.+...++..............+....
+...++++++++++DDD++SSS+DDDDD+++++++++++....
+...++.....+.+DDD++SSS+DDDDD..........+....
+...++++++++++DDDD+SSS+DDDDD..........+....
+...++.....+.+++.+++..+DDDDD..........+....
+...++.....+.+++.+++..+DDDDD..........+....
+...D++++++++++CCCCC+++++++++++++++++++....
+...++.....+.++CCCCC..++..............+....
+...++.....+.++CCCCC..++..............+....
+...+++++++++++CCCCC++++++++++++++++++DDDDD
+...++.....+.++CCCCC..++..............DDDDD
+...++.....+.+++.+++..++..............DDDDD
+...++.....+.+++.+++..++..............DDDDD
+...++.....+.+++.+++..++..............DDDDD
+...++.....+.+++.+++..++..............+....
+...++.....+.+++.+++..++..............+....
+...++.....D+++++++++++++++++++++++++++....
+...++.....+.+++.+++..++..............+....
+...++++++++++DDD+++++++..............+....
+...++.....+.+DDD+++..++..............+....
+...++++++++++DDD+++++++++++++++++++++DDD..
+...+++++++++++++++D++++..............DDD..
+...++.....+.+++.+++..++..............DDD..
+...+DDD+++++++++++++++++++++++++++++++....
+...+DDD...+.+++++++++DDD.............+....
+...+DDD...+.+++.+.+..DDD.............+....
+...++.....+.+++.+.+..DDD.............+....
+...++.....+.+++.+.+..++..............+....
+...++.....+.+++.+.+..++..............+....
+...+DDDDD+++++++DDDDD+++++++++++++++++....
+....DDDDD.+.+++.DDDDD++...................
+....DDDDD.+.+++.DDDDD++...................
+....DDDDD.+.+++.DDDDD++...................
+....DDDDD+D++D++DDDDD++...................
+..........................................
+
+[LOCATIONS]
+PykeEnd|T:Capital|B:Hills|SIZE:5,5|CL:1|CON:GloomSpire,ShadowRuins,SkullCrypt,WhisperingCrypt|INHAB:Gunnar Ironhand,Gerda Ironhand,Sigrid Ironhand,Roric Ironhand,Erik Ironhand,Astrid Ironhand,Gunnar Swiftfoot,Sif Swiftfoot,Bjorn Swiftfoot,Sten Swiftfoot,Ingrid Swiftfoot,Bjorn Stonefist,Ingrid Stonefist,Astrid Stonefist,Falk Longbeard,Falk Ironhand,Freya Ironhand,Arne Greymane,Gerda Greymane,Bjorn Longbeard,Freya Longbeard,Roric Longbeard,Astrid Longbeard,Roric Greymane,Hilda Greymane,Erik Greymane,Sif Greymane,Falk Greymane,Sigrid Greymane,Astrid Greymane,Ingrid Greymane,Bjorn Greymane,Freya Greymane,Erik Longbeard,Bjorn Ironhand,Sten Greymane,Gunnar Stonefist,Freya Stonefist,Falk Swiftfoot,Hilda Swiftfoot,Sten Ironhand,Sten Stonefist,Sigrid Stonefist,Gunnar Greymane,Erik Swiftfoot,Astrid Swiftfoot,Arne Longbeard,Gerda Longbeard,Gunnar Longbeard,Sten Longbeard,Roric Stonefist,Sif Ironhand,Arne Swiftfoot,Sigrid Swiftfoot,Ingrid Ironhand,Ingrid Longbeard,Roric Swiftfoot,Hilda Longbeard,Sigrid Longbeard,Hilda Ironhand|SUB_LOCS:PykeEnd Merchant's Guild,PykeEnd Barracks,The Gilded Shadow,The Weary Traveler Tavern|COORDS:14,13
+Stonecreek|T:Settlement|B:Swamp|SIZE:3,3|CL:2|CON:GloomCaverns,WhisperingCrypt,GloomLair,WhisperingLair|INHAB:Gerda Stonefist,Sif Longbeard,Freya Swiftfoot,Sif Stonefist|SUB_LOCS:Stonecreek Merchant's Guild,The Weary Traveler Tavern|COORDS:18,8
+Ironcreek|T:Settlement|B:Plains|SIZE:3,3|CL:2|CON:Ironwatch,GloomLair,Whitefall,ShadowCrypt|INHAB:Arne Ironhand,Arne Stonefist|SUB_LOCS:Ironcreek Barracks,The Weary Traveler Tavern|COORDS:13,5
+Whitefall|T:Settlement|B:Forest|SIZE:5,5|CL:2|CON:ShadowCrypt,Ironcreek,GloomLair,Ironwatch,WhisperingRuins|INHAB:Gerda Swiftfoot,Erik Stonefist|SUB_LOCS:Whitefall Merchant's Guild|COORDS:17,2
+Ironwatch|T:Settlement|B:Hills|SIZE:3,3|CL:3|CON:Ironcreek,Whitefall,GloomTomb,BloodCaverns,SkullTomb|INHAB:Hilda Stonefist,Falk Stonefist|SUB_LOCS:Ironwatch Barracks|COORDS:12,1
+ShadowRuins|T:Dungeon|B:Hills|SIZE:1,1|CL:10|CON:PykeEnd,ShadowCrypt,GloomSpire,SkullCrypt,ForgottenSpire|INHAB:|SUB_LOCS:|COORDS:18,28
+GloomTomb|T:Dungeon|B:Plains|SIZE:3,3|CL:9|CON:Ironwatch,ForgottenSpire,GloomCaverns,WhisperingLair|INHAB:|SUB_LOCS:|COORDS:37,27
+ShadowCrypt|T:Dungeon|B:Forest|SIZE:3,3|CL:10|CON:Whitefall,ShadowRuins,BloodCaverns,Ironcreek|INHAB:|SUB_LOCS:|COORDS:21,31
+WhisperingCrypt|T:Dungeon|B:Forest|SIZE:1,1|CL:10|CON:Stonecreek,GloomSpire,ForgottenSpire,PykeEnd,GloomLair|INHAB:|SUB_LOCS:|COORDS:10,40
+GloomLair|T:Dungeon|B:Mountains|SIZE:5,5|CL:10|CON:Stonecreek,Ironcreek,Whitefall,BloodCaverns,WhisperingCrypt,ForgottenSpire,SkullCrypt|INHAB:|SUB_LOCS:|COORDS:22,8
+ForgottenSpire|T:Dungeon|B:Hills|SIZE:3,3|CL:8|CON:WhisperingCrypt,GloomLair,ShadowRuins,GloomTomb,ForgottenRuins|INHAB:|SUB_LOCS:|COORDS:4,30
+SkullCrypt|T:Dungeon|B:Plains|SIZE:3,3|CL:10|CON:PykeEnd,ShadowRuins,GloomLair,WhisperingLair,ForgottenCrypt|INHAB:|SUB_LOCS:|COORDS:13,25
+ForgottenCrypt|T:Dungeon|B:Swamp|SIZE:1,1|CL:5|CON:SkullCrypt,WhisperingLair|INHAB:|SUB_LOCS:|COORDS:16,10
+WhisperingRuins|T:Dungeon|B:Forest|SIZE:1,1|CL:5|CON:Whitefall,GloomCaverns|INHAB:|SUB_LOCS:|COORDS:10,23
+BloodCaverns|T:Dungeon|B:Swamp|SIZE:1,1|CL:4|CON:ShadowCrypt,GloomLair,Ironwatch|INHAB:|SUB_LOCS:|COORDS:13,40
+GloomCaverns|T:Dungeon|B:Forest|SIZE:5,5|CL:7|CON:Stonecreek,WhisperingRuins,GloomTomb,SkullTomb,ForgottenRuins|INHAB:|SUB_LOCS:|COORDS:37,16
+SkullTomb|T:Dungeon|B:Mountains|SIZE:5,5|CL:4|CON:GloomCaverns,GloomSpire,Ironwatch,ForgottenRuins|INHAB:|SUB_LOCS:|COORDS:4,36
+ForgottenRuins|T:Dungeon|B:Hills|SIZE:5,5|CL:10|CON:ForgottenSpire,GloomCaverns,SkullTomb,WhisperingLair,GloomSpire|INHAB:|SUB_LOCS:|COORDS:16,36
+WhisperingLair|T:Dungeon|B:Plains|SIZE:1,1|CL:10|CON:SkullCrypt,ForgottenRuins,Stonecreek,GloomTomb,ForgottenCrypt|INHAB:|SUB_LOCS:|COORDS:3,13
+GloomSpire|T:Dungeon|B:Mountains|SIZE:3,3|CL:4|CON:PykeEnd,ShadowRuins,WhisperingCrypt,SkullTomb,ForgottenRuins|INHAB:|SUB_LOCS:|COORDS:13,8
+
+[SUB_LOCATIONS]
+PykeEnd Merchant's Guild|T:Shop|PARENT:PykeEnd|OP:Gunnar Greymane
+PykeEnd Barracks|T:Guard Post|PARENT:PykeEnd|OP:Sten Stonefist
+The Gilded Shadow|T:Thieves' Den|PARENT:PykeEnd|OP:Ingrid Ironhand
+The Weary Traveler Tavern|T:Tavern|PARENT:PykeEnd|OP:Erik Ironhand
+Stonecreek Merchant's Guild|T:Shop|PARENT:Stonecreek|OP:Sif Stonefist
+The Weary Traveler Tavern|T:Tavern|PARENT:Stonecreek|OP:Freya Swiftfoot
+Ironcreek Barracks|T:Guard Post|PARENT:Ironcreek|OP:Arne Stonefist
+The Weary Traveler Tavern|T:Tavern|PARENT:Ironcreek|OP:Arne Ironhand
+Whitefall Merchant's Guild|T:Shop|PARENT:Whitefall|OP:Erik Stonefist
+Ironwatch Barracks|T:Guard Post|PARENT:Ironwatch|OP:Falk Stonefist
+
+[FACTIONS]
+Town Guard|DISP:Lawful|LEAD:Bjorn Ironhand
+Merchants' Guild|DISP:Neutral|LEAD:Erik Swiftfoot
+Thieves' Guild|DISP:Chaotic|LEAD:Ingrid Stonefist
+
+[FACTION_RELATIONS]
+Merchants' Guild|Thieves' Guild:HOSTILE,Town Guard:NEUTRAL
+Thieves' Guild|Merchants' Guild:HOSTILE,Town Guard:NEUTRAL
+Town Guard|Merchants' Guild:NEUTRAL,Thieves' Guild:NEUTRAL
+
+[NPCS]
+Gunnar Ironhand|AGE:48|SEX:Male|RACE:Elf|STAT:Merchant|FAM:Ironhand|ROLE:Parent|LOC:PykeEnd|FAC:Merchants' Guild|DIFF_LVL:4|GOLD:2358
+Gerda Ironhand|AGE:53|SEX:Female|RACE:Elf|STAT:Thief|FAM:Ironhand|ROLE:Parent|LOC:PykeEnd|FAC:Thieves' Guild|DIFF_LVL:3|GOLD:1572
+Sigrid Ironhand|AGE:15|SEX:Female|RACE:Elf|STAT:Child|FAM:Ironhand|ROLE:Child|LOC:PykeEnd|FAC:None|DIFF_LVL:1|GOLD:0
+Roric Ironhand|AGE:11|SEX:Male|RACE:Elf|STAT:Child|FAM:Ironhand|ROLE:Child|LOC:PykeEnd|FAC:None|DIFF_LVL:1|GOLD:0
+Erik Ironhand|AGE:47|SEX:Male|RACE:Elf|STAT:Commoner|FAM:Ironhand|ROLE:Parent|LOC:PykeEnd|FAC:None|DIFF_LVL:2|GOLD:471
+Astrid Ironhand|AGE:5|SEX:Female|RACE:Elf|STAT:Child|FAM:Ironhand|ROLE:Child|LOC:PykeEnd|FAC:None|DIFF_LVL:1|GOLD:0
+Gunnar Swiftfoot|AGE:30|SEX:Male|RACE:Human|STAT:Commoner|FAM:Swiftfoot|ROLE:Parent|LOC:PykeEnd|FAC:None|DIFF_LVL:2|GOLD:471
+Sif Swiftfoot|AGE:30|SEX:Female|RACE:Human|STAT:Merchant|FAM:Swiftfoot|ROLE:Parent|LOC:PykeEnd|FAC:Merchants' Guild|DIFF_LVL:4|GOLD:2358
+Bjorn Swiftfoot|AGE:11|SEX:Male|RACE:Human|STAT:Child|FAM:Swiftfoot|ROLE:Child|LOC:PykeEnd|FAC:None|DIFF_LVL:1|GOLD:0
+Sten Swiftfoot|AGE:40|SEX:Male|RACE:Dwarf|STAT:Commoner|FAM:Swiftfoot|ROLE:Parent|LOC:PykeEnd|FAC:None|DIFF_LVL:2|GOLD:471
+Ingrid Swiftfoot|AGE:40|SEX:Female|RACE:Dwarf|STAT:Commoner|FAM:Swiftfoot|ROLE:Parent|LOC:PykeEnd|FAC:None|DIFF_LVL:2|GOLD:471
+Bjorn Stonefist|AGE:30|SEX:Male|RACE:Human|STAT:Commoner|FAM:Stonefist|ROLE:Parent|LOC:PykeEnd|FAC:None|DIFF_LVL:2|GOLD:471
+Ingrid Stonefist|AGE:34|SEX:Female|RACE:Human|STAT:Thief|FAM:Stonefist|ROLE:Parent|LOC:PykeEnd|FAC:Thieves' Guild|DIFF_LVL:5|GOLD:1572
+Astrid Stonefist|AGE:15|SEX:Female|RACE:Human|STAT:Child|FAM:Stonefist|ROLE:Child|LOC:PykeEnd|FAC:None|DIFF_LVL:1|GOLD:0
+Falk Longbeard|AGE:36|SEX:Male|RACE:Dwarf|STAT:Commoner|FAM:Longbeard|ROLE:Parent|LOC:PykeEnd|FAC:None|DIFF_LVL:2|GOLD:471
+Falk Ironhand|AGE:44|SEX:Male|RACE:Dwarf|STAT:Commoner|FAM:Ironhand|ROLE:Parent|LOC:PykeEnd|FAC:None|DIFF_LVL:2|GOLD:471
+Freya Ironhand|AGE:38|SEX:Female|RACE:Dwarf|STAT:Thief|FAM:Ironhand|ROLE:Parent|LOC:PykeEnd|FAC:Thieves' Guild|DIFF_LVL:3|GOLD:1572
+Arne Greymane|AGE:38|SEX:Male|RACE:Elf|STAT:Commoner|FAM:Greymane|ROLE:Parent|LOC:PykeEnd|FAC:None|DIFF_LVL:2|GOLD:471
+Gerda Greymane|AGE:16|SEX:Female|RACE:Elf|STAT:Child|FAM:Greymane|ROLE:Child|LOC:PykeEnd|FAC:None|DIFF_LVL:1|GOLD:0
+Bjorn Longbeard|AGE:52|SEX:Male|RACE:Human|STAT:Guard|FAM:Longbeard|ROLE:Parent|LOC:PykeEnd|FAC:Town Guard|DIFF_LVL:3|GOLD:1257
+Freya Longbeard|AGE:51|SEX:Female|RACE:Human|STAT:Merchant|FAM:Longbeard|ROLE:Parent|LOC:PykeEnd|FAC:Merchants' Guild|DIFF_LVL:4|GOLD:2358
+Roric Longbeard|AGE:7|SEX:Male|RACE:Human|STAT:Child|FAM:Longbeard|ROLE:Child|LOC:PykeEnd|FAC:None|DIFF_LVL:1|GOLD:0
+Astrid Longbeard|AGE:12|SEX:Female|RACE:Human|STAT:Child|FAM:Longbeard|ROLE:Child|LOC:PykeEnd|FAC:None|DIFF_LVL:1|GOLD:0
+Roric Greymane|AGE:31|SEX:Male|RACE:Dwarf|STAT:Thief|FAM:Greymane|ROLE:Parent|LOC:PykeEnd|FAC:Thieves' Guild|DIFF_LVL:3|GOLD:1572
+Hilda Greymane|AGE:55|SEX:Female|RACE:Dwarf|STAT:Guard|FAM:Greymane|ROLE:Parent|LOC:PykeEnd|FAC:Town Guard|DIFF_LVL:3|GOLD:1257
+Erik Greymane|AGE:10|SEX:Male|RACE:Dwarf|STAT:Child|FAM:Greymane|ROLE:Child|LOC:PykeEnd|FAC:None|DIFF_LVL:1|GOLD:0
+Sif Greymane|AGE:43|SEX:Female|RACE:Dwarf|STAT:Commoner|FAM:Greymane|ROLE:Parent|LOC:PykeEnd|FAC:None|DIFF_LVL:2|GOLD:471
+Falk Greymane|AGE:12|SEX:Male|RACE:Dwarf|STAT:Child|FAM:Greymane|ROLE:Child|LOC:PykeEnd|FAC:None|DIFF_LVL:1|GOLD:0
+Sigrid Greymane|AGE:10|SEX:Female|RACE:Dwarf|STAT:Child|FAM:Greymane|ROLE:Child|LOC:PykeEnd|FAC:None|DIFF_LVL:1|GOLD:0
+Astrid Greymane|AGE:35|SEX:Female|RACE:Human|STAT:Commoner|FAM:Greymane|ROLE:Parent|LOC:PykeEnd|FAC:None|DIFF_LVL:2|GOLD:471
+Ingrid Greymane|AGE:52|SEX:Female|RACE:Dwarf|STAT:Commoner|FAM:Greymane|ROLE:Parent|LOC:PykeEnd|FAC:None|DIFF_LVL:2|GOLD:471
+Bjorn Greymane|AGE:7|SEX:Male|RACE:Dwarf|STAT:Child|FAM:Greymane|ROLE:Child|LOC:PykeEnd|FAC:None|DIFF_LVL:1|GOLD:0
+Freya Greymane|AGE:13|SEX:Female|RACE:Human|STAT:Child|FAM:Greymane|ROLE:Child|LOC:PykeEnd|FAC:None|DIFF_LVL:1|GOLD:0
+Erik Longbeard|AGE:55|SEX:Male|RACE:Elf|STAT:Thief|FAM:Longbeard|ROLE:Parent|LOC:PykeEnd|FAC:Thieves' Guild|DIFF_LVL:3|GOLD:1572
+Bjorn Ironhand|AGE:38|SEX:Male|RACE:Human|STAT:Guard|FAM:Ironhand|ROLE:Parent|LOC:PykeEnd|FAC:Town Guard|DIFF_LVL:5|GOLD:1257
+Sten Greymane|AGE:15|SEX:Male|RACE:Elf|STAT:Child|FAM:Greymane|ROLE:Child|LOC:PykeEnd|FAC:None|DIFF_LVL:1|GOLD:0
+Gunnar Stonefist|AGE:55|SEX:Male|RACE:Elf|STAT:Thief|FAM:Stonefist|ROLE:Parent|LOC:PykeEnd|FAC:Thieves' Guild|DIFF_LVL:3|GOLD:1572
+Freya Stonefist|AGE:52|SEX:Female|RACE:Elf|STAT:Merchant|FAM:Stonefist|ROLE:Parent|LOC:PykeEnd|FAC:Merchants' Guild|DIFF_LVL:4|GOLD:2358
+Falk Swiftfoot|AGE:48|SEX:Male|RACE:Elf|STAT:Thief|FAM:Swiftfoot|ROLE:Parent|LOC:PykeEnd|FAC:Thieves' Guild|DIFF_LVL:3|GOLD:1572
+Hilda Swiftfoot|AGE:47|SEX:Female|RACE:Elf|STAT:Merchant|FAM:Swiftfoot|ROLE:Parent|LOC:PykeEnd|FAC:Merchants' Guild|DIFF_LVL:4|GOLD:2358
+Sten Ironhand|AGE:55|SEX:Male|RACE:Dwarf|STAT:Thief|FAM:Ironhand|ROLE:Parent|LOC:PykeEnd|FAC:Thieves' Guild|DIFF_LVL:3|GOLD:1572
+Sten Stonefist|AGE:51|SEX:Male|RACE:Elf|STAT:Guard|FAM:Stonefist|ROLE:Parent|LOC:PykeEnd|FAC:Town Guard|DIFF_LVL:3|GOLD:1257
+Sigrid Stonefist|AGE:16|SEX:Female|RACE:Elf|STAT:Child|FAM:Stonefist|ROLE:Child|LOC:PykeEnd|FAC:None|DIFF_LVL:1|GOLD:0
+Gunnar Greymane|AGE:40|SEX:Male|RACE:Human|STAT:Merchant|FAM:Greymane|ROLE:Parent|LOC:PykeEnd|FAC:Merchants' Guild|DIFF_LVL:4|GOLD:2358
+Erik Swiftfoot|AGE:32|SEX:Male|RACE:Human|STAT:Merchant|FAM:Swiftfoot|ROLE:Parent|LOC:PykeEnd|FAC:Merchants' Guild|DIFF_LVL:5|GOLD:2358
+Astrid Swiftfoot|AGE:6|SEX:Female|RACE:Human|STAT:Child|FAM:Swiftfoot|ROLE:Child|LOC:PykeEnd|FAC:None|DIFF_LVL:1|GOLD:0
+Arne Longbeard|AGE:41|SEX:Male|RACE:Elf|STAT:Merchant|FAM:Longbeard|ROLE:Parent|LOC:PykeEnd|FAC:Merchants' Guild|DIFF_LVL:4|GOLD:2358
+Gerda Longbeard|AGE:49|SEX:Female|RACE:Elf|STAT:Guard|FAM:Longbeard|ROLE:Parent|LOC:PykeEnd|FAC:Town Guard|DIFF_LVL:3|GOLD:1257
+Gunnar Longbeard|AGE:6|SEX:Male|RACE:Elf|STAT:Child|FAM:Longbeard|ROLE:Child|LOC:PykeEnd|FAC:None|DIFF_LVL:1|GOLD:0
+Sten Longbeard|AGE:6|SEX:Male|RACE:Elf|STAT:Child|FAM:Longbeard|ROLE:Child|LOC:PykeEnd|FAC:None|DIFF_LVL:1|GOLD:0
+Roric Stonefist|AGE:55|SEX:Male|RACE:Dwarf|STAT:Thief|FAM:Stonefist|ROLE:Parent|LOC:PykeEnd|FAC:Thieves' Guild|DIFF_LVL:3|GOLD:1572
+Sif Ironhand|AGE:11|SEX:Female|RACE:Dwarf|STAT:Child|FAM:Ironhand|ROLE:Child|LOC:PykeEnd|FAC:None|DIFF_LVL:1|GOLD:0
+Arne Swiftfoot|AGE:37|SEX:Male|RACE:Dwarf|STAT:Guard|FAM:Swiftfoot|ROLE:Parent|LOC:PykeEnd|FAC:Town Guard|DIFF_LVL:3|GOLD:1257
+Sigrid Swiftfoot|AGE:11|SEX:Female|RACE:Dwarf|STAT:Child|FAM:Swiftfoot|ROLE:Child|LOC:PykeEnd|FAC:None|DIFF_LVL:1|GOLD:0
+Ingrid Ironhand|AGE:55|SEX:Female|RACE:Dwarf|STAT:Thief|FAM:Ironhand|ROLE:Parent|LOC:PykeEnd|FAC:Thieves' Guild|DIFF_LVL:3|GOLD:1572
+Ingrid Longbeard|AGE:46|SEX:Female|RACE:Human|STAT:Guard|FAM:Longbeard|ROLE:Parent|LOC:PykeEnd|FAC:Town Guard|DIFF_LVL:3|GOLD:1257
+Roric Swiftfoot|AGE:7|SEX:Male|RACE:Human|STAT:Child|FAM:Swiftfoot|ROLE:Child|LOC:PykeEnd|FAC:None|DIFF_LVL:1|GOLD:0
+Hilda Longbeard|AGE:9|SEX:Female|RACE:Human|STAT:Child|FAM:Longbeard|ROLE:Child|LOC:PykeEnd|FAC:None|DIFF_LVL:1|GOLD:0
+Sigrid Longbeard|AGE:39|SEX:Female|RACE:Elf|STAT:Guard|FAM:Longbeard|ROLE:Parent|LOC:PykeEnd|FAC:Town Guard|DIFF_LVL:3|GOLD:1257
+Hilda Ironhand|AGE:15|SEX:Female|RACE:Human|STAT:Child|FAM:Ironhand|ROLE:Child|LOC:PykeEnd|FAC:None|DIFF_LVL:1|GOLD:0
+Gerda Stonefist|AGE:7|SEX:Female|RACE:Dwarf|STAT:Child|FAM:Stonefist|ROLE:Child|LOC:Stonecreek|FAC:None|DIFF_LVL:1|GOLD:0
+Sif Longbeard|AGE:9|SEX:Female|RACE:Elf|STAT:Child|FAM:Longbeard|ROLE:Child|LOC:Stonecreek|FAC:None|DIFF_LVL:1|GOLD:0
+Freya Swiftfoot|AGE:44|SEX:Female|RACE:Elf|STAT:Commoner|FAM:Swiftfoot|ROLE:Parent|LOC:Stonecreek|FAC:None|DIFF_LVL:2|GOLD:471
+Sif Stonefist|AGE:50|SEX:Female|RACE:Elf|STAT:Merchant|FAM:Stonefist|ROLE:Parent|LOC:Stonecreek|FAC:Merchants' Guild|DIFF_LVL:4|GOLD:2358
+Arne Ironhand|AGE:43|SEX:Male|RACE:Human|STAT:Commoner|FAM:Ironhand|ROLE:Parent|LOC:Ironcreek|FAC:None|DIFF_LVL:2|GOLD:471
+Arne Stonefist|AGE:36|SEX:Male|RACE:Human|STAT:Guard|FAM:Stonefist|ROLE:Parent|LOC:Ironcreek|FAC:Town Guard|DIFF_LVL:3|GOLD:1257
+Gerda Swiftfoot|AGE:16|SEX:Female|RACE:Dwarf|STAT:Child|FAM:Swiftfoot|ROLE:Child|LOC:Whitefall|FAC:None|DIFF_LVL:1|GOLD:0
+Erik Stonefist|AGE:35|SEX:Male|RACE:Elf|STAT:Merchant|FAM:Stonefist|ROLE:Parent|LOC:Whitefall|FAC:Merchants' Guild|DIFF_LVL:4|GOLD:2358
+Hilda Stonefist|AGE:14|SEX:Female|RACE:Dwarf|STAT:Child|FAM:Stonefist|ROLE:Child|LOC:Ironwatch|FAC:None|DIFF_LVL:1|GOLD:0
+Falk Stonefist|AGE:35|SEX:Male|RACE:Human|STAT:Guard|FAM:Stonefist|ROLE:Parent|LOC:Ironwatch|FAC:Town Guard|DIFF_LVL:3|GOLD:1257
+
+[CREATURES]
+Wolf_0_ShadowRuins|NAME:Wolf|T:Wolf|LOC:ShadowRuins|COORDS:18,28|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Wolf_1_ShadowRuins|NAME:Wolf|T:Wolf|LOC:ShadowRuins|COORDS:18,28|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+boss_ShadowRuins|NAME:Dungeon Lord|T:Dungeon Boss|LOC:ShadowRuins|COORDS:18,28|DIFF_LVL:5|GOLD:157|LOOT:
+Goblin_0_GloomTomb|NAME:Goblin|T:Goblin|LOC:GloomTomb|COORDS:39,29|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Troll_1_GloomTomb|NAME:Troll|T:Troll|LOC:GloomTomb|COORDS:38,29|DIFF_LVL:4|GOLD:157|LOOT:
+Troll_2_GloomTomb|NAME:Troll|T:Troll|LOC:GloomTomb|COORDS:39,29|DIFF_LVL:4|GOLD:157|LOOT:
+Troll_3_GloomTomb|NAME:Troll|T:Troll|LOC:GloomTomb|COORDS:37,27|DIFF_LVL:4|GOLD:157|LOOT:
+Orc_4_GloomTomb|NAME:Orc|T:Orc|LOC:GloomTomb|COORDS:37,29|DIFF_LVL:3|GOLD:157|LOOT:
+Goblin_5_GloomTomb|NAME:Goblin|T:Goblin|LOC:GloomTomb|COORDS:37,29|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Wolf_6_GloomTomb|NAME:Wolf|T:Wolf|LOC:GloomTomb|COORDS:37,29|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Wolf_7_GloomTomb|NAME:Wolf|T:Wolf|LOC:GloomTomb|COORDS:39,29|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Troll_8_GloomTomb|NAME:Troll|T:Troll|LOC:GloomTomb|COORDS:37,27|DIFF_LVL:4|GOLD:157|LOOT:
+boss_GloomTomb|NAME:Dungeon Lord|T:Dungeon Boss|LOC:GloomTomb|COORDS:39,28|DIFF_LVL:5|GOLD:157|LOOT:
+Orc_0_ShadowCrypt|NAME:Orc|T:Orc|LOC:ShadowCrypt|COORDS:22,33|DIFF_LVL:3|GOLD:157|LOOT:
+Goblin_1_ShadowCrypt|NAME:Goblin|T:Goblin|LOC:ShadowCrypt|COORDS:23,33|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Troll_2_ShadowCrypt|NAME:Troll|T:Troll|LOC:ShadowCrypt|COORDS:23,31|DIFF_LVL:4|GOLD:157|LOOT:
+Ogre_3_ShadowCrypt|NAME:Ogre|T:Ogre|LOC:ShadowCrypt|COORDS:23,31|DIFF_LVL:4|GOLD:157|LOOT:
+Troll_4_ShadowCrypt|NAME:Troll|T:Troll|LOC:ShadowCrypt|COORDS:23,33|DIFF_LVL:4|GOLD:157|LOOT:
+Orc_5_ShadowCrypt|NAME:Orc|T:Orc|LOC:ShadowCrypt|COORDS:23,32|DIFF_LVL:3|GOLD:157|LOOT:
+Wolf_6_ShadowCrypt|NAME:Wolf|T:Wolf|LOC:ShadowCrypt|COORDS:23,33|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Goblin_7_ShadowCrypt|NAME:Goblin|T:Goblin|LOC:ShadowCrypt|COORDS:22,32|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Troll_8_ShadowCrypt|NAME:Troll|T:Troll|LOC:ShadowCrypt|COORDS:22,32|DIFF_LVL:4|GOLD:157|LOOT:
+boss_ShadowCrypt|NAME:Dungeon Lord|T:Dungeon Boss|LOC:ShadowCrypt|COORDS:21,31|DIFF_LVL:5|GOLD:157|LOOT:
+Orc_0_WhisperingCrypt|NAME:Orc|T:Orc|LOC:WhisperingCrypt|COORDS:10,40|DIFF_LVL:3|GOLD:157|LOOT:
+Ogre_1_WhisperingCrypt|NAME:Ogre|T:Ogre|LOC:WhisperingCrypt|COORDS:10,40|DIFF_LVL:4|GOLD:157|LOOT:
+Wolf_2_WhisperingCrypt|NAME:Wolf|T:Wolf|LOC:WhisperingCrypt|COORDS:10,40|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+boss_WhisperingCrypt|NAME:Dungeon Lord|T:Dungeon Boss|LOC:WhisperingCrypt|COORDS:10,40|DIFF_LVL:5|GOLD:157|LOOT:
+Goblin_0_GloomLair|NAME:Goblin|T:Goblin|LOC:GloomLair|COORDS:25,10|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Ogre_1_GloomLair|NAME:Ogre|T:Ogre|LOC:GloomLair|COORDS:23,11|DIFF_LVL:4|GOLD:157|LOOT:
+Goblin_2_GloomLair|NAME:Goblin|T:Goblin|LOC:GloomLair|COORDS:22,12|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Wolf_3_GloomLair|NAME:Wolf|T:Wolf|LOC:GloomLair|COORDS:26,8|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Ogre_4_GloomLair|NAME:Ogre|T:Ogre|LOC:GloomLair|COORDS:24,11|DIFF_LVL:4|GOLD:157|LOOT:
+Troll_5_GloomLair|NAME:Troll|T:Troll|LOC:GloomLair|COORDS:23,12|DIFF_LVL:4|GOLD:157|LOOT:
+Troll_6_GloomLair|NAME:Troll|T:Troll|LOC:GloomLair|COORDS:23,11|DIFF_LVL:4|GOLD:157|LOOT:
+Orc_7_GloomLair|NAME:Orc|T:Orc|LOC:GloomLair|COORDS:22,10|DIFF_LVL:3|GOLD:157|LOOT:
+Wolf_8_GloomLair|NAME:Wolf|T:Wolf|LOC:GloomLair|COORDS:26,9|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Goblin_9_GloomLair|NAME:Goblin|T:Goblin|LOC:GloomLair|COORDS:24,9|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Troll_10_GloomLair|NAME:Troll|T:Troll|LOC:GloomLair|COORDS:24,10|DIFF_LVL:4|GOLD:157|LOOT:
+Wolf_11_GloomLair|NAME:Wolf|T:Wolf|LOC:GloomLair|COORDS:25,12|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Goblin_12_GloomLair|NAME:Goblin|T:Goblin|LOC:GloomLair|COORDS:24,10|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Ogre_13_GloomLair|NAME:Ogre|T:Ogre|LOC:GloomLair|COORDS:23,10|DIFF_LVL:4|GOLD:157|LOOT:
+Goblin_14_GloomLair|NAME:Goblin|T:Goblin|LOC:GloomLair|COORDS:24,11|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Orc_15_GloomLair|NAME:Orc|T:Orc|LOC:GloomLair|COORDS:23,11|DIFF_LVL:3|GOLD:157|LOOT:
+Goblin_16_GloomLair|NAME:Goblin|T:Goblin|LOC:GloomLair|COORDS:23,8|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Orc_17_GloomLair|NAME:Orc|T:Orc|LOC:GloomLair|COORDS:25,11|DIFF_LVL:3|GOLD:157|LOOT:
+Troll_18_GloomLair|NAME:Troll|T:Troll|LOC:GloomLair|COORDS:25,10|DIFF_LVL:4|GOLD:157|LOOT:
+Orc_19_GloomLair|NAME:Orc|T:Orc|LOC:GloomLair|COORDS:24,9|DIFF_LVL:3|GOLD:157|LOOT:
+Ogre_20_GloomLair|NAME:Ogre|T:Ogre|LOC:GloomLair|COORDS:26,8|DIFF_LVL:4|GOLD:157|LOOT:
+Wolf_21_GloomLair|NAME:Wolf|T:Wolf|LOC:GloomLair|COORDS:25,8|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Orc_22_GloomLair|NAME:Orc|T:Orc|LOC:GloomLair|COORDS:26,12|DIFF_LVL:3|GOLD:157|LOOT:
+Orc_23_GloomLair|NAME:Orc|T:Orc|LOC:GloomLair|COORDS:24,11|DIFF_LVL:3|GOLD:157|LOOT:
+Goblin_24_GloomLair|NAME:Goblin|T:Goblin|LOC:GloomLair|COORDS:26,10|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Goblin_25_GloomLair|NAME:Goblin|T:Goblin|LOC:GloomLair|COORDS:25,11|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Ogre_26_GloomLair|NAME:Ogre|T:Ogre|LOC:GloomLair|COORDS:22,8|DIFF_LVL:4|GOLD:157|LOOT:
+Goblin_27_GloomLair|NAME:Goblin|T:Goblin|LOC:GloomLair|COORDS:23,11|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Troll_28_GloomLair|NAME:Troll|T:Troll|LOC:GloomLair|COORDS:24,12|DIFF_LVL:4|GOLD:157|LOOT:
+Goblin_29_GloomLair|NAME:Goblin|T:Goblin|LOC:GloomLair|COORDS:25,11|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Goblin_30_GloomLair|NAME:Goblin|T:Goblin|LOC:GloomLair|COORDS:25,8|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Wolf_31_GloomLair|NAME:Wolf|T:Wolf|LOC:GloomLair|COORDS:23,9|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Goblin_32_GloomLair|NAME:Goblin|T:Goblin|LOC:GloomLair|COORDS:25,8|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Wolf_33_GloomLair|NAME:Wolf|T:Wolf|LOC:GloomLair|COORDS:25,9|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Orc_34_GloomLair|NAME:Orc|T:Orc|LOC:GloomLair|COORDS:26,11|DIFF_LVL:3|GOLD:157|LOOT:
+Wolf_35_GloomLair|NAME:Wolf|T:Wolf|LOC:GloomLair|COORDS:24,8|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Orc_36_GloomLair|NAME:Orc|T:Orc|LOC:GloomLair|COORDS:25,11|DIFF_LVL:3|GOLD:157|LOOT:
+Ogre_37_GloomLair|NAME:Ogre|T:Ogre|LOC:GloomLair|COORDS:22,9|DIFF_LVL:4|GOLD:157|LOOT:
+Troll_38_GloomLair|NAME:Troll|T:Troll|LOC:GloomLair|COORDS:24,12|DIFF_LVL:4|GOLD:157|LOOT:
+Goblin_39_GloomLair|NAME:Goblin|T:Goblin|LOC:GloomLair|COORDS:22,9|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Orc_40_GloomLair|NAME:Orc|T:Orc|LOC:GloomLair|COORDS:26,10|DIFF_LVL:3|GOLD:157|LOOT:
+Wolf_41_GloomLair|NAME:Wolf|T:Wolf|LOC:GloomLair|COORDS:23,9|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Goblin_42_GloomLair|NAME:Goblin|T:Goblin|LOC:GloomLair|COORDS:22,9|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Troll_43_GloomLair|NAME:Troll|T:Troll|LOC:GloomLair|COORDS:23,8|DIFF_LVL:4|GOLD:157|LOOT:
+Ogre_44_GloomLair|NAME:Ogre|T:Ogre|LOC:GloomLair|COORDS:22,9|DIFF_LVL:4|GOLD:157|LOOT:
+Troll_45_GloomLair|NAME:Troll|T:Troll|LOC:GloomLair|COORDS:22,10|DIFF_LVL:4|GOLD:157|LOOT:
+Ogre_46_GloomLair|NAME:Ogre|T:Ogre|LOC:GloomLair|COORDS:26,12|DIFF_LVL:4|GOLD:157|LOOT:
+Ogre_47_GloomLair|NAME:Ogre|T:Ogre|LOC:GloomLair|COORDS:26,9|DIFF_LVL:4|GOLD:157|LOOT:
+Troll_48_GloomLair|NAME:Troll|T:Troll|LOC:GloomLair|COORDS:22,11|DIFF_LVL:4|GOLD:157|LOOT:
+Goblin_49_GloomLair|NAME:Goblin|T:Goblin|LOC:GloomLair|COORDS:23,12|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+boss_GloomLair|NAME:Dungeon Lord|T:Dungeon Boss|LOC:GloomLair|COORDS:24,12|DIFF_LVL:5|GOLD:157|LOOT:
+Goblin_0_ForgottenSpire|NAME:Goblin|T:Goblin|LOC:ForgottenSpire|COORDS:6,31|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Wolf_1_ForgottenSpire|NAME:Wolf|T:Wolf|LOC:ForgottenSpire|COORDS:6,30|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Ogre_2_ForgottenSpire|NAME:Ogre|T:Ogre|LOC:ForgottenSpire|COORDS:6,31|DIFF_LVL:4|GOLD:157|LOOT:
+Orc_3_ForgottenSpire|NAME:Orc|T:Orc|LOC:ForgottenSpire|COORDS:6,32|DIFF_LVL:3|GOLD:157|LOOT:
+Ogre_4_ForgottenSpire|NAME:Ogre|T:Ogre|LOC:ForgottenSpire|COORDS:6,30|DIFF_LVL:4|GOLD:157|LOOT:
+Wolf_5_ForgottenSpire|NAME:Wolf|T:Wolf|LOC:ForgottenSpire|COORDS:4,30|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Troll_6_ForgottenSpire|NAME:Troll|T:Troll|LOC:ForgottenSpire|COORDS:4,30|DIFF_LVL:4|GOLD:157|LOOT:
+Orc_7_ForgottenSpire|NAME:Orc|T:Orc|LOC:ForgottenSpire|COORDS:5,31|DIFF_LVL:3|GOLD:157|LOOT:
+Orc_8_ForgottenSpire|NAME:Orc|T:Orc|LOC:ForgottenSpire|COORDS:5,31|DIFF_LVL:3|GOLD:157|LOOT:
+Troll_9_ForgottenSpire|NAME:Troll|T:Troll|LOC:ForgottenSpire|COORDS:4,30|DIFF_LVL:4|GOLD:157|LOOT:
+Troll_10_ForgottenSpire|NAME:Troll|T:Troll|LOC:ForgottenSpire|COORDS:6,31|DIFF_LVL:4|GOLD:157|LOOT:
+Wolf_11_ForgottenSpire|NAME:Wolf|T:Wolf|LOC:ForgottenSpire|COORDS:4,31|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Goblin_12_ForgottenSpire|NAME:Goblin|T:Goblin|LOC:ForgottenSpire|COORDS:5,30|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Goblin_13_ForgottenSpire|NAME:Goblin|T:Goblin|LOC:ForgottenSpire|COORDS:4,32|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Troll_14_ForgottenSpire|NAME:Troll|T:Troll|LOC:ForgottenSpire|COORDS:6,31|DIFF_LVL:4|GOLD:157|LOOT:
+Goblin_15_ForgottenSpire|NAME:Goblin|T:Goblin|LOC:ForgottenSpire|COORDS:5,30|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Wolf_16_ForgottenSpire|NAME:Wolf|T:Wolf|LOC:ForgottenSpire|COORDS:5,32|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Wolf_17_ForgottenSpire|NAME:Wolf|T:Wolf|LOC:ForgottenSpire|COORDS:4,32|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Ogre_0_SkullCrypt|NAME:Ogre|T:Ogre|LOC:SkullCrypt|COORDS:14,25|DIFF_LVL:4|GOLD:157|LOOT:
+Goblin_1_SkullCrypt|NAME:Goblin|T:Goblin|LOC:SkullCrypt|COORDS:14,25|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Orc_2_SkullCrypt|NAME:Orc|T:Orc|LOC:SkullCrypt|COORDS:15,25|DIFF_LVL:3|GOLD:157|LOOT:
+Ogre_3_SkullCrypt|NAME:Ogre|T:Ogre|LOC:SkullCrypt|COORDS:15,27|DIFF_LVL:4|GOLD:157|LOOT:
+Orc_4_SkullCrypt|NAME:Orc|T:Orc|LOC:SkullCrypt|COORDS:13,27|DIFF_LVL:3|GOLD:157|LOOT:
+Troll_5_SkullCrypt|NAME:Troll|T:Troll|LOC:SkullCrypt|COORDS:13,25|DIFF_LVL:4|GOLD:157|LOOT:
+Wolf_6_SkullCrypt|NAME:Wolf|T:Wolf|LOC:SkullCrypt|COORDS:13,26|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Ogre_7_SkullCrypt|NAME:Ogre|T:Ogre|LOC:SkullCrypt|COORDS:13,26|DIFF_LVL:4|GOLD:157|LOOT:
+Troll_8_SkullCrypt|NAME:Troll|T:Troll|LOC:SkullCrypt|COORDS:13,25|DIFF_LVL:4|GOLD:157|LOOT:
+Wolf_9_SkullCrypt|NAME:Wolf|T:Wolf|LOC:SkullCrypt|COORDS:13,25|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Orc_10_SkullCrypt|NAME:Orc|T:Orc|LOC:SkullCrypt|COORDS:15,26|DIFF_LVL:3|GOLD:157|LOOT:
+Goblin_11_SkullCrypt|NAME:Goblin|T:Goblin|LOC:SkullCrypt|COORDS:14,25|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Troll_12_SkullCrypt|NAME:Troll|T:Troll|LOC:SkullCrypt|COORDS:15,26|DIFF_LVL:4|GOLD:157|LOOT:
+Ogre_13_SkullCrypt|NAME:Ogre|T:Ogre|LOC:SkullCrypt|COORDS:14,27|DIFF_LVL:4|GOLD:157|LOOT:
+Goblin_14_SkullCrypt|NAME:Goblin|T:Goblin|LOC:SkullCrypt|COORDS:13,27|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Ogre_15_SkullCrypt|NAME:Ogre|T:Ogre|LOC:SkullCrypt|COORDS:13,27|DIFF_LVL:4|GOLD:157|LOOT:
+Orc_16_SkullCrypt|NAME:Orc|T:Orc|LOC:SkullCrypt|COORDS:13,27|DIFF_LVL:3|GOLD:157|LOOT:
+Ogre_17_SkullCrypt|NAME:Ogre|T:Ogre|LOC:SkullCrypt|COORDS:14,26|DIFF_LVL:4|GOLD:157|LOOT:
+boss_SkullCrypt|NAME:Dungeon Lord|T:Dungeon Boss|LOC:SkullCrypt|COORDS:14,27|DIFF_LVL:5|GOLD:157|LOOT:
+Troll_0_ForgottenCrypt|NAME:Troll|T:Troll|LOC:ForgottenCrypt|COORDS:16,10|DIFF_LVL:4|GOLD:157|LOOT:
+Goblin_1_ForgottenCrypt|NAME:Goblin|T:Goblin|LOC:ForgottenCrypt|COORDS:16,10|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Wolf_2_ForgottenCrypt|NAME:Wolf|T:Wolf|LOC:ForgottenCrypt|COORDS:16,10|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Ogre_0_WhisperingRuins|NAME:Ogre|T:Ogre|LOC:WhisperingRuins|COORDS:10,23|DIFF_LVL:4|GOLD:157|LOOT:
+Troll_0_BloodCaverns|NAME:Troll|T:Troll|LOC:BloodCaverns|COORDS:13,40|DIFF_LVL:4|GOLD:157|LOOT:
+Goblin_1_BloodCaverns|NAME:Goblin|T:Goblin|LOC:BloodCaverns|COORDS:13,40|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Ogre_0_GloomCaverns|NAME:Ogre|T:Ogre|LOC:GloomCaverns|COORDS:40,16|DIFF_LVL:4|GOLD:157|LOOT:
+Orc_1_GloomCaverns|NAME:Orc|T:Orc|LOC:GloomCaverns|COORDS:41,19|DIFF_LVL:3|GOLD:157|LOOT:
+Troll_2_GloomCaverns|NAME:Troll|T:Troll|LOC:GloomCaverns|COORDS:37,18|DIFF_LVL:4|GOLD:157|LOOT:
+Wolf_3_GloomCaverns|NAME:Wolf|T:Wolf|LOC:GloomCaverns|COORDS:38,19|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Wolf_4_GloomCaverns|NAME:Wolf|T:Wolf|LOC:GloomCaverns|COORDS:41,20|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Orc_5_GloomCaverns|NAME:Orc|T:Orc|LOC:GloomCaverns|COORDS:37,16|DIFF_LVL:3|GOLD:157|LOOT:
+Troll_6_GloomCaverns|NAME:Troll|T:Troll|LOC:GloomCaverns|COORDS:39,17|DIFF_LVL:4|GOLD:157|LOOT:
+Orc_7_GloomCaverns|NAME:Orc|T:Orc|LOC:GloomCaverns|COORDS:40,17|DIFF_LVL:3|GOLD:157|LOOT:
+Wolf_8_GloomCaverns|NAME:Wolf|T:Wolf|LOC:GloomCaverns|COORDS:41,19|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Goblin_9_GloomCaverns|NAME:Goblin|T:Goblin|LOC:GloomCaverns|COORDS:40,18|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Wolf_10_GloomCaverns|NAME:Wolf|T:Wolf|LOC:GloomCaverns|COORDS:37,19|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Orc_11_GloomCaverns|NAME:Orc|T:Orc|LOC:GloomCaverns|COORDS:38,17|DIFF_LVL:3|GOLD:157|LOOT:
+Ogre_12_GloomCaverns|NAME:Ogre|T:Ogre|LOC:GloomCaverns|COORDS:41,16|DIFF_LVL:4|GOLD:157|LOOT:
+Ogre_13_GloomCaverns|NAME:Ogre|T:Ogre|LOC:GloomCaverns|COORDS:41,18|DIFF_LVL:4|GOLD:157|LOOT:
+Wolf_14_GloomCaverns|NAME:Wolf|T:Wolf|LOC:GloomCaverns|COORDS:37,16|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Wolf_15_GloomCaverns|NAME:Wolf|T:Wolf|LOC:GloomCaverns|COORDS:39,20|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Ogre_16_GloomCaverns|NAME:Ogre|T:Ogre|LOC:GloomCaverns|COORDS:38,18|DIFF_LVL:4|GOLD:157|LOOT:
+Orc_17_GloomCaverns|NAME:Orc|T:Orc|LOC:GloomCaverns|COORDS:41,19|DIFF_LVL:3|GOLD:157|LOOT:
+Orc_18_GloomCaverns|NAME:Orc|T:Orc|LOC:GloomCaverns|COORDS:37,19|DIFF_LVL:3|GOLD:157|LOOT:
+Wolf_19_GloomCaverns|NAME:Wolf|T:Wolf|LOC:GloomCaverns|COORDS:40,20|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Ogre_20_GloomCaverns|NAME:Ogre|T:Ogre|LOC:GloomCaverns|COORDS:37,16|DIFF_LVL:4|GOLD:157|LOOT:
+Ogre_21_GloomCaverns|NAME:Ogre|T:Ogre|LOC:GloomCaverns|COORDS:41,17|DIFF_LVL:4|GOLD:157|LOOT:
+Troll_22_GloomCaverns|NAME:Troll|T:Troll|LOC:GloomCaverns|COORDS:38,19|DIFF_LVL:4|GOLD:157|LOOT:
+Goblin_23_GloomCaverns|NAME:Goblin|T:Goblin|LOC:GloomCaverns|COORDS:40,18|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Ogre_24_GloomCaverns|NAME:Ogre|T:Ogre|LOC:GloomCaverns|COORDS:41,18|DIFF_LVL:4|GOLD:157|LOOT:
+Wolf_0_SkullTomb|NAME:Wolf|T:Wolf|LOC:SkullTomb|COORDS:5,36|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Troll_1_SkullTomb|NAME:Troll|T:Troll|LOC:SkullTomb|COORDS:8,40|DIFF_LVL:4|GOLD:157|LOOT:
+Goblin_2_SkullTomb|NAME:Goblin|T:Goblin|LOC:SkullTomb|COORDS:7,38|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Ogre_3_SkullTomb|NAME:Ogre|T:Ogre|LOC:SkullTomb|COORDS:5,36|DIFF_LVL:4|GOLD:157|LOOT:
+Wolf_4_SkullTomb|NAME:Wolf|T:Wolf|LOC:SkullTomb|COORDS:7,40|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Troll_5_SkullTomb|NAME:Troll|T:Troll|LOC:SkullTomb|COORDS:4,38|DIFF_LVL:4|GOLD:157|LOOT:
+Goblin_6_SkullTomb|NAME:Goblin|T:Goblin|LOC:SkullTomb|COORDS:8,36|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Wolf_7_SkullTomb|NAME:Wolf|T:Wolf|LOC:SkullTomb|COORDS:8,39|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Troll_8_SkullTomb|NAME:Troll|T:Troll|LOC:SkullTomb|COORDS:4,40|DIFF_LVL:4|GOLD:157|LOOT:
+Wolf_9_SkullTomb|NAME:Wolf|T:Wolf|LOC:SkullTomb|COORDS:5,36|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Wolf_10_SkullTomb|NAME:Wolf|T:Wolf|LOC:SkullTomb|COORDS:5,37|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Troll_11_SkullTomb|NAME:Troll|T:Troll|LOC:SkullTomb|COORDS:4,40|DIFF_LVL:4|GOLD:157|LOOT:
+Goblin_12_SkullTomb|NAME:Goblin|T:Goblin|LOC:SkullTomb|COORDS:4,37|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Goblin_13_SkullTomb|NAME:Goblin|T:Goblin|LOC:SkullTomb|COORDS:8,38|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Ogre_14_SkullTomb|NAME:Ogre|T:Ogre|LOC:SkullTomb|COORDS:7,39|DIFF_LVL:4|GOLD:157|LOOT:
+Ogre_15_SkullTomb|NAME:Ogre|T:Ogre|LOC:SkullTomb|COORDS:5,39|DIFF_LVL:4|GOLD:157|LOOT:
+Orc_16_SkullTomb|NAME:Orc|T:Orc|LOC:SkullTomb|COORDS:6,37|DIFF_LVL:3|GOLD:157|LOOT:
+Orc_17_SkullTomb|NAME:Orc|T:Orc|LOC:SkullTomb|COORDS:6,40|DIFF_LVL:3|GOLD:157|LOOT:
+Orc_18_SkullTomb|NAME:Orc|T:Orc|LOC:SkullTomb|COORDS:8,36|DIFF_LVL:3|GOLD:157|LOOT:
+Troll_19_SkullTomb|NAME:Troll|T:Troll|LOC:SkullTomb|COORDS:6,38|DIFF_LVL:4|GOLD:157|LOOT:
+Goblin_20_SkullTomb|NAME:Goblin|T:Goblin|LOC:SkullTomb|COORDS:7,36|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Wolf_21_SkullTomb|NAME:Wolf|T:Wolf|LOC:SkullTomb|COORDS:4,37|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Orc_22_SkullTomb|NAME:Orc|T:Orc|LOC:SkullTomb|COORDS:6,40|DIFF_LVL:3|GOLD:157|LOOT:
+Ogre_23_SkullTomb|NAME:Ogre|T:Ogre|LOC:SkullTomb|COORDS:6,38|DIFF_LVL:4|GOLD:157|LOOT:
+Orc_24_SkullTomb|NAME:Orc|T:Orc|LOC:SkullTomb|COORDS:7,37|DIFF_LVL:3|GOLD:157|LOOT:
+Ogre_0_ForgottenRuins|NAME:Ogre|T:Ogre|LOC:ForgottenRuins|COORDS:20,40|DIFF_LVL:4|GOLD:157|LOOT:
+Ogre_1_ForgottenRuins|NAME:Ogre|T:Ogre|LOC:ForgottenRuins|COORDS:19,40|DIFF_LVL:4|GOLD:157|LOOT:
+Ogre_2_ForgottenRuins|NAME:Ogre|T:Ogre|LOC:ForgottenRuins|COORDS:17,39|DIFF_LVL:4|GOLD:157|LOOT:
+Goblin_3_ForgottenRuins|NAME:Goblin|T:Goblin|LOC:ForgottenRuins|COORDS:17,37|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Goblin_4_ForgottenRuins|NAME:Goblin|T:Goblin|LOC:ForgottenRuins|COORDS:17,39|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Goblin_5_ForgottenRuins|NAME:Goblin|T:Goblin|LOC:ForgottenRuins|COORDS:20,36|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Wolf_6_ForgottenRuins|NAME:Wolf|T:Wolf|LOC:ForgottenRuins|COORDS:20,36|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Orc_7_ForgottenRuins|NAME:Orc|T:Orc|LOC:ForgottenRuins|COORDS:19,39|DIFF_LVL:3|GOLD:157|LOOT:
+Orc_8_ForgottenRuins|NAME:Orc|T:Orc|LOC:ForgottenRuins|COORDS:18,38|DIFF_LVL:3|GOLD:157|LOOT:
+Troll_9_ForgottenRuins|NAME:Troll|T:Troll|LOC:ForgottenRuins|COORDS:17,36|DIFF_LVL:4|GOLD:157|LOOT:
+Orc_10_ForgottenRuins|NAME:Orc|T:Orc|LOC:ForgottenRuins|COORDS:18,36|DIFF_LVL:3|GOLD:157|LOOT:
+Wolf_11_ForgottenRuins|NAME:Wolf|T:Wolf|LOC:ForgottenRuins|COORDS:18,40|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Troll_12_ForgottenRuins|NAME:Troll|T:Troll|LOC:ForgottenRuins|COORDS:20,36|DIFF_LVL:4|GOLD:157|LOOT:
+Goblin_13_ForgottenRuins|NAME:Goblin|T:Goblin|LOC:ForgottenRuins|COORDS:20,38|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Ogre_14_ForgottenRuins|NAME:Ogre|T:Ogre|LOC:ForgottenRuins|COORDS:18,38|DIFF_LVL:4|GOLD:157|LOOT:
+Wolf_15_ForgottenRuins|NAME:Wolf|T:Wolf|LOC:ForgottenRuins|COORDS:17,38|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Ogre_16_ForgottenRuins|NAME:Ogre|T:Ogre|LOC:ForgottenRuins|COORDS:17,39|DIFF_LVL:4|GOLD:157|LOOT:
+Orc_17_ForgottenRuins|NAME:Orc|T:Orc|LOC:ForgottenRuins|COORDS:16,38|DIFF_LVL:3|GOLD:157|LOOT:
+Orc_18_ForgottenRuins|NAME:Orc|T:Orc|LOC:ForgottenRuins|COORDS:16,36|DIFF_LVL:3|GOLD:157|LOOT:
+Orc_19_ForgottenRuins|NAME:Orc|T:Orc|LOC:ForgottenRuins|COORDS:19,36|DIFF_LVL:3|GOLD:157|LOOT:
+Troll_20_ForgottenRuins|NAME:Troll|T:Troll|LOC:ForgottenRuins|COORDS:18,37|DIFF_LVL:4|GOLD:157|LOOT:
+Troll_21_ForgottenRuins|NAME:Troll|T:Troll|LOC:ForgottenRuins|COORDS:17,36|DIFF_LVL:4|GOLD:157|LOOT:
+Orc_22_ForgottenRuins|NAME:Orc|T:Orc|LOC:ForgottenRuins|COORDS:16,37|DIFF_LVL:3|GOLD:157|LOOT:
+Wolf_23_ForgottenRuins|NAME:Wolf|T:Wolf|LOC:ForgottenRuins|COORDS:17,37|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Ogre_24_ForgottenRuins|NAME:Ogre|T:Ogre|LOC:ForgottenRuins|COORDS:19,40|DIFF_LVL:4|GOLD:157|LOOT:
+Wolf_25_ForgottenRuins|NAME:Wolf|T:Wolf|LOC:ForgottenRuins|COORDS:19,37|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Wolf_26_ForgottenRuins|NAME:Wolf|T:Wolf|LOC:ForgottenRuins|COORDS:16,39|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Troll_27_ForgottenRuins|NAME:Troll|T:Troll|LOC:ForgottenRuins|COORDS:18,38|DIFF_LVL:4|GOLD:157|LOOT:
+Ogre_28_ForgottenRuins|NAME:Ogre|T:Ogre|LOC:ForgottenRuins|COORDS:18,37|DIFF_LVL:4|GOLD:157|LOOT:
+Wolf_29_ForgottenRuins|NAME:Wolf|T:Wolf|LOC:ForgottenRuins|COORDS:16,38|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Goblin_30_ForgottenRuins|NAME:Goblin|T:Goblin|LOC:ForgottenRuins|COORDS:19,39|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Ogre_31_ForgottenRuins|NAME:Ogre|T:Ogre|LOC:ForgottenRuins|COORDS:19,39|DIFF_LVL:4|GOLD:157|LOOT:
+Goblin_32_ForgottenRuins|NAME:Goblin|T:Goblin|LOC:ForgottenRuins|COORDS:20,37|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Wolf_33_ForgottenRuins|NAME:Wolf|T:Wolf|LOC:ForgottenRuins|COORDS:20,36|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Troll_34_ForgottenRuins|NAME:Troll|T:Troll|LOC:ForgottenRuins|COORDS:20,39|DIFF_LVL:4|GOLD:157|LOOT:
+Wolf_35_ForgottenRuins|NAME:Wolf|T:Wolf|LOC:ForgottenRuins|COORDS:20,40|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Ogre_36_ForgottenRuins|NAME:Ogre|T:Ogre|LOC:ForgottenRuins|COORDS:16,39|DIFF_LVL:4|GOLD:157|LOOT:
+Ogre_37_ForgottenRuins|NAME:Ogre|T:Ogre|LOC:ForgottenRuins|COORDS:16,37|DIFF_LVL:4|GOLD:157|LOOT:
+Troll_38_ForgottenRuins|NAME:Troll|T:Troll|LOC:ForgottenRuins|COORDS:19,37|DIFF_LVL:4|GOLD:157|LOOT:
+Wolf_39_ForgottenRuins|NAME:Wolf|T:Wolf|LOC:ForgottenRuins|COORDS:19,40|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Wolf_40_ForgottenRuins|NAME:Wolf|T:Wolf|LOC:ForgottenRuins|COORDS:18,36|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Ogre_41_ForgottenRuins|NAME:Ogre|T:Ogre|LOC:ForgottenRuins|COORDS:17,38|DIFF_LVL:4|GOLD:157|LOOT:
+Orc_42_ForgottenRuins|NAME:Orc|T:Orc|LOC:ForgottenRuins|COORDS:17,39|DIFF_LVL:3|GOLD:157|LOOT:
+Orc_43_ForgottenRuins|NAME:Orc|T:Orc|LOC:ForgottenRuins|COORDS:16,39|DIFF_LVL:3|GOLD:157|LOOT:
+Ogre_44_ForgottenRuins|NAME:Ogre|T:Ogre|LOC:ForgottenRuins|COORDS:16,36|DIFF_LVL:4|GOLD:157|LOOT:
+Troll_45_ForgottenRuins|NAME:Troll|T:Troll|LOC:ForgottenRuins|COORDS:18,36|DIFF_LVL:4|GOLD:157|LOOT:
+Orc_46_ForgottenRuins|NAME:Orc|T:Orc|LOC:ForgottenRuins|COORDS:17,36|DIFF_LVL:3|GOLD:157|LOOT:
+Troll_47_ForgottenRuins|NAME:Troll|T:Troll|LOC:ForgottenRuins|COORDS:17,37|DIFF_LVL:4|GOLD:157|LOOT:
+Troll_48_ForgottenRuins|NAME:Troll|T:Troll|LOC:ForgottenRuins|COORDS:16,37|DIFF_LVL:4|GOLD:157|LOOT:
+Ogre_49_ForgottenRuins|NAME:Ogre|T:Ogre|LOC:ForgottenRuins|COORDS:20,39|DIFF_LVL:4|GOLD:157|LOOT:
+Troll_50_ForgottenRuins|NAME:Troll|T:Troll|LOC:ForgottenRuins|COORDS:19,39|DIFF_LVL:4|GOLD:157|LOOT:
+Wolf_51_ForgottenRuins|NAME:Wolf|T:Wolf|LOC:ForgottenRuins|COORDS:19,39|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Wolf_52_ForgottenRuins|NAME:Wolf|T:Wolf|LOC:ForgottenRuins|COORDS:16,40|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Goblin_53_ForgottenRuins|NAME:Goblin|T:Goblin|LOC:ForgottenRuins|COORDS:17,39|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Ogre_54_ForgottenRuins|NAME:Ogre|T:Ogre|LOC:ForgottenRuins|COORDS:16,36|DIFF_LVL:4|GOLD:157|LOOT:
+Goblin_55_ForgottenRuins|NAME:Goblin|T:Goblin|LOC:ForgottenRuins|COORDS:19,36|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Goblin_56_ForgottenRuins|NAME:Goblin|T:Goblin|LOC:ForgottenRuins|COORDS:16,38|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Troll_57_ForgottenRuins|NAME:Troll|T:Troll|LOC:ForgottenRuins|COORDS:16,40|DIFF_LVL:4|GOLD:157|LOOT:
+Ogre_58_ForgottenRuins|NAME:Ogre|T:Ogre|LOC:ForgottenRuins|COORDS:17,36|DIFF_LVL:4|GOLD:157|LOOT:
+Ogre_59_ForgottenRuins|NAME:Ogre|T:Ogre|LOC:ForgottenRuins|COORDS:20,38|DIFF_LVL:4|GOLD:157|LOOT:
+Goblin_60_ForgottenRuins|NAME:Goblin|T:Goblin|LOC:ForgottenRuins|COORDS:18,38|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Troll_61_ForgottenRuins|NAME:Troll|T:Troll|LOC:ForgottenRuins|COORDS:16,40|DIFF_LVL:4|GOLD:157|LOOT:
+Wolf_62_ForgottenRuins|NAME:Wolf|T:Wolf|LOC:ForgottenRuins|COORDS:17,37|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Goblin_63_ForgottenRuins|NAME:Goblin|T:Goblin|LOC:ForgottenRuins|COORDS:19,36|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Ogre_64_ForgottenRuins|NAME:Ogre|T:Ogre|LOC:ForgottenRuins|COORDS:16,36|DIFF_LVL:4|GOLD:157|LOOT:
+Orc_65_ForgottenRuins|NAME:Orc|T:Orc|LOC:ForgottenRuins|COORDS:19,39|DIFF_LVL:3|GOLD:157|LOOT:
+Goblin_66_ForgottenRuins|NAME:Goblin|T:Goblin|LOC:ForgottenRuins|COORDS:18,36|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Goblin_67_ForgottenRuins|NAME:Goblin|T:Goblin|LOC:ForgottenRuins|COORDS:18,39|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Ogre_68_ForgottenRuins|NAME:Ogre|T:Ogre|LOC:ForgottenRuins|COORDS:18,39|DIFF_LVL:4|GOLD:157|LOOT:
+Orc_69_ForgottenRuins|NAME:Orc|T:Orc|LOC:ForgottenRuins|COORDS:18,39|DIFF_LVL:3|GOLD:157|LOOT:
+Troll_70_ForgottenRuins|NAME:Troll|T:Troll|LOC:ForgottenRuins|COORDS:19,38|DIFF_LVL:4|GOLD:157|LOOT:
+Ogre_71_ForgottenRuins|NAME:Ogre|T:Ogre|LOC:ForgottenRuins|COORDS:17,39|DIFF_LVL:4|GOLD:157|LOOT:
+Wolf_72_ForgottenRuins|NAME:Wolf|T:Wolf|LOC:ForgottenRuins|COORDS:20,38|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Goblin_73_ForgottenRuins|NAME:Goblin|T:Goblin|LOC:ForgottenRuins|COORDS:19,39|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Ogre_74_ForgottenRuins|NAME:Ogre|T:Ogre|LOC:ForgottenRuins|COORDS:16,38|DIFF_LVL:4|GOLD:157|LOOT:
+boss_ForgottenRuins|NAME:Dungeon Lord|T:Dungeon Boss|LOC:ForgottenRuins|COORDS:18,36|DIFF_LVL:5|GOLD:157|LOOT:
+Orc_0_WhisperingLair|NAME:Orc|T:Orc|LOC:WhisperingLair|COORDS:3,13|DIFF_LVL:3|GOLD:157|LOOT:
+boss_WhisperingLair|NAME:Dungeon Lord|T:Dungeon Boss|LOC:WhisperingLair|COORDS:3,13|DIFF_LVL:5|GOLD:157|LOOT:
+Orc_0_GloomSpire|NAME:Orc|T:Orc|LOC:GloomSpire|COORDS:14,10|DIFF_LVL:3|GOLD:157|LOOT:
+Wolf_1_GloomSpire|NAME:Wolf|T:Wolf|LOC:GloomSpire|COORDS:13,8|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Goblin_2_GloomSpire|NAME:Goblin|T:Goblin|LOC:GloomSpire|COORDS:14,10|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Troll_3_GloomSpire|NAME:Troll|T:Troll|LOC:GloomSpire|COORDS:13,10|DIFF_LVL:4|GOLD:157|LOOT:
+Goblin_4_GloomSpire|NAME:Goblin|T:Goblin|LOC:GloomSpire|COORDS:15,10|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Troll_5_GloomSpire|NAME:Troll|T:Troll|LOC:GloomSpire|COORDS:15,8|DIFF_LVL:4|GOLD:157|LOOT:
+Ogre_6_GloomSpire|NAME:Ogre|T:Ogre|LOC:GloomSpire|COORDS:13,10|DIFF_LVL:4|GOLD:157|LOOT:
+Ogre_7_GloomSpire|NAME:Ogre|T:Ogre|LOC:GloomSpire|COORDS:15,9|DIFF_LVL:4|GOLD:157|LOOT:
+Goblin_8_GloomSpire|NAME:Goblin|T:Goblin|LOC:GloomSpire|COORDS:14,8|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Goblin_9_GloomSpire|NAME:Goblin|T:Goblin|LOC:GloomSpire|COORDS:15,8|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+Ogre_10_GloomSpire|NAME:Ogre|T:Ogre|LOC:GloomSpire|COORDS:13,8|DIFF_LVL:4|GOLD:157|LOOT:
+Orc_11_GloomSpire|NAME:Orc|T:Orc|LOC:GloomSpire|COORDS:15,8|DIFF_LVL:3|GOLD:157|LOOT:
+Orc_12_GloomSpire|NAME:Orc|T:Orc|LOC:GloomSpire|COORDS:14,8|DIFF_LVL:3|GOLD:157|LOOT:
+Troll_13_GloomSpire|NAME:Troll|T:Troll|LOC:GloomSpire|COORDS:15,9|DIFF_LVL:4|GOLD:157|LOOT:
+Wolf_14_GloomSpire|NAME:Wolf|T:Wolf|LOC:GloomSpire|COORDS:14,9|DIFF_LVL:2|GOLD:157|LOOT:Wolf Pelt
+Orc_15_GloomSpire|NAME:Orc|T:Orc|LOC:GloomSpire|COORDS:15,8|DIFF_LVL:3|GOLD:157|LOOT:
+Troll_16_GloomSpire|NAME:Troll|T:Troll|LOC:GloomSpire|COORDS:13,8|DIFF_LVL:4|GOLD:157|LOOT:
+Goblin_17_GloomSpire|NAME:Goblin|T:Goblin|LOC:GloomSpire|COORDS:13,8|DIFF_LVL:1|GOLD:157|LOOT:Goblin Ear
+
+[ABILITY_SHOP]
+Power Attack|T1|500g|Warrior|A powerful but less accurate attack.
+Cleave|T2|1500g|Warrior|Attack two adjacent enemies at once.
+War Cry|T3|3000g|Warrior|Boosts attack and defense for a short duration.
+Sneak Attack|T1|500g|Rogue|Deal extra damage when attacking from stealth.
+Poisoned Blade|T2|1500g|Rogue|Apply a damage-over-time poison to your weapon.
+Vanish|T3|3000g|Rogue|Instantly become invisible for a short time.
+Fireball|T1|500g|Mage|A fiery explosion that damages enemies in an area.
+Ice Storm|T2|1500g|Mage|A swirling storm of ice that slows and damages enemies.
+Chain Lightning|T3|3000g|Mage|Lightning that arcs from one enemy to another.
+
+[CHRONICLE_TRIGGERS]
+NPC_DEATH:Bjorn Ironhand|With the death of Bjorn Ironhand, the Town Guard is thrown into chaos. Their operations become disorganized and fearful. 
+NPC_DEATH:Erik Swiftfoot|With the death of Erik Swiftfoot, the Merchants' Guild is thrown into chaos. Their operations become disorganized and fearful. Sensing weakness, the Thieves' Guild grows bolder, their influence spreading like a shadow in the ensuing power vacuum.
+NPC_DEATH:Ingrid Stonefist|With the death of Ingrid Stonefist, the Thieves' Guild is thrown into chaos. Their operations become disorganized and fearful. Sensing weakness, the Merchants' Guild grows bolder, their influence spreading like a shadow in the ensuing power vacuum.
+
+[ENVIRONMENTAL_PROSE]
+FOREST_DAY_CLEAR|Sunlight dapples through the thick canopy, painting the forest floor in shifting patterns of light and shadow. The air is alive with the gentle hum of insects and the distant call of birds.
+FOREST_DAY_RAIN|You find yourself in a forest during the day with rain skies.
+FOREST_DAY_FOG|You find yourself in a forest during the day with fog skies.
+FOREST_NIGHT_CLEAR|You find yourself in a forest during the night with clear skies.
+FOREST_NIGHT_RAIN|A steady rain drums against the leaves overhead, a constant, soothing rhythm in the otherwise silent woods. The world is reduced to the glistening bark of nearby trees and the earthy smell of wet soil.
+FOREST_NIGHT_FOG|You find yourself in a forest during the night with fog skies.
+MOUNTAINS_DAY_CLEAR|The air is thin and crisp. Jagged peaks of grey stone claw at the deep blue sky around you. Below, the world spreads out like a map, vast and green.
+MOUNTAINS_DAY_RAIN|You find yourself in a mountains during the day with rain skies.
+MOUNTAINS_DAY_FOG|You find yourself in a mountains during the day with fog skies.
+MOUNTAINS_NIGHT_CLEAR|You find yourself in a mountains during the night with clear skies.
+MOUNTAINS_NIGHT_RAIN|You find yourself in a mountains during the night with rain skies.
+MOUNTAINS_NIGHT_FOG|A thick, cold fog clings to the mountainside, swallowing all sound and sight. The world is a silent, grey void, and you can see no more than a few feet in any direction. The silence is absolute.
+PLAINS_DAY_CLEAR|An endless sea of grass sways in the gentle breeze under a vast, open sky. The horizon is a flat, unbroken line in all directions, giving a profound sense of space and solitude.
+PLAINS_DAY_RAIN|You find yourself in a plains during the day with rain skies.
+PLAINS_DAY_FOG|You find yourself in a plains during the day with fog skies.
+PLAINS_NIGHT_CLEAR|You find yourself in a plains during the night with clear skies.
+PLAINS_NIGHT_RAIN|You find yourself in a plains during the night with rain skies.
+PLAINS_NIGHT_FOG|You find yourself in a plains during the night with fog skies.
+SWAMP_DAY_CLEAR|You find yourself in a swamp during the day with clear skies.
+SWAMP_DAY_RAIN|You find yourself in a swamp during the day with rain skies.
+SWAMP_DAY_FOG|You find yourself in a swamp during the day with fog skies.
+SWAMP_NIGHT_CLEAR|You find yourself in a swamp during the night with clear skies.
+SWAMP_NIGHT_RAIN|Warm, heavy rain falls, hissing as it strikes the stagnant, black water of the swamp. Strange, gurgling sounds echo through the twisted trees, and the air is thick with the smell of decay and wet vegetation.
+SWAMP_NIGHT_FOG|You find yourself in a swamp during the night with fog skies.
+HILLS_DAY_CLEAR|You find yourself in a hills during the day with clear skies.
+HILLS_DAY_RAIN|You find yourself in a hills during the day with rain skies.
+HILLS_DAY_FOG|You find yourself in a hills during the day with fog skies.
+HILLS_NIGHT_CLEAR|You find yourself in a hills during the night with clear skies.
+HILLS_NIGHT_RAIN|You find yourself in a hills during the night with rain skies.
+HILLS_NIGHT_FOG|You find yourself in a hills during the night with fog skies.

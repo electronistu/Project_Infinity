@@ -1,10 +1,10 @@
-# sociological_generator.py v2.4
-# Adds special sub-location generation for the Capital city.
+# sociological_generator.py v3.0
+# Generates factions, NPCs, creatures, and sub-locations, and assigns roles and difficulty tiers.
 
 import random
 from models import WorldState, Faction, NPC, Creature, SubLocation, Location
 
-# --- v2 Name/Data Components ---
+# --- v3 Name/Data Components ---
 MALE_NAMES = ["Roric", "Gunnar", "Falk", "Bjorn", "Sten", "Arne", "Erik"]
 FEMALE_NAMES = ["Astrid", "Freya", "Ingrid", "Sigrid", "Hilda", "Gerda", "Sif"]
 FAMILY_NAMES = ["Ironhand", "Stonefist", "Longbeard", "Swiftfoot", "Greymane"]
@@ -15,34 +15,33 @@ FACTION_TEMPLATES = {
     "Thieves' Guild": {"disposition": "Chaotic", "description": "A shadowy network of spies, burglars, and smugglers."}
 }
 CREATURE_TYPES = {
-    "Goblin": {"challenge_level": 1, "difficulty": "Easy"},
-    "Wolf": {"challenge_level": 2, "difficulty": "Easy"},
-    "Orc": {"challenge_level": 4, "difficulty": "Medium"},
-    "Troll": {"challenge_level": 7, "difficulty": "Hard"},
-    "Ogre": {"challenge_level": 6, "difficulty": "Hard"},
-    "Dungeon Boss": {"challenge_level": 10, "difficulty": "Boss"}
+    "Goblin": {"difficulty_level": 1},
+    "Wolf": {"difficulty_level": 2},
+    "Orc": {"difficulty_level": 3},
+    "Troll": {"difficulty_level": 4},
+    "Ogre": {"difficulty_level": 4},
+    "Dungeon Boss": {"difficulty_level": 5}
 }
 
 def generate_creatures_for_dungeon(dungeon: Location, world_state: WorldState):
     """Generates and places creatures within a specific dungeon's footprint."""
     num_creatures = dungeon.size[0] * dungeon.size[1] * random.randint(1, 3)
     dungeon_x, dungeon_y = dungeon.coordinates
-    
-    # CORRECTED: Convert to list THEN slice.
+
     possible_creatures = list(CREATURE_TYPES.keys())[:-1]
-    if not possible_creatures: return # Failsafe if CREATURE_TYPES is too small
+    if not possible_creatures: return
 
     for i in range(num_creatures):
         creature_type = random.choice(possible_creatures)
         stats = CREATURE_TYPES[creature_type]
-        
+
         coord_x = dungeon_x + random.randint(0, dungeon.size[0] - 1)
         coord_y = dungeon_y + random.randint(0, dungeon.size[1] - 1)
-        
+
         creature_id = f"{creature_type}_{i}_{dungeon.name}"
         creature = Creature(
-            name=creature_type, type=creature_type, challenge_level=stats["challenge_level"],
-            location=dungeon.name, coordinates=(coord_x, coord_y), difficulty=stats["difficulty"]
+            name=creature_type, type=creature_type, race="Beast",
+            location=dungeon.name, coordinates=(coord_x, coord_y), difficulty_level=stats["difficulty_level"]
         )
         world_state.creatures[creature_id] = creature
 
@@ -51,15 +50,14 @@ def generate_creatures_for_dungeon(dungeon: Location, world_state: WorldState):
         coord_x = dungeon_x + random.randint(0, dungeon.size[0] - 1)
         coord_y = dungeon_y + random.randint(0, dungeon.size[1] - 1)
         boss = Creature(
-            name="Dungeon Lord", type="Dungeon Boss", challenge_level=boss_stats["challenge_level"],
-            location=dungeon.name, coordinates=(coord_x, coord_y), difficulty=boss_stats["difficulty"]
+            name="Dungeon Lord", type="Dungeon Boss", race="Beast",
+            location=dungeon.name, coordinates=(coord_x, coord_y), difficulty_level=boss_stats["difficulty_level"]
         )
         world_state.creatures[f"boss_{dungeon.name}"] = boss
 
-
 def generate_sociological_layer(world_state: WorldState) -> WorldState:
     """
-    v2.3: Generates factions, NPCs, creatures, and sub-locations, then assigns roles and difficulty tiers.
+    v3.0: Generates factions, NPCs, creatures, and sub-locations, then assigns roles and difficulty tiers.
     """
     print("[STATUS] Generating Sociological Layer...")
 
@@ -69,7 +67,7 @@ def generate_sociological_layer(world_state: WorldState) -> WorldState:
 
     # --- Step 2: Generate NPC Population for Settlements ---
     for loc in world_state.world_map.values():
-        if loc.type == "Settlement":
+        if loc.type in ["Settlement", "Capital"]:
             num_families = loc.size[0] * loc.size[1] * random.randint(1, 2)
             for _ in range(num_families):
                 family_name = random.choice(FAMILY_NAMES)
@@ -79,8 +77,8 @@ def generate_sociological_layer(world_state: WorldState) -> WorldState:
                     sex = "Male" if i == 0 else "Female"
                     name = f"{random.choice(MALE_NAMES if sex == 'Male' else FEMALE_NAMES)} {family_name}"
                     if name in world_state.npcs: continue
-                    npc = NPC(name=name, age=random.randint(30, 55), sex=sex, race=family_race, status="Commoner", 
-                              family_id=family_name, role_in_family="Parent", location=loc.name, difficulty="Easy")
+                    npc = NPC(name=name, age=random.randint(30, 55), sex=sex, race=family_race, status="Commoner",
+                              family_id=family_name, role_in_family="Parent", location=loc.name, difficulty_level=1)
                     world_state.npcs[name] = npc
                     loc.inhabitants.append(name)
                 # Children
@@ -88,8 +86,8 @@ def generate_sociological_layer(world_state: WorldState) -> WorldState:
                     sex = random.choice(["Male", "Female"])
                     name = f"{random.choice(MALE_NAMES if sex == 'Male' else FEMALE_NAMES)} {family_name}"
                     if name in world_state.npcs: continue
-                    npc = NPC(name=name, age=random.randint(5, 16), sex=sex, race=family_race, status="Child", 
-                              family_id=family_name, role_in_family="Child", location=loc.name, difficulty="Easy")
+                    npc = NPC(name=name, age=random.randint(5, 16), sex=sex, race=family_race, status="Child",
+                              family_id=family_name, role_in_family="Child", location=loc.name, difficulty_level=1)
                     world_state.npcs[name] = npc
                     loc.inhabitants.append(name)
 
@@ -98,10 +96,10 @@ def generate_sociological_layer(world_state: WorldState) -> WorldState:
     random.shuffle(eligible_adults)
     num_factions = len(FACTION_TEMPLATES)
     base_members = len(eligible_adults) // (num_factions + 1)
-    
+
     role_map = {"Town Guard": "Guard", "Merchants' Guild": "Merchant", "Thieves' Guild": "Thief"}
     faction_names = list(role_map.keys())
-    
+
     npc_idx = 0
     for fac_name in faction_names:
         for _ in range(base_members):
@@ -116,27 +114,23 @@ def generate_sociological_layer(world_state: WorldState) -> WorldState:
     print("[STATUS] Establishing businesses and assigning operators...")
     for settlement in world_state.world_map.values():
         if settlement.type not in ["Settlement", "Capital"]: continue
-        
-        # v2.4 CHANGE: Capital gets guaranteed faction HQs
+
         if settlement.type == "Capital":
             guaranteed_roles = ["Merchant", "Guard", "Thief"]
         else:
             guaranteed_roles = random.sample(["Merchant", "Guard", "Commoner"], k=2)
 
         operators = {role: None for role in guaranteed_roles}
-        # Add a commoner for a tavern if not already selected
         if "Commoner" not in operators:
             operators["Commoner"] = None
 
-        # Find available operators in this settlement
         available_npcs = [npc for name in settlement.inhabitants if (npc := world_state.npcs.get(name))]
         random.shuffle(available_npcs)
 
         for npc in available_npcs:
             if npc.status in operators and operators[npc.status] is None:
                 operators[npc.status] = npc.name
-        
-        # Create sub-locations based on assigned operators
+
         if operators.get("Merchant"):
             settlement.sub_locations.append(SubLocation(name=f"{settlement.name} Merchant's Guild", type="Shop", parent_location=settlement.name, operator_npc=operators["Merchant"]))
         if operators.get("Guard"):
@@ -151,12 +145,18 @@ def generate_sociological_layer(world_state: WorldState) -> WorldState:
         if faction.members:
             leader = random.choice(faction.members)
             faction.leader = leader
-    
+
     for npc in world_state.npcs.values():
         if npc.name in [f.leader for f in world_state.factions.values() if f.leader]:
-            npc.difficulty = "Hard"
-        elif npc.status in ["Guard", "Merchant", "Thief"]:
-            npc.difficulty = "Medium"
+            npc.difficulty_level = 5
+        elif npc.status == "Merchant":
+            npc.difficulty_level = 4
+        elif npc.status == "Guard":
+            npc.difficulty_level = 3
+        elif npc.status == "Thief":
+            npc.difficulty_level = 3
+        elif npc.status == "Commoner":
+            npc.difficulty_level = 2
 
     # --- Step 6: Generate Creatures ---
     print("[STATUS] Populating dungeons with creatures...")

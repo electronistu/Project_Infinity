@@ -1,13 +1,12 @@
-# economic_generator.py v2
-# Layer 3 of the Generation Cascade. Creates a finite economy, distributes gold, and generates inventories.
+# economic_generator.py v3.0
+# Layer 3 of the Generation Cascade. Distributes equipment and gold.
 
 import json
 import random
-from models import WorldState, Item
+from models import WorldState, Item, NPC, Creature
 
-# --- v2 Constants ---
+# --- v3 Constants ---
 TOTAL_WORLD_GOLD = 100000
-INVENTORY_BUDGET_PERCENTAGE = (0.2, 0.5) # Each NPC spends 20-50% of their gold on items
 
 # Defines the base "wealth score" for different roles.
 WEALTH_HIERARCHY = {
@@ -24,40 +23,37 @@ WEALTH_HIERARCHY = {
     "Easy": 2
 }
 
-def generate_inventory(entity, budget: int, item_list: list) -> list:
-    """Generates a list of items for an entity based on a budget."""
-    inventory = []
-    
-    # Filter items appropriate for the entity's role
-    if hasattr(entity, 'status'): # It's an NPC
-        if entity.status == "Guard":
-            possible_items = [i for i in item_list if i['type'] in ['Weapon', 'Armor']]
-        elif entity.status == "Thief":
-            possible_items = [i for i in item_list if i['type'] in ['Weapon', 'Misc']]
-        else: # Merchants and Commoners can have a wider variety
-            possible_items = item_list
-    else: # It's a Creature
-        possible_items = [i for i in item_list if i['type'] in ['Misc', 'Consumable']]
+# Maps roles to appropriate equipment tiers
+EQUIPMENT_TIERS = {
+    "Commoner": ["Padded Tunic", "Leather Trousers"],
+    "Guard": ["Chainmail", "Iron Greaves", "Steel Shortsword", "Wooden Shield"],
+    "Merchant": ["Silver Ring", "Padded Tunic"],
+    "Thief": ["Leather Armor", "Iron Dagger"],
+    "Default": ["Padded Tunic"]
+}
 
-    if not possible_items:
-        return []
+def get_items_by_slot(item_list: list, slot: str) -> list:
+    """Filters items from the master list by their equipment slot."""
+    return [Item(**item) for item in item_list if item['slot'] == slot]
 
-    # Spend the budget
-    while budget > 0:
-        affordable_items = [i for i in possible_items if i['base_value'] <= budget and i['base_value'] > 0]
-        if not affordable_items:
-            break
-        
-        chosen_item_dict = random.choice(affordable_items)
-        inventory.append(Item(**chosen_item_dict))
-        budget -= chosen_item_dict['base_value']
-        
-    return inventory
+def equip_character(character, item_list: list):
+    """v3: Equips a character with items based on their role and status."""
+    if isinstance(character, NPC):
+        tier_items = EQUIPMENT_TIERS.get(character.status, EQUIPMENT_TIERS["Default"])
+    else: # It's a creature, for now they don't get equipment
+        return
 
+    for item_name in tier_items:
+        for item_data in item_list:
+            if item_data['name'] == item_name:
+                slot = item_data['slot']
+                if slot in character.equipment:
+                    character.equipment[slot] = Item(**item_data)
+                break
 
 def generate_economic_layer(world_state: WorldState) -> WorldState:
     """
-    v2: Manages the entire economic generation cascade.
+    v3: Manages the economic generation, focusing on equipment distribution and gold.
     """
     print("[STATUS] Generating Economic Layer...")
 
@@ -69,28 +65,22 @@ def generate_economic_layer(world_state: WorldState) -> WorldState:
         print("[ERROR] items.json not found! Economic layer generation failed.")
         return world_state
 
-    # --- Step 2: Calculate Wealth Points for all Entities ---
+    # --- Step 2: Equip all NPCs ---
+    print("[STATUS] Distributing equipment to population...")
+    for npc in world_state.npcs.values():
+        equip_character(npc, item_list)
+
+    # --- Step 3: Calculate Wealth Points & Distribute Gold ---
     total_wealth_points = 0
     entity_wealth_points = {}
 
-    # Pre-calculate family sizes for the family bonus
-    family_counts = {}
     for npc in world_state.npcs.values():
-        if npc.family_id not in family_counts:
-            family_counts[npc.family_id] = 0
-        family_counts[npc.family_id] += 1
-
-    # Calculate points for NPCs
-    for npc in world_state.npcs.values():
-        base_score = WEALTH_HIERARCHY.get(npc.status, 1)
-        family_bonus = 1 + ((family_counts.get(npc.family_id, 1) - 1) * 0.1) # 10% bonus per extra family member
-        points = base_score * family_bonus
+        points = WEALTH_HIERARCHY.get(npc.status, 1)
         entity_wealth_points[npc.name] = points
         total_wealth_points += points
 
-    # Calculate points for Creatures
     for creature_id, creature in world_state.creatures.items():
-        points = WEALTH_HIERARCHY.get(creature.difficulty, 1)
+        points = WEALTH_HIERARCHY.get(creature.difficulty_level, 1) # Using difficulty_level now
         entity_wealth_points[creature_id] = points
         total_wealth_points += points
 
@@ -98,29 +88,24 @@ def generate_economic_layer(world_state: WorldState) -> WorldState:
         print("[WARNING] Total wealth points is zero. Cannot distribute gold.")
         return world_state
 
-    # --- Step 3: Distribute Gold ---
-    print("[STATUS] Distributing world gold...")
     gold_per_point = TOTAL_WORLD_GOLD / total_wealth_points
-    
+
     for npc in world_state.npcs.values():
         npc.gold = int(entity_wealth_points[npc.name] * gold_per_point)
-        
+
     for creature_id, creature in world_state.creatures.items():
         creature.gold = int(entity_wealth_points[creature_id] * gold_per_point)
 
     world_state.total_world_gold = TOTAL_WORLD_GOLD
 
-    # --- Step 4: Generate Inventories and Loot ---
-    print("[STATUS] Generating inventories and loot tables...")
-    for npc in world_state.npcs.values():
-        if npc.gold > 0:
-            budget = int(npc.gold * random.uniform(*INVENTORY_BUDGET_PERCENTAGE))
-            npc.inventory = generate_inventory(npc, budget, item_list)
-
+    # --- Step 4: Generate Loot for Creatures ---
+    # This can be expanded later to be more sophisticated
     for creature in world_state.creatures.values():
-        if creature.gold > 0:
-            budget = int(creature.gold * random.uniform(*INVENTORY_BUDGET_PERCENTAGE))
-            creature.loot = generate_inventory(creature, budget, item_list)
+        if "Goblin" in creature.name:
+            creature.loot.append(Item(name="Goblin Ear", type="Misc", slot="none", base_value=1))
+        elif "Wolf" in creature.name:
+            creature.loot.append(Item(name="Wolf Pelt", type="Misc", slot="none", base_value=5))
 
-    print(f"[STATUS] Economic Layer complete. Distributed {TOTAL_WORLD_GOLD} gold across {len(world_state.npcs) + len(world_state.creatures)} entities.")
+
+    print(f"[STATUS] Economic Layer complete. Distributed equipment and {TOTAL_WORLD_GOLD} gold.")
     return world_state

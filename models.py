@@ -1,10 +1,8 @@
-# models.py v2.1
-# Pydantic models defining the core data structures for Project Infinity v2.
+# models.py v3.0
+# Pydantic models defining the core data structures for Project Infinity v3.
 
 from pydantic import BaseModel, Field
 from typing import Dict, List, Optional, Tuple
-
-# ... (Item, SubLocation models are unchanged) ...
 
 class Item(BaseModel):
     name: str
@@ -12,24 +10,45 @@ class Item(BaseModel):
     slot: str
     base_value: int
 
+class Ability(BaseModel):
+    name: str
+    description: str
+    tier: int
+    cost: int
+    class_requirement: str
+
+class Time(BaseModel):
+    current_tick: str = "12:00"
+    ticks_per_day: List[str] = ["00:00", "06:00", "12:00", "18:00"]
+
 class SubLocation(BaseModel):
     name: str
     type: str
     parent_location: str
     operator_npc: Optional[str] = None
 
-class PlayerCharacter(BaseModel):
-    """Represents the player's character for v2.1."""
+class BaseCharacter(BaseModel):
+    """v3: Common base for all characters, including stats and equipment."""
     name: str
+    race: str
+    stats: Dict[str, int] = {
+        "STR": 10, "DEX": 10, "CON": 10,
+        "INT": 10, "WIS": 10, "CHA": 10
+    }
+    equipment: Dict[str, Optional[Item]] = {
+        "head": None, "chest": None, "arms": None, "legs": None,
+        "ring": None, "main_hand": None, "off_hand": None
+    }
+    difficulty_level: int = 1
+    gold: int = 0
+
+class PlayerCharacter(BaseCharacter):
+    """v3: Represents the player's character."""
     age: int
     sex: str
-    # CORRECTED: The 'orientation' field has been removed.
-    race: str
     character_class: str = Field(..., alias='class')
     alignment: str
-
-    gold: int = 0
-    equipped_items: Dict[str, Item] = {}
+    abilities: List[str] = []
     known_locations: List[str] = []
     known_npcs: List[str] = []
     completed_quests: List[str] = []
@@ -37,60 +56,50 @@ class PlayerCharacter(BaseModel):
     class Config:
         populate_by_name = True
 
+class NPC(BaseCharacter):
+    """v3: Represents a single Non-Player Character."""
+    age: int
+    sex: str
+    status: str
+    family_id: str
+    role_in_family: str
+    location: str
+    faction_membership: Optional[str] = None
+    inventory: List[Item] = []
+
+class Creature(BaseCharacter):
+    """v3: Represents a non-sentient creature or monster."""
+    type: str
+    location: str
+    coordinates: Tuple[int, int]
+    loot: List[Item] = []
+
 class Location(BaseModel):
-    """Represents a single location on the world map for v2.2."""
+    """v3: Represents a single location on the world map."""
     name: str
-    # v2.2 CHANGE: Added "Capital" as a valid type.
     type: str # 'Settlement', 'Dungeon', 'Capital'
     biome: str
     size: Tuple[int, int]
     challenge_level: int
+    dungeon_difficulty: Optional[str] = None # 'easy', 'medium', 'hard'
     connections: List[str] = []
     inhabitants: List[str] = []
     sub_locations: List[SubLocation] = []
     coordinates: Optional[Tuple[int, int]] = None
 
 class Faction(BaseModel):
-    """Represents a faction for v2."""
     name: str
     description: str
     disposition: str
     leader: Optional[str] = None
     members: List[str] = []
 
-class NPC(BaseModel):
-    """Represents a single Non-Player Character for v2."""
-    name: str
-    age: int
-    sex: str
-    race: str
-    status: str
-    family_id: str
-    role_in_family: str
-    location: str
-    faction_membership: Optional[str] = None
-    difficulty: str # 'Easy', 'Medium', 'Hard'
-    inventory: List[Item] = []
-    gold: int = 0
-
-class Creature(BaseModel):
-    """Represents a non-sentient creature or monster for v2."""
-    name: str
-    type: str
-    challenge_level: int
-    location: str # Name of the Dungeon or wilderness area
-    coordinates: Tuple[int, int]
-    difficulty: str # 'Easy', 'Hard', 'Boss'
-    loot: List[Item] = []
-    gold: int = 0
-
 class Quest(BaseModel):
-    """Represents a single generated quest."""
     id: str
     title: str
-    type: str # 'Fetch', 'Kill', 'Clear'
+    type: str # 'Fetch', 'Kill', 'Clear', 'Escort', 'Investigate'
     giver_npc: str
-    target: str # Can be an item name, NPC name, or Location name
+    target: str
     reward_gold: int
     reward_item: Optional[Item] = None
     prerequisite_quest: Optional[str] = None
@@ -98,9 +107,10 @@ class Quest(BaseModel):
     description: str
 
 class WorldState(BaseModel):
-    """The main container for the entire generated world for v2."""
+    """v3: The main container for the entire generated world."""
     instance_id: str
     player_character: PlayerCharacter
+    world_time: Time = Time()
     total_world_gold: int = 0
 
     world_map: Dict[str, Location] = {}
@@ -108,9 +118,11 @@ class WorldState(BaseModel):
     npcs: Dict[str, NPC] = {}
     creatures: Dict[str, Creature] = {}
     quests: Dict[str, Quest] = {}
+    ability_shop: List[Ability] = []
 
     # Pre-calculated data for the GM
     coded_map_grid: Optional[List[str]] = None
-    faction_relations: Dict[str, Dict[str, str]] = {} # e.g., {'Merchants': {'Thieves': 'HOSTILE'}}
-    chronicle_triggers: Dict[str, str] = {} # e.g., {'NPC_DEATH:Gunnar': '...'}
-    environmental_prose: Dict[str, str] = {} # e.g., {'FOREST_NIGHT_RAIN': '...'}
+    roads_grid: Optional[List[str]] = None
+    faction_relations: Dict[str, Dict[str, str]] = {}
+    chronicle_triggers: Dict[str, str] = {}
+    environmental_prose: Dict[str, str] = {}
