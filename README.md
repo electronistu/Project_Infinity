@@ -77,3 +77,7 @@ The `.wwf` file is a custom, token-efficient format designed to represent the en
 ## For Developers
 
 The code is designed to be modular and extensible. The `models.py` file, using `pydantic`, defines the core data structures for the entire application, providing a strong, typed foundation for the world state. Each generator module is self-contained and can be modified or replaced to alter the world generation process.
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
