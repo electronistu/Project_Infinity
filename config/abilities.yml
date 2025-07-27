@@ -1,0 +1,47 @@
+# Mage Guild
+- name: Firebolt
+  description: Hurl a mote of fire at a creature or object.
+  tier: 1
+  guild_source: Mage
+- name: Mage Armor
+  description: Protects an unarmored creature with a field of magical force.
+  tier: 2
+  guild_source: Mage
+- name: Fireball
+  description: A bright streak flashes from your pointing finger to a point you choose and then blossoms with a low roar into an explosion of flame.
+  tier: 3
+  guild_source: Mage
+
+# Thief Guild
+- name: Sneak
+  description: Gain advantage on stealth checks for a short duration.
+  tier: 1
+  guild_source: Thief
+- name: Lockpicking Expertise
+  description: You can add double your proficiency bonus to checks made to pick locks.
+  tier: 2
+  guild_source: Thief
+- name: Evasion
+  description: You can nimbly dodge out of the way of certain area effects, such as a red dragon’s fiery breath or an ice storm spell.
+  tier: 4
+  guild_source: Thief
+
+# Merchant Guild
+- name: Silver Tongue
+  description: Gain advantage on persuasion checks when bartering.
+  tier: 1
+  guild_source: Merchant
+- name: Appraise
+  description: Accurately determine the market value of any non-magical item.
+  tier: 2
+  guild_source: Merchant
+
+# Assassin Guild
+- name: Poisoner's Kit Proficiency
+  description: You gain proficiency with the poisoner's kit.
+  tier: 1
+  guild_source: Assassin
+- name: Death Strike
+  description: When you attack and hit a creature that is surprised, it must make a Constitution saving throw or take double damage from the attack.
+  tier: 5
+  guild_source: Assassin

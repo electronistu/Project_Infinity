@@ -1,0 +1,20 @@
+- name: Human
+  perks:
+    - "Bonus Feat: Gain an extra feat at 1st level."
+    - "Skilled: Gain proficiency in one skill of your choice."
+- name: Elf
+  perks:
+    - "Fey Ancestry: You have advantage on saving throws against being charmed, and magic can’t put you to sleep."
+    - "Trance: Elves don’t need to sleep. Instead, they meditate deeply, remaining semiconscious, for 4 hours a day."
+- name: Dwarf
+  perks:
+    - "Dwarven Resilience: You have advantage on saving throws against poison, and you have resistance against poison damage."
+    - "Stonecunning: Whenever you make an Intelligence (History) check related to the origin of stonework, you are considered proficient in the History skill and add double your proficiency bonus to the check, instead of your normal proficiency bonus."
+- name: Halfling
+  perks:
+    - "Lucky: When you roll a 1 on an attack roll, ability check, or saving throw, you can reroll the die and must use the new roll."
+    - "Brave: You have advantage on saving throws against being frightened."
+- name: Dragonborn
+  perks:
+    - "Draconic Ancestry: You have a breath weapon and damage resistance corresponding to your draconic heritage."
+    - "Damage Resistance: You have resistance to the damage type associated with your ancestry."

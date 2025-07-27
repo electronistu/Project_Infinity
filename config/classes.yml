@@ -1,0 +1,20 @@
+- name: Fighter
+  perks:
+    - "Fighting Style: You adopt a particular style of fighting as your specialty."
+    - "Second Wind: You have a limited well of stamina that you can draw on to protect yourself from harm."
+- name: Rogue
+  perks:
+    - "Expertise: Your proficiency bonus is doubled for any ability check you make that uses either of the chosen proficiencies."
+    - "Sneak Attack: You know how to strike subtly and exploit a foe’s distraction."
+- name: Wizard
+  perks:
+    - "Arcane Recovery: You have learned to regain some of your magical energy by studying your spellbook."
+    - "Spellcasting: You have a spellbook containing spells that show the first glimmerings of your true power."
+- name: Cleric
+  perks:
+    - "Divine Domain: Choose one domain related to your deity."
+    - "Channel Divinity: You gain the ability to channel divine energy directly from your deity."
+- name: Ranger
+  perks:
+    - "Favored Enemy: You have significant experience studying, tracking, hunting, and even talking to a certain type of enemy."
+    - "Natural Explorer: You are particularly familiar with one type of natural environment and are adept at traveling and surviving in such regions."

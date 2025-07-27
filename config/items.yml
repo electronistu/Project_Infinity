@@ -1,0 +1,56 @@
+# --- Weapons ---
+- name: Rusty Sword
+  slot: main_hand
+  stat_modifiers: {strength: 1}
+- name: Gnarled Staff
+  slot: main_hand
+  stat_modifiers: {intelligence: 1}
+- name: Crude Dagger
+  slot: main_hand
+  stat_modifiers: {dexterity: 1}
+- name: Steel Longsword
+  slot: main_hand
+  stat_modifiers: {strength: 3}
+- name: Elven Bow
+  slot: main_hand
+  stat_modifiers: {dexterity: 3}
+- name: Orcish Greataxe
+  slot: main_hand
+  stat_modifiers: {strength: 4}
+
+# --- Armor ---
+- name: Leather Tunic
+  slot: chest
+  stat_modifiers: {dexterity: 1}
+- name: Iron Chainmail
+  slot: chest
+  stat_modifiers: {constitution: 2}
+- name: Mage Robes
+  slot: chest
+  stat_modifiers: {intelligence: 1}
+- name: Dwarven Plate
+  slot: chest
+  stat_modifiers: {constitution: 4, strength: 1}
+- name: Elven Chain
+  slot: chest
+  stat_modifiers: {dexterity: 3, intelligence: 1}
+
+# --- Accessories ---
+- name: Ring of Protection
+  slot: ring
+  stat_modifiers: {constitution: 1}
+- name: Amulet of Wisdom
+  slot: neck
+  stat_modifiers: {wisdom: 2}
+- name: Ring of Minor Strength
+  slot: ring
+  stat_modifiers: {strength: 1}
+- name: Pendant of Charisma
+  slot: neck
+  stat_modifiers: {charisma: 1}
+- name: Gauntlets of Ogre Power
+  slot: arms
+  stat_modifiers: {strength: 3}
+- name: Boots of Speed
+  slot: legs
+  stat_modifiers: {dexterity: 2}
