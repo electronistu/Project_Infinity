@@ -1,0 +1,755 @@
+[WORLD_STATE]
+INSTANCE_ID:20250727032318-00118285
+TOTAL_GOLD:100000
+CURRENT_TICK:12:00
+
+[PLAYER_CHARACTER_V3.2]
+PC_NAME:electronistu|AGE:18|SEX:Male|RACE:Elf|CLS:Mage|ALIGN:Chaotic Evil|GOLD:0|KN_LOC:PykeWatch|STATS:STR-8,DEX-17,CON-8,INT-19,WIS-15,CHA-8|ABILITIES:|RACIAL_PERK:Graceful: You have a discount on increasing Dexterity.
+
+[EQUIPMENT]
+Eira Valerion|chest:Padded Tunic
+Eira Swiftfoot|chest:Padded Tunic
+Roric Stonefist|chest:Chainmail,legs:Iron Greaves,main_hand:Steel Shortsword,off_hand:Wooden Shield
+Sigrid Longbeard|chest:Padded Tunic
+Hilda Swiftfoot|chest:Padded Tunic
+Alaric Silverstream|chest:Chainmail,legs:Iron Greaves,main_hand:Steel Shortsword,off_hand:Wooden Shield
+Dagmar Silverstream|chest:Chainmail,legs:Iron Greaves,main_hand:Steel Shortsword,off_hand:Wooden Shield
+Arne Longbeard|chest:Padded Tunic,legs:Leather Trousers
+Erik Ironhand|chest:Padded Tunic,legs:Leather Trousers
+Dagmar Ironhand|chest:Padded Tunic,legs:Leather Trousers
+Alaric Longbeard|chest:Padded Tunic
+Corbin Ironhand|chest:Padded Tunic,legs:Leather Trousers
+Freya Ironhand|chest:Padded Tunic
+Roric Silverstream|chest:Leather Armor,main_hand:Iron Dagger
+Gunnar Silverstream|chest:Chainmail,legs:Iron Greaves,main_hand:Steel Shortsword,off_hand:Wooden Shield
+Freya Silverstream|chest:Padded Tunic
+Alaric Swiftfoot|chest:Leather Armor,main_hand:Iron Dagger
+Arne Ironhand|chest:Padded Tunic,legs:Leather Trousers
+Gerda Ironhand|chest:Padded Tunic
+Falk Greymane|chest:Padded Tunic,legs:Leather Trousers
+Eira Ironhand|chest:Padded Tunic
+Sten Swiftfoot|chest:Padded Tunic,legs:Leather Trousers
+Dagmar Swiftfoot|chest:Padded Tunic
+Corbin Greymane|chest:Leather Armor,main_hand:Iron Dagger
+Brand Stonefist|chest:Padded Tunic,legs:Leather Trousers
+Hilda Stonefist|chest:Padded Tunic,legs:Leather Trousers
+Arne Swiftfoot|chest:Padded Tunic,legs:Leather Trousers
+Falk Longbeard|chest:Chainmail,legs:Iron Greaves,main_hand:Steel Shortsword,off_hand:Wooden Shield
+Freya Longbeard|chest:Padded Tunic
+Corbin Blackwood|chest:Padded Tunic,legs:Leather Trousers
+Sten Blackwood|chest:Padded Tunic
+Gunnar Longbeard|chest:Chainmail,legs:Iron Greaves,main_hand:Steel Shortsword,off_hand:Wooden Shield
+Brand Greymane|chest:Padded Tunic,legs:Leather Trousers
+Freya Greymane|chest:Padded Tunic,legs:Leather Trousers
+Arne Greymane|chest:Leather Armor,main_hand:Iron Dagger
+Corbin Longbeard|chest:Padded Tunic,legs:Leather Trousers
+Brenna Longbeard|chest:Padded Tunic,legs:Leather Trousers
+Erik Swiftfoot|chest:Chainmail,legs:Iron Greaves,main_hand:Steel Shortsword,off_hand:Wooden Shield
+Sif Swiftfoot|chest:Padded Tunic
+Arne Silverstream|chest:Padded Tunic
+Roric Ironhand|chest:Chainmail,legs:Iron Greaves,main_hand:Steel Shortsword,off_hand:Wooden Shield
+Sigrid Ironhand|chest:Padded Tunic,legs:Leather Trousers
+Bjorn Swiftfoot|chest:Leather Armor,main_hand:Iron Dagger
+Brenna Swiftfoot|chest:Padded Tunic
+Gerda Swiftfoot|chest:Leather Armor,main_hand:Iron Dagger
+Erik Greymane|chest:Padded Tunic
+Brenna Blackwood|chest:Padded Tunic
+Sten Stonefist|chest:Padded Tunic
+Sif Ironhand|chest:Padded Tunic
+Gerda Greymane|chest:Padded Tunic
+Gunnar Ironhand|chest:Padded Tunic
+Astrid Greymane|chest:Leather Armor,main_hand:Iron Dagger
+Brand Ironhand|chest:Padded Tunic,legs:Leather Trousers
+Erik Stonefist|chest:Chainmail,legs:Iron Greaves,main_hand:Steel Shortsword,off_hand:Wooden Shield
+Erik Silverstream|chest:Chainmail,legs:Iron Greaves,main_hand:Steel Shortsword,off_hand:Wooden Shield
+Sif Silverstream|chest:Chainmail,legs:Iron Greaves,main_hand:Steel Shortsword,off_hand:Wooden Shield
+Falk Swiftfoot|chest:Leather Armor,main_hand:Iron Dagger
+Corbin Swiftfoot|chest:Padded Tunic,legs:Leather Trousers
+Brand Swiftfoot|chest:Padded Tunic,legs:Leather Trousers
+Corbin Silverstream|chest:Chainmail,legs:Iron Greaves,main_hand:Steel Shortsword,off_hand:Wooden Shield
+Brenna Silverstream|chest:Padded Tunic,legs:Leather Trousers
+Falk Ironhand|chest:Padded Tunic,legs:Leather Trousers
+Sif Stonefist|chest:Padded Tunic
+Sten Greymane|chest:Padded Tunic,legs:Leather Trousers
+Alaric Ironhand|chest:Padded Tunic,legs:Leather Trousers
+Hilda Ironhand|chest:Padded Tunic
+Astrid Blackwood|chest:Padded Tunic
+Bjorn Silverstream|chest:Padded Tunic,legs:Leather Trousers
+Gerda Longbeard|chest:Chainmail,legs:Iron Greaves,main_hand:Steel Shortsword,off_hand:Wooden Shield
+Gunnar Greymane|chest:Chainmail,legs:Iron Greaves,main_hand:Steel Shortsword,off_hand:Wooden Shield
+Roric Longbeard|chest:Chainmail,legs:Iron Greaves,main_hand:Steel Shortsword,off_hand:Wooden Shield
+Gunnar Blackwood|chest:Padded Tunic
+Eira Blackwood|chest:Padded Tunic,legs:Leather Trousers
+Bjorn Greymane|chest:Padded Tunic
+Bjorn Ironhand|chest:Chainmail,legs:Iron Greaves,main_hand:Steel Shortsword,off_hand:Wooden Shield
+Astrid Silverstream|chest:Padded Tunic,legs:Leather Trousers
+Hilda Blackwood|chest:Chainmail,legs:Iron Greaves,main_hand:Steel Shortsword,off_hand:Wooden Shield
+Astrid Swiftfoot|chest:Padded Tunic,legs:Leather Trousers
+Eira Silverstream|chest:Leather Armor,main_hand:Iron Dagger
+Sten Silverstream|chest:Padded Tunic
+Brand Blackwood|chest:Padded Tunic
+Dagmar Stonefist|chest:Padded Tunic
+Freya Blackwood|chest:Padded Tunic,legs:Leather Trousers
+Brenna Greymane|chest:Leather Armor,main_hand:Iron Dagger
+Roric Swiftfoot|chest:Chainmail,legs:Iron Greaves,main_hand:Steel Shortsword,off_hand:Wooden Shield
+Alaric Greymane|chest:Leather Armor,main_hand:Iron Dagger
+Ingrid Greymane|chest:Padded Tunic
+Erik Longbeard|chest:Leather Armor,main_hand:Iron Dagger
+Roric Blackwood|chest:Leather Armor,main_hand:Iron Dagger
+Freya Swiftfoot|chest:Padded Tunic
+Ingrid Longbeard|chest:Padded Tunic
+Alaric Stonefist|chest:Padded Tunic,legs:Leather Trousers
+Astrid Stonefist|chest:Chainmail,legs:Iron Greaves,main_hand:Steel Shortsword,off_hand:Wooden Shield
+Ingrid Swiftfoot|chest:Chainmail,legs:Iron Greaves,main_hand:Steel Shortsword,off_hand:Wooden Shield
+Brand Longbeard|chest:Chainmail,legs:Iron Greaves,main_hand:Steel Shortsword,off_hand:Wooden Shield
+Falk Silverstream|chest:Leather Armor,main_hand:Iron Dagger
+Gunnar Stonefist|chest:Padded Tunic,legs:Leather Trousers
+Sigrid Stonefist|chest:Padded Tunic,legs:Leather Trousers
+Sten Ironhand|chest:Padded Tunic,legs:Leather Trousers
+Bjorn Stonefist|chest:Padded Tunic
+Brenna Ironhand|chest:Padded Tunic
+Gunnar Swiftfoot|chest:Padded Tunic
+Bjorn Blackwood|chest:Padded Tunic
+Eira Longbeard|chest:Padded Tunic
+Astrid Longbeard|chest:Padded Tunic,legs:Leather Trousers
+Freya Stonefist|chest:Padded Tunic
+Arne Blackwood|chest:Padded Tunic,legs:Leather Trousers
+Sigrid Greymane|chest:Padded Tunic,legs:Leather Trousers
+Bjorn Longbeard|chest:Padded Tunic
+Hilda Longbeard|chest:Padded Tunic
+Sif Blackwood|chest:Padded Tunic,legs:Leather Trousers
+Ingrid Ironhand|chest:Padded Tunic
+
+[CODED_MAP_V3.2]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~..............................................................~
+~~~~~~~~~~~~~~~~~~~~~.......................D......................................~
+~~~~~~~~~~~~~~~~~~~~~......................+++.................DDDDD...............~
+~~~~~~~~~~~~~~~~~~~~~.....................+D++.................DDDDD...............~
+~~~~~~~~~~~~~~~~~~~~~....................++++.+................DDDDD+++++++++++S...~
+~~~~~~~~~~~~~~~~~~~~~...................+++++..+...............DDDDD...........+...~
+~~~~~~~~~~~~~~~~~~~~~..................+++++++.+...............DDDDD...........+...~
+~~~~~~~~~~~~~~~~~~~~~..................++.++++..+..............+.+.............+...~
+~~~~~~~~~~~~~~~~~~~~~.................+++.++++...+............+...+............+...~
+~~~~~~~~~~~~~~~~~~~~~................+.+..+.++...+............+..DD............+...~
+~~~~~~~~~~~~~~~~~~~~~D..............+.+..+..++....+..........++++DD............+...~
+~~~~~~~~~~~~~~~~~~~~~+++...........+.++..+..++....++++++++++++S..++............+...~
+~~~~~~~~~~~~~~~~~~~~~+.++.........+..+..++++++++++..+.....++++.++++...........+....~
+~~~~~~~~I~~~~~~~~~~~~.SS.++..++++++++++++...++......+...++.+++.+++++..........+....~
+~~~~~~~~~+~~~~~~~~~~~.SS+++++...++.++...+...+.+......+++..+++.++++++..........+....~
+~~~~~~~~~~+~~~~~~~~~~.+....+++.++..+....+...+.+...+++.+...++..+++.++..........+....~
+~~~~~~~~~~~++~~~~~~~~.+.....+.++..+....+....+.+.++....+..++..++.+..+..........+....~
+~~~~~~~~~~~~~+~~~~~~~.+......++++++....+....++++.......++++.++.+...++.........+....~
+~~~~~~~~~~~~~~+~~~~~~..+....++.DDD.....+..+++.+........+++.+.+.+...+++........+....~
+~~~~~~~~~~~~~~~+~~~~~..+....+..DDD++...+++..+.+......DDD+.+++.+....SS.+.......+....~
+~~~~~~~~~~~~~~~~+~~~~..+...+...DDDSS++++....+.+.SSS..DDD++++..+....SS..+......+....~
+~~~~~~~~~~~~~~~~~+~~~..+..+....+..SS+++.....+++.SSS.+DDD+++..+.....++..+......+....~
+~~~~~~~~~~~~~~~~~~++~..+.+....+....+++++....++.+SSS++++++.+..+......+...+.....+....~
+~~~~~~~~~II~~~~~~~~~+.DD+.....+..SSS.++.++..++.+.++.++++.+.+.+......+....+....+....~
+~~~~~~~~~II+~~~~~~~~~+DD+....+...SSS++.+..+.++.++++++++++...+......++.....+...+....~
+~~~~~~~~~~~~++++~~~~~.+.+++..+..+SSS++++++++++.++.+++++.+++.+......++......+..+....~
+~~~~~~~~~~~~~~~++++~~..+++.++..+..+.+...+++++D++++++++.+...+++.....++.......++.....~
+~~~~~~~~~~~~~~~~~++++++.++++.++..+..+......+++++++++++D....+.++....++........CCCCCC~
+~~~~~~~~~~~~~~~~~~~~++++++++++.+++..+.....+.++.++++++.++...+..+++..++........CCCCCC~
+~~~~~~~~~~~~~~~~~~~~~..+++++++...+++++...+.++++++++.+++++++....+.+++.+.......CCCCCC~
+~~~~~~~~~~~~~~~~~~~~~....++++++++..+++.++.+.++++++..+...+++.....+..+++.......CCCCCC~
+~~~~~~~~~~~~~~~~~~~~~.SSS+.+.+++++++++++.+..++++++..++...+.++++..+.+.++....++CCCCCC~
+~~~~~~~~~~~~~~~~~~~~~.SSS+..+.++++++.+++++..+++++.++++...+..++.++++..+.++++.+CCCCCC~
+~~~~~~~~~~~~~~~~~~~~~.SSS+++++.+++++++++++++DDD++.++++...+....+...+++++..+++.+.....~
+~~~~~~~~~~~~~~~~~~~~~..++++..++++++..++++..+DDD++.++.++.+......+++++.+.+++++++SSSSS~
+~~~~~~~~~~~~~~~~~~~~~.+.+++++.++.++++++.++++DDD+D+++++++++++++++++++.+++...+++SSSSS~
+~~~~~~~~~~~~~~~~~~~~~+..+.+..+.+++.++.++++++++++++.+.++++++......+++++++++++++SSSSS~
+~~~~~~~~~~~~~~~~~~~~~+...+++..++.+.++++..++++++++.++++++.++++++...++.++.....++SSSSS~
+~~~~~~~~~~~~~~~~~~~~+....++.+++++++..++++++++.+++S+++..+..+....++++++DDD.+++++SSSSS~
+~~~~~~~~~~~~~~~~~~~~+....+.++++.++....+++.+.+.+.+++.+DD.+..+DD++..+.+DDD++...++....~
+~~~~~~~~~~~~~~~~~~~+~....+++.+..++++...+++..++..+++..DD+++.+DD.++++++DDD....++.....~
+~~~~~~~~~~~~~~~~~~+~~....+++.++++.+.+.++++..++..+++..+++++++++++++.++.......+......~
+~~~~~~~~~~~~~~~~~~+~~..++.++.++++.+..+DDD.+.++.++++++++++++.+++++++.........+......~
+~~~~~~~~~~~~~~~~~+~~~.+...++.+.++..++.DDD..+++++.+++++++.+++..++++.........++......~
+~~~~~~~~~~~~~~~~+~~~~+.....++..+.++++.DDDSS+++++SSS+++++++.+++...++++.....+.+......~
+~~~~~~~~~~~~~~~~+~~++......++++++++++++++SS++++.SSS++...+++......+...+++.+..+......~
+~~~~~~~~~~~~~~~I++++++++SSS++++++.+.++..++..++++SSS+..+++++......+......+++.+......~
+~~~~~~~~~~~~~~~~~+~~~.++SSS+++++++++..++++.DD++++.++++...+.+.....+......+..+S......~
+~~~~~~~~~~~~~~~+++++++..SSS++.+.+.+++++++++DD+...DD.......++....+......+...........~
+~~~~~~~~~~~~~~I++~~~~......+++.+..+++++++++++.+++DD.......++....+.....+............~
+~~~~~~~~~~~~~~~~~~~~~......+++.+++++++++++..++.............++...+.....+............~
+~~~~~~~~~~~~~~~~~~~~~....DD+.++++++...++++++...............++...+....+.............~
+~~~~~~~~~~~~~~~~~~~~~....DD++D++....++.+++++................+...+...+..............~
+~~~~~~~~~~~~~~~~~~~~~.......+++++++++++.+DDD................++..+..+...............~
+~~~~~~~~~~~~~~~~~~~~~.......++..+++++++.+DDD.................+..+..+...............~
+~~~~~~~~~~~~~~~~~~~~~.......++++++.....++DDD.................++.+.+................~
+~~~~~~~~~~~~~~~~~~~~~......++++...........D.++++++............++.+.................~
+~~~~~~~~~~~~~~~~~~~~~......D+.....................+++++.......+++..................~
+~~~~~~~~~~~~~~~~~~~~~..................................+++++..SS+..................~
+~~~~~~~~~~~~~~~~~~~~~.......................................++SS+..................~
+~~~~~~~~~~~~~~~~~~~~~............................................++D...............~
+~~~~~~~~~~~~~~~~~~~~~..............................................................~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+[LOCATIONS]
+PykeWatch|T:Capital|B:Coastal|SIZE:6,6|CL:10|CON:Rivercreek,Whitefall,ShadowTomb,ForgottenSpire|INHAB:Eira Valerion,Eira Swiftfoot,Roric Stonefist,Sigrid Longbeard,Hilda Swiftfoot,Alaric Silverstream,Dagmar Silverstream,Arne Longbeard,Erik Ironhand,Dagmar Ironhand,Alaric Longbeard,Corbin Ironhand,Freya Ironhand,Roric Silverstream,Gunnar Silverstream,Freya Silverstream,Alaric Swiftfoot,Arne Ironhand,Gerda Ironhand,Falk Greymane,Eira Ironhand,Sten Swiftfoot,Dagmar Swiftfoot,Corbin Greymane,Brand Stonefist,Hilda Stonefist,Arne Swiftfoot,Falk Longbeard,Freya Longbeard,Corbin Blackwood,Sten Blackwood,Gunnar Longbeard,Brand Greymane,Freya Greymane,Arne Greymane,Corbin Longbeard,Brenna Longbeard,Erik Swiftfoot,Sif Swiftfoot,Arne Silverstream,Roric Ironhand,Sigrid Ironhand,Bjorn Swiftfoot,Brenna Swiftfoot,Gerda Swiftfoot,Erik Greymane,Brenna Blackwood,Sten Stonefist,Sif Ironhand,Gerda Greymane,Sten Stonefist,Gunnar Ironhand,Astrid Greymane|SUB_LOCS:PykeWatch Port,PykeWatch Jeweler,PykeWatch General Store,PykeWatch Tailor,PykeWatch Blacksmith,PykeWatch Alchemist|COORDS:77,48
+Whitebridge|T:Settlement|B:Forest|SIZE:3,3|CL:2|CON:BloodTomb,BloodSpire,ShadowSpire|INHAB:Brand Ironhand,Erik Stonefist,Erik Silverstream,Sif Silverstream,Falk Swiftfoot,Corbin Swiftfoot,Brand Swiftfoot,Corbin Silverstream,Brenna Silverstream,Falk Ironhand,Dagmar Swiftfoot,Sif Stonefist,Eira Ironhand|SUB_LOCS:Whitebridge Alchemist,Whitebridge Jeweler,Whitebridge General Store|COORDS:48,65
+Clearwood|T:Settlement|B:Mountains|SIZE:3,3|CL:3|CON:Greenwood,Clearwatch,ShadowTomb|INHAB:Sten Greymane,Alaric Ironhand,Hilda Ironhand,Astrid Blackwood,Bjorn Silverstream,Gerda Longbeard,Gunnar Greymane,Sif Swiftfoot,Roric Longbeard,Gunnar Longbeard|SUB_LOCS:Clearwood Blacksmith,Clearwood Jeweler,Clearwood General Store|COORDS:48,41
+Whitefall|T:Settlement|B:Swamp|SIZE:1,1|CL:2|CON:PykeWatch,BloodLair,Stonewood,Greencreek,GloomCaverns,GloomTomb|INHAB:Gunnar Blackwood,Eira Blackwood|SUB_LOCS:|COORDS:62,32
+Greencreek|T:Settlement|B:Plains|SIZE:2,2|CL:4|CON:Whitefall,BloodSpire,SkullCaverns,WhisperingRuins,SkullLair|INHAB:Bjorn Greymane,Bjorn Ironhand,Astrid Silverstream,Hilda Blackwood|SUB_LOCS:Greencreek General Store|COORDS:34,41
+Greenwood|T:Settlement|B:Hills|SIZE:2,2|CL:1|CON:Clearwood,Clearwatch,WhisperingTomb,Clearcreek|INHAB:Astrid Swiftfoot,Eira Silverstream,Sten Silverstream,Brand Blackwood,Dagmar Stonefist|SUB_LOCS:Greenwood Blacksmith,Greenwood Jeweler|COORDS:62,79
+Stonewood|T:Settlement|B:Plains|SIZE:3,3|CL:4|CON:Whitefall,ShadowTomb|INHAB:Freya Blackwood,Brenna Greymane,Roric Swiftfoot,Alaric Greymane,Ingrid Greymane,Erik Longbeard,Roric Blackwood,Freya Swiftfoot,Ingrid Longbeard|SUB_LOCS:Stonewood General Store,Stonewood Tailor|COORDS:24,67
+Greenwatch|T:Settlement|B:Plains|SIZE:1,1|CL:4|CON:BloodCaverns,Oakwatch|INHAB:Alaric Stonefist,Astrid Stonefist|SUB_LOCS:|COORDS:79,25
+Stonehaven|T:Settlement|B:Hills|SIZE:2,2|CL:3|CON:ShadowCrypt|INHAB:Ingrid Swiftfoot,Brenna Blackwood,Brenna Swiftfoot|SUB_LOCS:Stonehaven Jeweler,Stonehaven Tailor|COORDS:22,34
+Clearwatch|T:Settlement|B:Swamp|SIZE:5,5|CL:3|CON:Greenwood,Clearwood,WhisperingLair,Whitewood,ForgottenSpire,BloodLair|INHAB:Brand Longbeard,Falk Silverstream,Gunnar Stonefist,Sigrid Stonefist,Sten Ironhand,Bjorn Stonefist,Brenna Ironhand,Roric Silverstream,Sten Stonefist,Astrid Greymane,Gunnar Swiftfoot|SUB_LOCS:Clearwatch Alchemist,Clearwatch Blacksmith,Clearwatch Tailor,Clearwatch General Store|COORDS:78,55
+Whitewatch|T:Settlement|B:Mountains|SIZE:3,3|CL:1|CON:BloodLair,Whitewood,Rivercreek,WhisperingRuins,GloomCaverns|INHAB:Bjorn Blackwood,Eira Longbeard,Astrid Longbeard,Roric Silverstream,Freya Longbeard,Freya Stonefist|SUB_LOCS:Whitewatch Jeweler,Whitewatch Tailor,Whitewatch Blacksmith|COORDS:22,52
+Whitewood|T:Settlement|B:Plains|SIZE:3,3|CL:1|CON:Whitewatch,GloomSpire,Clearwatch|INHAB:Arne Blackwood,Sigrid Greymane,Bjorn Longbeard,Hilda Longbeard,Hilda Longbeard,Freya Ironhand,Freya Ironhand,Sten Silverstream|SUB_LOCS:Whitewood Tailor,Whitewood Blacksmith,Whitewood General Store,Whitewood Alchemist|COORDS:33,44
+Stonedale|T:Settlement|B:Forest|SIZE:2,2|CL:2|CON:Dragon'sCay,BloodLair,ShadowCrypt,WhisperingLair,ShadowRuins|INHAB:Roric Stonefist|SUB_LOCS:Stonedale General Store|COORDS:41,65
+Oakwatch|T:Settlement|B:Forest|SIZE:1,1|CL:1|CON:Greenwatch,SunkenCay|INHAB:Sif Blackwood|SUB_LOCS:|COORDS:76,68
+Rivercreek|T:Settlement|B:Hills|SIZE:1,1|CL:1|CON:PykeWatch,SunkenCay,Whitewatch,SkullLair|INHAB:|SUB_LOCS:|COORDS:49,59
+Clearcreek|T:Settlement|B:Forest|SIZE:2,2|CL:3|CON:Greenwood,ShadowCrypt|INHAB:Ingrid Ironhand,Sten Blackwood,Sten Silverstream|SUB_LOCS:Clearcreek Tailor,Clearcreek Blacksmith|COORDS:67,40
+GloomSpire|T:Dungeon|B:Swamp|SIZE:1,1|CL:3|CON:Whitewood,ShadowRuins|INHAB:|SUB_LOCS:|COORDS:54,48
+BloodTomb|T:Dungeon|B:Forest|SIZE:1,1|CL:1|CON:Whitebridge,Dragon'sAtoll,ShadowTomb,SkullSpire,SkullTomb|INHAB:|SUB_LOCS:|COORDS:45,47
+ShadowLair|T:Dungeon|B:Hills|SIZE:1,1|CL:2|CON:SkullCaverns|INHAB:|SUB_LOCS:|COORDS:67,81
+SkullCaverns|T:Dungeon|B:Forest|SIZE:2,2|CL:6|CON:ShadowLair,Greencreek,GloomTomb|INHAB:|SUB_LOCS:|COORDS:25,72
+SkullSpire|T:Dungeon|B:Plains|SIZE:1,1|CL:7|CON:ForgottenCaverns,BloodTomb,GloomRuins,GloomLair|INHAB:|SUB_LOCS:|COORDS:43,24
+WhisperingTomb|T:Dungeon|B:Plains|SIZE:2,2|CL:5|CON:Greenwood,WhisperingLair|INHAB:|SUB_LOCS:|COORDS:53,60
+GloomRuins|T:Dungeon|B:Swamp|SIZE:3,3|CL:9|CON:SkullTomb,SkullSpire|INHAB:|SUB_LOCS:|COORDS:31,39
+BloodSpire|T:Dungeon|B:Hills|SIZE:2,2|CL:1|CON:Greencreek,Whitebridge,Dragon'sAtoll|INHAB:|SUB_LOCS:|COORDS:60,60
+ShadowTomb|T:Dungeon|B:Swamp|SIZE:2,2|CL:3|CON:PykeWatch,Stonewood,BloodTomb,ForgottenCaverns,BloodLair,Clearwood|INHAB:|SUB_LOCS:|COORDS:43,68
+WhisperingRuins|T:Dungeon|B:Plains|SIZE:1,1|CL:5|CON:Greencreek,Whitewatch|INHAB:|SUB_LOCS:|COORDS:42,77
+ShadowCrypt|T:Dungeon|B:Swamp|SIZE:2,2|CL:9|CON:Stonehaven,Stonedale,Clearcreek,GloomTomb,ForgottenSpire,ShadowCaverns|INHAB:|SUB_LOCS:|COORDS:65,30
+GloomCaverns|T:Dungeon|B:Hills|SIZE:3,3|CL:7|CON:Whitefall,Whitewatch,ShadowSpire|INHAB:|SUB_LOCS:|COORDS:38,63
+ShadowCaverns|T:Dungeon|B:Forest|SIZE:2,2|CL:2|CON:Serpent'sIsle,ShadowCrypt,GloomLair,ForgottenCaverns|INHAB:|SUB_LOCS:|COORDS:49,69
+ForgottenSpire|T:Dungeon|B:Forest|SIZE:1,1|CL:10|CON:ShadowCrypt,PykeWatch,BloodLair,Clearwatch,ForgottenCaverns|INHAB:|SUB_LOCS:|COORDS:27,78
+ForgottenCaverns|T:Dungeon|B:Mountains|SIZE:1,1|CL:9|CON:SkullSpire,ShadowTomb,GloomLair,ForgottenSpire,ShadowCaverns,ShadowRuins,Dragon'sCay|INHAB:|SUB_LOCS:|COORDS:44,22
+BloodLair|T:Dungeon|B:Swamp|SIZE:1,1|CL:8|CON:Whitefall,Whitewatch,Stonedale,ShadowTomb,ForgottenSpire,Clearwatch,SkullTomb|INHAB:|SUB_LOCS:|COORDS:29,73
+SkullTomb|T:Dungeon|B:Swamp|SIZE:1,1|CL:5|CON:GloomRuins,BloodTomb,BloodLair|INHAB:|SUB_LOCS:|COORDS:21,31
+GloomTomb|T:Dungeon|B:Forest|SIZE:3,3|CL:4|CON:SkullCaverns,ShadowCrypt,BloodCaverns,Whitefall,SunkenCay,ShadowRuins,GloomLair|INHAB:|SUB_LOCS:|COORDS:44,54
+ShadowSpire|T:Dungeon|B:Plains|SIZE:3,3|CL:2|CON:GloomCaverns,Whitebridge|INHAB:|SUB_LOCS:|COORDS:53,40
+SkullLair|T:Dungeon|B:Hills|SIZE:3,3|CL:3|CON:Rivercreek,Greencreek,GloomLair|INHAB:|SUB_LOCS:|COORDS:41,74
+WhisperingLair|T:Dungeon|B:Hills|SIZE:1,1|CL:7|CON:Clearwatch,WhisperingTomb,Stonedale|INHAB:|SUB_LOCS:|COORDS:48,56
+BloodCaverns|T:Dungeon|B:Forest|SIZE:5,5|CL:10|CON:Greenwatch,GloomTomb,ShadowRuins|INHAB:|SUB_LOCS:|COORDS:63,23
+ShadowRuins|T:Dungeon|B:Hills|SIZE:3,3|CL:4|CON:GloomSpire,BloodCaverns,GloomTomb,ForgottenCaverns,Stonedale|INHAB:|SUB_LOCS:|COORDS:69,59
+GloomLair|T:Dungeon|B:Mountains|SIZE:2,2|CL:5|CON:ShadowCaverns,ForgottenCaverns,SkullLair,SkullSpire,GloomTomb|INHAB:|SUB_LOCS:|COORDS:22,44
+Dragon'sCay|T:Island|B:Ocean|SIZE:1,1|CL:8|CON:Stonedale,ForgottenCaverns|INHAB:|SUB_LOCS:|COORDS:15,67
+Serpent'sIsle|T:Island|B:Ocean|SIZE:1,1|CL:4|CON:ShadowCaverns|INHAB:|SUB_LOCS:|COORDS:8,34
+Dragon'sAtoll|T:Island|B:Ocean|SIZE:1,1|CL:7|CON:BloodTomb,BloodSpire|INHAB:|SUB_LOCS:|COORDS:14,70
+SunkenCay|T:Island|B:Ocean|SIZE:2,2|CL:3|CON:Oakwatch,Rivercreek,GloomTomb|INHAB:|SUB_LOCS:|COORDS:9,44
+
+[SUB_LOCATIONS]
+PykeWatch Port|T:Port|PARENT:PykeWatch|OP:None
+PykeWatch Jeweler|T:Jeweler|PARENT:PykeWatch|OP:Sif Ironhand
+PykeWatch General Store|T:General Store|PARENT:PykeWatch|OP:Gerda Greymane
+PykeWatch Tailor|T:Tailor|PARENT:PykeWatch|OP:Sten Stonefist
+PykeWatch Blacksmith|T:Blacksmith|PARENT:PykeWatch|OP:Gunnar Ironhand
+PykeWatch Alchemist|T:Alchemist|PARENT:PykeWatch|OP:Astrid Greymane
+Whitebridge Alchemist|T:Alchemist|PARENT:Whitebridge|OP:Dagmar Swiftfoot
+Whitebridge Jeweler|T:Jeweler|PARENT:Whitebridge|OP:Sif Stonefist
+Whitebridge General Store|T:General Store|PARENT:Whitebridge|OP:Eira Ironhand
+Clearwood Blacksmith|T:Blacksmith|PARENT:Clearwood|OP:Sif Swiftfoot
+Clearwood Jeweler|T:Jeweler|PARENT:Clearwood|OP:Roric Longbeard
+Clearwood General Store|T:General Store|PARENT:Clearwood|OP:Gunnar Longbeard
+Greencreek General Store|T:General Store|PARENT:Greencreek|OP:Hilda Blackwood
+Greenwood Blacksmith|T:Blacksmith|PARENT:Greenwood|OP:Brand Blackwood
+Greenwood Jeweler|T:Jeweler|PARENT:Greenwood|OP:Dagmar Stonefist
+Stonewood General Store|T:General Store|PARENT:Stonewood|OP:Freya Swiftfoot
+Stonewood Tailor|T:Tailor|PARENT:Stonewood|OP:Ingrid Longbeard
+Stonehaven Jeweler|T:Jeweler|PARENT:Stonehaven|OP:Brenna Blackwood
+Stonehaven Tailor|T:Tailor|PARENT:Stonehaven|OP:Brenna Swiftfoot
+Clearwatch Alchemist|T:Alchemist|PARENT:Clearwatch|OP:Roric Silverstream
+Clearwatch Blacksmith|T:Blacksmith|PARENT:Clearwatch|OP:Sten Stonefist
+Clearwatch Tailor|T:Tailor|PARENT:Clearwatch|OP:Astrid Greymane
+Clearwatch General Store|T:General Store|PARENT:Clearwatch|OP:Gunnar Swiftfoot
+Whitewatch Jeweler|T:Jeweler|PARENT:Whitewatch|OP:Roric Silverstream
+Whitewatch Tailor|T:Tailor|PARENT:Whitewatch|OP:Freya Longbeard
+Whitewatch Blacksmith|T:Blacksmith|PARENT:Whitewatch|OP:Freya Stonefist
+Whitewood Tailor|T:Tailor|PARENT:Whitewood|OP:Hilda Longbeard
+Whitewood Blacksmith|T:Blacksmith|PARENT:Whitewood|OP:Freya Ironhand
+Whitewood General Store|T:General Store|PARENT:Whitewood|OP:Freya Ironhand
+Whitewood Alchemist|T:Alchemist|PARENT:Whitewood|OP:Sten Silverstream
+Stonedale General Store|T:General Store|PARENT:Stonedale|OP:Roric Stonefist
+Clearcreek Tailor|T:Tailor|PARENT:Clearcreek|OP:Sten Blackwood
+Clearcreek Blacksmith|T:Blacksmith|PARENT:Clearcreek|OP:Sten Silverstream
+
+[FACTIONS]
+Royal Guard|DISP:Lawful Good|LEAD:Eira Valerion
+Merchants' Guild|DISP:Lawful Neutral|LEAD:Eira Valerion
+Mages' Guild|DISP:Lawful Neutral|LEAD:Hilda Ironhand
+Thieves' Guild|DISP:Chaotic Neutral|LEAD:Falk Swiftfoot
+The Crimson Hand|DISP:Neutral Evil|LEAD:Brenna Blackwood
+Royal Court|DISP:Lawful Neutral|LEAD:None
+
+[FACTION_RELATIONS]
+Mages' Guild|The Crimson Hand:HOSTILE,Merchants' Guild:ALLIED,Thieves' Guild:NEUTRAL,Royal Guard:NEUTRAL
+The Crimson Hand|Mages' Guild:HOSTILE,Thieves' Guild:ALLIED,Merchants' Guild:NEUTRAL,Royal Guard:NEUTRAL
+Merchants' Guild|Thieves' Guild:HOSTILE,Mages' Guild:ALLIED,The Crimson Hand:NEUTRAL,Royal Guard:NEUTRAL
+Thieves' Guild|Merchants' Guild:HOSTILE,The Crimson Hand:ALLIED,Mages' Guild:NEUTRAL,Royal Guard:NEUTRAL
+Royal Guard|Merchants' Guild:NEUTRAL,Mages' Guild:NEUTRAL,Thieves' Guild:NEUTRAL,The Crimson Hand:NEUTRAL
+
+[NPCS]
+Eira Valerion|AGE:54|SEX:Female|RACE:Human|STAT:Queen|FAM:Valerion|ROLE:Head|LOC:PykeWatch|FAC:Royal Court|DIFF_LVL:10|GOLD:149|FOR_SALE_ABILITIES:Shield Bash,Sunder Armor,Hold the Line,Champion's Challenge,Unstoppable Juggernaut
+Eira Swiftfoot|AGE:46|SEX:Female|RACE:Yuan-ti Pureblood|STAT:Royal Advisor|FAM:Court|ROLE:Courtier|LOC:PykeWatch|FAC:Royal Court|DIFF_LVL:9|GOLD:149
+Roric Stonefist|AGE:44|SEX:Male|RACE:Aasimar|STAT:Guard|FAM:Merchant|ROLE:Owner|LOC:Stonedale|FAC:Royal Guard|DIFF_LVL:7|GOLD:1199
+Sigrid Longbeard|AGE:50|SEX:Female|RACE:Goliath|STAT:Spymaster|FAM:Court|ROLE:Courtier|LOC:PykeWatch|FAC:Royal Court|DIFF_LVL:9|GOLD:149
+Hilda Swiftfoot|AGE:45|SEX:Female|RACE:Triton|STAT:General|FAM:Court|ROLE:Courtier|LOC:PykeWatch|FAC:Royal Court|DIFF_LVL:8|GOLD:149
+Alaric Silverstream|AGE:52|SEX:Male|RACE:Yuan-ti Pureblood|STAT:Guard|FAM:Silverstream|ROLE:Parent|LOC:PykeWatch|FAC:Royal Guard|DIFF_LVL:7|GOLD:1199
+Dagmar Silverstream|AGE:39|SEX:Female|RACE:Yuan-ti Pureblood|STAT:Guard|FAM:Silverstream|ROLE:Parent|LOC:PykeWatch|FAC:Royal Guard|DIFF_LVL:7|GOLD:1199
+Arne Longbeard|AGE:30|SEX:Male|RACE:Half-Elf|STAT:Commoner|FAM:Longbeard|ROLE:Parent|LOC:PykeWatch|FAC:None|DIFF_LVL:2|GOLD:449
+Erik Ironhand|AGE:33|SEX:Male|RACE:Half-Elf|STAT:Commoner|FAM:Ironhand|ROLE:Parent|LOC:PykeWatch|FAC:None|DIFF_LVL:1|GOLD:449
+Dagmar Ironhand|AGE:35|SEX:Female|RACE:Half-Elf|STAT:Commoner|FAM:Ironhand|ROLE:Parent|LOC:PykeWatch|FAC:None|DIFF_LVL:1|GOLD:449
+Alaric Longbeard|AGE:41|SEX:Male|RACE:Dragonborn|STAT:Mage|FAM:Longbeard|ROLE:Parent|LOC:PykeWatch|FAC:Mages' Guild|DIFF_LVL:8|GOLD:149
+Corbin Ironhand|AGE:37|SEX:Male|RACE:Dragonborn|STAT:Commoner|FAM:Ironhand|ROLE:Parent|LOC:PykeWatch|FAC:None|DIFF_LVL:1|GOLD:449
+Freya Ironhand|AGE:54|SEX:Female|RACE:Yuan-ti Pureblood|STAT:General Store|FAM:Merchant|ROLE:Owner|LOC:Whitewood|FAC:Merchants' Guild|DIFF_LVL:6|GOLD:149
+Roric Silverstream|AGE:51|SEX:Male|RACE:Firbolg|STAT:Thief|FAM:Merchant|ROLE:Owner|LOC:Whitewatch|FAC:Thieves' Guild|DIFF_LVL:6|GOLD:1499
+Gunnar Silverstream|AGE:49|SEX:Male|RACE:Kenku|STAT:Guard|FAM:Silverstream|ROLE:Parent|LOC:PykeWatch|FAC:Royal Guard|DIFF_LVL:7|GOLD:1199
+Freya Silverstream|AGE:35|SEX:Female|RACE:Kenku|STAT:Assassin|FAM:Silverstream|ROLE:Parent|LOC:PykeWatch|FAC:The Crimson Hand|DIFF_LVL:9|GOLD:149
+Alaric Swiftfoot|AGE:35|SEX:Male|RACE:Dragonborn|STAT:Thief|FAM:Swiftfoot|ROLE:Parent|LOC:PykeWatch|FAC:Thieves' Guild|DIFF_LVL:6|GOLD:1499
+Arne Ironhand|AGE:33|SEX:Male|RACE:Tiefling|STAT:Commoner|FAM:Ironhand|ROLE:Parent|LOC:PykeWatch|FAC:None|DIFF_LVL:1|GOLD:449
+Gerda Ironhand|AGE:33|SEX:Female|RACE:Tiefling|STAT:Assassin|FAM:Ironhand|ROLE:Parent|LOC:PykeWatch|FAC:The Crimson Hand|DIFF_LVL:9|GOLD:149
+Falk Greymane|AGE:47|SEX:Male|RACE:Halfling|STAT:Commoner|FAM:Greymane|ROLE:Parent|LOC:PykeWatch|FAC:None|DIFF_LVL:2|GOLD:449
+Eira Ironhand|AGE:54|SEX:Female|RACE:Aasimar|STAT:General Store|FAM:Merchant|ROLE:Owner|LOC:Whitebridge|FAC:Merchants' Guild|DIFF_LVL:5|GOLD:149
+Sten Swiftfoot|AGE:48|SEX:Male|RACE:Half-Elf|STAT:Commoner|FAM:Swiftfoot|ROLE:Parent|LOC:PykeWatch|FAC:None|DIFF_LVL:3|GOLD:449
+Dagmar Swiftfoot|AGE:35|SEX:Female|RACE:Half-Elf|STAT:Alchemist|FAM:Merchant|ROLE:Owner|LOC:Whitebridge|FAC:Merchants' Guild|DIFF_LVL:6|GOLD:149
+Corbin Greymane|AGE:47|SEX:Male|RACE:Tabaxi|STAT:Thief|FAM:Greymane|ROLE:Parent|LOC:PykeWatch|FAC:Thieves' Guild|DIFF_LVL:6|GOLD:1499
+Brand Stonefist|AGE:40|SEX:Male|RACE:Lizardfolk|STAT:Commoner|FAM:Stonefist|ROLE:Parent|LOC:PykeWatch|FAC:None|DIFF_LVL:3|GOLD:449
+Hilda Stonefist|AGE:47|SEX:Female|RACE:Lizardfolk|STAT:Commoner|FAM:Stonefist|ROLE:Parent|LOC:PykeWatch|FAC:None|DIFF_LVL:1|GOLD:449
+Arne Swiftfoot|AGE:50|SEX:Male|RACE:Triton|STAT:Commoner|FAM:Swiftfoot|ROLE:Parent|LOC:PykeWatch|FAC:None|DIFF_LVL:2|GOLD:449
+Falk Longbeard|AGE:34|SEX:Male|RACE:Kenku|STAT:Guard|FAM:Longbeard|ROLE:Parent|LOC:PykeWatch|FAC:Royal Guard|DIFF_LVL:7|GOLD:1199
+Freya Longbeard|AGE:51|SEX:Female|RACE:Human|STAT:Assassin|FAM:Merchant|ROLE:Owner|LOC:Whitewatch|FAC:The Crimson Hand|DIFF_LVL:9|GOLD:149
+Corbin Blackwood|AGE:37|SEX:Male|RACE:Firbolg|STAT:Commoner|FAM:Blackwood|ROLE:Parent|LOC:PykeWatch|FAC:None|DIFF_LVL:1|GOLD:449
+Sten Blackwood|AGE:31|SEX:Male|RACE:Yuan-ti Pureblood|STAT:Tailor|FAM:Merchant|ROLE:Owner|LOC:Clearcreek|FAC:Merchants' Guild|DIFF_LVL:4|GOLD:149
+Gunnar Longbeard|AGE:49|SEX:Male|RACE:Halfling|STAT:Guard|FAM:Merchant|ROLE:Owner|LOC:Clearwood|FAC:Royal Guard|DIFF_LVL:7|GOLD:1199
+Brand Greymane|AGE:39|SEX:Male|RACE:Gnome|STAT:Commoner|FAM:Greymane|ROLE:Parent|LOC:PykeWatch|FAC:None|DIFF_LVL:2|GOLD:449
+Freya Greymane|AGE:54|SEX:Female|RACE:Gnome|STAT:Commoner|FAM:Greymane|ROLE:Parent|LOC:PykeWatch|FAC:None|DIFF_LVL:1|GOLD:449
+Arne Greymane|AGE:30|SEX:Male|RACE:Tiefling|STAT:Thief|FAM:Greymane|ROLE:Parent|LOC:PykeWatch|FAC:Thieves' Guild|DIFF_LVL:6|GOLD:1499
+Corbin Longbeard|AGE:40|SEX:Male|RACE:Aasimar|STAT:Commoner|FAM:Longbeard|ROLE:Parent|LOC:PykeWatch|FAC:None|DIFF_LVL:2|GOLD:449
+Brenna Longbeard|AGE:32|SEX:Female|RACE:Aasimar|STAT:Commoner|FAM:Longbeard|ROLE:Parent|LOC:PykeWatch|FAC:None|DIFF_LVL:2|GOLD:449
+Erik Swiftfoot|AGE:38|SEX:Male|RACE:Yuan-ti Pureblood|STAT:Guard|FAM:Swiftfoot|ROLE:Parent|LOC:PykeWatch|FAC:Royal Guard|DIFF_LVL:7|GOLD:1199
+Sif Swiftfoot|AGE:42|SEX:Female|RACE:Lizardfolk|STAT:Mage|FAM:Merchant|ROLE:Owner|LOC:Clearwood|FAC:Mages' Guild|DIFF_LVL:8|GOLD:149
+Arne Silverstream|AGE:55|SEX:Male|RACE:Tiefling|STAT:Assassin|FAM:Silverstream|ROLE:Parent|LOC:PykeWatch|FAC:The Crimson Hand|DIFF_LVL:9|GOLD:149
+Roric Ironhand|AGE:47|SEX:Male|RACE:Tabaxi|STAT:Guard|FAM:Ironhand|ROLE:Parent|LOC:PykeWatch|FAC:Royal Guard|DIFF_LVL:7|GOLD:1199
+Sigrid Ironhand|AGE:41|SEX:Female|RACE:Tabaxi|STAT:Commoner|FAM:Ironhand|ROLE:Parent|LOC:PykeWatch|FAC:None|DIFF_LVL:1|GOLD:449
+Bjorn Swiftfoot|AGE:30|SEX:Male|RACE:Firbolg|STAT:Thief|FAM:Swiftfoot|ROLE:Parent|LOC:PykeWatch|FAC:Thieves' Guild|DIFF_LVL:6|GOLD:1499
+Brenna Swiftfoot|AGE:26|SEX:Female|RACE:Lizardfolk|STAT:Tailor|FAM:Merchant|ROLE:Owner|LOC:Stonehaven|FAC:Merchants' Guild|DIFF_LVL:4|GOLD:149
+Gerda Swiftfoot|AGE:53|SEX:Female|RACE:Triton|STAT:Thief|FAM:Swiftfoot|ROLE:Parent|LOC:PykeWatch|FAC:Thieves' Guild|DIFF_LVL:6|GOLD:1499
+Erik Greymane|AGE:54|SEX:Male|RACE:Gnome|STAT:Mage|FAM:Greymane|ROLE:Parent|LOC:PykeWatch|FAC:Mages' Guild|DIFF_LVL:8|GOLD:149
+Brenna Blackwood|AGE:28|SEX:Female|RACE:Triton|STAT:Assassin|FAM:Merchant|ROLE:Owner|LOC:Stonehaven|FAC:The Crimson Hand|DIFF_LVL:10|GOLD:149|FOR_SALE_ABILITIES:Mark for Death,Garrote,Alchemical Poison,Death from the Shadows,The Final Whisper
+Sten Stonefist|AGE:48|SEX:Male|RACE:Tabaxi|STAT:Assassin|FAM:Merchant|ROLE:Owner|LOC:Clearwatch|FAC:The Crimson Hand|DIFF_LVL:9|GOLD:149
+Sif Ironhand|AGE:27|SEX:Female|RACE:Lizardfolk|STAT:Jeweler|FAM:Merchant|ROLE:Owner|LOC:PykeWatch|FAC:Merchants' Guild|DIFF_LVL:6|GOLD:149
+Gerda Greymane|AGE:54|SEX:Female|RACE:Yuan-ti Pureblood|STAT:Mage|FAM:Merchant|ROLE:Owner|LOC:PykeWatch|FAC:Mages' Guild|DIFF_LVL:8|GOLD:149
+Gunnar Ironhand|AGE:50|SEX:Male|RACE:Yuan-ti Pureblood|STAT:Blacksmith|FAM:Merchant|ROLE:Owner|LOC:PykeWatch|FAC:Merchants' Guild|DIFF_LVL:5|GOLD:149
+Astrid Greymane|AGE:40|SEX:Female|RACE:Firbolg|STAT:Thief|FAM:Merchant|ROLE:Owner|LOC:Clearwatch|FAC:Thieves' Guild|DIFF_LVL:6|GOLD:1499
+Brand Ironhand|AGE:44|SEX:Male|RACE:Halfling|STAT:Commoner|FAM:Ironhand|ROLE:Parent|LOC:Whitebridge|FAC:None|DIFF_LVL:3|GOLD:449
+Erik Stonefist|AGE:31|SEX:Male|RACE:Triton|STAT:Guard|FAM:Stonefist|ROLE:Parent|LOC:Whitebridge|FAC:Royal Guard|DIFF_LVL:7|GOLD:1199
+Erik Silverstream|AGE:30|SEX:Male|RACE:Lizardfolk|STAT:Guard|FAM:Silverstream|ROLE:Parent|LOC:Whitebridge|FAC:Royal Guard|DIFF_LVL:7|GOLD:1199
+Sif Silverstream|AGE:42|SEX:Female|RACE:Lizardfolk|STAT:Guard|FAM:Silverstream|ROLE:Parent|LOC:Whitebridge|FAC:Royal Guard|DIFF_LVL:7|GOLD:1199
+Falk Swiftfoot|AGE:30|SEX:Male|RACE:Kenku|STAT:Thief|FAM:Swiftfoot|ROLE:Parent|LOC:Whitebridge|FAC:Thieves' Guild|DIFF_LVL:7|GOLD:1499|FOR_SALE_ABILITIES:Distract,Evasion,Shadow Step,Smoke Bomb,Master of Deception
+Corbin Swiftfoot|AGE:39|SEX:Male|RACE:Tabaxi|STAT:Commoner|FAM:Swiftfoot|ROLE:Parent|LOC:Whitebridge|FAC:None|DIFF_LVL:1|GOLD:449
+Brand Swiftfoot|AGE:46|SEX:Male|RACE:Goliath|STAT:Commoner|FAM:Swiftfoot|ROLE:Parent|LOC:Whitebridge|FAC:None|DIFF_LVL:1|GOLD:449
+Corbin Silverstream|AGE:39|SEX:Male|RACE:Firbolg|STAT:Guard|FAM:Silverstream|ROLE:Parent|LOC:Whitebridge|FAC:Royal Guard|DIFF_LVL:7|GOLD:1199
+Brenna Silverstream|AGE:47|SEX:Female|RACE:Firbolg|STAT:Commoner|FAM:Silverstream|ROLE:Parent|LOC:Whitebridge|FAC:None|DIFF_LVL:2|GOLD:449
+Falk Ironhand|AGE:40|SEX:Male|RACE:Kenku|STAT:Commoner|FAM:Ironhand|ROLE:Parent|LOC:Whitebridge|FAC:None|DIFF_LVL:3|GOLD:449
+Sif Stonefist|AGE:54|SEX:Female|RACE:Kenku|STAT:Assassin|FAM:Merchant|ROLE:Owner|LOC:Whitebridge|FAC:The Crimson Hand|DIFF_LVL:9|GOLD:149
+Sten Greymane|AGE:44|SEX:Male|RACE:Elf|STAT:Commoner|FAM:Greymane|ROLE:Parent|LOC:Clearwood|FAC:None|DIFF_LVL:1|GOLD:449
+Alaric Ironhand|AGE:47|SEX:Male|RACE:Dwarf|STAT:Commoner|FAM:Ironhand|ROLE:Parent|LOC:Clearwood|FAC:None|DIFF_LVL:2|GOLD:449
+Hilda Ironhand|AGE:54|SEX:Female|RACE:Dwarf|STAT:Mage|FAM:Ironhand|ROLE:Parent|LOC:Clearwood|FAC:Mages' Guild|DIFF_LVL:9|GOLD:149|FOR_SALE_ABILITIES:Arcane Bolt,Prismatic Orb,Teleport,Summon Elemental,Meteor Swarm
+Astrid Blackwood|AGE:41|SEX:Female|RACE:Halfling|STAT:Mage|FAM:Blackwood|ROLE:Parent|LOC:Clearwood|FAC:Mages' Guild|DIFF_LVL:8|GOLD:149
+Bjorn Silverstream|AGE:53|SEX:Male|RACE:Halfling|STAT:Commoner|FAM:Silverstream|ROLE:Parent|LOC:Clearwood|FAC:None|DIFF_LVL:2|GOLD:449
+Gerda Longbeard|AGE:46|SEX:Female|RACE:Elf|STAT:Guard|FAM:Longbeard|ROLE:Parent|LOC:Clearwood|FAC:Royal Guard|DIFF_LVL:7|GOLD:1199
+Gunnar Greymane|AGE:33|SEX:Male|RACE:Dwarf|STAT:Guard|FAM:Greymane|ROLE:Parent|LOC:Clearwood|FAC:Royal Guard|DIFF_LVL:7|GOLD:1199
+Roric Longbeard|AGE:58|SEX:Male|RACE:Yuan-ti Pureblood|STAT:Guard|FAM:Merchant|ROLE:Owner|LOC:Clearwood|FAC:Royal Guard|DIFF_LVL:7|GOLD:1199
+Gunnar Blackwood|AGE:37|SEX:Male|RACE:Gnome|STAT:Assassin|FAM:Blackwood|ROLE:Parent|LOC:Whitefall|FAC:The Crimson Hand|DIFF_LVL:9|GOLD:149
+Eira Blackwood|AGE:39|SEX:Female|RACE:Gnome|STAT:Commoner|FAM:Blackwood|ROLE:Parent|LOC:Whitefall|FAC:None|DIFF_LVL:2|GOLD:449
+Bjorn Greymane|AGE:42|SEX:Male|RACE:Tiefling|STAT:Mage|FAM:Greymane|ROLE:Parent|LOC:Greencreek|FAC:Mages' Guild|DIFF_LVL:8|GOLD:149
+Bjorn Ironhand|AGE:46|SEX:Male|RACE:Half-Elf|STAT:Guard|FAM:Ironhand|ROLE:Parent|LOC:Greencreek|FAC:Royal Guard|DIFF_LVL:7|GOLD:1199
+Astrid Silverstream|AGE:50|SEX:Female|RACE:Dragonborn|STAT:Commoner|FAM:Silverstream|ROLE:Parent|LOC:Greencreek|FAC:None|DIFF_LVL:2|GOLD:449
+Hilda Blackwood|AGE:41|SEX:Female|RACE:Elf|STAT:Guard|FAM:Merchant|ROLE:Owner|LOC:Greencreek|FAC:Royal Guard|DIFF_LVL:7|GOLD:1199
+Astrid Swiftfoot|AGE:49|SEX:Female|RACE:Half-Elf|STAT:Commoner|FAM:Swiftfoot|ROLE:Parent|LOC:Greenwood|FAC:None|DIFF_LVL:2|GOLD:449
+Eira Silverstream|AGE:39|SEX:Female|RACE:Tiefling|STAT:Thief|FAM:Silverstream|ROLE:Parent|LOC:Greenwood|FAC:Thieves' Guild|DIFF_LVL:6|GOLD:1499
+Sten Silverstream|AGE:27|SEX:Male|RACE:Half-Elf|STAT:Blacksmith|FAM:Merchant|ROLE:Owner|LOC:Clearcreek|FAC:Merchants' Guild|DIFF_LVL:6|GOLD:149
+Brand Blackwood|AGE:41|SEX:Male|RACE:Halfling|STAT:Mage|FAM:Merchant|ROLE:Owner|LOC:Greenwood|FAC:Mages' Guild|DIFF_LVL:8|GOLD:149
+Dagmar Stonefist|AGE:48|SEX:Female|RACE:Kenku|STAT:Jeweler|FAM:Merchant|ROLE:Owner|LOC:Greenwood|FAC:Merchants' Guild|DIFF_LVL:6|GOLD:149
+Freya Blackwood|AGE:34|SEX:Female|RACE:Lizardfolk|STAT:Commoner|FAM:Blackwood|ROLE:Parent|LOC:Stonewood|FAC:None|DIFF_LVL:2|GOLD:449
+Brenna Greymane|AGE:43|SEX:Female|RACE:Yuan-ti Pureblood|STAT:Thief|FAM:Greymane|ROLE:Parent|LOC:Stonewood|FAC:Thieves' Guild|DIFF_LVL:6|GOLD:1499
+Roric Swiftfoot|AGE:51|SEX:Male|RACE:Halfling|STAT:Guard|FAM:Swiftfoot|ROLE:Parent|LOC:Stonewood|FAC:Royal Guard|DIFF_LVL:7|GOLD:1199
+Alaric Greymane|AGE:30|SEX:Male|RACE:Human|STAT:Thief|FAM:Greymane|ROLE:Parent|LOC:Stonewood|FAC:Thieves' Guild|DIFF_LVL:6|GOLD:1499
+Ingrid Greymane|AGE:36|SEX:Female|RACE:Human|STAT:Mage|FAM:Greymane|ROLE:Parent|LOC:Stonewood|FAC:Mages' Guild|DIFF_LVL:8|GOLD:149
+Erik Longbeard|AGE:36|SEX:Male|RACE:Triton|STAT:Thief|FAM:Longbeard|ROLE:Parent|LOC:Stonewood|FAC:Thieves' Guild|DIFF_LVL:6|GOLD:1499
+Roric Blackwood|AGE:35|SEX:Male|RACE:Dragonborn|STAT:Thief|FAM:Blackwood|ROLE:Parent|LOC:Stonewood|FAC:Thieves' Guild|DIFF_LVL:6|GOLD:1499
+Freya Swiftfoot|AGE:44|SEX:Female|RACE:Kenku|STAT:Mage|FAM:Merchant|ROLE:Owner|LOC:Stonewood|FAC:Mages' Guild|DIFF_LVL:8|GOLD:149
+Ingrid Longbeard|AGE:60|SEX:Female|RACE:Goliath|STAT:Mage|FAM:Merchant|ROLE:Owner|LOC:Stonewood|FAC:Mages' Guild|DIFF_LVL:8|GOLD:149
+Alaric Stonefist|AGE:45|SEX:Male|RACE:Elf|STAT:Commoner|FAM:Stonefist|ROLE:Parent|LOC:Greenwatch|FAC:None|DIFF_LVL:3|GOLD:449
+Astrid Stonefist|AGE:53|SEX:Female|RACE:Elf|STAT:Guard|FAM:Stonefist|ROLE:Parent|LOC:Greenwatch|FAC:Royal Guard|DIFF_LVL:7|GOLD:1199
+Ingrid Swiftfoot|AGE:30|SEX:Female|RACE:Dwarf|STAT:Guard|FAM:Swiftfoot|ROLE:Parent|LOC:Stonehaven|FAC:Royal Guard|DIFF_LVL:7|GOLD:1199
+Brand Longbeard|AGE:36|SEX:Male|RACE:Dragonborn|STAT:Guard|FAM:Longbeard|ROLE:Parent|LOC:Clearwatch|FAC:Royal Guard|DIFF_LVL:7|GOLD:1199
+Falk Silverstream|AGE:36|SEX:Male|RACE:Half-Orc|STAT:Thief|FAM:Silverstream|ROLE:Parent|LOC:Clearwatch|FAC:Thieves' Guild|DIFF_LVL:6|GOLD:1499
+Gunnar Stonefist|AGE:43|SEX:Male|RACE:Aasimar|STAT:Commoner|FAM:Stonefist|ROLE:Parent|LOC:Clearwatch|FAC:None|DIFF_LVL:2|GOLD:449
+Sigrid Stonefist|AGE:54|SEX:Female|RACE:Aasimar|STAT:Commoner|FAM:Stonefist|ROLE:Parent|LOC:Clearwatch|FAC:None|DIFF_LVL:3|GOLD:449
+Sten Ironhand|AGE:50|SEX:Male|RACE:Dwarf|STAT:Commoner|FAM:Ironhand|ROLE:Parent|LOC:Clearwatch|FAC:None|DIFF_LVL:3|GOLD:449
+Bjorn Stonefist|AGE:46|SEX:Male|RACE:Triton|STAT:Mage|FAM:Stonefist|ROLE:Parent|LOC:Clearwatch|FAC:Mages' Guild|DIFF_LVL:8|GOLD:149
+Brenna Ironhand|AGE:33|SEX:Female|RACE:Lizardfolk|STAT:Mage|FAM:Ironhand|ROLE:Parent|LOC:Clearwatch|FAC:Mages' Guild|DIFF_LVL:8|GOLD:149
+Gunnar Swiftfoot|AGE:35|SEX:Male|RACE:Tabaxi|STAT:Mage|FAM:Merchant|ROLE:Owner|LOC:Clearwatch|FAC:Mages' Guild|DIFF_LVL:8|GOLD:149
+Bjorn Blackwood|AGE:50|SEX:Male|RACE:Human|STAT:Mage|FAM:Blackwood|ROLE:Parent|LOC:Whitewatch|FAC:Mages' Guild|DIFF_LVL:8|GOLD:149
+Eira Longbeard|AGE:52|SEX:Female|RACE:Tiefling|STAT:Mage|FAM:Longbeard|ROLE:Parent|LOC:Whitewatch|FAC:Mages' Guild|DIFF_LVL:8|GOLD:149
+Astrid Longbeard|AGE:33|SEX:Female|RACE:Elf|STAT:Commoner|FAM:Longbeard|ROLE:Parent|LOC:Whitewatch|FAC:None|DIFF_LVL:1|GOLD:449
+Freya Stonefist|AGE:43|SEX:Female|RACE:Half-Elf|STAT:Assassin|FAM:Merchant|ROLE:Owner|LOC:Whitewatch|FAC:The Crimson Hand|DIFF_LVL:9|GOLD:149
+Arne Blackwood|AGE:34|SEX:Male|RACE:Gnome|STAT:Commoner|FAM:Blackwood|ROLE:Parent|LOC:Whitewood|FAC:None|DIFF_LVL:2|GOLD:449
+Sigrid Greymane|AGE:38|SEX:Female|RACE:Lizardfolk|STAT:Commoner|FAM:Greymane|ROLE:Parent|LOC:Whitewood|FAC:None|DIFF_LVL:1|GOLD:449
+Bjorn Longbeard|AGE:32|SEX:Male|RACE:Lizardfolk|STAT:Assassin|FAM:Longbeard|ROLE:Parent|LOC:Whitewood|FAC:The Crimson Hand|DIFF_LVL:9|GOLD:149
+Hilda Longbeard|AGE:49|SEX:Female|RACE:Gnome|STAT:Mage|FAM:Merchant|ROLE:Owner|LOC:Whitewood|FAC:Mages' Guild|DIFF_LVL:8|GOLD:149
+Sif Blackwood|AGE:43|SEX:Female|RACE:Dragonborn|STAT:Commoner|FAM:Blackwood|ROLE:Parent|LOC:Oakwatch|FAC:None|DIFF_LVL:3|GOLD:449
+Ingrid Ironhand|AGE:54|SEX:Female|RACE:Tiefling|STAT:Assassin|FAM:Ironhand|ROLE:Parent|LOC:Clearcreek|FAC:The Crimson Hand|DIFF_LVL:9|GOLD:149
+
+[CREATURES]
+Giant Wolf_0_GloomSpire|NAME:Giant Wolf|T:Giant Wolf|LOC:GloomSpire|COORDS:54,48|DIFF_LVL:2|GOLD:149|LOOT:Wolf Pelt
+Orc_1_GloomSpire|NAME:Orc|T:Orc|LOC:GloomSpire|COORDS:54,48|DIFF_LVL:3|GOLD:149|LOOT:
+Hobgoblin_2_GloomSpire|NAME:Hobgoblin|T:Hobgoblin|LOC:GloomSpire|COORDS:54,48|DIFF_LVL:3|GOLD:149|LOOT:
+Kobold_0_BloodTomb|NAME:Kobold|T:Kobold|LOC:BloodTomb|COORDS:45,47|DIFF_LVL:1|GOLD:149|LOOT:
+Kobold_1_BloodTomb|NAME:Kobold|T:Kobold|LOC:BloodTomb|COORDS:45,47|DIFF_LVL:1|GOLD:149|LOOT:
+Kobold_0_ShadowLair|NAME:Kobold|T:Kobold|LOC:ShadowLair|COORDS:67,81|DIFF_LVL:1|GOLD:149|LOOT:
+Orc_1_ShadowLair|NAME:Orc|T:Orc|LOC:ShadowLair|COORDS:67,81|DIFF_LVL:3|GOLD:149|LOOT:
+Kobold_2_ShadowLair|NAME:Kobold|T:Kobold|LOC:ShadowLair|COORDS:67,81|DIFF_LVL:1|GOLD:149|LOOT:
+Troll_0_SkullCaverns|NAME:Troll|T:Troll|LOC:SkullCaverns|COORDS:25,73|DIFF_LVL:7|GOLD:149|LOOT:
+Mummy_1_SkullCaverns|NAME:Mummy|T:Mummy|LOC:SkullCaverns|COORDS:25,73|DIFF_LVL:7|GOLD:149|LOOT:
+Minotaur_2_SkullCaverns|NAME:Minotaur|T:Minotaur|LOC:SkullCaverns|COORDS:25,73|DIFF_LVL:6|GOLD:149|LOOT:
+Ogre_3_SkullCaverns|NAME:Ogre|T:Ogre|LOC:SkullCaverns|COORDS:25,72|DIFF_LVL:5|GOLD:149|LOOT:
+Wraith_0_SkullSpire|NAME:Wraith|T:Wraith|LOC:SkullSpire|COORDS:43,24|DIFF_LVL:6|GOLD:149|LOOT:
+Minotaur_0_WhisperingTomb|NAME:Minotaur|T:Minotaur|LOC:WhisperingTomb|COORDS:54,60|DIFF_LVL:6|GOLD:149|LOOT:
+Minotaur_1_WhisperingTomb|NAME:Minotaur|T:Minotaur|LOC:WhisperingTomb|COORDS:54,60|DIFF_LVL:6|GOLD:149|LOOT:
+Minotaur_2_WhisperingTomb|NAME:Minotaur|T:Minotaur|LOC:WhisperingTomb|COORDS:53,61|DIFF_LVL:6|GOLD:149|LOOT:
+Bugbear_3_WhisperingTomb|NAME:Bugbear|T:Bugbear|LOC:WhisperingTomb|COORDS:53,60|DIFF_LVL:4|GOLD:149|LOOT:
+Bugbear_4_WhisperingTomb|NAME:Bugbear|T:Bugbear|LOC:WhisperingTomb|COORDS:54,60|DIFF_LVL:4|GOLD:149|LOOT:
+Ghoul_5_WhisperingTomb|NAME:Ghoul|T:Ghoul|LOC:WhisperingTomb|COORDS:53,60|DIFF_LVL:5|GOLD:149|LOOT:
+Ogre_6_WhisperingTomb|NAME:Ogre|T:Ogre|LOC:WhisperingTomb|COORDS:54,61|DIFF_LVL:5|GOLD:149|LOOT:
+Minotaur_7_WhisperingTomb|NAME:Minotaur|T:Minotaur|LOC:WhisperingTomb|COORDS:54,60|DIFF_LVL:6|GOLD:149|LOOT:
+Ogre_8_WhisperingTomb|NAME:Ogre|T:Ogre|LOC:WhisperingTomb|COORDS:54,60|DIFF_LVL:5|GOLD:149|LOOT:
+Minotaur_9_WhisperingTomb|NAME:Minotaur|T:Minotaur|LOC:WhisperingTomb|COORDS:54,60|DIFF_LVL:6|GOLD:149|LOOT:
+Wraith_10_WhisperingTomb|NAME:Wraith|T:Wraith|LOC:WhisperingTomb|COORDS:53,60|DIFF_LVL:6|GOLD:149|LOOT:
+Bugbear_11_WhisperingTomb|NAME:Bugbear|T:Bugbear|LOC:WhisperingTomb|COORDS:54,61|DIFF_LVL:4|GOLD:149|LOOT:
+Beholder Zombie_0_GloomRuins|NAME:Beholder Zombie|T:Beholder Zombie|LOC:GloomRuins|COORDS:32,40|DIFF_LVL:9|GOLD:149|LOOT:
+Vampire Spawn_1_GloomRuins|NAME:Vampire Spawn|T:Vampire Spawn|LOC:GloomRuins|COORDS:31,40|DIFF_LVL:8|GOLD:149|LOOT:
+Young Dragon_2_GloomRuins|NAME:Young Dragon|T:Young Dragon|LOC:GloomRuins|COORDS:31,39|DIFF_LVL:9|GOLD:149|LOOT:
+Adult Dragon_3_GloomRuins|NAME:Adult Dragon|T:Adult Dragon|LOC:GloomRuins|COORDS:32,40|DIFF_LVL:10|GOLD:149|LOOT:
+Chimera_4_GloomRuins|NAME:Chimera|T:Chimera|LOC:GloomRuins|COORDS:33,40|DIFF_LVL:8|GOLD:149|LOOT:
+Young Dragon_5_GloomRuins|NAME:Young Dragon|T:Young Dragon|LOC:GloomRuins|COORDS:33,41|DIFF_LVL:9|GOLD:149|LOOT:
+Adult Dragon_6_GloomRuins|NAME:Adult Dragon|T:Adult Dragon|LOC:GloomRuins|COORDS:32,39|DIFF_LVL:10|GOLD:149|LOOT:
+Chimera_7_GloomRuins|NAME:Chimera|T:Chimera|LOC:GloomRuins|COORDS:33,40|DIFF_LVL:8|GOLD:149|LOOT:
+Young Dragon_8_GloomRuins|NAME:Young Dragon|T:Young Dragon|LOC:GloomRuins|COORDS:33,39|DIFF_LVL:9|GOLD:149|LOOT:
+boss_GloomRuins|NAME:Dungeon Lord (Beholder Zombie)|T:Dungeon Boss|LOC:GloomRuins|COORDS:32,40|DIFF_LVL:9|GOLD:149|LOOT:
+Giant Wolf_0_BloodSpire|NAME:Giant Wolf|T:Giant Wolf|LOC:BloodSpire|COORDS:60,61|DIFF_LVL:2|GOLD:149|LOOT:Wolf Pelt
+Giant Wolf_1_BloodSpire|NAME:Giant Wolf|T:Giant Wolf|LOC:BloodSpire|COORDS:60,61|DIFF_LVL:2|GOLD:149|LOOT:Wolf Pelt
+Goblin_2_BloodSpire|NAME:Goblin|T:Goblin|LOC:BloodSpire|COORDS:61,60|DIFF_LVL:2|GOLD:149|LOOT:Goblin Ear
+Giant Rat_3_BloodSpire|NAME:Giant Rat|T:Giant Rat|LOC:BloodSpire|COORDS:60,60|DIFF_LVL:1|GOLD:149|LOOT:
+Giant Rat_4_BloodSpire|NAME:Giant Rat|T:Giant Rat|LOC:BloodSpire|COORDS:61,61|DIFF_LVL:1|GOLD:149|LOOT:
+Giant Rat_5_BloodSpire|NAME:Giant Rat|T:Giant Rat|LOC:BloodSpire|COORDS:60,60|DIFF_LVL:1|GOLD:149|LOOT:
+Giant Rat_6_BloodSpire|NAME:Giant Rat|T:Giant Rat|LOC:BloodSpire|COORDS:60,61|DIFF_LVL:1|GOLD:149|LOOT:
+Goblin_7_BloodSpire|NAME:Goblin|T:Goblin|LOC:BloodSpire|COORDS:61,60|DIFF_LVL:2|GOLD:149|LOOT:Goblin Ear
+Hobgoblin_0_ShadowTomb|NAME:Hobgoblin|T:Hobgoblin|LOC:ShadowTomb|COORDS:44,69|DIFF_LVL:3|GOLD:149|LOOT:
+Bugbear_1_ShadowTomb|NAME:Bugbear|T:Bugbear|LOC:ShadowTomb|COORDS:44,68|DIFF_LVL:4|GOLD:149|LOOT:
+Giant Wolf_2_ShadowTomb|NAME:Giant Wolf|T:Giant Wolf|LOC:ShadowTomb|COORDS:43,69|DIFF_LVL:2|GOLD:149|LOOT:Wolf Pelt
+Goblin_3_ShadowTomb|NAME:Goblin|T:Goblin|LOC:ShadowTomb|COORDS:44,69|DIFF_LVL:2|GOLD:149|LOOT:Goblin Ear
+Wraith_0_WhisperingRuins|NAME:Wraith|T:Wraith|LOC:WhisperingRuins|COORDS:42,77|DIFF_LVL:6|GOLD:149|LOOT:
+Bugbear_1_WhisperingRuins|NAME:Bugbear|T:Bugbear|LOC:WhisperingRuins|COORDS:42,77|DIFF_LVL:4|GOLD:149|LOOT:
+Lich_0_ShadowCrypt|NAME:Lich|T:Lich|LOC:ShadowCrypt|COORDS:66,30|DIFF_LVL:10|GOLD:149|LOOT:
+Chimera_1_ShadowCrypt|NAME:Chimera|T:Chimera|LOC:ShadowCrypt|COORDS:66,30|DIFF_LVL:8|GOLD:149|LOOT:
+Chimera_2_ShadowCrypt|NAME:Chimera|T:Chimera|LOC:ShadowCrypt|COORDS:66,30|DIFF_LVL:8|GOLD:149|LOOT:
+Adult Dragon_3_ShadowCrypt|NAME:Adult Dragon|T:Adult Dragon|LOC:ShadowCrypt|COORDS:65,30|DIFF_LVL:10|GOLD:149|LOOT:
+Lich_4_ShadowCrypt|NAME:Lich|T:Lich|LOC:ShadowCrypt|COORDS:65,30|DIFF_LVL:10|GOLD:149|LOOT:
+Lich_5_ShadowCrypt|NAME:Lich|T:Lich|LOC:ShadowCrypt|COORDS:66,30|DIFF_LVL:10|GOLD:149|LOOT:
+Beholder Zombie_6_ShadowCrypt|NAME:Beholder Zombie|T:Beholder Zombie|LOC:ShadowCrypt|COORDS:66,30|DIFF_LVL:9|GOLD:149|LOOT:
+Vampire Spawn_7_ShadowCrypt|NAME:Vampire Spawn|T:Vampire Spawn|LOC:ShadowCrypt|COORDS:65,31|DIFF_LVL:8|GOLD:149|LOOT:
+Young Dragon_8_ShadowCrypt|NAME:Young Dragon|T:Young Dragon|LOC:ShadowCrypt|COORDS:66,31|DIFF_LVL:9|GOLD:149|LOOT:
+Chimera_9_ShadowCrypt|NAME:Chimera|T:Chimera|LOC:ShadowCrypt|COORDS:66,31|DIFF_LVL:8|GOLD:149|LOOT:
+Chimera_10_ShadowCrypt|NAME:Chimera|T:Chimera|LOC:ShadowCrypt|COORDS:65,31|DIFF_LVL:8|GOLD:149|LOOT:
+Vampire Spawn_11_ShadowCrypt|NAME:Vampire Spawn|T:Vampire Spawn|LOC:ShadowCrypt|COORDS:65,31|DIFF_LVL:8|GOLD:149|LOOT:
+boss_ShadowCrypt|NAME:Dungeon Lord (Young Dragon)|T:Dungeon Boss|LOC:ShadowCrypt|COORDS:66,31|DIFF_LVL:9|GOLD:149|LOOT:
+Troll_0_GloomCaverns|NAME:Troll|T:Troll|LOC:GloomCaverns|COORDS:38,64|DIFF_LVL:7|GOLD:149|LOOT:
+Chimera_1_GloomCaverns|NAME:Chimera|T:Chimera|LOC:GloomCaverns|COORDS:38,63|DIFF_LVL:8|GOLD:149|LOOT:
+Chimera_2_GloomCaverns|NAME:Chimera|T:Chimera|LOC:GloomCaverns|COORDS:40,63|DIFF_LVL:8|GOLD:149|LOOT:
+Mummy_3_GloomCaverns|NAME:Mummy|T:Mummy|LOC:GloomCaverns|COORDS:39,65|DIFF_LVL:7|GOLD:149|LOOT:
+Chimera_4_GloomCaverns|NAME:Chimera|T:Chimera|LOC:GloomCaverns|COORDS:39,64|DIFF_LVL:8|GOLD:149|LOOT:
+Troll_5_GloomCaverns|NAME:Troll|T:Troll|LOC:GloomCaverns|COORDS:39,63|DIFF_LVL:7|GOLD:149|LOOT:
+Mummy_6_GloomCaverns|NAME:Mummy|T:Mummy|LOC:GloomCaverns|COORDS:39,64|DIFF_LVL:7|GOLD:149|LOOT:
+Chimera_7_GloomCaverns|NAME:Chimera|T:Chimera|LOC:GloomCaverns|COORDS:39,65|DIFF_LVL:8|GOLD:149|LOOT:
+Troll_8_GloomCaverns|NAME:Troll|T:Troll|LOC:GloomCaverns|COORDS:39,63|DIFF_LVL:7|GOLD:149|LOOT:
+Hobgoblin_0_ShadowCaverns|NAME:Hobgoblin|T:Hobgoblin|LOC:ShadowCaverns|COORDS:49,70|DIFF_LVL:3|GOLD:149|LOOT:
+Giant Rat_1_ShadowCaverns|NAME:Giant Rat|T:Giant Rat|LOC:ShadowCaverns|COORDS:50,69|DIFF_LVL:1|GOLD:149|LOOT:
+Hobgoblin_2_ShadowCaverns|NAME:Hobgoblin|T:Hobgoblin|LOC:ShadowCaverns|COORDS:50,69|DIFF_LVL:3|GOLD:149|LOOT:
+Goblin_3_ShadowCaverns|NAME:Goblin|T:Goblin|LOC:ShadowCaverns|COORDS:50,70|DIFF_LVL:2|GOLD:149|LOOT:Goblin Ear
+Goblin_4_ShadowCaverns|NAME:Goblin|T:Goblin|LOC:ShadowCaverns|COORDS:50,69|DIFF_LVL:2|GOLD:149|LOOT:Goblin Ear
+Hobgoblin_5_ShadowCaverns|NAME:Hobgoblin|T:Hobgoblin|LOC:ShadowCaverns|COORDS:50,69|DIFF_LVL:3|GOLD:149|LOOT:
+Giant Wolf_6_ShadowCaverns|NAME:Giant Wolf|T:Giant Wolf|LOC:ShadowCaverns|COORDS:50,69|DIFF_LVL:2|GOLD:149|LOOT:Wolf Pelt
+Orc_7_ShadowCaverns|NAME:Orc|T:Orc|LOC:ShadowCaverns|COORDS:50,69|DIFF_LVL:3|GOLD:149|LOOT:
+Kobold_8_ShadowCaverns|NAME:Kobold|T:Kobold|LOC:ShadowCaverns|COORDS:50,70|DIFF_LVL:1|GOLD:149|LOOT:
+Hobgoblin_9_ShadowCaverns|NAME:Hobgoblin|T:Hobgoblin|LOC:ShadowCaverns|COORDS:50,69|DIFF_LVL:3|GOLD:149|LOOT:
+Giant Wolf_10_ShadowCaverns|NAME:Giant Wolf|T:Giant Wolf|LOC:ShadowCaverns|COORDS:49,70|DIFF_LVL:2|GOLD:149|LOOT:Wolf Pelt
+Giant Rat_11_ShadowCaverns|NAME:Giant Rat|T:Giant Rat|LOC:ShadowCaverns|COORDS:49,69|DIFF_LVL:1|GOLD:149|LOOT:
+Lich_0_ForgottenSpire|NAME:Lich|T:Lich|LOC:ForgottenSpire|COORDS:27,78|DIFF_LVL:10|GOLD:149|LOOT:
+Adult Dragon_1_ForgottenSpire|NAME:Adult Dragon|T:Adult Dragon|LOC:ForgottenSpire|COORDS:27,78|DIFF_LVL:10|GOLD:149|LOOT:
+boss_ForgottenSpire|NAME:Dungeon Lord (Lich)|T:Dungeon Boss|LOC:ForgottenSpire|COORDS:27,78|DIFF_LVL:10|GOLD:149|LOOT:
+Beholder Zombie_0_ForgottenCaverns|NAME:Beholder Zombie|T:Beholder Zombie|LOC:ForgottenCaverns|COORDS:44,22|DIFF_LVL:9|GOLD:149|LOOT:
+Beholder Zombie_1_ForgottenCaverns|NAME:Beholder Zombie|T:Beholder Zombie|LOC:ForgottenCaverns|COORDS:44,22|DIFF_LVL:9|GOLD:149|LOOT:
+boss_ForgottenCaverns|NAME:Dungeon Lord (Young Dragon)|T:Dungeon Boss|LOC:ForgottenCaverns|COORDS:44,22|DIFF_LVL:9|GOLD:149|LOOT:
+Young Dragon_0_BloodLair|NAME:Young Dragon|T:Young Dragon|LOC:BloodLair|COORDS:29,73|DIFF_LVL:9|GOLD:149|LOOT:
+boss_BloodLair|NAME:Dungeon Lord (Vampire Spawn)|T:Dungeon Boss|LOC:BloodLair|COORDS:29,73|DIFF_LVL:8|GOLD:149|LOOT:
+Ghoul_0_SkullTomb|NAME:Ghoul|T:Ghoul|LOC:SkullTomb|COORDS:21,31|DIFF_LVL:5|GOLD:149|LOOT:
+Minotaur_1_SkullTomb|NAME:Minotaur|T:Minotaur|LOC:SkullTomb|COORDS:21,31|DIFF_LVL:6|GOLD:149|LOOT:
+Orc_0_GloomTomb|NAME:Orc|T:Orc|LOC:GloomTomb|COORDS:46,55|DIFF_LVL:3|GOLD:149|LOOT:
+Gnoll_1_GloomTomb|NAME:Gnoll|T:Gnoll|LOC:GloomTomb|COORDS:44,54|DIFF_LVL:4|GOLD:149|LOOT:
+Gnoll_2_GloomTomb|NAME:Gnoll|T:Gnoll|LOC:GloomTomb|COORDS:46,54|DIFF_LVL:4|GOLD:149|LOOT:
+Orc_3_GloomTomb|NAME:Orc|T:Orc|LOC:GloomTomb|COORDS:46,54|DIFF_LVL:3|GOLD:149|LOOT:
+Hobgoblin_4_GloomTomb|NAME:Hobgoblin|T:Hobgoblin|LOC:GloomTomb|COORDS:44,56|DIFF_LVL:3|GOLD:149|LOOT:
+Orc_5_GloomTomb|NAME:Orc|T:Orc|LOC:GloomTomb|COORDS:45,54|DIFF_LVL:3|GOLD:149|LOOT:
+Ogre_6_GloomTomb|NAME:Ogre|T:Ogre|LOC:GloomTomb|COORDS:45,55|DIFF_LVL:5|GOLD:149|LOOT:
+Gnoll_7_GloomTomb|NAME:Gnoll|T:Gnoll|LOC:GloomTomb|COORDS:45,54|DIFF_LVL:4|GOLD:149|LOOT:
+Orc_8_GloomTomb|NAME:Orc|T:Orc|LOC:GloomTomb|COORDS:45,56|DIFF_LVL:3|GOLD:149|LOOT:
+Orc_9_GloomTomb|NAME:Orc|T:Orc|LOC:GloomTomb|COORDS:46,54|DIFF_LVL:3|GOLD:149|LOOT:
+Ghoul_10_GloomTomb|NAME:Ghoul|T:Ghoul|LOC:GloomTomb|COORDS:46,54|DIFF_LVL:5|GOLD:149|LOOT:
+Ogre_11_GloomTomb|NAME:Ogre|T:Ogre|LOC:GloomTomb|COORDS:45,54|DIFF_LVL:5|GOLD:149|LOOT:
+Orc_12_GloomTomb|NAME:Orc|T:Orc|LOC:GloomTomb|COORDS:46,55|DIFF_LVL:3|GOLD:149|LOOT:
+Ogre_13_GloomTomb|NAME:Ogre|T:Ogre|LOC:GloomTomb|COORDS:44,56|DIFF_LVL:5|GOLD:149|LOOT:
+Hobgoblin_14_GloomTomb|NAME:Hobgoblin|T:Hobgoblin|LOC:GloomTomb|COORDS:44,54|DIFF_LVL:3|GOLD:149|LOOT:
+Ghoul_15_GloomTomb|NAME:Ghoul|T:Ghoul|LOC:GloomTomb|COORDS:46,54|DIFF_LVL:5|GOLD:149|LOOT:
+Bugbear_16_GloomTomb|NAME:Bugbear|T:Bugbear|LOC:GloomTomb|COORDS:46,54|DIFF_LVL:4|GOLD:149|LOOT:
+Ogre_17_GloomTomb|NAME:Ogre|T:Ogre|LOC:GloomTomb|COORDS:46,54|DIFF_LVL:5|GOLD:149|LOOT:
+Goblin_0_ShadowSpire|NAME:Goblin|T:Goblin|LOC:ShadowSpire|COORDS:54,41|DIFF_LVL:2|GOLD:149|LOOT:Goblin Ear
+Hobgoblin_1_ShadowSpire|NAME:Hobgoblin|T:Hobgoblin|LOC:ShadowSpire|COORDS:53,40|DIFF_LVL:3|GOLD:149|LOOT:
+Hobgoblin_2_ShadowSpire|NAME:Hobgoblin|T:Hobgoblin|LOC:ShadowSpire|COORDS:55,42|DIFF_LVL:3|GOLD:149|LOOT:
+Orc_3_ShadowSpire|NAME:Orc|T:Orc|LOC:ShadowSpire|COORDS:54,41|DIFF_LVL:3|GOLD:149|LOOT:
+Hobgoblin_4_ShadowSpire|NAME:Hobgoblin|T:Hobgoblin|LOC:ShadowSpire|COORDS:53,40|DIFF_LVL:3|GOLD:149|LOOT:
+Goblin_5_ShadowSpire|NAME:Goblin|T:Goblin|LOC:ShadowSpire|COORDS:54,42|DIFF_LVL:2|GOLD:149|LOOT:Goblin Ear
+Hobgoblin_6_ShadowSpire|NAME:Hobgoblin|T:Hobgoblin|LOC:ShadowSpire|COORDS:55,42|DIFF_LVL:3|GOLD:149|LOOT:
+Giant Rat_7_ShadowSpire|NAME:Giant Rat|T:Giant Rat|LOC:ShadowSpire|COORDS:55,40|DIFF_LVL:1|GOLD:149|LOOT:
+Goblin_8_ShadowSpire|NAME:Goblin|T:Goblin|LOC:ShadowSpire|COORDS:54,41|DIFF_LVL:2|GOLD:149|LOOT:Goblin Ear
+Kobold_9_ShadowSpire|NAME:Kobold|T:Kobold|LOC:ShadowSpire|COORDS:54,40|DIFF_LVL:1|GOLD:149|LOOT:
+Goblin_10_ShadowSpire|NAME:Goblin|T:Goblin|LOC:ShadowSpire|COORDS:53,41|DIFF_LVL:2|GOLD:149|LOOT:Goblin Ear
+Kobold_11_ShadowSpire|NAME:Kobold|T:Kobold|LOC:ShadowSpire|COORDS:53,41|DIFF_LVL:1|GOLD:149|LOOT:
+Giant Wolf_12_ShadowSpire|NAME:Giant Wolf|T:Giant Wolf|LOC:ShadowSpire|COORDS:54,40|DIFF_LVL:2|GOLD:149|LOOT:Wolf Pelt
+Giant Wolf_13_ShadowSpire|NAME:Giant Wolf|T:Giant Wolf|LOC:ShadowSpire|COORDS:54,41|DIFF_LVL:2|GOLD:149|LOOT:Wolf Pelt
+Goblin_14_ShadowSpire|NAME:Goblin|T:Goblin|LOC:ShadowSpire|COORDS:54,42|DIFF_LVL:2|GOLD:149|LOOT:Goblin Ear
+Hobgoblin_15_ShadowSpire|NAME:Hobgoblin|T:Hobgoblin|LOC:ShadowSpire|COORDS:55,42|DIFF_LVL:3|GOLD:149|LOOT:
+Goblin_16_ShadowSpire|NAME:Goblin|T:Goblin|LOC:ShadowSpire|COORDS:53,42|DIFF_LVL:2|GOLD:149|LOOT:Goblin Ear
+Kobold_17_ShadowSpire|NAME:Kobold|T:Kobold|LOC:ShadowSpire|COORDS:55,42|DIFF_LVL:1|GOLD:149|LOOT:
+Giant Wolf_0_SkullLair|NAME:Giant Wolf|T:Giant Wolf|LOC:SkullLair|COORDS:42,74|DIFF_LVL:2|GOLD:149|LOOT:Wolf Pelt
+Bugbear_1_SkullLair|NAME:Bugbear|T:Bugbear|LOC:SkullLair|COORDS:42,75|DIFF_LVL:4|GOLD:149|LOOT:
+Gnoll_2_SkullLair|NAME:Gnoll|T:Gnoll|LOC:SkullLair|COORDS:41,74|DIFF_LVL:4|GOLD:149|LOOT:
+Bugbear_3_SkullLair|NAME:Bugbear|T:Bugbear|LOC:SkullLair|COORDS:43,76|DIFF_LVL:4|GOLD:149|LOOT:
+Giant Wolf_4_SkullLair|NAME:Giant Wolf|T:Giant Wolf|LOC:SkullLair|COORDS:41,75|DIFF_LVL:2|GOLD:149|LOOT:Wolf Pelt
+Goblin_5_SkullLair|NAME:Goblin|T:Goblin|LOC:SkullLair|COORDS:41,76|DIFF_LVL:2|GOLD:149|LOOT:Goblin Ear
+Orc_6_SkullLair|NAME:Orc|T:Orc|LOC:SkullLair|COORDS:43,74|DIFF_LVL:3|GOLD:149|LOOT:
+Orc_7_SkullLair|NAME:Orc|T:Orc|LOC:SkullLair|COORDS:41,76|DIFF_LVL:3|GOLD:149|LOOT:
+Hobgoblin_8_SkullLair|NAME:Hobgoblin|T:Hobgoblin|LOC:SkullLair|COORDS:42,75|DIFF_LVL:3|GOLD:149|LOOT:
+Giant Wolf_9_SkullLair|NAME:Giant Wolf|T:Giant Wolf|LOC:SkullLair|COORDS:42,76|DIFF_LVL:2|GOLD:149|LOOT:Wolf Pelt
+Orc_10_SkullLair|NAME:Orc|T:Orc|LOC:SkullLair|COORDS:43,76|DIFF_LVL:3|GOLD:149|LOOT:
+Orc_11_SkullLair|NAME:Orc|T:Orc|LOC:SkullLair|COORDS:42,75|DIFF_LVL:3|GOLD:149|LOOT:
+Bugbear_12_SkullLair|NAME:Bugbear|T:Bugbear|LOC:SkullLair|COORDS:41,76|DIFF_LVL:4|GOLD:149|LOOT:
+Hobgoblin_13_SkullLair|NAME:Hobgoblin|T:Hobgoblin|LOC:SkullLair|COORDS:43,75|DIFF_LVL:3|GOLD:149|LOOT:
+Gnoll_14_SkullLair|NAME:Gnoll|T:Gnoll|LOC:SkullLair|COORDS:41,75|DIFF_LVL:4|GOLD:149|LOOT:
+Giant Wolf_15_SkullLair|NAME:Giant Wolf|T:Giant Wolf|LOC:SkullLair|COORDS:42,74|DIFF_LVL:2|GOLD:149|LOOT:Wolf Pelt
+Hobgoblin_16_SkullLair|NAME:Hobgoblin|T:Hobgoblin|LOC:SkullLair|COORDS:41,74|DIFF_LVL:3|GOLD:149|LOOT:
+Hobgoblin_17_SkullLair|NAME:Hobgoblin|T:Hobgoblin|LOC:SkullLair|COORDS:42,75|DIFF_LVL:3|GOLD:149|LOOT:
+Vampire Spawn_0_WhisperingLair|NAME:Vampire Spawn|T:Vampire Spawn|LOC:WhisperingLair|COORDS:48,56|DIFF_LVL:8|GOLD:149|LOOT:
+Minotaur_1_WhisperingLair|NAME:Minotaur|T:Minotaur|LOC:WhisperingLair|COORDS:48,56|DIFF_LVL:6|GOLD:149|LOOT:
+Young Dragon_0_BloodCaverns|NAME:Young Dragon|T:Young Dragon|LOC:BloodCaverns|COORDS:66,26|DIFF_LVL:9|GOLD:149|LOOT:
+Lich_1_BloodCaverns|NAME:Lich|T:Lich|LOC:BloodCaverns|COORDS:66,23|DIFF_LVL:10|GOLD:149|LOOT:
+Lich_2_BloodCaverns|NAME:Lich|T:Lich|LOC:BloodCaverns|COORDS:67,27|DIFF_LVL:10|GOLD:149|LOOT:
+Lich_3_BloodCaverns|NAME:Lich|T:Lich|LOC:BloodCaverns|COORDS:66,26|DIFF_LVL:10|GOLD:149|LOOT:
+Lich_4_BloodCaverns|NAME:Lich|T:Lich|LOC:BloodCaverns|COORDS:64,25|DIFF_LVL:10|GOLD:149|LOOT:
+Beholder Zombie_5_BloodCaverns|NAME:Beholder Zombie|T:Beholder Zombie|LOC:BloodCaverns|COORDS:67,27|DIFF_LVL:9|GOLD:149|LOOT:
+Lich_6_BloodCaverns|NAME:Lich|T:Lich|LOC:BloodCaverns|COORDS:64,26|DIFF_LVL:10|GOLD:149|LOOT:
+Adult Dragon_7_BloodCaverns|NAME:Adult Dragon|T:Adult Dragon|LOC:BloodCaverns|COORDS:64,27|DIFF_LVL:10|GOLD:149|LOOT:
+Beholder Zombie_8_BloodCaverns|NAME:Beholder Zombie|T:Beholder Zombie|LOC:BloodCaverns|COORDS:63,26|DIFF_LVL:9|GOLD:149|LOOT:
+Beholder Zombie_9_BloodCaverns|NAME:Beholder Zombie|T:Beholder Zombie|LOC:BloodCaverns|COORDS:66,27|DIFF_LVL:9|GOLD:149|LOOT:
+Young Dragon_10_BloodCaverns|NAME:Young Dragon|T:Young Dragon|LOC:BloodCaverns|COORDS:65,24|DIFF_LVL:9|GOLD:149|LOOT:
+Lich_11_BloodCaverns|NAME:Lich|T:Lich|LOC:BloodCaverns|COORDS:66,26|DIFF_LVL:10|GOLD:149|LOOT:
+Adult Dragon_12_BloodCaverns|NAME:Adult Dragon|T:Adult Dragon|LOC:BloodCaverns|COORDS:63,24|DIFF_LVL:10|GOLD:149|LOOT:
+Beholder Zombie_13_BloodCaverns|NAME:Beholder Zombie|T:Beholder Zombie|LOC:BloodCaverns|COORDS:67,25|DIFF_LVL:9|GOLD:149|LOOT:
+Young Dragon_14_BloodCaverns|NAME:Young Dragon|T:Young Dragon|LOC:BloodCaverns|COORDS:65,27|DIFF_LVL:9|GOLD:149|LOOT:
+Beholder Zombie_15_BloodCaverns|NAME:Beholder Zombie|T:Beholder Zombie|LOC:BloodCaverns|COORDS:66,23|DIFF_LVL:9|GOLD:149|LOOT:
+Beholder Zombie_16_BloodCaverns|NAME:Beholder Zombie|T:Beholder Zombie|LOC:BloodCaverns|COORDS:65,23|DIFF_LVL:9|GOLD:149|LOOT:
+Lich_17_BloodCaverns|NAME:Lich|T:Lich|LOC:BloodCaverns|COORDS:66,26|DIFF_LVL:10|GOLD:149|LOOT:
+Lich_18_BloodCaverns|NAME:Lich|T:Lich|LOC:BloodCaverns|COORDS:63,25|DIFF_LVL:10|GOLD:149|LOOT:
+Beholder Zombie_19_BloodCaverns|NAME:Beholder Zombie|T:Beholder Zombie|LOC:BloodCaverns|COORDS:65,27|DIFF_LVL:9|GOLD:149|LOOT:
+Adult Dragon_20_BloodCaverns|NAME:Adult Dragon|T:Adult Dragon|LOC:BloodCaverns|COORDS:63,27|DIFF_LVL:10|GOLD:149|LOOT:
+Adult Dragon_21_BloodCaverns|NAME:Adult Dragon|T:Adult Dragon|LOC:BloodCaverns|COORDS:63,26|DIFF_LVL:10|GOLD:149|LOOT:
+Lich_22_BloodCaverns|NAME:Lich|T:Lich|LOC:BloodCaverns|COORDS:64,23|DIFF_LVL:10|GOLD:149|LOOT:
+Adult Dragon_23_BloodCaverns|NAME:Adult Dragon|T:Adult Dragon|LOC:BloodCaverns|COORDS:65,23|DIFF_LVL:10|GOLD:149|LOOT:
+Lich_24_BloodCaverns|NAME:Lich|T:Lich|LOC:BloodCaverns|COORDS:65,25|DIFF_LVL:10|GOLD:149|LOOT:
+boss_BloodCaverns|NAME:Dungeon Lord (Lich)|T:Dungeon Boss|LOC:BloodCaverns|COORDS:65,25|DIFF_LVL:10|GOLD:149|LOOT:
+Orc_0_ShadowRuins|NAME:Orc|T:Orc|LOC:ShadowRuins|COORDS:70,59|DIFF_LVL:3|GOLD:149|LOOT:
+Orc_1_ShadowRuins|NAME:Orc|T:Orc|LOC:ShadowRuins|COORDS:70,59|DIFF_LVL:3|GOLD:149|LOOT:
+Ghoul_2_ShadowRuins|NAME:Ghoul|T:Ghoul|LOC:ShadowRuins|COORDS:70,59|DIFF_LVL:5|GOLD:149|LOOT:
+Ogre_3_ShadowRuins|NAME:Ogre|T:Ogre|LOC:ShadowRuins|COORDS:71,60|DIFF_LVL:5|GOLD:149|LOOT:
+Hobgoblin_4_ShadowRuins|NAME:Hobgoblin|T:Hobgoblin|LOC:ShadowRuins|COORDS:71,61|DIFF_LVL:3|GOLD:149|LOOT:
+Orc_5_ShadowRuins|NAME:Orc|T:Orc|LOC:ShadowRuins|COORDS:70,60|DIFF_LVL:3|GOLD:149|LOOT:
+Ghoul_6_ShadowRuins|NAME:Ghoul|T:Ghoul|LOC:ShadowRuins|COORDS:71,60|DIFF_LVL:5|GOLD:149|LOOT:
+Hobgoblin_7_ShadowRuins|NAME:Hobgoblin|T:Hobgoblin|LOC:ShadowRuins|COORDS:70,61|DIFF_LVL:3|GOLD:149|LOOT:
+Ghoul_8_ShadowRuins|NAME:Ghoul|T:Ghoul|LOC:ShadowRuins|COORDS:71,61|DIFF_LVL:5|GOLD:149|LOOT:
+Ghoul_9_ShadowRuins|NAME:Ghoul|T:Ghoul|LOC:ShadowRuins|COORDS:71,60|DIFF_LVL:5|GOLD:149|LOOT:
+Orc_10_ShadowRuins|NAME:Orc|T:Orc|LOC:ShadowRuins|COORDS:69,61|DIFF_LVL:3|GOLD:149|LOOT:
+Hobgoblin_11_ShadowRuins|NAME:Hobgoblin|T:Hobgoblin|LOC:ShadowRuins|COORDS:71,59|DIFF_LVL:3|GOLD:149|LOOT:
+Bugbear_12_ShadowRuins|NAME:Bugbear|T:Bugbear|LOC:ShadowRuins|COORDS:70,61|DIFF_LVL:4|GOLD:149|LOOT:
+Hobgoblin_13_ShadowRuins|NAME:Hobgoblin|T:Hobgoblin|LOC:ShadowRuins|COORDS:70,59|DIFF_LVL:3|GOLD:149|LOOT:
+Bugbear_14_ShadowRuins|NAME:Bugbear|T:Bugbear|LOC:ShadowRuins|COORDS:71,59|DIFF_LVL:4|GOLD:149|LOOT:
+Gnoll_15_ShadowRuins|NAME:Gnoll|T:Gnoll|LOC:ShadowRuins|COORDS:70,59|DIFF_LVL:4|GOLD:149|LOOT:
+Gnoll_16_ShadowRuins|NAME:Gnoll|T:Gnoll|LOC:ShadowRuins|COORDS:71,60|DIFF_LVL:4|GOLD:149|LOOT:
+Ogre_17_ShadowRuins|NAME:Ogre|T:Ogre|LOC:ShadowRuins|COORDS:69,59|DIFF_LVL:5|GOLD:149|LOOT:
+Ogre_18_ShadowRuins|NAME:Ogre|T:Ogre|LOC:ShadowRuins|COORDS:69,59|DIFF_LVL:5|GOLD:149|LOOT:
+Orc_19_ShadowRuins|NAME:Orc|T:Orc|LOC:ShadowRuins|COORDS:69,59|DIFF_LVL:3|GOLD:149|LOOT:
+Gnoll_20_ShadowRuins|NAME:Gnoll|T:Gnoll|LOC:ShadowRuins|COORDS:70,59|DIFF_LVL:4|GOLD:149|LOOT:
+Gnoll_21_ShadowRuins|NAME:Gnoll|T:Gnoll|LOC:ShadowRuins|COORDS:69,60|DIFF_LVL:4|GOLD:149|LOOT:
+Ghoul_22_ShadowRuins|NAME:Ghoul|T:Ghoul|LOC:ShadowRuins|COORDS:70,60|DIFF_LVL:5|GOLD:149|LOOT:
+Orc_23_ShadowRuins|NAME:Orc|T:Orc|LOC:ShadowRuins|COORDS:71,61|DIFF_LVL:3|GOLD:149|LOOT:
+Ghoul_24_ShadowRuins|NAME:Ghoul|T:Ghoul|LOC:ShadowRuins|COORDS:71,61|DIFF_LVL:5|GOLD:149|LOOT:
+Orc_25_ShadowRuins|NAME:Orc|T:Orc|LOC:ShadowRuins|COORDS:69,61|DIFF_LVL:3|GOLD:149|LOOT:
+Hobgoblin_26_ShadowRuins|NAME:Hobgoblin|T:Hobgoblin|LOC:ShadowRuins|COORDS:71,59|DIFF_LVL:3|GOLD:149|LOOT:
+Bugbear_0_GloomLair|NAME:Bugbear|T:Bugbear|LOC:GloomLair|COORDS:22,44|DIFF_LVL:4|GOLD:149|LOOT:
+Bugbear_1_GloomLair|NAME:Bugbear|T:Bugbear|LOC:GloomLair|COORDS:23,45|DIFF_LVL:4|GOLD:149|LOOT:
+Minotaur_2_GloomLair|NAME:Minotaur|T:Minotaur|LOC:GloomLair|COORDS:22,45|DIFF_LVL:6|GOLD:149|LOOT:
+Wraith_3_GloomLair|NAME:Wraith|T:Wraith|LOC:GloomLair|COORDS:22,45|DIFF_LVL:6|GOLD:149|LOOT:
+Ogre_4_GloomLair|NAME:Ogre|T:Ogre|LOC:GloomLair|COORDS:23,44|DIFF_LVL:5|GOLD:149|LOOT:
+Wraith_5_GloomLair|NAME:Wraith|T:Wraith|LOC:GloomLair|COORDS:23,44|DIFF_LVL:6|GOLD:149|LOOT:
+Ogre_6_GloomLair|NAME:Ogre|T:Ogre|LOC:GloomLair|COORDS:23,45|DIFF_LVL:5|GOLD:149|LOOT:
+Ghoul_7_GloomLair|NAME:Ghoul|T:Ghoul|LOC:GloomLair|COORDS:22,45|DIFF_LVL:5|GOLD:149|LOOT:
+
+[QUESTS]
+b045bf63-08b9-4059-afeb-e393555d6461|TITLE:Clearing the Way: Clear the ShadowCaverns of its minor threats.|T:Clear|GIVER:Gunnar Greymane|TARGET:ShadowCaverns|R_GOLD:100|PREREQ:None|REQ_REP:5|DESC:Gunnar Greymane needs help with a task of difficulty level 2.|TIER:2
+b0763326-a69e-4e10-964f-96cefa2c7bcf|TITLE:Securing the Borderlands: Clear the SkullCaverns to secure a vital border.|T:Clear|GIVER:Hilda Stonefist|TARGET:SkullCaverns|R_GOLD:900|PREREQ:None|REQ_REP:25|DESC:Hilda Stonefist needs help with a task of difficulty level 6.|TIER:6
+a8284f1f-219b-4995-85f7-fb5d37e4a8d0|TITLE:Bounty: A bounty has been posted for Orc in PykeWatch.|T:Kill|GIVER:Eira Valerion|TARGET:4 Orc|R_GOLD:150|PREREQ:None|REQ_REP:10|DESC:Eira Valerion needs help with a task of difficulty level 3.|TIER:3
+f4b6744e-4687-4af4-af81-87be7e5dd835|TITLE:A Rival's End: Eliminate 2 Ogre, a thorn in the side of the a local faction.|T:Kill|GIVER:Freya Stonefist|TARGET:2 Ogre|R_GOLD:500|PREREQ:None|REQ_REP:20|DESC:Freya Stonefist needs help with a task of difficulty level 5.|TIER:5
+32b3db50-46f8-4282-a48b-3d7a913cc95e|TITLE:A Shadowy Conspiracy: Unravel a conspiracy that threatens the entire kingdom, starting in Greencreek.|T:Investigate|GIVER:Hilda Blackwood|TARGET:an unknown target|R_GOLD:400|PREREQ:None|REQ_REP:35|DESC:Hilda Blackwood needs help with a task of difficulty level 8.|TIER:8
+f40c47fa-551c-42f9-996c-f1ebe8e8df94|TITLE:A Rival's End: Eliminate 4 Ogre, a thorn in the side of the a local faction.|T:Kill|GIVER:Sten Greymane|TARGET:4 Ogre|R_GOLD:750|PREREQ:None|REQ_REP:20|DESC:Sten Greymane needs help with a task of difficulty level 5.|TIER:5
+c9142cd0-21c6-4c26-a482-40eb887273b4|TITLE:A Safe Passage: Escort an unknown target to another town.|T:Escort|GIVER:Freya Stonefist|TARGET:an unknown target|R_GOLD:100|PREREQ:None|REQ_REP:5|DESC:Freya Stonefist needs help with a task of difficulty level 2.|TIER:2
+85f46d0a-5fed-4f63-9b56-cebc9c7e60f8|TITLE:Decapitation Strike: Assassinate 2 Troll, a leader of the rival a local faction.|T:Kill|GIVER:Arne Ironhand|TARGET:2 Troll|R_GOLD:700|PREREQ:None|REQ_REP:30|DESC:Arne Ironhand needs help with a task of difficulty level 7.|TIER:7
+ecb93a01-ed6a-415b-8643-6365bc2e0fe5|TITLE:Decapitation Strike: Assassinate 3 Troll, a leader of the rival a local faction.|T:Kill|GIVER:Sif Silverstream|TARGET:3 Troll|R_GOLD:1050|PREREQ:None|REQ_REP:30|DESC:Sif Silverstream needs help with a task of difficulty level 7.|TIER:7
+3c959775-880d-48d8-9ba8-1af2855eb5a2|TITLE:Clearing the Way: Clear the ShadowLair of its minor threats.|T:Clear|GIVER:Freya Silverstream|TARGET:ShadowLair|R_GOLD:300|PREREQ:None|REQ_REP:5|DESC:Freya Silverstream needs help with a task of difficulty level 2.|TIER:2
+c4c50f9d-454b-4589-8028-0b8a90ef0c5c|TITLE:Purge the Depths: Purge the BloodLair of its powerful and ancient evil.|T:Clear|GIVER:Gunnar Greymane|TARGET:BloodLair|R_GOLD:1600|PREREQ:None|REQ_REP:35|DESC:Gunnar Greymane needs help with a task of difficulty level 8.|TIER:8
+05a0ed7e-bb8e-4d73-bee7-2cda359ae554|TITLE:End of a Tyrant: Infiltrate the fortress and defeat the tyrannical 3 Adult Dragon to save the kingdom.|T:Kill|GIVER:Erik Swiftfoot|TARGET:3 Adult Dragon|R_GOLD:1000|PREREQ:None|REQ_REP:45|DESC:Erik Swiftfoot needs help with a task of difficulty level 10.|TIER:10
+822c05f6-a135-4870-b72f-aee2f47d1e41|TITLE:Whispers in the Dark: Investigate strange happenings at PykeWatch.|T:Investigate|GIVER:Gunnar Silverstream|TARGET:an unknown target|R_GOLD:300|PREREQ:None|REQ_REP:10|DESC:Gunnar Silverstream needs help with a task of difficulty level 3.|TIER:3
+edc7f5bd-09ff-4712-8a7c-cc215c391ab2|TITLE:Slaying the Beast: Hunt down and slay the legendary 4 Beholder Zombie that terrorizes the region.|T:Kill|GIVER:Arne Greymane|TARGET:4 Beholder Zombie|R_GOLD:450|PREREQ:None|REQ_REP:40|DESC:Arne Greymane needs help with a task of difficulty level 9.|TIER:9
+18ce4082-d539-4490-80aa-a72a851b338c|TITLE:Pest Control: Kill 5 Kobolds near PykeWatch.|T:Kill|GIVER:Arne Silverstream|TARGET:4 Kobold|R_GOLD:150|PREREQ:None|REQ_REP:0|DESC:Arne Silverstream needs help with a task of difficulty level 1.|TIER:1
+ed84fc4b-9763-451a-8780-3b674c00e266|TITLE:End of a Tyrant: Infiltrate the fortress and defeat the tyrannical 4 Lich to save the kingdom.|T:Kill|GIVER:Sten Swiftfoot|TARGET:4 Lich|R_GOLD:2500|PREREQ:None|REQ_REP:45|DESC:Sten Swiftfoot needs help with a task of difficulty level 10.|TIER:10
+000794b9-94e6-4418-bcad-c0f2e2cf8f8d|TITLE:Decapitation Strike: Assassinate 2 Mummy, a leader of the rival a local faction.|T:Kill|GIVER:Dagmar Silverstream|TARGET:2 Mummy|R_GOLD:1050|PREREQ:None|REQ_REP:30|DESC:Dagmar Silverstream needs help with a task of difficulty level 7.|TIER:7
+98d84180-ae6b-4ca2-a6db-f4b2f0c4c0b3|TITLE:Bounty: A bounty has been posted for Orc in Whitebridge.|T:Kill|GIVER:Erik Stonefist|TARGET:4 Orc|R_GOLD:450|PREREQ:None|REQ_REP:10|DESC:Erik Stonefist needs help with a task of difficulty level 3.|TIER:3
+61a0098e-f934-401e-ab1c-282681782b98|TITLE:Bounty: A bounty has been posted for Hobgoblin in Clearwatch.|T:Kill|GIVER:Falk Silverstream|TARGET:2 Hobgoblin|R_GOLD:750|PREREQ:None|REQ_REP:10|DESC:Falk Silverstream needs help with a task of difficulty level 3.|TIER:3
+d75e3e4e-d320-4e34-9bb8-11e7e8cad712|TITLE:End of a Tyrant: Infiltrate the fortress and defeat the tyrannical 3 Adult Dragon to save the kingdom.|T:Kill|GIVER:Brenna Swiftfoot|TARGET:3 Adult Dragon|R_GOLD:1500|PREREQ:None|REQ_REP:45|DESC:Brenna Swiftfoot needs help with a task of difficulty level 10.|TIER:10
+bb1ba424-13e9-4e1b-9294-f413712a2af7|TITLE:Pest Control: Kill 4 Rats near Clearwood.|T:Kill|GIVER:Astrid Blackwood|TARGET:5 Giant Rat|R_GOLD:150|PREREQ:None|REQ_REP:0|DESC:Astrid Blackwood needs help with a task of difficulty level 1.|TIER:1
+0610baec-b14a-4fb9-abbd-16750e7c07f7|TITLE:A Simple Errand: Fetch a an unknown target for Roric Silverstream.|T:Fetch|GIVER:Roric Silverstream|TARGET:an unknown target|R_GOLD:200|PREREQ:None|REQ_REP:0|DESC:Roric Silverstream needs help with a task of difficulty level 1.|TIER:1
+2006b4e8-e71e-440d-816f-9f33765ff3e0|TITLE:End of a Tyrant: Infiltrate the fortress and defeat the tyrannical 5 Lich to save the kingdom.|T:Kill|GIVER:Freya Blackwood|TARGET:5 Lich|R_GOLD:2000|PREREQ:None|REQ_REP:45|DESC:Freya Blackwood needs help with a task of difficulty level 10.|TIER:10
+17ec8222-c9df-45ee-aa37-b9bdc3a66686|TITLE:Clearing the Way: Clear the ShadowLair of its minor threats.|T:Clear|GIVER:Eira Ironhand|TARGET:ShadowLair|R_GOLD:500|PREREQ:None|REQ_REP:5|DESC:Eira Ironhand needs help with a task of difficulty level 2.|TIER:2
+d2871509-3836-49d5-8927-565c2ab077fa|TITLE:A Rival's End: Eliminate 5 Ghoul, a thorn in the side of the a local faction.|T:Kill|GIVER:Sif Ironhand|TARGET:5 Ghoul|R_GOLD:1250|PREREQ:None|REQ_REP:20|DESC:Sif Ironhand needs help with a task of difficulty level 5.|TIER:5
+a8d5f119-e26b-4b16-9cf4-cbf3aeda0ad8|TITLE:Clearing the Way: Clear the ShadowSpire of its minor threats.|T:Clear|GIVER:Freya Stonefist|TARGET:ShadowSpire|R_GOLD:100|PREREQ:None|REQ_REP:5|DESC:Freya Stonefist needs help with a task of difficulty level 2.|TIER:2
+7d2fa03a-6268-43e9-b4fc-ac898b76b31f|TITLE:A Simple Errand: Fetch a an unknown target for Sif Silverstream.|T:Fetch|GIVER:Sif Silverstream|TARGET:an unknown target|R_GOLD:100|PREREQ:None|REQ_REP:0|DESC:Sif Silverstream needs help with a task of difficulty level 1.|TIER:1
+f102b046-41b3-4d45-95d9-2211463e48ae|TITLE:The Final Bastion: Clear the ForgottenSpire, the source of the encroaching darkness, and defeat its Overlord.|T:Clear|GIVER:Hilda Ironhand|TARGET:ForgottenSpire|R_GOLD:1500|PREREQ:None|REQ_REP:45|DESC:Hilda Ironhand needs help with a task of difficulty level 10.|TIER:10
+1212b19f-d30e-4c56-a73c-34cea2fb6d0a|TITLE:Pest Control: Kill 6 Kobolds near Greenwood.|T:Kill|GIVER:Dagmar Stonefist|TARGET:3 Kobold|R_GOLD:150|PREREQ:None|REQ_REP:0|DESC:Dagmar Stonefist needs help with a task of difficulty level 1.|TIER:1
+f7cc7dff-7a17-4616-9f47-069d04439d6b|TITLE:Protect the Oracle: Escort the Oracle of PykeWatch to the capital to deliver a vital prophecy.|T:Escort|GIVER:Erik Ironhand|TARGET:an unknown target|R_GOLD:2250|PREREQ:None|REQ_REP:40|DESC:Erik Ironhand needs help with a task of difficulty level 9.|TIER:9
+ccfc3864-2e54-4c70-90c1-765bda1eb753|TITLE:Pest Control: Kill 5 Rats near Whitewatch.|T:Kill|GIVER:Bjorn Blackwood|TARGET:5 Giant Rat|R_GOLD:50|PREREQ:None|REQ_REP:0|DESC:Bjorn Blackwood needs help with a task of difficulty level 1.|TIER:1
+c787e4df-801f-491d-bbdd-3263cdb1e90c|TITLE:A Safe Passage: Escort an unknown target to another town.|T:Escort|GIVER:Hilda Swiftfoot|TARGET:an unknown target|R_GOLD:400|PREREQ:None|REQ_REP:5|DESC:Hilda Swiftfoot needs help with a task of difficulty level 2.|TIER:2
+817eb7b9-b810-4234-88f5-1b08c054235a|TITLE:End of a Tyrant: Infiltrate the fortress and defeat the tyrannical 5 Lich to save the kingdom.|T:Kill|GIVER:Arne Swiftfoot|TARGET:5 Lich|R_GOLD:500|PREREQ:None|REQ_REP:45|DESC:Arne Swiftfoot needs help with a task of difficulty level 10.|TIER:10
+1cdd9048-28be-4855-9508-1fffda131cdf|TITLE:Clearing the Way: Clear the ShadowSpire of its minor threats.|T:Clear|GIVER:Gunnar Blackwood|TARGET:ShadowSpire|R_GOLD:200|PREREQ:None|REQ_REP:5|DESC:Gunnar Blackwood needs help with a task of difficulty level 2.|TIER:2
+69a9e2e6-ccef-40b6-808e-5f89597b048f|TITLE:Protect the Oracle: Escort the Oracle of Greencreek to the capital to deliver a vital prophecy.|T:Escort|GIVER:Hilda Blackwood|TARGET:an unknown target|R_GOLD:450|PREREQ:None|REQ_REP:40|DESC:Hilda Blackwood needs help with a task of difficulty level 9.|TIER:9
+92fe9b25-bde4-4133-908f-73ae0241275d|TITLE:End of a Tyrant: Infiltrate the fortress and defeat the tyrannical 2 Lich to save the kingdom.|T:Kill|GIVER:Sigrid Longbeard|TARGET:2 Lich|R_GOLD:500|PREREQ:None|REQ_REP:45|DESC:Sigrid Longbeard needs help with a task of difficulty level 10.|TIER:10
+39921e9d-b857-4bc3-b98e-25aca116364f|TITLE:A Shadowy Conspiracy: Unravel a conspiracy that threatens the entire kingdom, starting in PykeWatch.|T:Investigate|GIVER:Corbin Longbeard|TARGET:an unknown target|R_GOLD:800|PREREQ:None|REQ_REP:35|DESC:Corbin Longbeard needs help with a task of difficulty level 8.|TIER:8
+d6925418-f7ac-4ad1-952b-868f8e2d8bb6|TITLE:Reclaiming the Past: Clear the monsters from the ShadowRuins ruins.|T:Clear|GIVER:Erik Longbeard|TARGET:ShadowRuins|R_GOLD:400|PREREQ:None|REQ_REP:15|DESC:Erik Longbeard needs help with a task of difficulty level 4.|TIER:4
+1ce61fde-ba7f-4053-9802-7d18abcfddb7|TITLE:Whispers in the Dark: Investigate strange happenings at Greenwatch.|T:Investigate|GIVER:Astrid Stonefist|TARGET:an unknown target|R_GOLD:750|PREREQ:None|REQ_REP:10|DESC:Astrid Stonefist needs help with a task of difficulty level 3.|TIER:3
+b8f25d63-f102-47d4-a6be-f16703b2c11c|TITLE:Clearing the Way: Clear the ShadowCaverns of its minor threats.|T:Clear|GIVER:Sigrid Stonefist|TARGET:ShadowCaverns|R_GOLD:500|PREREQ:None|REQ_REP:5|DESC:Sigrid Stonefist needs help with a task of difficulty level 2.|TIER:2
+3b7499c6-d6b7-421a-a768-4cac2ca0bfd6|TITLE:Securing the Borderlands: Clear the SkullCaverns to secure a vital border.|T:Clear|GIVER:Freya Greymane|TARGET:SkullCaverns|R_GOLD:1200|PREREQ:None|REQ_REP:25|DESC:Freya Greymane needs help with a task of difficulty level 6.|TIER:6
+8eaeffac-2798-4fd9-be2c-3463a276de77|TITLE:Decapitation Strike: Assassinate 3 Mummy, a leader of the rival a local faction.|T:Kill|GIVER:Sten Stonefist|TARGET:3 Mummy|R_GOLD:1400|PREREQ:None|REQ_REP:30|DESC:Sten Stonefist needs help with a task of difficulty level 7.|TIER:7
+27aa456c-ce0e-497f-9403-64b1f88a9ccc|TITLE:Decapitation Strike: Assassinate 3 Troll, a leader of the rival a local faction.|T:Kill|GIVER:Sten Ironhand|TARGET:3 Troll|R_GOLD:1400|PREREQ:None|REQ_REP:30|DESC:Sten Ironhand needs help with a task of difficulty level 7.|TIER:7
+ac6ca33f-38b2-4c6a-bfa2-b26ad10f1d54|TITLE:Ancient Relic: Retrieve the an unknown target from the depths of PykeWatch.|T:Fetch|GIVER:Gerda Swiftfoot|TARGET:an unknown target|R_GOLD:1400|PREREQ:None|REQ_REP:30|DESC:Gerda Swiftfoot needs help with a task of difficulty level 7.|TIER:7
+bc33cc06-7c5c-4097-b9d5-3455a674d970|TITLE:Slaying the Beast: Hunt down and slay the legendary 2 Beholder Zombie that terrorizes the region.|T:Kill|GIVER:Alaric Silverstream|TARGET:2 Beholder Zombie|R_GOLD:1800|PREREQ:None|REQ_REP:40|DESC:Alaric Silverstream needs help with a task of difficulty level 9.|TIER:9
+fc12ea7a-26cf-4c77-805f-ed434a1109d2|TITLE:Purge the Depths: Purge the BloodLair of its powerful and ancient evil.|T:Clear|GIVER:Gunnar Stonefist|TARGET:BloodLair|R_GOLD:400|PREREQ:None|REQ_REP:35|DESC:Gunnar Stonefist needs help with a task of difficulty level 8.|TIER:8
+df27f66c-47e7-421f-8819-802472d914a9|TITLE:A Rival's End: Eliminate 4 Ogre, a thorn in the side of the a local faction.|T:Kill|GIVER:Sten Ironhand|TARGET:4 Ogre|R_GOLD:1250|PREREQ:None|REQ_REP:20|DESC:Sten Ironhand needs help with a task of difficulty level 5.|TIER:5
+9d5f9e52-793a-42ae-ab0a-3dbe656e79cd|TITLE:High-Value Target: Escort an unknown target, a person of interest, to another town.|T:Escort|GIVER:Ingrid Greymane|TARGET:an unknown target|R_GOLD:1250|PREREQ:None|REQ_REP:20|DESC:Ingrid Greymane needs help with a task of difficulty level 5.|TIER:5
+4ef56d12-54ca-49ca-b5d9-384c8edd2788|TITLE:Whispers in the Dark: Investigate strange happenings at PykeWatch.|T:Investigate|GIVER:Sigrid Longbeard|TARGET:an unknown target|R_GOLD:150|PREREQ:None|REQ_REP:10|DESC:Sigrid Longbeard needs help with a task of difficulty level 3.|TIER:3
+f70d1f8b-5315-43cd-adb8-1b1cc02b1970|TITLE:Securing the Borderlands: Clear the SkullCaverns to secure a vital border.|T:Clear|GIVER:Gunnar Stonefist|TARGET:SkullCaverns|R_GOLD:300|PREREQ:None|REQ_REP:25|DESC:Gunnar Stonefist needs help with a task of difficulty level 6.|TIER:6
+3f366250-eb77-4344-872c-74aca453f484|TITLE:Bounty: A bounty has been posted for Hobgoblin in Greenwood.|T:Kill|GIVER:Eira Silverstream|TARGET:3 Hobgoblin|R_GOLD:750|PREREQ:None|REQ_REP:10|DESC:Eira Silverstream needs help with a task of difficulty level 3.|TIER:3
+eb0226c1-dc07-4f75-91f3-4e44788539c2|TITLE:Slaying the Beast: Hunt down and slay the legendary 5 Dungeon Lord (Beholder Zombie) that terrorizes the region.|T:Kill|GIVER:Eira Valerion|TARGET:5 Dungeon Lord (Beholder Zombie)|R_GOLD:2250|PREREQ:None|REQ_REP:40|DESC:Eira Valerion needs help with a task of difficulty level 9.|TIER:9
+b124eac4-a593-4392-a074-43c2dd12a5f1|TITLE:Whispers in the Dark: Investigate strange happenings at Greenwatch.|T:Investigate|GIVER:Alaric Stonefist|TARGET:an unknown target|R_GOLD:750|PREREQ:None|REQ_REP:10|DESC:Alaric Stonefist needs help with a task of difficulty level 3.|TIER:3
+2df0ab16-07f0-4efb-9747-5392f5de042e|TITLE:Spy Hunt: Uncover the spy operating within Clearcreek for the a local faction.|T:Investigate|GIVER:Sten Blackwood|TARGET:an unknown target|R_GOLD:1500|PREREQ:None|REQ_REP:25|DESC:Sten Blackwood needs help with a task of difficulty level 6.|TIER:6
+941e3e54-bdb8-4595-af22-bd517ec9eeba|TITLE:Decapitation Strike: Assassinate 2 Mummy, a leader of the rival a local faction.|T:Kill|GIVER:Arne Greymane|TARGET:2 Mummy|R_GOLD:1050|PREREQ:None|REQ_REP:30|DESC:Arne Greymane needs help with a task of difficulty level 7.|TIER:7
+58c97fac-2994-4e67-8b25-d4497e0dc0a8|TITLE:A Shadowy Conspiracy: Unravel a conspiracy that threatens the entire kingdom, starting in Greenwood.|T:Investigate|GIVER:Eira Silverstream|TARGET:an unknown target|R_GOLD:1200|PREREQ:None|REQ_REP:35|DESC:Eira Silverstream needs help with a task of difficulty level 8.|TIER:8
+49a3a7be-a74e-42f5-a172-939dfbd16224|TITLE:Royal Guard (1/10): Initiate's Trial: Prove Your Worth|T:Kill|GIVER:Eira Valerion|TARGET:5 Goblins|R_GOLD:200|PREREQ:None|REQ_REP:0|DESC:The next step in the Royal Guard questline.|TIER:1
+f12bd2ba-c815-40f1-bae1-b92f2f78f912|TITLE:Royal Guard (2/10): Patrol Duty: Secure the Roads|T:Clear|GIVER:Eira Valerion|TARGET:a nearby cave|R_GOLD:800|PREREQ:49a3a7be-a74e-42f5-a172-939dfbd16224|REQ_REP:10|DESC:The next step in the Royal Guard questline.|TIER:2
+135d83c9-59a5-4e9e-84c2-50b7ba278661|TITLE:Royal Guard (3/10): The Missing Caravan|T:Investigate|GIVER:Eira Valerion|TARGET:a trade route|R_GOLD:900|PREREQ:f12bd2ba-c815-40f1-bae1-b92f2f78f912|REQ_REP:20|DESC:The next step in the Royal Guard questline.|TIER:3
+eb9f1459-9d8f-4789-baab-aa04f92339ec|TITLE:Royal Guard (4/10): Bandit Leader's Bounty|T:Kill|GIVER:Eira Valerion|TARGET:a Bandit Captain|R_GOLD:3200|PREREQ:135d83c9-59a5-4e9e-84c2-50b7ba278661|REQ_REP:30|DESC:The next step in the Royal Guard questline.|TIER:4
+12e1c446-f7b7-4c45-9958-b71f472bd5ae|TITLE:Royal Guard (5/10): A Show of Force|T:Clear|GIVER:Eira Valerion|TARGET:an Orc encampment|R_GOLD:2500|PREREQ:eb9f1459-9d8f-4789-baab-aa04f92339ec|REQ_REP:40|DESC:The next step in the Royal Guard questline.|TIER:5
+daa0cae0-047f-4680-afd2-0542a0ca7586|TITLE:Royal Guard (6/10): Protect the Emissary|T:Escort|GIVER:Eira Valerion|TARGET:a Noble Emissary|R_GOLD:4800|PREREQ:12e1c446-f7b7-4c45-9958-b71f472bd5ae|REQ_REP:50|DESC:The next step in the Royal Guard questline.|TIER:6
+e378d077-3598-4202-b52e-5967e3b802f6|TITLE:Royal Guard (7/10): The Traitor Within|T:Investigate|GIVER:Eira Valerion|TARGET:the Royal Guard barracks|R_GOLD:4900|PREREQ:daa0cae0-047f-4680-afd2-0542a0ca7586|REQ_REP:60|DESC:The next step in the Royal Guard questline.|TIER:7
+601a4493-cf5d-452c-bde2-b7d9fa98ca7e|TITLE:Royal Guard (8/10): Siege Breaker|T:Clear|GIVER:Eira Valerion|TARGET:a besieged fortress|R_GOLD:7200|PREREQ:e378d077-3598-4202-b52e-5967e3b802f6|REQ_REP:70|DESC:The next step in the Royal Guard questline.|TIER:8
+b6c98845-f2f5-4180-bbfb-b56499867b3f|TITLE:Royal Guard (9/10): Dragon's Bane|T:Kill|GIVER:Eira Valerion|TARGET:a Young Dragon|R_GOLD:11700|PREREQ:601a4493-cf5d-452c-bde2-b7d9fa98ca7e|REQ_REP:80|DESC:The next step in the Royal Guard questline.|TIER:9
+b9959f29-5f51-4e91-a6ea-9afab1252d83|TITLE:Royal Guard (10/10): For the Crown|T:Kill|GIVER:Eira Valerion|TARGET:a Rebel Warlord|R_GOLD:15000|PREREQ:b6c98845-f2f5-4180-bbfb-b56499867b3f|REQ_REP:90|DESC:The next step in the Royal Guard questline.|TIER:10
+5ad51572-d22f-40fa-ac1a-436d0c93842b|TITLE:Mages' Guild (1/10): Arcane Components|T:Fetch|GIVER:Hilda Ironhand|TARGET:5 Glow-Shrooms|R_GOLD:200|PREREQ:None|REQ_REP:0|DESC:The next step in the Mages' Guild questline.|TIER:1
+7f132e21-b172-4570-92fd-0437e27ff72a|TITLE:Mages' Guild (2/10): A Minor Haunting|T:Clear|GIVER:Hilda Ironhand|TARGET:a haunted cellar|R_GOLD:800|PREREQ:5ad51572-d22f-40fa-ac1a-436d0c93842b|REQ_REP:10|DESC:The next step in the Mages' Guild questline.|TIER:2
+36c4a012-999b-48bc-b80e-ef5a112d9171|TITLE:Mages' Guild (3/10): The Rogue Apprentice|T:Kill|GIVER:Hilda Ironhand|TARGET:a Rogue Apprentice|R_GOLD:900|PREREQ:7f132e21-b172-4570-92fd-0437e27ff72a|REQ_REP:20|DESC:The next step in the Mages' Guild questline.|TIER:3
+6e63aa4e-f760-43d5-a4af-d41f0a5e0815|TITLE:Mages' Guild (4/10): Retrieve the Lost Grimoire|T:Fetch|GIVER:Hilda Ironhand|TARGET:a Lost Grimoire|R_GOLD:2400|PREREQ:36c4a012-999b-48bc-b80e-ef5a112d9171|REQ_REP:30|DESC:The next step in the Mages' Guild questline.|TIER:4
+6581cd09-a5b1-488d-a76c-54f5548e2568|TITLE:Mages' Guild (5/10): Elemental Imbalance|T:Clear|GIVER:Hilda Ironhand|TARGET:a cave of angry elementals|R_GOLD:3000|PREREQ:6e63aa4e-f760-43d5-a4af-d41f0a5e0815|REQ_REP:40|DESC:The next step in the Mages' Guild questline.|TIER:5
+943c20c6-4ec4-41b5-8f73-c16ce9e2367f|TITLE:Mages' Guild (6/10): Consult the Oracle|T:Escort|GIVER:Hilda Ironhand|TARGET:an Oracle|R_GOLD:3600|PREREQ:6581cd09-a5b1-488d-a76c-54f5548e2568|REQ_REP:50|DESC:The next step in the Mages' Guild questline.|TIER:6
+6f7af83e-7f9f-4bd1-99ae-5289f4659086|TITLE:Mages' Guild (7/10): The Necromancer's Cult|T:Investigate|GIVER:Hilda Ironhand|TARGET:a hidden cult|R_GOLD:7000|PREREQ:943c20c6-4ec4-41b5-8f73-c16ce9e2367f|REQ_REP:60|DESC:The next step in the Mages' Guild questline.|TIER:7
+d92d8a48-ca2d-46dd-b5df-a82c8724b415|TITLE:Mages' Guild (8/10): The Source of Corruption|T:Clear|GIVER:Hilda Ironhand|TARGET:a corrupted mana rift|R_GOLD:12800|PREREQ:6f7af83e-7f9f-4bd1-99ae-5289f4659086|REQ_REP:70|DESC:The next step in the Mages' Guild questline.|TIER:8
+5b395b5a-904d-4b42-9129-e20ca1f565de|TITLE:Mages' Guild (9/10): The Lich's Phylactery|T:Fetch|GIVER:Hilda Ironhand|TARGET:a Lich's Phylactery|R_GOLD:9900|PREREQ:d92d8a48-ca2d-46dd-b5df-a82c8724b415|REQ_REP:80|DESC:The next step in the Mages' Guild questline.|TIER:9
+1f42c67f-3196-4051-828d-db1b065bbaf9|TITLE:Mages' Guild (10/10): Archmage's Gambit|T:Kill|GIVER:Hilda Ironhand|TARGET:a powerful Lich|R_GOLD:20000|PREREQ:5b395b5a-904d-4b42-9129-e20ca1f565de|REQ_REP:90|DESC:The next step in the Mages' Guild questline.|TIER:10
+fd18cd36-706d-4e94-8d23-04972ab48afd|TITLE:The Crimson Hand (1/10): The First Cut|T:Kill|GIVER:Brenna Blackwood|TARGET:a low-level merchant|R_GOLD:200|PREREQ:None|REQ_REP:0|DESC:The next step in the The Crimson Hand questline.|TIER:1
+a320b601-0bbc-4944-acdc-2d9fd6da0ea6|TITLE:The Crimson Hand (2/10): A Message Delivered|T:Kill|GIVER:Brenna Blackwood|TARGET:a city guard captain|R_GOLD:400|PREREQ:fd18cd36-706d-4e94-8d23-04972ab48afd|REQ_REP:10|DESC:The next step in the The Crimson Hand questline.|TIER:2
+512fcef9-be18-40ab-8c0b-7f3a4d6f22e9|TITLE:The Crimson Hand (3/10): Silence the Witness|T:Kill|GIVER:Brenna Blackwood|TARGET:a witness in hiding|R_GOLD:1500|PREREQ:a320b601-0bbc-4944-acdc-2d9fd6da0ea6|REQ_REP:20|DESC:The next step in the The Crimson Hand questline.|TIER:3
+9b852a28-c1a5-42ba-84fd-c76ff37d5890|TITLE:The Crimson Hand (4/10): The Poisoner's Kiss|T:Kill|GIVER:Brenna Blackwood|TARGET:a minor noble|R_GOLD:2400|PREREQ:512fcef9-be18-40ab-8c0b-7f3a4d6f22e9|REQ_REP:30|DESC:The next step in the The Crimson Hand questline.|TIER:4
+3f9cb64b-e28d-486b-bf87-511a6aab7533|TITLE:The Crimson Hand (5/10): A Rival's Demise|T:Kill|GIVER:Brenna Blackwood|TARGET:the Thieves' Guild spymaster|R_GOLD:3000|PREREQ:9b852a28-c1a5-42ba-84fd-c76ff37d5890|REQ_REP:40|DESC:The next step in the The Crimson Hand questline.|TIER:5
+4e191f63-ff4f-49d9-84ca-c6f3be79a236|TITLE:The Crimson Hand (6/10): The Infiltrator|T:Investigate|GIVER:Brenna Blackwood|TARGET:the Mages' Guild library|R_GOLD:6600|PREREQ:3f9cb64b-e28d-486b-bf87-511a6aab7533|REQ_REP:50|DESC:The next step in the The Crimson Hand questline.|TIER:6
+e1da0d14-a003-4d43-a09a-1218b399f701|TITLE:The Crimson Hand (7/10): The Price of Betrayal|T:Kill|GIVER:Brenna Blackwood|TARGET:a traitorous Crimson Hand member|R_GOLD:6300|PREREQ:4e191f63-ff4f-49d9-84ca-c6f3be79a236|REQ_REP:60|DESC:The next step in the The Crimson Hand questline.|TIER:7
+edcbc58d-86e2-4da1-b2b0-d7e85ad62a80|TITLE:The Crimson Hand (8/10): Death to the Spymaster|T:Kill|GIVER:Brenna Blackwood|TARGET:the Royal Spymaster|R_GOLD:12800|PREREQ:e1da0d14-a003-4d43-a09a-1218b399f701|REQ_REP:70|DESC:The next step in the The Crimson Hand questline.|TIER:8
+b2a5661a-2d34-4836-b342-cc7b50bdd077|TITLE:The Crimson Hand (9/10): The King's General|T:Kill|GIVER:Brenna Blackwood|TARGET:the General of the Royal Guard|R_GOLD:12600|PREREQ:edcbc58d-86e2-4da1-b2b0-d7e85ad62a80|REQ_REP:80|DESC:The next step in the The Crimson Hand questline.|TIER:9
+10da6b42-91c4-4305-ac3d-ac16fb0c4b06|TITLE:The Crimson Hand (10/10): Checkmate|T:Kill|GIVER:Brenna Blackwood|TARGET:the Monarch|R_GOLD:14000|PREREQ:b2a5661a-2d34-4836-b342-cc7b50bdd077|REQ_REP:90|DESC:The next step in the The Crimson Hand questline.|TIER:10
+
+[CHRONICLE_TRIGGERS]
+NPC_DEATH:Eira Valerion|With the death of Eira Valerion, the Merchants' Guild is thrown into chaos. Their operations become disorganized and fearful. Sensing weakness, the Thieves' Guild grows bolder, their influence spreading like a shadow in the ensuing power vacuum.
+NPC_DEATH:Hilda Ironhand|With the death of Hilda Ironhand, the Mages' Guild is thrown into chaos. Their operations become disorganized and fearful. 
+NPC_DEATH:Falk Swiftfoot|With the death of Falk Swiftfoot, the Thieves' Guild is thrown into chaos. Their operations become disorganized and fearful. Sensing weakness, the Merchants' Guild grows bolder, their influence spreading like a shadow in the ensuing power vacuum.
+NPC_DEATH:Brenna Blackwood|With the death of Brenna Blackwood, the The Crimson Hand is thrown into chaos. Their operations become disorganized and fearful. 
+
+[ENVIRONMENTAL_PROSE]
+FOREST_DAY_CLEAR|Sunlight dapples through the thick canopy, painting the forest floor in shifting patterns of light and shadow. The air is alive with the gentle hum of insects and the distant call of birds.
+FOREST_DAY_RAIN|You find yourself in a forest during the day with rain skies.
+FOREST_DAY_FOG|You find yourself in a forest during the day with fog skies.
+FOREST_NIGHT_CLEAR|You find yourself in a forest during the night with clear skies.
+FOREST_NIGHT_RAIN|A steady rain drums against the leaves overhead, a constant, soothing rhythm in the otherwise silent woods. The world is reduced to the glistening bark of nearby trees and the earthy smell of wet soil.
+FOREST_NIGHT_FOG|You find yourself in a forest during the night with fog skies.
+MOUNTAINS_DAY_CLEAR|The air is thin and crisp. Jagged peaks of grey stone claw at the deep blue sky around you. Below, the world spreads out like a map, vast and green.
+MOUNTAINS_DAY_RAIN|You find yourself in a mountains during the day with rain skies.
+MOUNTAINS_DAY_FOG|You find yourself in a mountains during the day with fog skies.
+MOUNTAINS_NIGHT_CLEAR|You find yourself in a mountains during the night with clear skies.
+MOUNTAINS_NIGHT_RAIN|You find yourself in a mountains during the night with rain skies.
+MOUNTAINS_NIGHT_FOG|A thick, cold fog clings to the mountainside, swallowing all sound and sight. The world is a silent, grey void, and you can see no more than a few feet in any direction. The silence is absolute.
+PLAINS_DAY_CLEAR|An endless sea of grass sways in the gentle breeze under a vast, open sky. The horizon is a flat, unbroken line in all directions, giving a profound sense of space and solitude.
+PLAINS_DAY_RAIN|You find yourself in a plains during the day with rain skies.
+PLAINS_DAY_FOG|You find yourself in a plains during the day with fog skies.
+PLAINS_NIGHT_CLEAR|You find yourself in a plains during the night with clear skies.
+PLAINS_NIGHT_RAIN|You find yourself in a plains during the night with rain skies.
+PLAINS_NIGHT_FOG|You find yourself in a plains during the night with fog skies.
+SWAMP_DAY_CLEAR|You find yourself in a swamp during the day with clear skies.
+SWAMP_DAY_RAIN|You find yourself in a swamp during the day with rain skies.
+SWAMP_DAY_FOG|You find yourself in a swamp during the day with fog skies.
+SWAMP_NIGHT_CLEAR|You find yourself in a swamp during the night with clear skies.
+SWAMP_NIGHT_RAIN|Warm, heavy rain falls, hissing as it strikes the stagnant, black water of the swamp. Strange, gurgling sounds echo through the twisted trees, and the air is thick with the smell of decay and wet vegetation.
+SWAMP_NIGHT_FOG|You find yourself in a swamp during the night with fog skies.
+HILLS_DAY_CLEAR|You find yourself in a hills during the day with clear skies.
+HILLS_DAY_RAIN|You find yourself in a hills during the day with rain skies.
+HILLS_DAY_FOG|You find yourself in a hills during the day with fog skies.
+HILLS_NIGHT_CLEAR|You find yourself in a hills during the night with clear skies.
+HILLS_NIGHT_RAIN|You find yourself in a hills during the night with rain skies.
+HILLS_NIGHT_FOG|You find yourself in a hills during the night with fog skies.

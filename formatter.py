@@ -1,16 +1,16 @@
-# formatter.py v3.0
+# formatter.py v3.2
 # The final stage of the Generation Cascade.
-# This module translates the rich WorldState v3 object into the token-efficient
-# World-Weave Format (.wwf) v3 string.
+# This module translates the rich WorldState v3.2 object into the token-efficient
+# World-Weave Format (.wwf) v3.2 string.
 
 from models import WorldState
 
 def generate_world_weave_string(world_state: WorldState) -> str:
     """
-    v3: Takes the complete WorldState object and weaves it into the final
-    .wwf v3 string format for the Game Master AI.
+    v3.2: Takes the complete WorldState object and weaves it into the final
+    .wwf v3.2 string format for the Game Master AI.
     """
-    print("[STATUS] Weaving the final v3 World-Weave Key...")
+    print("[STATUS] Weaving the final v3.2 World-Weave Key...")
     weave_parts = []
 
     # --- Section: World State Meta ---
@@ -20,20 +20,21 @@ def generate_world_weave_string(world_state: WorldState) -> str:
     weave_parts.append(f"CURRENT_TICK:{world_state.world_time.current_tick}")
     weave_parts.append("")
 
-    # --- Section: Player Character (v3) ---
+    # --- Section: Player Character (v3.2) ---
     pc = world_state.player_character
-    weave_parts.append("[PLAYER_CHARACTER_V3]")
+    weave_parts.append("[PLAYER_CHARACTER_V3.2]")
     stats_str = ','.join([f"{k}-{v}" for k, v in pc.stats.items()])
     abilities_str = ','.join(pc.abilities)
     pc_line = (
         f"PC_NAME:{pc.name}|AGE:{pc.age}|SEX:{pc.sex}|"
         f"RACE:{pc.race}|CLS:{pc.character_class}|ALIGN:{pc.alignment}|GOLD:{pc.gold}|"
-        f"KN_LOC:{','.join(pc.known_locations)}|STATS:{stats_str}|ABILITIES:{abilities_str}"
+        f"KN_LOC:{','.join(pc.known_locations)}|STATS:{stats_str}|ABILITIES:{abilities_str}|"
+        f"RACIAL_PERK:{pc.racial_perk}"
     )
     weave_parts.append(pc_line)
     weave_parts.append("")
 
-    # --- Section: Equipment (v3) ---
+    # --- Section: Equipment (v3.2) ---
     weave_parts.append("[EQUIPMENT]")
     # Player equipment
     player_equipped = [f"{slot}:{item.name}" for slot, item in pc.equipment.items() if item]
@@ -46,12 +47,12 @@ def generate_world_weave_string(world_state: WorldState) -> str:
             weave_parts.append(f"{npc.name}|{','.join(npc_equipped)}")
     weave_parts.append("")
 
-    # --- Section: Coded & Road Map (v3) ---
+    # --- Section: Coded & Road Map (v3.2) ---
     if world_state.roads_grid:
-        weave_parts.append("[CODED_MAP_V3]")
+        weave_parts.append("[CODED_MAP_V3.2]")
         weave_parts.extend(world_state.roads_grid)
     elif world_state.coded_map_grid:
-        weave_parts.append("[CODED_MAP_V3]")
+        weave_parts.append("[CODED_MAP_V3.2]")
         weave_parts.extend(world_state.coded_map_grid)
     weave_parts.append("")
 
@@ -59,10 +60,9 @@ def generate_world_weave_string(world_state: WorldState) -> str:
     weave_parts.append("[LOCATIONS]")
     for loc in world_state.world_map.values():
         sub_loc_names = ','.join([sl.name for sl in loc.sub_locations])
-        dungeon_diff_str = f"|D_DIFF:{loc.dungeon_difficulty}" if loc.dungeon_difficulty else ""
         loc_line = (
             f"{loc.name}|T:{loc.type}|B:{loc.biome}|SIZE:{loc.size[0]},{loc.size[1]}|"
-            f"CL:{loc.challenge_level}{dungeon_diff_str}|CON:{','.join(loc.connections)}|"
+            f"CL:{loc.challenge_level}|CON:{','.join(loc.connections)}|"
             f"INHAB:{','.join(loc.inhabitants)}|SUB_LOCS:{sub_loc_names}|"
             f"COORDS:{loc.coordinates[0]},{loc.coordinates[1]}"
         )
@@ -91,13 +91,17 @@ def generate_world_weave_string(world_state: WorldState) -> str:
             weave_parts.append(f"{fac}|{rel_str}")
         weave_parts.append("")
 
-    # --- Section: NPCs & Creatures (v3) ---
+    # --- Section: NPCs & Creatures (v3.2) ---
     weave_parts.append("[NPCS]")
     for npc in world_state.npcs.values():
+        abilities_for_sale_str = ""
+        if hasattr(npc, 'for_sale_abilities') and npc.for_sale_abilities:
+            abilities_for_sale_str = "|FOR_SALE_ABILITIES:" + ",".join([ability.name for ability in npc.for_sale_abilities])
+        
         npc_line = (
             f"{npc.name}|AGE:{npc.age}|SEX:{npc.sex}|RACE:{npc.race}|STAT:{npc.status}|"
             f"FAM:{npc.family_id}|ROLE:{npc.role_in_family}|LOC:{npc.location}|"
-            f"FAC:{npc.faction_membership}|DIFF_LVL:{npc.difficulty_level}|GOLD:{npc.gold}"
+            f"FAC:{npc.faction_membership}|DIFF_LVL:{npc.difficulty_level}|GOLD:{npc.gold}{abilities_for_sale_str}"
         )
         weave_parts.append(npc_line)
     weave_parts.append("")
@@ -114,7 +118,7 @@ def generate_world_weave_string(world_state: WorldState) -> str:
             weave_parts.append(creature_line)
         weave_parts.append("")
 
-    # --- Section: Quests ---
+    # --- Section: Quests (v3.2) ---
     if world_state.quests:
         weave_parts.append("[QUESTS]")
         for quest in world_state.quests.values():
@@ -122,17 +126,9 @@ def generate_world_weave_string(world_state: WorldState) -> str:
             quest_line = (
                 f"{quest.id}|TITLE:{quest.title}|T:{quest.type}|GIVER:{quest.giver_npc}|"
                 f"TARGET:{quest.target}|R_GOLD:{quest.reward_gold}|PREREQ:{prereq_str}|"
-                f"REQ_REP:{quest.required_reputation}|DESC:{quest.description}"
+                f"REQ_REP:{quest.required_reputation}|DESC:{quest.description}|TIER:{quest.tier}"
             )
             weave_parts.append(quest_line)
-        weave_parts.append("")
-
-    # --- Section: Ability Shop (v3) ---
-    if world_state.ability_shop:
-        weave_parts.append("[ABILITY_SHOP]")
-        for ability in world_state.ability_shop:
-            ability_line = f"{ability.name}|T{ability.tier}|{ability.cost}g|{ability.class_requirement}|{ability.description}"
-            weave_parts.append(ability_line)
         weave_parts.append("")
 
     # --- Section: World Details ---

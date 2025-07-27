@@ -1,5 +1,5 @@
-# models.py v3.0
-# Pydantic models defining the core data structures for Project Infinity v3.
+# models.py v3.3
+# Pydantic models defining the core data structures for Project Infinity v3.3.
 
 from pydantic import BaseModel, Field
 from typing import Dict, List, Optional, Tuple
@@ -28,7 +28,7 @@ class SubLocation(BaseModel):
     operator_npc: Optional[str] = None
 
 class BaseCharacter(BaseModel):
-    """v3: Common base for all characters, including stats and equipment."""
+    """v3.3: Common base for all characters, including stats and equipment."""
     name: str
     race: str
     stats: Dict[str, int] = {
@@ -43,11 +43,12 @@ class BaseCharacter(BaseModel):
     gold: int = 0
 
 class PlayerCharacter(BaseCharacter):
-    """v3: Represents the player's character."""
+    """v3.3: Represents the player's character."""
     age: int
     sex: str
     character_class: str = Field(..., alias='class')
     alignment: str
+    racial_perk: Optional[str] = None
     abilities: List[str] = []
     known_locations: List[str] = []
     known_npcs: List[str] = []
@@ -57,40 +58,41 @@ class PlayerCharacter(BaseCharacter):
         populate_by_name = True
 
 class NPC(BaseCharacter):
-    """v3: Represents a single Non-Player Character."""
+    """v3.3: Represents a single Non-Player Character."""
     age: int
     sex: str
-    status: str
+    status: str # e.g., 'King', 'Merchant', 'Guard', 'Court Mage'
     family_id: str
     role_in_family: str
     location: str
     faction_membership: Optional[str] = None
     inventory: List[Item] = []
+    for_sale_abilities: List[Ability] = [] # Abilities offered by this NPC
 
 class Creature(BaseCharacter):
-    """v3: Represents a non-sentient creature or monster."""
+    """v3.3: Represents a non-sentient creature or monster."""
     type: str
     location: str
     coordinates: Tuple[int, int]
     loot: List[Item] = []
 
 class Location(BaseModel):
-    """v3: Represents a single location on the world map."""
+    """v3.3: Represents a single location on the world map."""
     name: str
-    type: str # 'Settlement', 'Dungeon', 'Capital'
+    type: str # 'Settlement', 'Dungeon', 'Capital', 'Island'
     biome: str
     size: Tuple[int, int]
-    challenge_level: int
-    dungeon_difficulty: Optional[str] = None # 'easy', 'medium', 'hard'
+    challenge_level: int # Now scaled 1-10
     connections: List[str] = []
     inhabitants: List[str] = []
     sub_locations: List[SubLocation] = []
     coordinates: Optional[Tuple[int, int]] = None
 
 class Faction(BaseModel):
+    """v3.3: Represents a faction or guild."""
     name: str
     description: str
-    disposition: str
+    disposition: str # e.g., 'Lawful Good', 'Neutral Evil'
     leader: Optional[str] = None
     members: List[str] = []
 
@@ -105,9 +107,10 @@ class Quest(BaseModel):
     prerequisite_quest: Optional[str] = None
     required_reputation: int
     description: str
+    tier: int
 
 class WorldState(BaseModel):
-    """v3: The main container for the entire generated world."""
+    """v3.3: The main container for the entire generated world."""
     instance_id: str
     player_character: PlayerCharacter
     world_time: Time = Time()
@@ -118,7 +121,6 @@ class WorldState(BaseModel):
     npcs: Dict[str, NPC] = {}
     creatures: Dict[str, Creature] = {}
     quests: Dict[str, Quest] = {}
-    ability_shop: List[Ability] = []
 
     # Pre-calculated data for the GM
     coded_map_grid: Optional[List[str]] = None
