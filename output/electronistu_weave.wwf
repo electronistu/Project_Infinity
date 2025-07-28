@@ -1,0 +1,478 @@
+// WORLD-WEAVE-FILE v1.0 //
+
+[PLAYER]
+name:Electronistu
+level:1
+class:Wizard
+race:Elf
+alignment:Chaotic Evil
+age:18
+sex:Male
+stats:STRENGTH:8|DEXTERITY:15|CONSTITUTION:8|INTELLIGENCE:15|WISDOM:15|CHARISMA:8
+perks:Fey Ancestry: You have advantage on saving throws against being charmed, and magic can’t put you to sleep.|Trance: Elves don’t need to sleep. Instead, they meditate deeply, remaining semiconscious, for 4 hours a day.
+[EQUIPMENT]
+
+[MAP]
+size:100x100
+grid:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.....~~~~~~~~~~~~~~~~~~~~~~~~.~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~......~~~~~~~~~~~~~~~~~~~~~..~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~........~~~~~~~~~~~~~~~~~~~~...~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~..~~...........~~~~~~~~~~~~~~~~~~~...~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~..................~~~~~~~~~~~~~~~~~~~.~~~....................~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.....................~~~~~~~~~~~~~~~~~~..~~....................~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~........................~~~~~~~~~~~~~~~~~....~....................~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.........................~~~~~~~~~~~~~~~.....~....................~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~..........................~.~~~~~~~~~~~~~~..........................~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~...........................~~..~~~~~~~~~.~~...........................~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~...........................~~......~~.................................~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~........................................................................~~~~~
+~~~~~~~~~~~~~~~~~~~~~~.........................................................................~~~~~
+~~~~~~~~~~~~~~~~~~~............................................................................~~~~~
+~~~~~~~~~~~~~~~~~~.....~.......................................................................~~~~~
+~~~~~~~~~~~~~~~~~~~~..~~.......................................................................~~~~~
+~~~~~~~~~~~~~~~~~~~~...........................................................................~~~~~
+~~~~~~~~~~~~~~~~~~~............................................................................~~~~~
+~~~~~~~~~~~~~~~~~~~............................................................................~~~~~
+~~~~~~~~~~~~~~~~~~~............................................................................~~~~~
+~~~~~~~~~~~~~~~~~~~~~..........................................................................~~~~~
+~~~~~~~~~~~~~~~~~~~~...........................................................................~~~~~
+~~~~~~~~~~~~~~~~~~~~...........................................................................~~~~~
+~~~~~~~~~~~~~~~~~~~~~...~~.....................................................................~~~~~
+~~~~~~~~~~~~~~~~~~~~...~~.......................................................~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~....~~.......................................................~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~...~~~~......................................................~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...................................................~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~..................................................~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...................................................~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~....................................................~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~.....................................................~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~......................................................~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~......................................................~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~......................................................~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~.......................................................~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~........................................................~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~..........................................................~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~...........................................................~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~...........................................................~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~...........................................................~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~............................................................~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~...........................................................~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~............................................................~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~.............................................................~~~..~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~.....................................................................~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~......................................................................~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~......................................................................~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~......................................................................~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~.....................................................................~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~.....................................................................~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~......................................................................~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~.......................................................................~~~~~~
+~~~~~~~~~~~~~~~~~~~~~..........................................................................~~~~~
+~~~~~~~~~~~~~~~~~~~~~..........................................................................~~~~~
+~~~~~~~~~~~~~~~~~~~~~~........................................................................~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~........................................................................~~~~~~
+~~~~~~~~~~~~~~~~~~~~.........................................................................~~~~~~~
+~~~~~~~~~~~~~~~~~~~..........................................................................~~~~~~~
+~~~~~~~~~~~~~~~~~~~..........................................................................~~~~~~~
+~~~~~~~~~~~~~~~~.............................................................................~~~~~~~
+~~~~~~~~~~~~~~~..............................................................................~~~~~~~
+~~~~~~~~~~~~~~~..............................................................................~~~~~~~
+~~~~~~~~~~~~~~~..............................................................................~~~~~~~
+.....~~~~~~~~.................................................................................~~~~~.
+.........~~~~.......................................................................................
+....................................................................................................
+....................................................................................................
+....................................................................................................
+....................................................................................................
+....................................................................................................
+....................................................................................................
+..............~~~~..................................................................................
+........~....~~~~~..................................................................................
+.......~~~~.~~~~~~~.................................................................................
+......~~~~~~~~~~~~~.................................................................................
+.....~~~~~~~~~~~~~~~................................................................................
+....~~~~~~~~~~~~~~~~~~~~............................................................................
+...~~~~~~~~~~~~~~~~~~~~~~...........................................................................
+...~~~~~~~~~~~~~~~~~~~~~~~..........................................................................
+..~~~~~~~~~~~~~~~~~~~~~~~~~...~~.~~.................................................................
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~................................................................
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~................................................................
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.............................................................~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~........................................................~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~......................................................~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~....................................................~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.................................................~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...............................................~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...............................................~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.............................................~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.............................................~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~............................................~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...........................................~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.........................................~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.......................................~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~......................................~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~....~...............................~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.............................~~~~~~~~~~~~
+
+[KINGDOMS]
+::name:Eldoria
+capital:Eldoria City
+alignment:Lawful Good
+relations:Zarthus:War|Silverwood:Neutral|Blacksail Archipelago:War
+ruler:
+    name:King Theron
+    level:15
+locations:
+    - name:Eldoria City|biome:Plains|coords:33,45
+      description:The bustling capital of Eldoria.
+      npcs:King Theron
+    - name:Eldoria Town 1|biome:Plains|coords:37,45
+      description:A small settlement in the realm of Eldoria.
+      npcs:Dwarf Innkeeper
+    - name:Eldoria Town 2|biome:Plains|coords:30,59
+      description:A small settlement in the realm of Eldoria.
+      npcs:Dragonborn Innkeeper
+    - name:The Ruin of Eldoria|biome:Ruins|coords:88,6
+      description:The crumbling remains of an ancient civilization.
+      creatures:Skeleton|Zombie|Lich
+      loot:Boots of Speed
+    - name:The Ruin of Eldoria|biome:Ruins|coords:91,15
+      description:The crumbling remains of an ancient civilization.
+      creatures:Skeleton|Zombie
+      loot:Pendant of Charisma|Mage Robes|Rusty Sword
+::name:Zarthus
+capital:Zarthus City
+alignment:Lawful Evil
+relations:Eldoria:War|Silverwood:Neutral|Blacksail Archipelago:War
+ruler:
+    name:Sorcerer-King Malakor
+    level:11
+locations:
+    - name:Zarthus City|biome:Plains|coords:79,61
+      description:The bustling capital of Zarthus.
+      npcs:Sorcerer-King Malakor
+    - name:Zarthus Town 1|biome:Plains|coords:67,31
+      description:A small settlement in the realm of Zarthus.
+      npcs:Dragonborn Innkeeper
+    - name:Zarthus Town 2|biome:Plains|coords:75,71
+      description:A small settlement in the realm of Zarthus.
+      npcs:Elf Farmer
+    - name:Zarthus Town 3|biome:Plains|coords:60,22
+      description:A small settlement in the realm of Zarthus.
+      npcs:Dwarf Innkeeper
+    - name:Zarthus Town 4|biome:Plains|coords:42,75
+      description:A small settlement in the realm of Zarthus.
+      npcs:Human Blacksmith
+    - name:The Mine of Zarthus|biome:Underground|coords:91,78
+      description:An abandoned mine, rumored to be rich in minerals.
+      creatures:Orc|Shadow Mastiff
+      loot:Iron Chainmail
+::name:Silverwood
+capital:Silverwood City
+alignment:True Neutral
+relations:Eldoria:Neutral|Zarthus:Neutral|Blacksail Archipelago:War
+ruler:
+    name:Archdruid Elara
+    level:13
+locations:
+    - name:Silverwood City|biome:Plains|coords:54,37
+      description:The bustling capital of Silverwood.
+      npcs:Archdruid Elara
+    - name:Silverwood Town 1|biome:Plains|coords:48,9
+      description:A small settlement in the realm of Silverwood.
+      npcs:Dwarf Blacksmith
+    - name:Silverwood Town 2|biome:Plains|coords:30,75
+      description:A small settlement in the realm of Silverwood.
+      npcs:Dragonborn Innkeeper
+    - name:Silverwood Town 3|biome:Plains|coords:86,54
+      description:A small settlement in the realm of Silverwood.
+      npcs:Human Blacksmith
+    - name:Silverwood Town 4|biome:Plains|coords:54,24
+      description:A small settlement in the realm of Silverwood.
+      npcs:Dragonborn Innkeeper
+    - name:The Ruin of Silverwood|biome:Ruins|coords:74,58
+      description:The crumbling remains of an ancient civilization.
+      creatures:Skeleton|Zombie
+      loot:Elven Chain|Crude Dagger
+    - name:The Ruin of Silverwood|biome:Ruins|coords:24,71
+      description:The crumbling remains of an ancient civilization.
+      creatures:Skeleton|Zombie
+      loot:Elven Chain
+    - name:The Cave of Silverwood|biome:Underground|coords:77,12
+      description:A dark and damp cave, filled with strange echoes.
+      creatures:Goblin|Giant Spider
+      loot:Orcish Greataxe|Amulet of Wisdom
+::name:Blacksail Archipelago
+capital:Blacksail Archipelago City
+alignment:Chaotic Evil
+relations:Eldoria:War|Zarthus:War|Silverwood:War
+ruler:
+    name:Dread Pirate King Kaelen
+    level:13
+locations:
+    - name:Blacksail Archipelago City|biome:Plains|coords:42,21
+      description:The bustling capital of Blacksail Archipelago.
+      npcs:Dread Pirate King Kaelen
+    - name:Blacksail Archipelago Town 1|biome:Plains|coords:28,37
+      description:A small settlement in the realm of Blacksail Archipelago.
+      npcs:Elf Blacksmith
+    - name:Blacksail Archipelago Town 2|biome:Plains|coords:39,41
+      description:A small settlement in the realm of Blacksail Archipelago.
+      npcs:Dwarf Blacksmith
+    - name:Blacksail Archipelago Town 3|biome:Plains|coords:30,36
+      description:A small settlement in the realm of Blacksail Archipelago.
+      npcs:Elf Farmer
+    - name:The Cave of Blacksail Archipelago|biome:Underground|coords:28,35
+      description:A dark and damp cave, filled with strange echoes.
+      creatures:Goblin|Giant Spider
+      loot:Boots of Speed|Leather Tunic
+
+[NPCS]
+::name:King Theron
+level:15
+alignment:Lawful Good
+role:Ruler
+faction:Eldoria
+stats:STRENGTH:15|DEXTERITY:15|CONSTITUTION:15|INTELLIGENCE:15|WISDOM:15|CHARISMA:15
+::name:Dwarf Innkeeper
+level:1
+alignment:Neutral Good
+role:Innkeeper
+faction:Civilian
+stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
+::name:Dragonborn Innkeeper
+level:1
+alignment:Lawful Evil
+role:Innkeeper
+faction:Civilian
+stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
+::name:Sorcerer-King Malakor
+level:11
+alignment:Lawful Evil
+role:Ruler
+faction:Zarthus
+stats:STRENGTH:15|DEXTERITY:15|CONSTITUTION:15|INTELLIGENCE:15|WISDOM:15|CHARISMA:15
+::name:Dragonborn Innkeeper
+level:1
+alignment:True Neutral
+role:Innkeeper
+faction:Civilian
+stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
+::name:Elf Farmer
+level:2
+alignment:Lawful Neutral
+role:Farmer
+faction:Civilian
+stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
+::name:Dwarf Innkeeper
+level:1
+alignment:Lawful Evil
+role:Innkeeper
+faction:Civilian
+stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
+::name:Human Blacksmith
+level:5
+alignment:Chaotic Good
+role:Blacksmith
+faction:Civilian
+stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
+::name:Archdruid Elara
+level:13
+alignment:True Neutral
+role:Ruler
+faction:Silverwood
+stats:STRENGTH:15|DEXTERITY:15|CONSTITUTION:15|INTELLIGENCE:15|WISDOM:15|CHARISMA:15
+::name:Dwarf Blacksmith
+level:3
+alignment:Lawful Good
+role:Blacksmith
+faction:Civilian
+stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
+::name:Dragonborn Innkeeper
+level:5
+alignment:Lawful Good
+role:Innkeeper
+faction:Civilian
+stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
+::name:Human Blacksmith
+level:4
+alignment:Lawful Good
+role:Blacksmith
+faction:Civilian
+stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
+::name:Dragonborn Innkeeper
+level:1
+alignment:Lawful Good
+role:Innkeeper
+faction:Civilian
+stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
+::name:Dread Pirate King Kaelen
+level:13
+alignment:Chaotic Evil
+role:Ruler
+faction:Blacksail Archipelago
+stats:STRENGTH:15|DEXTERITY:15|CONSTITUTION:15|INTELLIGENCE:15|WISDOM:15|CHARISMA:15
+::name:Elf Blacksmith
+level:2
+alignment:Lawful Neutral
+role:Blacksmith
+faction:Civilian
+stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
+::name:Dwarf Blacksmith
+level:2
+alignment:Chaotic Good
+role:Blacksmith
+faction:Civilian
+stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
+::name:Elf Farmer
+level:4
+alignment:Neutral Good
+role:Farmer
+faction:Civilian
+stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
+
+[CREATURES]
+::name:Goblin
+type:humanoid
+difficulty:1
+stats:STRENGTH:8|DEXTERITY:14|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:8|CHARISMA:8
+::name:Orc
+type:humanoid
+difficulty:3
+stats:STRENGTH:16|DEXTERITY:12|CONSTITUTION:16|INTELLIGENCE:7|WISDOM:11|CHARISMA:10
+::name:Skeleton
+type:undead
+difficulty:2
+stats:STRENGTH:10|DEXTERITY:14|CONSTITUTION:15|INTELLIGENCE:6|WISDOM:8|CHARISMA:5
+::name:Zombie
+type:undead
+difficulty:1
+stats:STRENGTH:13|DEXTERITY:6|CONSTITUTION:16|INTELLIGENCE:3|WISDOM:6|CHARISMA:5
+::name:Giant Spider
+type:beast
+difficulty:4
+stats:STRENGTH:14|DEXTERITY:16|CONSTITUTION:12|INTELLIGENCE:2|WISDOM:11|CHARISMA:4
+::name:Shadow Mastiff
+type:monstrosity
+difficulty:5
+stats:STRENGTH:16|DEXTERITY:14|CONSTITUTION:13|INTELLIGENCE:5|WISDOM:12|CHARISMA:7
+::name:Lich
+type:undead
+difficulty:15
+stats:STRENGTH:11|DEXTERITY:16|CONSTITUTION:16|INTELLIGENCE:20|WISDOM:14|CHARISMA:16
+
+[QUESTS]
+::title:Urgent Missive to Eldoria Town 1
+description:Dragonborn Innkeeper of Eldoria Town 2 needs an urgent message delivered to Dwarf Innkeeper in Eldoria Town 1. A reward is offered for a swift and discreet delivery.
+giver:Dragonborn Innkeeper
+reward:A pouch of rare herbs
+::title:The Orc of The Mine of Zarthus
+description:The local authorities have placed a bounty on the Orcs infesting the The Mine of Zarthus. Clear them out for a reward.
+giver:Local Guard Captain
+reward:88 gold pieces
+::title:The Lich of The Ruin of Eldoria
+description:The local authorities have placed a bounty on the Lichs infesting the The Ruin of Eldoria. Clear them out for a reward.
+giver:Local Guard Captain
+reward:235 gold pieces
+::title:The Lost Mage Robes of King Theron
+description:King Theron of Eldoria City has lost a precious Mage Robes. They believe it was stolen and taken to the The Ruin of Eldoria. Retrieve it for them.
+giver:King Theron
+reward:A magical item
+::title:The Lost Mage Robes of King Theron
+description:King Theron of Eldoria City has lost a precious Mage Robes. They believe it was stolen and taken to the The Ruin of Eldoria. Retrieve it for them.
+giver:King Theron
+reward:A magical item
+
+[GUILDS]
+::name:Eldoria Guard Guild
+leader:Human Ranger
+    abilities:
+right_hand:Dragonborn Ranger
+    abilities:
+::name:Eldoria Mage Guild
+leader:Elf Rogue
+    abilities:Fireball
+right_hand:Halfling Wizard
+    abilities:Firebolt|Mage Armor
+::name:Eldoria Assassin Guild
+leader:Dragonborn Rogue
+    abilities:Death Strike
+right_hand:Human Wizard
+    abilities:Poisoner's Kit Proficiency
+::name:Eldoria Merchant Guild
+leader:Dragonborn Rogue
+    abilities:
+right_hand:Dwarf Fighter
+    abilities:Silver Tongue|Appraise
+::name:Eldoria Thief Guild
+leader:Elf Ranger
+    abilities:Evasion
+right_hand:Human Cleric
+    abilities:Sneak|Lockpicking Expertise
+::name:Zarthus Guard Guild
+leader:Dragonborn Rogue
+    abilities:
+right_hand:Human Fighter
+    abilities:
+::name:Zarthus Mage Guild
+leader:Elf Fighter
+    abilities:Fireball
+right_hand:Halfling Fighter
+    abilities:Firebolt|Mage Armor
+::name:Zarthus Assassin Guild
+leader:Elf Cleric
+    abilities:Death Strike
+right_hand:Halfling Rogue
+    abilities:Poisoner's Kit Proficiency
+::name:Zarthus Merchant Guild
+leader:Dragonborn Cleric
+    abilities:
+right_hand:Elf Ranger
+    abilities:Silver Tongue|Appraise
+::name:Zarthus Thief Guild
+leader:Human Cleric
+    abilities:Evasion
+right_hand:Dwarf Rogue
+    abilities:Sneak|Lockpicking Expertise
+::name:Silverwood Guard Guild
+leader:Dwarf Ranger
+    abilities:
+right_hand:Elf Fighter
+    abilities:
+::name:Silverwood Mage Guild
+leader:Elf Ranger
+    abilities:Fireball
+right_hand:Halfling Rogue
+    abilities:Firebolt|Mage Armor
+::name:Silverwood Assassin Guild
+leader:Halfling Fighter
+    abilities:Death Strike
+right_hand:Elf Ranger
+    abilities:Poisoner's Kit Proficiency
+::name:Silverwood Merchant Guild
+leader:Dragonborn Cleric
+    abilities:
+right_hand:Dwarf Wizard
+    abilities:Silver Tongue|Appraise
+::name:Silverwood Thief Guild
+leader:Dwarf Rogue
+    abilities:Evasion
+right_hand:Dwarf Wizard
+    abilities:Sneak|Lockpicking Expertise
+::name:Blacksail Archipelago Assassin Guild
+leader:Elf Wizard
+    abilities:Death Strike
+right_hand:Elf Wizard
+    abilities:Poisoner's Kit Proficiency
+::name:Blacksail Archipelago Thief Guild
+leader:Human Ranger
+    abilities:Evasion
+right_hand:Human Cleric
+    abilities:Sneak|Lockpicking Expertise
+
+[TIME]
+current_tick:06:00
+
+// END-OF-FILE //

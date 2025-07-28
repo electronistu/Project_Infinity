@@ -8,4 +8,4 @@ __pycache__/
 # Ignore all generated world-weave files...
 *.wwf
 # ...but DO NOT ignore the example key.
-!electronistu_mage_weave_v3-3.wwf
+!electronistu_weave.wwf
