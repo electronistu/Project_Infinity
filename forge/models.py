@@ -38,6 +38,7 @@ class PlayerCharacter(BaseEntity):
     character_class: str
     perks: List[str]
     equipment: Equipment = Field(default_factory=Equipment)
+    xp: int = 0
 
 class NPC(BaseEntity):
     role: str
@@ -61,6 +62,7 @@ class Creature(BaseModel):
     creature_type: str
     difficulty: int
     stats: Stats
+    xp_value: int
 
 class Location(BaseModel):
     name: str
@@ -86,12 +88,14 @@ class Quest(BaseModel):
     description: str
     giver: str
     reward: str
+    xp_reward: int
 
 class QuestTemplate(BaseModel):
     type: str
     title: str
     description: str
     reward_template: str
+    xp_reward: int
 
 class WorldState(BaseModel):
     player_character: PlayerCharacter

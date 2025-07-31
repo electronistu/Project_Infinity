@@ -1,6 +1,7 @@
 - name: Goblin
   creature_type: humanoid
   difficulty: 1
+  xp_value: 25
   stats:
     strength: 8
     dexterity: 14
@@ -11,6 +12,7 @@
 - name: Orc
   creature_type: humanoid
   difficulty: 3
+  xp_value: 75
   stats:
     strength: 16
     dexterity: 12
@@ -21,6 +23,7 @@
 - name: Skeleton
   creature_type: undead
   difficulty: 2
+  xp_value: 50
   stats:
     strength: 10
     dexterity: 14
@@ -31,6 +34,7 @@
 - name: Zombie
   creature_type: undead
   difficulty: 1
+  xp_value: 25
   stats:
     strength: 13
     dexterity: 6
@@ -41,6 +45,7 @@
 - name: Giant Spider
   creature_type: beast
   difficulty: 4
+  xp_value: 100
   stats:
     strength: 14
     dexterity: 16
@@ -51,6 +56,7 @@
 - name: Shadow Mastiff
   creature_type: monstrosity
   difficulty: 5
+  xp_value: 150
   stats:
     strength: 16
     dexterity: 14
@@ -61,6 +67,7 @@
 - name: Lich
   creature_type: undead
   difficulty: 15
+  xp_value: 10000
   stats:
     strength: 11
     dexterity: 16

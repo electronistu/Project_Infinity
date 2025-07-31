@@ -123,87 +123,81 @@ alignment:Lawful Good
 relations:Zarthus:War|Silverwood:Neutral|Blacksail Archipelago:War
 ruler:
     name:King Theron
-    level:15
+    level:11
 locations:
-    - name:Eldoria City|biome:Plains|coords:33,45
+    - name:Eldoria City|biome:Plains|coords:28,45
       description:The bustling capital of Eldoria.
       npcs:King Theron
-    - name:Eldoria Town 1|biome:Plains|coords:37,45
+    - name:Eldoria Town 1|biome:Plains|coords:37,65
       description:A small settlement in the realm of Eldoria.
-      npcs:Dwarf Innkeeper
-    - name:Eldoria Town 2|biome:Plains|coords:30,59
+      npcs:Human Innkeeper
+    - name:Eldoria Town 2|biome:Plains|coords:67,37
       description:A small settlement in the realm of Eldoria.
-      npcs:Dragonborn Innkeeper
-    - name:The Ruin of Eldoria|biome:Ruins|coords:88,6
-      description:The crumbling remains of an ancient civilization.
-      creatures:Skeleton|Zombie|Lich
-      loot:Boots of Speed
-    - name:The Ruin of Eldoria|biome:Ruins|coords:91,15
+      npcs:Elf Innkeeper
+    - name:The Cave of Eldoria|biome:Underground|coords:28,69
+      description:A dark and damp cave, filled with strange echoes.
+      creatures:Goblin|Giant Spider|Lich
+      loot:Gnarled Staff|Ring of Minor Strength
+    - name:The Ruin of Eldoria|biome:Ruins|coords:29,8
       description:The crumbling remains of an ancient civilization.
       creatures:Skeleton|Zombie
-      loot:Pendant of Charisma|Mage Robes|Rusty Sword
+      loot:Boots of Speed|Pendant of Charisma|Amulet of Wisdom
 ::name:Zarthus
 capital:Zarthus City
 alignment:Lawful Evil
 relations:Eldoria:War|Silverwood:Neutral|Blacksail Archipelago:War
 ruler:
     name:Sorcerer-King Malakor
-    level:11
+    level:14
 locations:
-    - name:Zarthus City|biome:Plains|coords:79,61
+    - name:Zarthus City|biome:Plains|coords:36,28
       description:The bustling capital of Zarthus.
       npcs:Sorcerer-King Malakor
-    - name:Zarthus Town 1|biome:Plains|coords:67,31
+    - name:Zarthus Town 1|biome:Plains|coords:52,15
       description:A small settlement in the realm of Zarthus.
-      npcs:Dragonborn Innkeeper
-    - name:Zarthus Town 2|biome:Plains|coords:75,71
+      npcs:Dwarf Farmer
+    - name:Zarthus Town 2|biome:Plains|coords:67,89
       description:A small settlement in the realm of Zarthus.
-      npcs:Elf Farmer
-    - name:Zarthus Town 3|biome:Plains|coords:60,22
-      description:A small settlement in the realm of Zarthus.
-      npcs:Dwarf Innkeeper
-    - name:Zarthus Town 4|biome:Plains|coords:42,75
-      description:A small settlement in the realm of Zarthus.
-      npcs:Human Blacksmith
-    - name:The Mine of Zarthus|biome:Underground|coords:91,78
-      description:An abandoned mine, rumored to be rich in minerals.
-      creatures:Orc|Shadow Mastiff
-      loot:Iron Chainmail
+      npcs:Halfling Blacksmith
+    - name:The Ruin of Zarthus|biome:Ruins|coords:56,80
+      description:The crumbling remains of an ancient civilization.
+      creatures:Skeleton|Zombie
+      loot:Amulet of Wisdom|Dwarven Plate
 ::name:Silverwood
 capital:Silverwood City
 alignment:True Neutral
 relations:Eldoria:Neutral|Zarthus:Neutral|Blacksail Archipelago:War
 ruler:
     name:Archdruid Elara
-    level:13
+    level:10
 locations:
-    - name:Silverwood City|biome:Plains|coords:54,37
+    - name:Silverwood City|biome:Plains|coords:83,11
       description:The bustling capital of Silverwood.
       npcs:Archdruid Elara
-    - name:Silverwood Town 1|biome:Plains|coords:48,9
+    - name:Silverwood Town 1|biome:Plains|coords:20,75
       description:A small settlement in the realm of Silverwood.
-      npcs:Dwarf Blacksmith
-    - name:Silverwood Town 2|biome:Plains|coords:30,75
-      description:A small settlement in the realm of Silverwood.
-      npcs:Dragonborn Innkeeper
-    - name:Silverwood Town 3|biome:Plains|coords:86,54
-      description:A small settlement in the realm of Silverwood.
-      npcs:Human Blacksmith
-    - name:Silverwood Town 4|biome:Plains|coords:54,24
+      npcs:Halfling Farmer
+    - name:Silverwood Town 2|biome:Plains|coords:68,61
       description:A small settlement in the realm of Silverwood.
       npcs:Dragonborn Innkeeper
-    - name:The Ruin of Silverwood|biome:Ruins|coords:74,58
-      description:The crumbling remains of an ancient civilization.
-      creatures:Skeleton|Zombie
-      loot:Elven Chain|Crude Dagger
-    - name:The Ruin of Silverwood|biome:Ruins|coords:24,71
-      description:The crumbling remains of an ancient civilization.
-      creatures:Skeleton|Zombie
-      loot:Elven Chain
-    - name:The Cave of Silverwood|biome:Underground|coords:77,12
+    - name:Silverwood Town 3|biome:Plains|coords:53,36
+      description:A small settlement in the realm of Silverwood.
+      npcs:Dwarf Farmer
+    - name:Silverwood Town 4|biome:Plains|coords:28,23
+      description:A small settlement in the realm of Silverwood.
+      npcs:Elf Farmer
+    - name:The Cave of Silverwood|biome:Underground|coords:30,44
       description:A dark and damp cave, filled with strange echoes.
-      creatures:Goblin|Giant Spider
-      loot:Orcish Greataxe|Amulet of Wisdom
+      creatures:Goblin|Giant Spider|Lich
+      loot:Ring of Protection
+    - name:The Mine of Silverwood|biome:Underground|coords:72,73
+      description:An abandoned mine, rumored to be rich in minerals.
+      creatures:Orc|Shadow Mastiff
+      loot:Orcish Greataxe
+    - name:The Ruin of Silverwood|biome:Ruins|coords:61,14
+      description:The crumbling remains of an ancient civilization.
+      creatures:Skeleton|Zombie
+      loot:Gauntlets of Ogre Power|Ring of Protection
 ::name:Blacksail Archipelago
 capital:Blacksail Archipelago City
 alignment:Chaotic Evil
@@ -212,100 +206,91 @@ ruler:
     name:Dread Pirate King Kaelen
     level:13
 locations:
-    - name:Blacksail Archipelago City|biome:Plains|coords:42,21
+    - name:Blacksail Archipelago City|biome:Plains|coords:46,64
       description:The bustling capital of Blacksail Archipelago.
       npcs:Dread Pirate King Kaelen
-    - name:Blacksail Archipelago Town 1|biome:Plains|coords:28,37
+    - name:Blacksail Archipelago Town 1|biome:Plains|coords:33,70
       description:A small settlement in the realm of Blacksail Archipelago.
-      npcs:Elf Blacksmith
-    - name:Blacksail Archipelago Town 2|biome:Plains|coords:39,41
+      npcs:Human Innkeeper
+    - name:Blacksail Archipelago Town 2|biome:Plains|coords:40,30
       description:A small settlement in the realm of Blacksail Archipelago.
-      npcs:Dwarf Blacksmith
-    - name:Blacksail Archipelago Town 3|biome:Plains|coords:30,36
+      npcs:Halfling Farmer
+    - name:Blacksail Archipelago Town 3|biome:Plains|coords:74,51
       description:A small settlement in the realm of Blacksail Archipelago.
-      npcs:Elf Farmer
-    - name:The Cave of Blacksail Archipelago|biome:Underground|coords:28,35
-      description:A dark and damp cave, filled with strange echoes.
-      creatures:Goblin|Giant Spider
-      loot:Boots of Speed|Leather Tunic
+      npcs:Dragonborn Blacksmith
+    - name:Blacksail Archipelago Town 4|biome:Plains|coords:43,42
+      description:A small settlement in the realm of Blacksail Archipelago.
+      npcs:Halfling Farmer
+    - name:The Ruin of Blacksail Archipelago|biome:Ruins|coords:39,28
+      description:The crumbling remains of an ancient civilization.
+      creatures:Skeleton|Zombie|Lich
+      loot:Rusty Sword|Gauntlets of Ogre Power
 
 [NPCS]
 ::name:King Theron
-level:15
+level:11
 alignment:Lawful Good
 role:Ruler
 faction:Eldoria
 stats:STRENGTH:15|DEXTERITY:15|CONSTITUTION:15|INTELLIGENCE:15|WISDOM:15|CHARISMA:15
-::name:Dwarf Innkeeper
-level:1
-alignment:Neutral Good
+::name:Human Innkeeper
+level:2
+alignment:True Neutral
 role:Innkeeper
 faction:Civilian
 stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::name:Dragonborn Innkeeper
-level:1
-alignment:Lawful Evil
+::name:Elf Innkeeper
+level:4
+alignment:Chaotic Evil
 role:Innkeeper
 faction:Civilian
 stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
 ::name:Sorcerer-King Malakor
-level:11
+level:14
 alignment:Lawful Evil
 role:Ruler
 faction:Zarthus
 stats:STRENGTH:15|DEXTERITY:15|CONSTITUTION:15|INTELLIGENCE:15|WISDOM:15|CHARISMA:15
-::name:Dragonborn Innkeeper
-level:1
-alignment:True Neutral
-role:Innkeeper
-faction:Civilian
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::name:Elf Farmer
-level:2
-alignment:Lawful Neutral
+::name:Dwarf Farmer
+level:3
+alignment:Chaotic Good
 role:Farmer
 faction:Civilian
 stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::name:Dwarf Innkeeper
+::name:Halfling Blacksmith
 level:1
-alignment:Lawful Evil
-role:Innkeeper
-faction:Civilian
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::name:Human Blacksmith
-level:5
-alignment:Chaotic Good
+alignment:True Neutral
 role:Blacksmith
 faction:Civilian
 stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
 ::name:Archdruid Elara
-level:13
+level:10
 alignment:True Neutral
 role:Ruler
 faction:Silverwood
 stats:STRENGTH:15|DEXTERITY:15|CONSTITUTION:15|INTELLIGENCE:15|WISDOM:15|CHARISMA:15
-::name:Dwarf Blacksmith
-level:3
-alignment:Lawful Good
-role:Blacksmith
-faction:Civilian
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::name:Dragonborn Innkeeper
-level:5
-alignment:Lawful Good
-role:Innkeeper
-faction:Civilian
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::name:Human Blacksmith
+::name:Halfling Farmer
 level:4
-alignment:Lawful Good
-role:Blacksmith
+alignment:Chaotic Evil
+role:Farmer
 faction:Civilian
 stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
 ::name:Dragonborn Innkeeper
-level:1
-alignment:Lawful Good
+level:3
+alignment:Chaotic Good
 role:Innkeeper
+faction:Civilian
+stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
+::name:Dwarf Farmer
+level:4
+alignment:Chaotic Good
+role:Farmer
+faction:Civilian
+stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
+::name:Elf Farmer
+level:1
+alignment:Lawful Neutral
+role:Farmer
 faction:Civilian
 stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
 ::name:Dread Pirate King Kaelen
@@ -314,21 +299,27 @@ alignment:Chaotic Evil
 role:Ruler
 faction:Blacksail Archipelago
 stats:STRENGTH:15|DEXTERITY:15|CONSTITUTION:15|INTELLIGENCE:15|WISDOM:15|CHARISMA:15
-::name:Elf Blacksmith
-level:2
-alignment:Lawful Neutral
-role:Blacksmith
+::name:Human Innkeeper
+level:1
+alignment:Lawful Evil
+role:Innkeeper
 faction:Civilian
 stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::name:Dwarf Blacksmith
+::name:Halfling Farmer
 level:2
-alignment:Chaotic Good
-role:Blacksmith
-faction:Civilian
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::name:Elf Farmer
-level:4
 alignment:Neutral Good
+role:Farmer
+faction:Civilian
+stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
+::name:Dragonborn Blacksmith
+level:2
+alignment:Neutral Good
+role:Blacksmith
+faction:Civilian
+stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
+::name:Halfling Farmer
+level:1
+alignment:Neutral Evil
 role:Farmer
 faction:Civilian
 stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
@@ -337,139 +328,146 @@ stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISM
 ::name:Goblin
 type:humanoid
 difficulty:1
+xp_value:25
 stats:STRENGTH:8|DEXTERITY:14|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:8|CHARISMA:8
 ::name:Orc
 type:humanoid
 difficulty:3
+xp_value:75
 stats:STRENGTH:16|DEXTERITY:12|CONSTITUTION:16|INTELLIGENCE:7|WISDOM:11|CHARISMA:10
 ::name:Skeleton
 type:undead
 difficulty:2
+xp_value:50
 stats:STRENGTH:10|DEXTERITY:14|CONSTITUTION:15|INTELLIGENCE:6|WISDOM:8|CHARISMA:5
 ::name:Zombie
 type:undead
 difficulty:1
+xp_value:25
 stats:STRENGTH:13|DEXTERITY:6|CONSTITUTION:16|INTELLIGENCE:3|WISDOM:6|CHARISMA:5
 ::name:Giant Spider
 type:beast
 difficulty:4
+xp_value:100
 stats:STRENGTH:14|DEXTERITY:16|CONSTITUTION:12|INTELLIGENCE:2|WISDOM:11|CHARISMA:4
 ::name:Shadow Mastiff
 type:monstrosity
 difficulty:5
+xp_value:150
 stats:STRENGTH:16|DEXTERITY:14|CONSTITUTION:13|INTELLIGENCE:5|WISDOM:12|CHARISMA:7
 ::name:Lich
 type:undead
 difficulty:15
+xp_value:10000
 stats:STRENGTH:11|DEXTERITY:16|CONSTITUTION:16|INTELLIGENCE:20|WISDOM:14|CHARISMA:16
 
 [QUESTS]
 ::title:Urgent Missive to Eldoria Town 1
-description:Dragonborn Innkeeper of Eldoria Town 2 needs an urgent message delivered to Dwarf Innkeeper in Eldoria Town 1. A reward is offered for a swift and discreet delivery.
-giver:Dragonborn Innkeeper
+description:Elf Innkeeper of Eldoria Town 2 needs an urgent message delivered to Human Innkeeper in Eldoria Town 1. A reward is offered for a swift and discreet delivery.
+giver:Elf Innkeeper
 reward:A pouch of rare herbs
-::title:The Orc of The Mine of Zarthus
-description:The local authorities have placed a bounty on the Orcs infesting the The Mine of Zarthus. Clear them out for a reward.
-giver:Local Guard Captain
-reward:88 gold pieces
-::title:The Lich of The Ruin of Eldoria
-description:The local authorities have placed a bounty on the Lichs infesting the The Ruin of Eldoria. Clear them out for a reward.
-giver:Local Guard Captain
-reward:235 gold pieces
-::title:The Lost Mage Robes of King Theron
-description:King Theron of Eldoria City has lost a precious Mage Robes. They believe it was stolen and taken to the The Ruin of Eldoria. Retrieve it for them.
-giver:King Theron
+::title:The Lost Orcish Greataxe of Elf Farmer
+description:Elf Farmer of Silverwood Town 4 has lost a precious Orcish Greataxe. They believe it was stolen and taken to the The Mine of Silverwood. Retrieve it for them.
+giver:Elf Farmer
 reward:A magical item
-::title:The Lost Mage Robes of King Theron
-description:King Theron of Eldoria City has lost a precious Mage Robes. They believe it was stolen and taken to the The Ruin of Eldoria. Retrieve it for them.
-giver:King Theron
+::title:The Lost Ring of Protection of Halfling Farmer
+description:Halfling Farmer of Silverwood Town 1 has lost a precious Ring of Protection. They believe it was stolen and taken to the The Cave of Silverwood. Retrieve it for them.
+giver:Halfling Farmer
 reward:A magical item
+::title:The Lich of The Cave of Silverwood
+description:The local authorities have placed a bounty on the Lichs infesting the The Cave of Silverwood. Clear them out for a reward.
+giver:Local Guard Captain
+reward:243 gold pieces
+::title:The Zombie of The Ruin of Zarthus
+description:The local authorities have placed a bounty on the Zombies infesting the The Ruin of Zarthus. Clear them out for a reward.
+giver:Local Guard Captain
+reward:250 gold pieces
 
 [GUILDS]
 ::name:Eldoria Guard Guild
-leader:Human Ranger
+leader:Halfling Ranger
     abilities:
-right_hand:Dragonborn Ranger
+right_hand:Halfling Wizard
     abilities:
 ::name:Eldoria Mage Guild
-leader:Elf Rogue
+leader:Dragonborn Ranger
     abilities:Fireball
-right_hand:Halfling Wizard
+right_hand:Elf Wizard
     abilities:Firebolt|Mage Armor
 ::name:Eldoria Assassin Guild
-leader:Dragonborn Rogue
+leader:Dwarf Cleric
     abilities:Death Strike
-right_hand:Human Wizard
+right_hand:Elf Rogue
     abilities:Poisoner's Kit Proficiency
 ::name:Eldoria Merchant Guild
-leader:Dragonborn Rogue
+leader:Halfling Fighter
     abilities:
-right_hand:Dwarf Fighter
+right_hand:Dwarf Ranger
     abilities:Silver Tongue|Appraise
 ::name:Eldoria Thief Guild
-leader:Elf Ranger
+leader:Dwarf Wizard
     abilities:Evasion
-right_hand:Human Cleric
+right_hand:Dragonborn Rogue
     abilities:Sneak|Lockpicking Expertise
 ::name:Zarthus Guard Guild
-leader:Dragonborn Rogue
+leader:Halfling Wizard
     abilities:
-right_hand:Human Fighter
+right_hand:Dwarf Rogue
     abilities:
 ::name:Zarthus Mage Guild
-leader:Elf Fighter
+leader:Elf Rogue
     abilities:Fireball
-right_hand:Halfling Fighter
+right_hand:Dragonborn Rogue
     abilities:Firebolt|Mage Armor
 ::name:Zarthus Assassin Guild
-leader:Elf Cleric
+leader:Dragonborn Wizard
     abilities:Death Strike
-right_hand:Halfling Rogue
+right_hand:Dragonborn Rogue
     abilities:Poisoner's Kit Proficiency
 ::name:Zarthus Merchant Guild
-leader:Dragonborn Cleric
+leader:Dragonborn Rogue
     abilities:
-right_hand:Elf Ranger
+right_hand:Human Ranger
     abilities:Silver Tongue|Appraise
 ::name:Zarthus Thief Guild
-leader:Human Cleric
+leader:Halfling Ranger
     abilities:Evasion
-right_hand:Dwarf Rogue
+right_hand:Human Ranger
     abilities:Sneak|Lockpicking Expertise
 ::name:Silverwood Guard Guild
-leader:Dwarf Ranger
+leader:Elf Rogue
     abilities:
-right_hand:Elf Fighter
+right_hand:Halfling Rogue
     abilities:
 ::name:Silverwood Mage Guild
-leader:Elf Ranger
+leader:Elf Wizard
     abilities:Fireball
-right_hand:Halfling Rogue
+right_hand:Halfling Fighter
     abilities:Firebolt|Mage Armor
 ::name:Silverwood Assassin Guild
 leader:Halfling Fighter
     abilities:Death Strike
-right_hand:Elf Ranger
+right_hand:Elf Cleric
     abilities:Poisoner's Kit Proficiency
 ::name:Silverwood Merchant Guild
-leader:Dragonborn Cleric
+leader:Halfling Rogue
     abilities:
-right_hand:Dwarf Wizard
+right_hand:Human Rogue
     abilities:Silver Tongue|Appraise
 ::name:Silverwood Thief Guild
-leader:Dwarf Rogue
+leader:Human Cleric
     abilities:Evasion
-right_hand:Dwarf Wizard
+right_hand:Dwarf Cleric
     abilities:Sneak|Lockpicking Expertise
 ::name:Blacksail Archipelago Assassin Guild
-leader:Elf Wizard
+leader:Dragonborn Cleric
     abilities:Death Strike
-right_hand:Elf Wizard
+right_hand:Halfling Cleric
     abilities:Poisoner's Kit Proficiency
 ::name:Blacksail Archipelago Thief Guild
-leader:Human Ranger
+leader:Dwarf Cleric
     abilities:Evasion
-right_hand:Human Cleric
+right_hand:Dwarf Cleric
     abilities:Sneak|Lockpicking Expertise
 
 [TIME]

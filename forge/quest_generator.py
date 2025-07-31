@@ -21,7 +21,7 @@ def generate_quests(world_state: WorldState, config: Config) -> List[Quest]:
             title = template.title.replace("<creature_name>", creature.name).replace("<dungeon_name>", dungeon.name)
             description = template.description.replace("<creature_name>", creature.name).replace("<dungeon_name>", dungeon.name)
             reward = template.reward_template.replace("<random_gold>", str(random.randint(50, 250)))
-            quest = Quest(title=title, description=description, giver="Local Guard Captain", reward=reward)
+            quest = Quest(title=title, description=description, giver="Local Guard Captain", reward=reward, xp_reward=template.xp_reward)
 
         elif template.type == "Fetch" and any(loc.npcs for loc in kingdom.locations) and any(loc.loot for loc in kingdom.locations):
             start_location = random.choice([loc for loc in kingdom.locations if loc.npcs])
@@ -31,7 +31,7 @@ def generate_quests(world_state: WorldState, config: Config) -> List[Quest]:
             title = template.title.replace("<item_name>", item_to_fetch.name).replace("<npc_name>", npc_giver.name)
             description = template.description.replace("<npc_name>", npc_giver.name).replace("<location_name>", start_location.name).replace("<item_name>", item_to_fetch.name).replace("<dungeon_name>", dungeon.name)
             reward = template.reward_template
-            quest = Quest(title=title, description=description, giver=npc_giver.name, reward=reward)
+            quest = Quest(title=title, description=description, giver=npc_giver.name, reward=reward, xp_reward=template.xp_reward)
 
         elif template.type == "Delivery" and len(kingdom.locations) > 1:
             start_location, dest_location = random.sample([loc for loc in kingdom.locations if loc.npcs], 2)
@@ -40,7 +40,7 @@ def generate_quests(world_state: WorldState, config: Config) -> List[Quest]:
             title = template.title.replace("<destination_location>", dest_location.name)
             description = template.description.replace("<giver_npc_name>", giver_npc.name).replace("<start_location>", start_location.name).replace("<receiver_npc_name>", receiver_npc.name).replace("<destination_location>", dest_location.name)
             reward = template.reward_template
-            quest = Quest(title=title, description=description, giver=giver_npc.name, reward=reward)
+            quest = Quest(title=title, description=description, giver=giver_npc.name, reward=reward, xp_reward=template.xp_reward)
 
         if quest:
             quests.append(quest)

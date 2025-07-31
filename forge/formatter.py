@@ -81,6 +81,7 @@ def format_world_to_wwf(world_state: WorldState, output_path: str):
             f.write(f"name:{creature.name}\n")
             f.write(f"type:{creature.creature_type}\n")
             f.write(f"difficulty:{creature.difficulty}\n")
+            f.write(f"xp_value:{creature.xp_value}\n")
             stats_str = '|'.join([f"{k.upper()}:{v}" for k, v in creature.stats.dict().items()])
             f.write(f"stats:{stats_str}\n")
         f.write("\n")
