@@ -1,56 +1,112 @@
 # --- Weapons ---
-- name: Rusty Sword
-  slot: main_hand
-  stat_modifiers: {strength: 1}
-- name: Gnarled Staff
-  slot: main_hand
-  stat_modifiers: {intelligence: 1}
 - name: Crude Dagger
+  item_type: weapon
   slot: main_hand
-  stat_modifiers: {dexterity: 1}
+  description: "A simple dagger with a chipped stone blade."
+  properties: ["Finesse", "Light", "Thrown (range 20/60)"]
+  damage: "1d4"
+  damage_type: Piercing
+
+- name: Rusty Sword
+  item_type: weapon
+  slot: main_hand
+  description: "A shortsword, pitted with rust but still serviceable."
+  properties: ["Finesse", "Light"]
+  damage: "1d6"
+  damage_type: Piercing
+
 - name: Steel Longsword
+  item_type: weapon
   slot: main_hand
-  stat_modifiers: {strength: 3}
+  description: "A well-crafted longsword, the standard for knights and adventurers."
+  properties: ["Versatile (1d10)"]
+  damage: "1d8"
+  damage_type: Slashing
+
+- name: Gnarled Staff
+  item_type: weapon
+  slot: main_hand
+  description: "A twisted, sturdy piece of wood that can be used as a quarterstaff."
+  properties: ["Versatile (1d8)"]
+  damage: "1d6"
+  damage_type: Bludgeoning
+
 - name: Elven Bow
+  item_type: weapon
   slot: main_hand
-  stat_modifiers: {dexterity: 3}
+  description: "A beautifully crafted longbow of yew, favored by elven archers."
+  properties: ["Ammunition (range 150/600)", "Heavy", "Two-Handed"]
+  damage: "1d8"
+  damage_type: Piercing
+
 - name: Orcish Greataxe
+  item_type: weapon
   slot: main_hand
-  stat_modifiers: {strength: 4}
+  description: "A heavy, brutal axe that requires immense strength to wield effectively."
+  properties: ["Heavy", "Two-Handed"]
+  damage: "1d12"
+  damage_type: Slashing
 
 # --- Armor ---
 - name: Leather Tunic
+  item_type: armor
   slot: chest
-  stat_modifiers: {dexterity: 1}
-- name: Iron Chainmail
-  slot: chest
-  stat_modifiers: {constitution: 2}
-- name: Mage Robes
-  slot: chest
-  stat_modifiers: {intelligence: 1}
-- name: Dwarven Plate
-  slot: chest
-  stat_modifiers: {constitution: 4, strength: 1}
-- name: Elven Chain
-  slot: chest
-  stat_modifiers: {dexterity: 3, intelligence: 1}
+  description: "Padded leather armor."
+  properties: ["Light Armor"]
+  armor_class: 11 # 11 + Dex modifier
 
-# --- Accessories ---
+- name: Iron Chainmail
+  item_type: armor
+  slot: chest
+  description: "A standard shirt of interlocking metal rings. Requires Strength 13."
+  properties: ["Heavy Armor"]
+  armor_class: 16
+
+- name: Mage Robes
+  item_type: clothing
+  slot: chest
+  description: "Simple robes, offering no real protection."
+  properties: []
+  armor_class: 10 # Base AC
+
+- name: Dwarven Plate
+  item_type: armor
+  slot: chest
+  description: "Masterfully crafted full plate armor. Requires Strength 15."
+  properties: ["Heavy Armor"]
+  armor_class: 18
+
+- name: Elven Chain
+  item_type: armor
+  slot: chest
+  description: "A light and flexible chain shirt of elven make."
+  properties: ["Medium Armor"]
+  armor_class: 14 # 14 + Dex modifier (max 2)
+
+# --- Magical Items ---
 - name: Ring of Protection
-  slot: ring
-  stat_modifiers: {constitution: 1}
+  item_type: wondrous_item
+  slot: ring1
+  description: "This ring grants a +1 bonus to AC and saving throws."
+  properties: ["Requires Attunement"]
+  stat_modifiers: {armor_class: 1, all_saving_throws: 1}
+
 - name: Amulet of Wisdom
+  item_type: wondrous_item
   slot: neck
-  stat_modifiers: {wisdom: 2}
-- name: Ring of Minor Strength
-  slot: ring
-  stat_modifiers: {strength: 1}
-- name: Pendant of Charisma
-  slot: neck
-  stat_modifiers: {charisma: 1}
+  description: "This amulet grants a +1 bonus to the wearer's Wisdom score."
+  properties: ["Requires Attunement"]
+  stat_modifiers: {wisdom: 1}
+
 - name: Gauntlets of Ogre Power
+  item_type: wondrous_item
   slot: arms
-  stat_modifiers: {strength: 3}
+  description: "These gauntlets set the wearer's Strength score to 19."
+  properties: ["Requires Attunement"]
+  stat_modifiers: {strength: 19}
+
 - name: Boots of Speed
+  item_type: wondrous_item
   slot: legs
-  stat_modifiers: {dexterity: 2}
+  description: "While wearing these boots, you can use a bonus action to double your speed for 10 minutes."
+  properties: ["Requires Attunement"]

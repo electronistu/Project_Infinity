@@ -26,12 +26,12 @@ def find_valid_placement(map_grid, area_size=(5, 5)):
     
     return random.choice(possible_placements) if possible_placements else None
 
-def place_dungeons_and_creatures(kingdoms, all_creatures, all_items, map_grid):
+def place_dungeons_and_creatures(kingdoms, all_items, map_grid, config):
     """Places dungeons with loot and creatures in the world."""
-    creature_map = {c.name: c for c in all_creatures}
+    creature_map = {c.name: c for c in config.creatures}
 
     for kingdom in kingdoms:
-        num_dungeons = random.randint(1, 3)
+        num_dungeons = random.randint(2, 4)
         for _ in range(num_dungeons):
             dungeon_type_name = random.choice(list(DUNGEON_TYPES.keys()))
             dungeon_info = DUNGEON_TYPES[dungeon_type_name]
@@ -39,7 +39,10 @@ def place_dungeons_and_creatures(kingdoms, all_creatures, all_items, map_grid):
             dungeon_coords = find_valid_placement(map_grid, (3, 3))
             if dungeon_coords:
                 dungeon_creatures = []
-                for creature_name in dungeon_info["creatures"]:
+                # Increase the number of creatures per dungeon
+                num_creatures_to_add = random.randint(3, 5) # Add 3 to 5 creatures
+                for _ in range(num_creatures_to_add):
+                    creature_name = random.choice(dungeon_info["creatures"])
                     if creature_name in creature_map:
                         dungeon_creatures.append(creature_map[creature_name])
 

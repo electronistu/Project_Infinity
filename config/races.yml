@@ -1,20 +1,110 @@
 - name: Human
-  perks:
-    - "Bonus Feat: Gain an extra feat at 1st level."
-    - "Skilled: Gain proficiency in one skill of your choice."
+  speed: 30
+  ability_score_increases:
+    - ability: Strength
+      value: 1
+    - ability: Dexterity
+      value: 1
+    - ability: Constitution
+      value: 1
+    - ability: Intelligence
+      value: 1
+    - ability: Wisdom
+      value: 1
+    - ability: Charisma
+      value: 1
+  languages:
+    - Common
+    - "One extra language of your choice"
+  traits: []
+  proficiencies: []
+
 - name: Elf
-  perks:
-    - "Fey Ancestry: You have advantage on saving throws against being charmed, and magic can’t put you to sleep."
-    - "Trance: Elves don’t need to sleep. Instead, they meditate deeply, remaining semiconscious, for 4 hours a day."
+  speed: 30
+  ability_score_increases:
+    - ability: Dexterity
+      value: 2
+  languages:
+    - Common
+    - Elvish
+  traits:
+    - name: Darkvision
+      description: "Accustomed to twilit forests and the night sky, you have superior vision in dark and dim conditions. You can see in dim light within 60 feet of you as if it were bright light, and in darkness as if it were dim light."
+    - name: Fey Ancestry
+      description: "You have advantage on saving throws against being charmed, and magic can’t put you to sleep."
+    - name: Trance
+      description: "Elves don’t need to sleep. Instead, they meditate deeply, remaining semiconscious, for 4 hours a day."
+  proficiencies:
+    - type: skill
+      name: Perception
+    - type: weapon
+      name: Longsword
+    - type: weapon
+      name: Shortsword
+    - type: weapon
+      name: Shortbow
+    - type: weapon
+      name: Longbow
+
 - name: Dwarf
-  perks:
-    - "Dwarven Resilience: You have advantage on saving throws against poison, and you have resistance against poison damage."
-    - "Stonecunning: Whenever you make an Intelligence (History) check related to the origin of stonework, you are considered proficient in the History skill and add double your proficiency bonus to the check, instead of your normal proficiency bonus."
+  speed: 25
+  ability_score_increases:
+    - ability: Constitution
+      value: 2
+  languages:
+    - Common
+    - Dwarvish
+  traits:
+    - name: Darkvision
+      description: "Accustomed to life underground, you have superior vision in dark and dim conditions. You can see in dim light within 60 feet of you as if it were bright light, and in darkness as if it were dim light."
+    - name: Dwarven Resilience
+      description: "You have advantage on saving throws against poison, and you have resistance against poison damage."
+    - name: Stonecunning
+      description: "Whenever you make an Intelligence (History) check related to the origin of stonework, you are considered proficient in the History skill and add double your proficiency bonus to the check."
+  proficiencies:
+    - type: weapon
+      name: Battleaxe
+    - type: weapon
+      name: Handaxe
+    - type: weapon
+      name: Light Hammer
+    - type: weapon
+      name: Warhammer
+    - type: tool
+      name: "Artisan's Tools (Brewer's Supplies, Mason's Tools, or Smith's Tools)"
+
 - name: Halfling
-  perks:
-    - "Lucky: When you roll a 1 on an attack roll, ability check, or saving throw, you can reroll the die and must use the new roll."
-    - "Brave: You have advantage on saving throws against being frightened."
+  speed: 25
+  ability_score_increases:
+    - ability: Dexterity
+      value: 2
+  languages:
+    - Common
+    - Halfling
+  traits:
+    - name: Lucky
+      description: "When you roll a 1 on an attack roll, ability check, or saving throw, you can reroll the die and must use the new roll."
+    - name: Brave
+      description: "You have advantage on saving throws against being frightened."
+    - name: Halfling Nimbleness
+      description: "You can move through the space of any creature that is of a size larger than yours."
+  proficiencies: []
+
 - name: Dragonborn
-  perks:
-    - "Draconic Ancestry: You have a breath weapon and damage resistance corresponding to your draconic heritage."
-    - "Damage Resistance: You have resistance to the damage type associated with your ancestry."
+  speed: 30
+  ability_score_increases:
+    - ability: Strength
+      value: 2
+    - ability: Charisma
+      value: 1
+  languages:
+    - Common
+    - Draconic
+  traits:
+    - name: Draconic Ancestry
+      description: "You choose one type of dragon (e.g., black, blue, brass, bronze, copper, gold, green, red, silver, white). This choice determines the damage type of your Breath Weapon and the type of damage resistance you gain."
+    - name: Breath Weapon
+      description: "You can use your action to exhale destructive energy."
+    - name: Damage Resistance
+      description: "You have resistance to the damage type associated with your Draconic Ancestry."
+  proficiencies: []

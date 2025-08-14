@@ -1,47 +1,119 @@
 # Mage Guild
 - name: Firebolt
-  description: Hurl a mote of fire at a creature or object.
+  description: "Hurl a mote of fire at a creature or object."
+  tier: 1
+  guild_source: Mage
+- name: Detect Magic
+  description: "For the duration, you sense the presence of magic within 30 feet of you."
   tier: 1
   guild_source: Mage
 - name: Mage Armor
-  description: Protects an unarmored creature with a field of magical force.
+  description: "Protects an unarmored creature with a field of magical force."
   tier: 2
   guild_source: Mage
 - name: Fireball
-  description: A bright streak flashes from your pointing finger to a point you choose and then blossoms with a low roar into an explosion of flame.
+  description: "A bright streak flashes from your pointing finger to a point you choose and then blossoms with a low roar into an explosion of flame."
   tier: 3
+  guild_source: Mage
+- name: Invisibility
+  description: "A creature you touch becomes invisible until the spell ends."
+  tier: 4
   guild_source: Mage
 
 # Thief Guild
 - name: Sneak
-  description: Gain advantage on stealth checks for a short duration.
+  description: "Gain advantage on stealth checks for a short duration."
   tier: 1
   guild_source: Thief
+- name: Pick Pocket
+  description: "Make a Dexterity (Sleight of Hand) check to steal from a target without being noticed."
+  tier: 2
+  guild_source: Thief
 - name: Lockpicking Expertise
-  description: You can add double your proficiency bonus to checks made to pick locks.
+  description: "You can add double your proficiency bonus to checks made to pick locks."
   tier: 2
   guild_source: Thief
 - name: Evasion
-  description: You can nimbly dodge out of the way of certain area effects, such as a red dragon’s fiery breath or an ice storm spell.
+  description: "You can nimbly dodge out of the way of certain area effects, such as a red dragon’s fiery breath or an ice storm spell."
   tier: 4
   guild_source: Thief
 
+# Guard Guild
+- name: Shield Bash
+  description: "After you attack, you can use a bonus action to try to shove a creature with your shield."
+  tier: 1
+  guild_source: Guard
+- name: Hold the Line
+  description: "Creatures you choose have disadvantage on attack rolls against targets other than you."
+  tier: 3
+  guild_source: Guard
+
 # Merchant Guild
 - name: Silver Tongue
-  description: Gain advantage on persuasion checks when bartering.
+  description: "Gain advantage on persuasion checks when bartering."
   tier: 1
   guild_source: Merchant
 - name: Appraise
-  description: Accurately determine the market value of any non-magical item.
+  description: "Accurately determine the market value of any non-magical item."
   tier: 2
+  guild_source: Merchant
+- name: Master Investor
+  description: "Once per week, you can make an investment in a local shop, potentially yielding a significant return."
+  tier: 3
   guild_source: Merchant
 
 # Assassin Guild
 - name: Poisoner's Kit Proficiency
-  description: You gain proficiency with the poisoner's kit.
+  description: "You gain proficiency with the poisoner's kit."
   tier: 1
   guild_source: Assassin
+- name: Impostor
+  description: "You can unerringly mimic the speech patterns and accent of a creature that you hear speak for at least 1 minute."
+  tier: 3
+  guild_source: Assassin
 - name: Death Strike
-  description: When you attack and hit a creature that is surprised, it must make a Constitution saving throw or take double damage from the attack.
+  description: "When you attack and hit a creature that is surprised, it must make a Constitution saving throw or take double damage from the attack."
   tier: 5
   guild_source: Assassin
+
+# Alchemist's League
+- name: Potion of Healing Recipe
+  description: "Learn the recipe to craft a basic Potion of Healing from common herbs."
+  tier: 1
+  guild_source: "Alchemist's League"
+- name: Alchemical Fire Formula
+  description: "Learn the formula to create a flask of Alchemist's Fire."
+  tier: 2
+  guild_source: "Alchemist's League"
+- name: Transmute Minerals
+  description: "Once per day, you can attempt to transmute a common mineral like iron into silver."
+  tier: 4
+  guild_source: "Alchemist's League"
+
+# Ranger's Conclave
+- name: Animal Friendship
+  description: "You can convince a beast that you mean it no harm."
+  tier: 1
+  guild_source: "Ranger's Conclave"
+- name: Hunter's Mark
+  description: "You choose a creature you can see and mystically mark it as your quarry."
+  tier: 2
+  guild_source: "Ranger's Conclave"
+- name: Pass Without Trace
+  description: "You and your companions are masked by shadows and silence, gaining a +10 bonus to Dexterity (Stealth) checks."
+  tier: 3
+  guild_source: "Ranger's Conclave"
+
+# Order of Scribes
+- name: Identify
+  description: "You choose one object that you must touch. You learn whether it is magical and what its properties are."
+  tier: 1
+  guild_source: "Order of Scribes"
+- name: Comprehend Languages
+  description: "For the duration, you understand the literal meaning of any spoken language that you hear."
+  tier: 2
+  guild_source: "Order of Scribes"
+- name: Legend Lore
+  description: "You can name or describe a person, place, or object, and learn a brief summary of the significant lore about it."
+  tier: 4
+  guild_source: "Order of Scribes"

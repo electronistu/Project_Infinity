@@ -1,20 +1,501 @@
-- name: Fighter
-  perks:
-    - "Fighting Style: You adopt a particular style of fighting as your specialty."
-    - "Second Wind: You have a limited well of stamina that you can draw on to protect yourself from harm."
-- name: Rogue
-  perks:
-    - "Expertise: Your proficiency bonus is doubled for any ability check you make that uses either of the chosen proficiencies."
-    - "Sneak Attack: You know how to strike subtly and exploit a foe’s distraction."
-- name: Wizard
-  perks:
-    - "Arcane Recovery: You have learned to regain some of your magical energy by studying your spellbook."
-    - "Spellcasting: You have a spellbook containing spells that show the first glimmerings of your true power."
+- name: Artificer
+  hit_die: 8
+  saving_throw_proficiencies:
+    - Constitution
+    - Intelligence
+  armor_proficiencies:
+    - "Light armor"
+    - "Medium armor"
+    - "Shields"
+  weapon_proficiencies:
+    - "Simple weapons"
+  tool_proficiencies:
+    - "Thieves' Tools"
+    - "Tinker's Tools"
+    - "Artisan's Tools"
+  skills:
+    choices: ["Arcana", "History", "Investigation", "Medicine", "Nature", "Perception", "Sleight of Hand"]
+    number: 2
+  features:
+    - name: Magical Tinkering
+      level: 1
+      description: "You learn to imbue a tiny nonmagical object with a magical property."
+    - name: Spellcasting
+      level: 1
+      description: "Your magic is channeled through objects and tools. Intelligence is your spellcasting ability."
+  starting_equipment_options:
+    - choose_one_from:
+        - "Any Two Simple Weapons"
+    - fixed_items:
+        - "Light Crossbow"
+        - "20 Bolts"
+    - choose_one_from:
+        - "Studded Leather Tunic"
+        - "Scale Mail"
+    - fixed_items:
+        - "Thieves' Tools"
+        - "Tinker's Tools"
+    - choose_one_from:
+        - "Artisan's Tools"
+    - fixed_items:
+        - "Dungeoneer's Pack"
+
+- name: Barbarian
+  hit_die: 12
+  saving_throw_proficiencies:
+    - Strength
+    - Constitution
+  armor_proficiencies:
+    - "Light armor"
+    - "Medium armor"
+    - "Shields"
+  weapon_proficiencies:
+    - "Simple weapons"
+    - "Martial weapons"
+  tool_proficiencies: []
+  skills:
+    choices: ["Animal Handling", "Athletics", "Intimidation", "Nature", "Perception", "Survival"]
+    number: 2
+  features:
+    - name: Rage
+      level: 1
+      description: "In battle, you fight with primal ferocity."
+    - name: Unarmored Defense
+      level: 1
+      description: "While you are wearing no armor and not wielding a shield, your AC equals 10 + your Dexterity modifier + your Constitution modifier."
+  starting_equipment_options:
+    - choose_one_from:
+        - "Orcish Greataxe"
+        - "Any Martial Melee Weapon"
+    - choose_one_from:
+        - "Two Handaxes"
+        - "Any Simple Weapon"
+    - fixed_items:
+        - "Four Javelins"
+        - "Explorer's Pack"
+
+- name: Bard
+  hit_die: 8
+  saving_throw_proficiencies:
+    - Dexterity
+    - Charisma
+  armor_proficiencies:
+    - "Light armor"
+  weapon_proficiencies:
+    - "Simple weapons"
+    - "Hand crossbows"
+    - "Longswords"
+    - "Rapiers"
+    - "Shortswords"
+  tool_proficiencies:
+    - "Musical Instrument"
+  skills:
+    choices: ["Any three skills"]
+    number: 3
+  features:
+    - name: Bardic Inspiration
+      level: 1
+      description: "You can inspire others through stirring words or music."
+    - name: Spellcasting
+      level: 1
+      description: "You can cast spells from the bard spell list."
+  starting_equipment_options:
+    - choose_one_from:
+        - "Rusty Sword"
+        - "Steel Longsword"
+        - "Any Simple Weapon"
+    - choose_one_from:
+        - "Diplomat's Pack"
+        - "Entertainer's Pack"
+    - choose_one_from:
+        - "Lute"
+        - "Any Musical Instrument"
+    - fixed_items:
+        - "Leather Tunic"
+        - "Crude Dagger"
+
 - name: Cleric
-  perks:
-    - "Divine Domain: Choose one domain related to your deity."
-    - "Channel Divinity: You gain the ability to channel divine energy directly from your deity."
+  hit_die: 8
+  saving_throw_proficiencies:
+    - Wisdom
+    - Charisma
+  armor_proficiencies:
+    - "Light armor"
+    - "Medium armor"
+    - "Shields"
+  weapon_proficiencies:
+    - "Simple weapons"
+  tool_proficiencies: []
+  skills:
+    choices: ["History", "Insight", "Medicine", "Persuasion", "Religion"]
+    number: 2
+  features:
+    - name: Spellcasting
+      level: 1
+      description: "As a conduit for divine power, you can cast cleric spells."
+    - name: Divine Domain
+      level: 1
+      description: "Choose one domain related to your deity."
+    - name: Channel Divinity
+      level: 2
+      description: "You gain the ability to channel divine energy directly from your deity, using that energy to fuel magical effects."
+  starting_equipment_options:
+    - choose_one_from:
+        - "Mace"
+        - "Warhammer"
+    - choose_one_from:
+        - "Iron Chainmail"
+        - "Leather Tunic"
+        - "Scale Mail"
+    - choose_one_from:
+        - "Light Crossbow, 20 Bolts"
+        - "Crude Dagger"
+    - choose_one_from:
+        - "Priest's Pack"
+        - "Explorer's Pack"
+    - fixed_items:
+        - "Shield"
+        - "Holy Symbol"
+
+- name: Druid
+  hit_die: 8
+  saving_throw_proficiencies:
+    - Intelligence
+    - Wisdom
+  armor_proficiencies:
+    - "Light armor"
+    - "Medium armor"
+    - "Shields"
+  weapon_proficiencies:
+    - "Clubs"
+    - "Daggers"
+    - "Javelins"
+    - "Maces"
+    - "Quarterstaffs"
+    - "Scimitars"
+    - "Sickles"
+    - "Slings"
+    - "Spears"
+  tool_proficiencies:
+    - "Herbalism Kit"
+  skills:
+    choices: ["Arcana", "Animal Handling", "Insight", "Medicine", "Nature", "Perception", "Religion", "Survival"]
+    number: 2
+  features:
+    - name: Druidic
+      level: 1
+      description: "You know Druidic, the secret language of druids."
+    - name: Spellcasting
+      level: 1
+      description: "You can cast spells from the druid spell list."
+  starting_equipment_options:
+    - fixed_items:
+        - "Leather Tunic"
+    - choose_one_from:
+        - "Wooden Shield"
+        - "Any Simple Weapon"
+    - choose_one_from:
+        - "Rusty Sword"
+        - "Any Simple Melee Weapon"
+    - fixed_items:
+        - "Explorer's Pack"
+        - "Druidic Focus"
+
+- name: Fighter
+  hit_die: 10
+  saving_throw_proficiencies:
+    - Strength
+    - Constitution
+  armor_proficiencies:
+    - "All armor"
+    - "Shields"
+  weapon_proficiencies:
+    - "Simple weapons"
+    - "Martial weapons"
+  tool_proficiencies: []
+  skills:
+    choices: ["Acrobatics", "Animal Handling", "Athletics", "History", "Insight", "Intimidation", "Perception", "Survival"]
+    number: 2
+  features:
+    - name: Fighting Style
+      level: 1
+      description: "You adopt a particular style of fighting as your specialty."
+    - name: Second Wind
+      level: 1
+      description: "You have a limited well of stamina that you can draw on to protect yourself from harm."
+    - name: Action Surge
+      level: 2
+      description: "You can push yourself beyond your normal limits for a moment."
+  starting_equipment_options:
+    - choose_one_from:
+        - "Chain Mail"
+        - "Leather Tunic, Elven Bow, 20 Arrows"
+    - choose_one_from:
+        - "Steel Longsword, Shield"
+        - "Steel Longsword, Rusty Sword"
+    - choose_one_from:
+        - "Light Crossbow, 20 Bolts"
+        - "Two Handaxes"
+    - choose_one_from:
+        - "Dungeoneer's Pack"
+        - "Explorer's Pack"
+
+- name: Monk
+  hit_die: 8
+  saving_throw_proficiencies:
+    - Strength
+    - Dexterity
+  armor_proficiencies: []
+  weapon_proficiencies:
+    - "Simple weapons"
+    - "Shortswords"
+  tool_proficiencies:
+    - "Artisan's Tools"
+    - "Musical Instrument"
+  skills:
+    choices: ["Acrobatics", "Athletics", "History", "Insight", "Religion", "Stealth"]
+    number: 2
+  features:
+    - name: Unarmored Defense
+      level: 1
+      description: "Beginning at 1st level, while you are wearing no armor and not wielding a shield, your AC equals 10 + your Dexterity modifier + your Wisdom modifier."
+    - name: Martial Arts
+      level: 1
+      description: "At 1st level, your practice of martial arts gives you mastery of combat styles that use unarmed strikes and monk weapons."
+  starting_equipment_options:
+    - choose_one_from:
+        - "Rusty Sword"
+        - "Any Simple Weapon"
+    - choose_one_from:
+        - "Dungeoneer's Pack"
+        - "Explorer's Pack"
+    - fixed_items:
+        - "10 Darts"
+
+- name: Paladin
+  hit_die: 10
+  saving_throw_proficiencies:
+    - Wisdom
+    - Charisma
+  armor_proficiencies:
+    - "All armor"
+    - "Shields"
+  weapon_proficiencies:
+    - "Simple weapons"
+    - "Martial weapons"
+  tool_proficiencies: []
+  skills:
+    choices: ["Athletics", "Insight", "Intimidation", "Medicine", "Persuasion", "Religion"]
+    number: 2
+  features:
+    - name: Divine Sense
+      level: 1
+      description: "The presence of strong evil registers on your senses like a noxious odor, and powerful good rings like heavenly music in your ears."
+    - name: Lay on Hands
+      level: 1
+      description: "Your blessed touch can heal wounds."
+  starting_equipment_options:
+    - choose_one_from:
+        - "Steel Longsword, Shield"
+        - "Two Martial Weapons"
+    - choose_one_from:
+        - "Five Javelins"
+        - "Any Simple Melee Weapon"
+    - choose_one_from:
+        - "Priest's Pack"
+        - "Explorer's Pack"
+    - fixed_items:
+        - "Iron Chainmail"
+        - "Holy Symbol"
+
 - name: Ranger
-  perks:
-    - "Favored Enemy: You have significant experience studying, tracking, hunting, and even talking to a certain type of enemy."
-    - "Natural Explorer: You are particularly familiar with one type of natural environment and are adept at traveling and surviving in such regions."
+  hit_die: 10
+  saving_throw_proficiencies:
+    - Strength
+    - Dexterity
+  armor_proficiencies:
+    - "Light armor"
+    - "Medium armor"
+    - "Shields"
+  weapon_proficiencies:
+    - "Simple weapons"
+    - "Martial weapons"
+  tool_proficiencies: []
+  skills:
+    choices: ["Animal Handling", "Athletics", "Insight", "Investigation", "Nature", "Perception", "Stealth", "Survival"]
+    number: 3
+  features:
+    - name: Favored Enemy
+      level: 1
+      description: "You choose a type of favored enemy (e.g., aberrations, beasts, humanoids of a certain race)."
+    - name: Natural Explorer
+      level: 1
+      description: "You are an unparalleled master of navigating the natural world."
+  starting_equipment_options:
+    - choose_one_from:
+        - "Scale Mail"
+        - "Leather Tunic"
+    - choose_one_from:
+        - "Two Shortswords"
+        - "Two Simple Melee Weapons"
+    - choose_one_from:
+        - "Dungeoneer's Pack"
+        - "Explorer's Pack"
+    - fixed_items:
+        - "Elven Bow"
+        - "20 Arrows"
+
+- name: Rogue
+  hit_die: 8
+  saving_throw_proficiencies:
+    - Dexterity
+    - Intelligence
+  armor_proficiencies:
+    - "Light armor"
+  weapon_proficiencies:
+    - "Simple weapons"
+    - "Hand crossbows"
+    - "Longswords"
+    - "Rapiers"
+    - "Shortswords"
+  tool_proficiencies:
+    - "Thieves' Tools"
+  skills:
+    choices: ["Acrobatics", "Athletics", "Deception", "Insight", "Intimidation", "Investigation", "Perception", "Performance", "Persuasion", "Sleight of Hand", "Stealth"]
+    number: 4
+  features:
+    - name: Expertise
+      level: 1
+      description: "Your proficiency bonus is doubled for any ability check you make that uses either of the chosen proficiencies."
+    - name: Sneak Attack
+      level: 1
+      description: "You know how to strike subtly and exploit a foe's distraction."
+    - name: Cunning Action
+      level: 2
+      description: "Your quick thinking and agility allow you to move and act quickly."
+  starting_equipment_options:
+    - fixed_items:
+        - "Leather Tunic"
+    - choose_one_from:
+        - "Rusty Sword"
+        - "Steel Longsword"
+    - choose_one_from:
+        - "Elven Bow, 20 Arrows"
+        - "Crude Dagger"
+    - fixed_items:
+        - "Two Daggers"
+        - "Thieves' Tools"
+    - choose_one_from:
+        - "Burglar's Pack"
+        - "Dungeoneer's Pack"
+        - "Explorer's Pack"
+
+- name: Sorcerer
+  hit_die: 6
+  saving_throw_proficiencies:
+    - Constitution
+    - Charisma
+  armor_proficiencies: []
+  weapon_proficiencies:
+    - "Daggers"
+    - "Darts"
+    - "Slings"
+    - "Quarterstaffs"
+    - "Light crossbows"
+  tool_proficiencies: []
+  skills:
+    choices: ["Arcana", "Deception", "Insight", "Intimidation", "Persuasion", "Religion"]
+    number: 2
+  features:
+    - name: Spellcasting
+      level: 1
+      description: "An event in your past, or in the life of a parent or ancestor, left an indelible mark on you, infusing you with arcane magic."
+    - name: Sorcerous Origin
+      level: 1
+      description: "Choose a sorcerous origin, which describes the source of your innate magical power."
+  starting_equipment_options:
+    - choose_one_from:
+        - "Light Crossbow, 20 Bolts"
+        - "Any Simple Weapon"
+    - choose_one_from:
+        - "Component Pouch"
+        - "Arcane Focus"
+    - choose_one_from:
+        - "Dungeoneer's Pack"
+        - "Explorer's Pack"
+    - fixed_items:
+        - "Two Daggers"
+
+- name: Warlock
+  hit_die: 8
+  saving_throw_proficiencies:
+    - Wisdom
+    - Charisma
+  armor_proficiencies:
+    - "Light armor"
+  weapon_proficiencies:
+    - "Simple weapons"
+  tool_proficiencies: []
+  skills:
+    choices: ["Arcana", "Deception", "History", "Intimidation", "Investigation", "Nature", "Religion"]
+    number: 2
+  features:
+    - name: Otherworldly Patron
+      level: 1
+      description: "You have struck a bargain with an otherworldly being of your choice."
+    - name: Pact Magic
+      level: 1
+      description: "Your arcane research and the magic bestowed on you by your patron have given you facility with spells."
+  starting_equipment_options:
+    - choose_one_from:
+        - "Light Crossbow, 20 Bolts"
+        - "Any Simple Weapon"
+    - choose_one_from:
+        - "Component Pouch"
+        - "Arcane Focus"
+    - choose_one_from:
+        - "Scholar's Pack"
+        - "Dungeoneer's Pack"
+    - fixed_items:
+        - "Leather Tunic"
+        - "Any Simple Weapon"
+        - "Two Daggers"
+
+- name: Wizard
+  hit_die: 6
+  saving_throw_proficiencies:
+    - Intelligence
+    - Wisdom
+  armor_proficiencies: []
+  weapon_proficiencies:
+    - "Daggers"
+    - "Darts"
+    - "Slings"
+    - "Quarterstaffs"
+    - "Light crossbows"
+  tool_proficiencies: []
+  skills:
+    choices: ["Arcana", "History", "Insight", "Investigation", "Medicine", "Religion"]
+    number: 2
+  features:
+    - name: Spellcasting
+      level: 1
+      description: "As a student of arcane magic, you have a spellbook containing spells that show the first glimmerings of your true power."
+    - name: Arcane Recovery
+      level: 1
+      description: "You have learned to regain some of your magical energy by studying your spellbook."
+    - name: Arcane Tradition
+      level: 2
+      description: "You choose an arcane tradition, shaping your practice of magic through one of eight schools."
+  starting_equipment_options:
+    - choose_one_from:
+        - "Quarterstaff"
+        - "Crude Dagger"
+    - choose_one_from:
+        - "Component Pouch"
+        - "Arcane Focus"
+    - choose_one_from:
+        - "Scholar's Pack"
+        - "Explorer's Pack"
+    - fixed_items:
+        - "Spellbook"

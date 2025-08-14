@@ -1,11 +1,13 @@
 import argparse
+import os
 from forge.config_loader import load_config
 from forge.character_creator import create_character, create_debug_character
 from forge.map_generator import create_map
 from forge.population_generator import populate_world
 from forge.dungeon_and_creature_placer import place_dungeons_and_creatures
 from forge.guild_generator import create_guilds
-from forge.quest_generator import generate_quests
+from forge.geopolitical_engine import determine_relations
+from forge.history_generator import generate_histories
 from forge.formatter import format_world_to_wwf
 from forge.models import WorldState
 
@@ -25,8 +27,8 @@ def main():
     print("\n--- Forging Your World... ---")
 
     map_grid = create_map()
-    kingdoms, npcs, creatures = populate_world(config, map_grid)
-    place_dungeons_and_creatures(kingdoms, creatures, config.items, map_grid)
+    kingdoms, npcs = populate_world(config, map_grid)
+    place_dungeons_and_creatures(kingdoms, config.items, map_grid, config)
     create_guilds(kingdoms, config)
 
     world_state = WorldState(
@@ -34,16 +36,19 @@ def main():
         map_grid=map_grid,
         kingdoms=kingdoms,
         npcs=npcs,
-        creatures=creatures,
-        quests=[],
+        # creatures=creatures, # Removed as creatures are now nested in locations
         current_tick="06:00"
     )
 
-    quests = generate_quests(world_state, config)
-    world_state.quests = quests
+    # Determine kingdom relations based on the UFP Engine
+    determine_relations(world_state)
 
+    # Generate narrative history based on the L.I.C. Engine
+    generate_histories(world_state)
+
+    output_dir = "output"
     output_filename = f"{player_character.name.lower().replace(' ', '_')}_weave.wwf"
-    output_path = f"output/{output_filename}"
+    output_path = os.path.abspath(os.path.join(output_dir, output_filename))
     format_world_to_wwf(world_state, output_path)
 
     print("\n--- World Forge Complete! ---")

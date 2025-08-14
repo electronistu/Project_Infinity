@@ -1,0 +1,106 @@
+- name: Acolyte
+  skill_proficiencies:
+    - Insight
+    - Religion
+  tool_proficiencies: []
+  languages: "Two of your choice"
+  equipment:
+    - "A holy symbol (a gift to you when you entered the priesthood)"
+    - "A prayer book or prayer wheel"
+    - "5 sticks of incense"
+    - "Vestments"
+    - "A set of common clothes"
+    - "A belt pouch containing 15 gp"
+  starting_equipment_options:
+    - fixed_items:
+        - "Holy Symbol"
+        - "Prayer Book"
+        - "5 Sticks of Incense"
+        - "Vestments"
+        - "Common Clothes"
+    - gold_pieces: 15
+
+- name: Criminal
+  skill_proficiencies:
+    - Deception
+    - Stealth
+  tool_proficiencies:
+    - "One type of gaming set"
+    - "Thieves' tools"
+  languages: null
+  equipment:
+    - "A crowbar"
+    - "A set of dark common clothes including a hood"
+    - "A belt pouch containing 15 gp"
+  starting_equipment_options:
+    - fixed_items:
+        - "Crowbar"
+        - "Dark Common Clothes"
+    - gold_pieces: 15
+
+- name: Folk Hero
+  skill_proficiencies:
+    - Animal Handling
+    - Survival
+  tool_proficiencies:
+    - "One type of artisan's tools"
+    - "Vehicles (land)"
+  languages: null
+  equipment:
+    - "A set of artisan's tools (one of your choice)"
+    - "A shovel"
+    - "An iron pot"
+    - "A set of common clothes"
+    - "A belt pouch containing 10 gp"
+  starting_equipment_options:
+    - choose_one_from:
+        - "Artisan's Tools"
+    - fixed_items:
+        - "Shovel"
+        - "Iron Pot"
+        - "Common Clothes"
+    - gold_pieces: 10
+
+- name: Sage
+  skill_proficiencies:
+    - Arcana
+    - History
+  tool_proficiencies: []
+  languages: "Two of your choice"
+  equipment:
+    - "A bottle of black ink"
+    - "A quill"
+    - "A small knife"
+    - "A letter from a dead colleague posing a question you have not yet been able to answer"
+    - "A set of common clothes"
+    - "A belt pouch containing 10 gp"
+  starting_equipment_options:
+    - fixed_items:
+        - "Bottle of Black Ink"
+        - "Quill"
+        - "Small Knife"
+        - "Letter from a Dead Colleague"
+        - "Common Clothes"
+    - gold_pieces: 10
+
+- name: Soldier
+  skill_proficiencies:
+    - Athletics
+    - Intimidation
+  tool_proficiencies:
+    - "One type of gaming set"
+    - "Vehicles (land)"
+  languages: null
+  equipment:
+    - "An insignia of rank"
+    - "A trophy taken from a fallen enemy"
+    - "A set of bone dice or deck of cards"
+    - "A set of common clothes"
+    - "A belt pouch containing 10 gp"
+  starting_equipment_options:
+    - fixed_items:
+        - "Insignia of Rank"
+        - "Trophy from a Fallen Enemy"
+        - "Bone Dice Set"
+        - "Common Clothes"
+    - gold_pieces: 10
