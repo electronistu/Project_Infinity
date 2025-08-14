@@ -27,7 +27,7 @@ def main():
     print("\n--- Forging Your World... ---")
 
     map_grid = create_map()
-    kingdoms, npcs = populate_world(config, map_grid)
+    kingdoms = populate_world(config, map_grid)
     place_dungeons_and_creatures(kingdoms, config.items, map_grid, config)
     create_guilds(kingdoms, config)
 
@@ -35,7 +35,6 @@ def main():
         player_character=player_character,
         map_grid=map_grid,
         kingdoms=kingdoms,
-        npcs=npcs,
         # creatures=creatures, # Removed as creatures are now nested in locations
         current_tick="06:00"
     )
@@ -51,7 +50,7 @@ def main():
     output_path = os.path.abspath(os.path.join(output_dir, output_filename))
     format_world_to_wwf(world_state, output_path)
 
-    print("\n--- World Forge Complete! ---")
+    print("\n--- World Forge Complete! ---\n")
     print(f"Your world has been saved to: {output_path}")
 
 if __name__ == "__main__":

@@ -2,16 +2,16 @@
 
 [PLAYER]
 name:Electronistu
-level:1|xp:0|gold:15
-class:Wizard|background:Criminal
+level:1|xp:0|gold:100
+class:Wizard|background:Acolyte
 race:Elf|alignment:Chaotic Evil
 ac:10|hp:5|speed:30
-stats:STRENGTH:8|DEXTERITY:17|CONSTITUTION:8|INTELLIGENCE:15|WISDOM:15|CHARISMA:8
+stats:STRENGTH:8|DEXTERITY:17|CONSTITUTION:8|INTELLIGENCE:15|WISDOM:13|CHARISMA:12
 prof_bonus:2
 armor_proficiencies:
-weapon_proficiencies:Longbow|Light crossbows|Shortsword|Longsword|Quarterstaffs|Daggers|Darts|Shortbow|Slings
+weapon_proficiencies:Shortbow|Darts|Daggers|Light crossbows|Longbow|Shortsword|Quarterstaffs|Slings|Longsword
 tool_proficiencies:
-skills:Investigation (INT)[P]|Stealth (DEX)[P]|Deception (CHA)[P]|Perception (WIS)[P]|Arcana (INT)[P]|Acrobatics (DEX)|Animal Handling (WIS)|Athletics (STR)|History (INT)|Insight (WIS)|Intimidation (CHA)|Medicine (WIS)|Nature (INT)|Performance (CHA)|Persuasion (CHA)|Religion (INT)|Sleight of Hand (DEX)|Survival (WIS)
+skills:Insight (WIS)[P]|Medicine (WIS)[P]|Perception (WIS)[P]|Religion (INT)[P]|Arcana (INT)[P]|Acrobatics (DEX)|Animal Handling (WIS)|Athletics (STR)|Deception (CHA)|History (INT)|Intimidation (CHA)|Investigation (INT)|Nature (INT)|Performance (CHA)|Persuasion (CHA)|Sleight of Hand (DEX)|Stealth (DEX)|Survival (WIS)
 saving_throws:
 languages:Common|Elvish
 spellcasting_ability:intelligence
@@ -28,7 +28,6 @@ spell_slots:1:2
     - name:Arcane Recovery|desc:You have learned to regain some of your magical energy by studying your spellbook.
 
 [EQUIPMENT]
-main_hand:Crude Dagger
 
 [MAP]
 size:100x100
@@ -138,696 +137,335 @@ grid:
 current_tick:06:00
 
 [HISTORY]
-- The War of the Ashen Crown was sparked by an ideological schism, with the Lawful Good Eldoria declaring a holy crusade against the Chaotic Evil people of Blacksail Archipelago.
-- A bitter trade dispute over ancient artifacts escalated into the The Unseen Conflict when a Zarthus merchant vessel was sunk by Silverwood privateers.
+- The War of the Ashen Crown began after Eldoria (driven by an unknown motive) laid claim to the fertile Sunken Hills which had long been considered part of Zarthus (driven by an unknown motive).
+- A bitter trade dispute over ancient artifacts escalated into the The Salt-Stained War when a Eldoria merchant vessel was sunk by Blacksail Archipelago privateers.
+- A bitter trade dispute over adamantine ore escalated into the The War of Crimson Rivers when a Zarthus merchant vessel was sunk by Silverwood privateers.
 
 [KINGDOMS]
 ::
 name:Eldoria|capital:Eldoria City|alignment:Lawful Good
-relations:Zarthus:Neutral|Silverwood:Neutral|Blacksail Archipelago:War
+relations:Zarthus:War|Silverwood:Neutral|Blacksail Archipelago:War
   RULER:
     name:King Theron|role:Ruler|faction:Eldoria
-    level:15|cr:5.0|xp:1800
-    ac:14|hp:50|speed:30
-    stats:STRENGTH:10|DEXTERITY:15|CONSTITUTION:8|INTELLIGENCE:12|WISDOM:13|CHARISMA:14
+    level:11|cr:2.0|xp:450
+    ac:12|hp:68|speed:30
+    stats:STRENGTH:15|DEXTERITY:10|CONSTITUTION:14|INTELLIGENCE:13|WISDOM:12|CHARISMA:8
   [GUILDS]
     ::name:Eldoria Guard
       reports_to:King Theron
     LEADER:
-      name:Dwarf Artificer|role:Guard Leader|faction:Guard Leader
-      level:8|cr:1.0|xp:200
-      ac:14|hp:29|speed:25
-      stats:STRENGTH:13|DEXTERITY:15|CONSTITUTION:8|INTELLIGENCE:14|WISDOM:12|CHARISMA:10
+      name:Human Sorcerer|role:Guard Leader|faction:Guard Leader
+      level:7|cr:1.0|xp:200
+      ac:9|hp:24|speed:30
+      stats:STRENGTH:12|DEXTERITY:8|CONSTITUTION:10|INTELLIGENCE:15|WISDOM:13|CHARISMA:14
       abilities_for_sale:Hold the Line:3:Guard
     RIGHT_HAND:
-      name:Halfling Cleric|role:Guard Right Hand|faction:Guard Right Hand
-      level:10|cr:2.0|xp:450
-      ac:11|hp:44|speed:25
-      stats:STRENGTH:15|DEXTERITY:8|CONSTITUTION:10|INTELLIGENCE:12|WISDOM:13|CHARISMA:14
+      name:Dwarf Warlock|role:Guard Right Hand|faction:Guard Right Hand
+      level:5|cr:0.5|xp:100
+      ac:12|hp:32|speed:25
+      stats:STRENGTH:13|DEXTERITY:10|CONSTITUTION:15|INTELLIGENCE:8|WISDOM:12|CHARISMA:14
       abilities_for_sale:Shield Bash:1:Guard
     ::name:Eldoria Mage
     LEADER:
-      name:Halfling Wizard|role:Mage Leader|faction:Mage Leader
+      name:Dragonborn Sorcerer|role:Mage Leader|faction:Mage Leader
       level:10|cr:2.0|xp:450
-      ac:11|hp:51|speed:25
-      stats:STRENGTH:8|DEXTERITY:12|CONSTITUTION:15|INTELLIGENCE:14|WISDOM:10|CHARISMA:13
+      ac:12|hp:42|speed:30
+      stats:STRENGTH:10|DEXTERITY:14|CONSTITUTION:13|INTELLIGENCE:15|WISDOM:12|CHARISMA:8
       abilities_for_sale:Fireball:3:Mage|Invisibility:4:Mage
     RIGHT_HAND:
-      name:Dragonborn Bard|role:Mage Right Hand|faction:Mage Right Hand
-      level:8|cr:1.0|xp:200
-      ac:14|hp:29|speed:30
-      stats:STRENGTH:13|DEXTERITY:14|CONSTITUTION:8|INTELLIGENCE:12|WISDOM:15|CHARISMA:10
+      name:Halfling Fighter|role:Mage Right Hand|faction:Mage Right Hand
+      level:5|cr:0.5|xp:100
+      ac:10|hp:34|speed:25
+      stats:STRENGTH:15|DEXTERITY:10|CONSTITUTION:13|INTELLIGENCE:8|WISDOM:14|CHARISMA:12
       abilities_for_sale:Firebolt:1:Mage|Detect Magic:1:Mage|Mage Armor:2:Mage
     ::name:Eldoria Assassin
     LEADER:
-      name:Elf Bard|role:Assassin Leader|faction:Assassin Leader
-      level:9|cr:2.0|xp:450
-      ac:14|hp:56|speed:30
-      stats:STRENGTH:10|DEXTERITY:14|CONSTITUTION:15|INTELLIGENCE:8|WISDOM:13|CHARISMA:12
+      name:Elf Monk|role:Assassin Leader|faction:Assassin Leader
+      level:7|cr:1.0|xp:200
+      ac:11|hp:32|speed:30
+      stats:STRENGTH:12|DEXTERITY:13|CONSTITUTION:10|INTELLIGENCE:14|WISDOM:8|CHARISMA:15
       abilities_for_sale:Impostor:3:Assassin|Death Strike:5:Assassin
     RIGHT_HAND:
-      name:Elf Paladin|role:Assassin Right Hand|faction:Assassin Right Hand
-      level:6|cr:1.0|xp:200
-      ac:12|hp:45|speed:30
-      stats:STRENGTH:13|DEXTERITY:15|CONSTITUTION:14|INTELLIGENCE:10|WISDOM:12|CHARISMA:8
+      name:Dragonborn Artificer|role:Assassin Right Hand|faction:Assassin Right Hand
+      level:10|cr:2.0|xp:450
+      ac:13|hp:44|speed:30
+      stats:STRENGTH:15|DEXTERITY:13|CONSTITUTION:10|INTELLIGENCE:8|WISDOM:14|CHARISMA:12
       abilities_for_sale:Poisoner's Kit Proficiency:1:Assassin
     ::name:Eldoria Merchant
     LEADER:
-      name:Elf Fighter|role:Merchant Leader|faction:Merchant Leader
-      level:5|cr:0.5|xp:100
-      ac:9|hp:34|speed:30
-      stats:STRENGTH:15|DEXTERITY:8|CONSTITUTION:12|INTELLIGENCE:14|WISDOM:13|CHARISMA:10
+      name:Dwarf Bard|role:Merchant Leader|faction:Merchant Leader
+      level:7|cr:1.0|xp:200
+      ac:11|hp:44|speed:25
+      stats:STRENGTH:15|DEXTERITY:8|CONSTITUTION:14|INTELLIGENCE:10|WISDOM:12|CHARISMA:13
       abilities_for_sale:Master Investor:3:Merchant
     RIGHT_HAND:
-      name:Halfling Rogue|role:Merchant Right Hand|faction:Merchant Right Hand
-      level:8|cr:1.0|xp:200
-      ac:12|hp:50|speed:25
-      stats:STRENGTH:15|DEXTERITY:10|CONSTITUTION:14|INTELLIGENCE:12|WISDOM:13|CHARISMA:8
+      name:Dwarf Barbarian|role:Merchant Right Hand|faction:Merchant Right Hand
+      level:10|cr:2.0|xp:450
+      ac:11|hp:84|speed:25
+      stats:STRENGTH:10|DEXTERITY:8|CONSTITUTION:15|INTELLIGENCE:14|WISDOM:13|CHARISMA:12
       abilities_for_sale:Silver Tongue:1:Merchant|Appraise:2:Merchant
     ::name:Eldoria Thief
     LEADER:
-      name:Dragonborn Druid|role:Thief Leader|faction:Thief Leader
-      level:6|cr:1.0|xp:200
-      ac:13|hp:23|speed:30
-      stats:STRENGTH:14|DEXTERITY:13|CONSTITUTION:8|INTELLIGENCE:10|WISDOM:12|CHARISMA:15
+      name:Elf Artificer|role:Thief Leader|faction:Thief Leader
+      level:8|cr:1.0|xp:200
+      ac:14|hp:43|speed:30
+      stats:STRENGTH:10|DEXTERITY:15|CONSTITUTION:13|INTELLIGENCE:8|WISDOM:14|CHARISMA:12
       abilities_for_sale:Evasion:4:Thief
     RIGHT_HAND:
-      name:Halfling Rogue|role:Thief Right Hand|faction:Thief Right Hand
-      level:6|cr:1.0|xp:200
-      ac:12|hp:33|speed:25
-      stats:STRENGTH:14|DEXTERITY:10|CONSTITUTION:13|INTELLIGENCE:12|WISDOM:15|CHARISMA:8
+      name:Human Sorcerer|role:Thief Right Hand|faction:Thief Right Hand
+      level:5|cr:0.5|xp:100
+      ac:11|hp:14|speed:30
+      stats:STRENGTH:13|DEXTERITY:12|CONSTITUTION:8|INTELLIGENCE:15|WISDOM:14|CHARISMA:10
       abilities_for_sale:Sneak:1:Thief|Pick Pocket:2:Thief|Lockpicking Expertise:2:Thief
     ::name:Eldoria Alchemist's League
     LEADER:
-      name:Halfling Druid|role:Alchemist's League Leader|faction:Alchemist's League Leader
-      level:9|cr:2.0|xp:450
-      ac:11|hp:48|speed:25
-      stats:STRENGTH:12|DEXTERITY:8|CONSTITUTION:13|INTELLIGENCE:15|WISDOM:14|CHARISMA:10
+      name:Halfling Cleric|role:Alchemist's League Leader|faction:Alchemist's League Leader
+      level:6|cr:1.0|xp:200
+      ac:12|hp:38|speed:25
+      stats:STRENGTH:13|DEXTERITY:10|CONSTITUTION:14|INTELLIGENCE:12|WISDOM:8|CHARISMA:15
       abilities_for_sale:Transmute Minerals:4:Alchemist's League
     RIGHT_HAND:
-      name:Human Monk|role:Alchemist's League Right Hand|faction:Alchemist's League Right Hand
-      level:5|cr:0.5|xp:100
-      ac:11|hp:32|speed:30
-      stats:STRENGTH:12|DEXTERITY:13|CONSTITUTION:14|INTELLIGENCE:15|WISDOM:10|CHARISMA:8
+      name:Elf Fighter|role:Alchemist's League Right Hand|faction:Alchemist's League Right Hand
+      level:10|cr:2.0|xp:450
+      ac:10|hp:64|speed:30
+      stats:STRENGTH:14|DEXTERITY:10|CONSTITUTION:12|INTELLIGENCE:15|WISDOM:8|CHARISMA:13
       abilities_for_sale:Potion of Healing Recipe:1:Alchemist's League|Alchemical Fire Formula:2:Alchemist's League
     ::name:Eldoria Order of Scribes
     LEADER:
-      name:Elf Ranger|role:Order of Scribes Leader|faction:Order of Scribes Leader
-      level:5|cr:0.5|xp:100
-      ac:13|hp:38|speed:30
-      stats:STRENGTH:10|DEXTERITY:12|CONSTITUTION:15|INTELLIGENCE:8|WISDOM:14|CHARISMA:13
+      name:Dragonborn Rogue|role:Order of Scribes Leader|faction:Order of Scribes Leader
+      level:7|cr:1.0|xp:200
+      ac:14|hp:38|speed:30
+      stats:STRENGTH:8|DEXTERITY:15|CONSTITUTION:13|INTELLIGENCE:14|WISDOM:12|CHARISMA:10
       abilities_for_sale:Legend Lore:4:Order of Scribes
     RIGHT_HAND:
-      name:Halfling Barbarian|role:Order of Scribes Right Hand|faction:Order of Scribes Right Hand
-      level:9|cr:2.0|xp:450
-      ac:14|hp:52|speed:25
-      stats:STRENGTH:13|DEXTERITY:14|CONSTITUTION:8|INTELLIGENCE:10|WISDOM:15|CHARISMA:12
+      name:Dwarf Paladin|role:Order of Scribes Right Hand|faction:Order of Scribes Right Hand
+      level:5|cr:0.5|xp:100
+      ac:9|hp:34|speed:25
+      stats:STRENGTH:10|DEXTERITY:8|CONSTITUTION:13|INTELLIGENCE:15|WISDOM:12|CHARISMA:14
       abilities_for_sale:Identify:1:Order of Scribes|Comprehend Languages:2:Order of Scribes
 ::
 name:Zarthus|capital:Zarthus City|alignment:Lawful Evil
-relations:Eldoria:Neutral|Silverwood:War|Blacksail Archipelago:Neutral
+relations:Eldoria:War|Silverwood:War|Blacksail Archipelago:Neutral
   RULER:
     name:Sorcerer-King Malakor|role:Ruler|faction:Zarthus
     level:10|cr:2.0|xp:450
-    ac:14|hp:62|speed:30
-    stats:STRENGTH:8|DEXTERITY:14|CONSTITUTION:15|INTELLIGENCE:12|WISDOM:13|CHARISMA:10
+    ac:12|hp:24|speed:30
+    stats:STRENGTH:13|DEXTERITY:15|CONSTITUTION:8|INTELLIGENCE:10|WISDOM:14|CHARISMA:12
   [GUILDS]
     ::name:Zarthus Guard
       reports_to:Sorcerer-King Malakor
     LEADER:
-      name:Human Warlock|role:Guard Leader|faction:Guard Leader
-      level:7|cr:1.0|xp:200
-      ac:12|hp:44|speed:30
-      stats:STRENGTH:12|DEXTERITY:10|CONSTITUTION:15|INTELLIGENCE:8|WISDOM:14|CHARISMA:13
+      name:Halfling Warlock|role:Guard Leader|faction:Guard Leader
+      level:5|cr:0.5|xp:100
+      ac:14|hp:20|speed:25
+      stats:STRENGTH:10|DEXTERITY:14|CONSTITUTION:8|INTELLIGENCE:12|WISDOM:13|CHARISMA:15
       abilities_for_sale:Hold the Line:3:Guard
     RIGHT_HAND:
-      name:Halfling Warlock|role:Guard Right Hand|faction:Guard Right Hand
-      level:6|cr:1.0|xp:200
-      ac:13|hp:33|speed:25
-      stats:STRENGTH:10|DEXTERITY:13|CONSTITUTION:12|INTELLIGENCE:14|WISDOM:15|CHARISMA:8
+      name:Human Druid|role:Guard Right Hand|faction:Guard Right Hand
+      level:7|cr:1.0|xp:200
+      ac:13|hp:32|speed:30
+      stats:STRENGTH:12|DEXTERITY:13|CONSTITUTION:10|INTELLIGENCE:15|WISDOM:8|CHARISMA:14
       abilities_for_sale:Shield Bash:1:Guard
     ::name:Zarthus Mage
     LEADER:
-      name:Dragonborn Monk|role:Mage Leader|faction:Mage Leader
-      level:10|cr:2.0|xp:450
-      ac:12|hp:53|speed:30
-      stats:STRENGTH:10|DEXTERITY:14|CONSTITUTION:12|INTELLIGENCE:15|WISDOM:8|CHARISMA:13
+      name:Dwarf Fighter|role:Mage Leader|faction:Mage Leader
+      level:9|cr:2.0|xp:450
+      ac:12|hp:58|speed:25
+      stats:STRENGTH:8|DEXTERITY:14|CONSTITUTION:12|INTELLIGENCE:15|WISDOM:13|CHARISMA:10
       abilities_for_sale:Fireball:3:Mage|Invisibility:4:Mage
     RIGHT_HAND:
-      name:Dwarf Druid|role:Mage Right Hand|faction:Mage Right Hand
-      level:7|cr:1.0|xp:200
-      ac:12|hp:26|speed:25
-      stats:STRENGTH:12|DEXTERITY:10|CONSTITUTION:8|INTELLIGENCE:13|WISDOM:14|CHARISMA:15
+      name:Dragonborn Cleric|role:Mage Right Hand|faction:Mage Right Hand
+      level:6|cr:1.0|xp:200
+      ac:12|hp:38|speed:30
+      stats:STRENGTH:13|DEXTERITY:10|CONSTITUTION:14|INTELLIGENCE:15|WISDOM:12|CHARISMA:8
       abilities_for_sale:Firebolt:1:Mage|Detect Magic:1:Mage|Mage Armor:2:Mage
     ::name:Zarthus Assassin
     LEADER:
-      name:Halfling Warlock|role:Assassin Leader|faction:Assassin Leader
-      level:7|cr:1.0|xp:200
-      ac:12|hp:44|speed:25
-      stats:STRENGTH:8|DEXTERITY:10|CONSTITUTION:14|INTELLIGENCE:12|WISDOM:13|CHARISMA:15
+      name:Halfling Monk|role:Assassin Leader|faction:Assassin Leader
+      level:9|cr:2.0|xp:450
+      ac:12|hp:48|speed:25
+      stats:STRENGTH:10|DEXTERITY:14|CONSTITUTION:12|INTELLIGENCE:8|WISDOM:13|CHARISMA:15
       abilities_for_sale:Impostor:3:Assassin|Death Strike:5:Assassin
     RIGHT_HAND:
-      name:Dragonborn Monk|role:Assassin Right Hand|faction:Assassin Right Hand
-      level:8|cr:1.0|xp:200
-      ac:10|hp:50|speed:30
-      stats:STRENGTH:15|DEXTERITY:10|CONSTITUTION:14|INTELLIGENCE:13|WISDOM:8|CHARISMA:12
+      name:Human Fighter|role:Assassin Right Hand|faction:Assassin Right Hand
+      level:9|cr:2.0|xp:450
+      ac:11|hp:58|speed:30
+      stats:STRENGTH:15|DEXTERITY:13|CONSTITUTION:12|INTELLIGENCE:8|WISDOM:10|CHARISMA:14
       abilities_for_sale:Poisoner's Kit Proficiency:1:Assassin
     ::name:Zarthus Merchant
     LEADER:
-      name:Dragonborn Barbarian|role:Merchant Leader|faction:Merchant Leader
+      name:Dragonborn Druid|role:Merchant Leader|faction:Merchant Leader
       level:6|cr:1.0|xp:200
-      ac:11|hp:47|speed:30
-      stats:STRENGTH:12|DEXTERITY:8|CONSTITUTION:13|INTELLIGENCE:10|WISDOM:15|CHARISMA:14
+      ac:13|hp:38|speed:30
+      stats:STRENGTH:12|DEXTERITY:13|CONSTITUTION:14|INTELLIGENCE:15|WISDOM:8|CHARISMA:10
       abilities_for_sale:Master Investor:3:Merchant
     RIGHT_HAND:
-      name:Elf Cleric|role:Merchant Right Hand|faction:Merchant Right Hand
-      level:10|cr:2.0|xp:450
-      ac:14|hp:53|speed:30
-      stats:STRENGTH:10|DEXTERITY:14|CONSTITUTION:13|INTELLIGENCE:15|WISDOM:8|CHARISMA:12
+      name:Elf Sorcerer|role:Merchant Right Hand|faction:Merchant Right Hand
+      level:9|cr:2.0|xp:450
+      ac:11|hp:30|speed:30
+      stats:STRENGTH:13|DEXTERITY:12|CONSTITUTION:10|INTELLIGENCE:8|WISDOM:14|CHARISMA:15
       abilities_for_sale:Silver Tongue:1:Merchant|Appraise:2:Merchant
     ::name:Zarthus Thief
     LEADER:
-      name:Human Bard|role:Thief Leader|faction:Thief Leader
-      level:10|cr:2.0|xp:450
-      ac:13|hp:62|speed:30
-      stats:STRENGTH:10|DEXTERITY:12|CONSTITUTION:14|INTELLIGENCE:8|WISDOM:13|CHARISMA:15
+      name:Halfling Paladin|role:Thief Leader|faction:Thief Leader
+      level:5|cr:0.5|xp:100
+      ac:12|hp:26|speed:25
+      stats:STRENGTH:13|DEXTERITY:14|CONSTITUTION:8|INTELLIGENCE:15|WISDOM:12|CHARISMA:10
       abilities_for_sale:Evasion:4:Thief
     RIGHT_HAND:
-      name:Human Wizard|role:Thief Right Hand|faction:Thief Right Hand
-      level:10|cr:2.0|xp:450
-      ac:12|hp:51|speed:30
-      stats:STRENGTH:12|DEXTERITY:15|CONSTITUTION:14|INTELLIGENCE:13|WISDOM:10|CHARISMA:8
+      name:Dragonborn Monk|role:Thief Right Hand|faction:Thief Right Hand
+      level:7|cr:1.0|xp:200
+      ac:10|hp:38|speed:30
+      stats:STRENGTH:13|DEXTERITY:10|CONSTITUTION:12|INTELLIGENCE:8|WISDOM:15|CHARISMA:14
       abilities_for_sale:Sneak:1:Thief|Pick Pocket:2:Thief|Lockpicking Expertise:2:Thief
     ::name:Zarthus Alchemist's League
     LEADER:
-      name:Halfling Warlock|role:Alchemist's League Leader|faction:Alchemist's League Leader
-      level:10|cr:2.0|xp:450
-      ac:12|hp:62|speed:25
-      stats:STRENGTH:15|DEXTERITY:10|CONSTITUTION:14|INTELLIGENCE:8|WISDOM:13|CHARISMA:12
+      name:Human Druid|role:Alchemist's League Leader|faction:Alchemist's League Leader
+      level:8|cr:1.0|xp:200
+      ac:11|hp:43|speed:30
+      stats:STRENGTH:10|DEXTERITY:8|CONSTITUTION:12|INTELLIGENCE:14|WISDOM:15|CHARISMA:13
       abilities_for_sale:Transmute Minerals:4:Alchemist's League
     RIGHT_HAND:
-      name:Halfling Sorcerer|role:Alchemist's League Right Hand|faction:Alchemist's League Right Hand
-      level:5|cr:0.5|xp:100
-      ac:11|hp:26|speed:25
-      stats:STRENGTH:13|DEXTERITY:12|CONSTITUTION:15|INTELLIGENCE:8|WISDOM:14|CHARISMA:10
+      name:Elf Rogue|role:Alchemist's League Right Hand|faction:Alchemist's League Right Hand
+      level:10|cr:2.0|xp:450
+      ac:13|hp:44|speed:30
+      stats:STRENGTH:13|DEXTERITY:12|CONSTITUTION:10|INTELLIGENCE:8|WISDOM:14|CHARISMA:15
       abilities_for_sale:Potion of Healing Recipe:1:Alchemist's League|Alchemical Fire Formula:2:Alchemist's League
 ::
 name:Silverwood|capital:Silverwood City|alignment:True Neutral
 relations:Eldoria:Neutral|Zarthus:War|Blacksail Archipelago:Neutral
   RULER:
     name:Archdruid Elara|role:Ruler|faction:Silverwood
-    level:14|cr:3.0|xp:700
-    ac:13|hp:101|speed:25
-    stats:STRENGTH:14|DEXTERITY:12|CONSTITUTION:15|INTELLIGENCE:8|WISDOM:13|CHARISMA:10
+    level:15|cr:5.0|xp:1800
+    ac:12|hp:34|speed:30
+    stats:STRENGTH:13|DEXTERITY:14|CONSTITUTION:8|INTELLIGENCE:15|WISDOM:10|CHARISMA:12
   [GUILDS]
     ::name:Silverwood Guard
       reports_to:Archdruid Elara
     LEADER:
-      name:Halfling Monk|role:Guard Leader|faction:Guard Leader
-      level:5|cr:0.5|xp:100
-      ac:11|hp:24|speed:25
-      stats:STRENGTH:15|DEXTERITY:13|CONSTITUTION:10|INTELLIGENCE:14|WISDOM:8|CHARISMA:12
+      name:Human Druid|role:Guard Leader|faction:Guard Leader
+      level:8|cr:1.0|xp:200
+      ac:11|hp:50|speed:30
+      stats:STRENGTH:13|DEXTERITY:8|CONSTITUTION:14|INTELLIGENCE:12|WISDOM:15|CHARISMA:10
       abilities_for_sale:Hold the Line:3:Guard
     RIGHT_HAND:
-      name:Human Artificer|role:Guard Right Hand|faction:Guard Right Hand
-      level:9|cr:2.0|xp:450
-      ac:11|hp:48|speed:30
-      stats:STRENGTH:15|DEXTERITY:8|CONSTITUTION:13|INTELLIGENCE:12|WISDOM:10|CHARISMA:14
+      name:Elf Ranger|role:Guard Right Hand|faction:Guard Right Hand
+      level:10|cr:2.0|xp:450
+      ac:12|hp:73|speed:30
+      stats:STRENGTH:14|DEXTERITY:10|CONSTITUTION:15|INTELLIGENCE:8|WISDOM:12|CHARISMA:13
       abilities_for_sale:Shield Bash:1:Guard
     ::name:Silverwood Mage
     LEADER:
-      name:Elf Druid|role:Mage Leader|faction:Mage Leader
+      name:Human Fighter|role:Mage Leader|faction:Mage Leader
       level:7|cr:1.0|xp:200
-      ac:13|hp:44|speed:30
-      stats:STRENGTH:13|DEXTERITY:12|CONSTITUTION:15|INTELLIGENCE:8|WISDOM:14|CHARISMA:10
+      ac:11|hp:52|speed:30
+      stats:STRENGTH:8|DEXTERITY:13|CONSTITUTION:14|INTELLIGENCE:10|WISDOM:12|CHARISMA:15
       abilities_for_sale:Fireball:3:Mage|Invisibility:4:Mage
     RIGHT_HAND:
-      name:Human Sorcerer|role:Mage Right Hand|faction:Mage Right Hand
-      level:9|cr:2.0|xp:450
-      ac:9|hp:46|speed:30
-      stats:STRENGTH:12|DEXTERITY:8|CONSTITUTION:14|INTELLIGENCE:15|WISDOM:13|CHARISMA:10
+      name:Dwarf Rogue|role:Mage Right Hand|faction:Mage Right Hand
+      level:5|cr:0.5|xp:100
+      ac:14|hp:28|speed:25
+      stats:STRENGTH:15|DEXTERITY:14|CONSTITUTION:13|INTELLIGENCE:8|WISDOM:12|CHARISMA:10
       abilities_for_sale:Firebolt:1:Mage|Detect Magic:1:Mage|Mage Armor:2:Mage
     ::name:Silverwood Assassin
     LEADER:
-      name:Human Ranger|role:Assassin Leader|faction:Assassin Leader
+      name:Dragonborn Druid|role:Assassin Leader|faction:Assassin Leader
       level:8|cr:1.0|xp:200
-      ac:13|hp:59|speed:30
-      stats:STRENGTH:14|DEXTERITY:13|CONSTITUTION:15|INTELLIGENCE:8|WISDOM:10|CHARISMA:12
+      ac:13|hp:36|speed:30
+      stats:STRENGTH:13|DEXTERITY:12|CONSTITUTION:10|INTELLIGENCE:14|WISDOM:8|CHARISMA:15
       abilities_for_sale:Impostor:3:Assassin|Death Strike:5:Assassin
     RIGHT_HAND:
-      name:Dwarf Wizard|role:Assassin Right Hand|faction:Assassin Right Hand
+      name:Elf Artificer|role:Assassin Right Hand|faction:Assassin Right Hand
       level:6|cr:1.0|xp:200
-      ac:11|hp:16|speed:25
-      stats:STRENGTH:10|DEXTERITY:13|CONSTITUTION:8|INTELLIGENCE:14|WISDOM:12|CHARISMA:15
+      ac:11|hp:28|speed:30
+      stats:STRENGTH:14|DEXTERITY:8|CONSTITUTION:10|INTELLIGENCE:13|WISDOM:12|CHARISMA:15
       abilities_for_sale:Poisoner's Kit Proficiency:1:Assassin
     ::name:Silverwood Merchant
     LEADER:
-      name:Dwarf Ranger|role:Merchant Leader|faction:Merchant Leader
-      level:10|cr:2.0|xp:450
-      ac:13|hp:73|speed:25
-      stats:STRENGTH:14|DEXTERITY:12|CONSTITUTION:15|INTELLIGENCE:8|WISDOM:13|CHARISMA:10
+      name:Human Bard|role:Merchant Leader|faction:Merchant Leader
+      level:7|cr:1.0|xp:200
+      ac:11|hp:44|speed:30
+      stats:STRENGTH:15|DEXTERITY:8|CONSTITUTION:14|INTELLIGENCE:13|WISDOM:12|CHARISMA:10
       abilities_for_sale:Master Investor:3:Merchant
     RIGHT_HAND:
-      name:Dwarf Fighter|role:Merchant Right Hand|faction:Merchant Right Hand
-      level:6|cr:1.0|xp:200
-      ac:11|hp:45|speed:25
-      stats:STRENGTH:13|DEXTERITY:12|CONSTITUTION:14|INTELLIGENCE:10|WISDOM:15|CHARISMA:8
+      name:Human Warlock|role:Merchant Right Hand|faction:Merchant Right Hand
+      level:8|cr:1.0|xp:200
+      ac:14|hp:29|speed:30
+      stats:STRENGTH:10|DEXTERITY:15|CONSTITUTION:8|INTELLIGENCE:14|WISDOM:12|CHARISMA:13
       abilities_for_sale:Silver Tongue:1:Merchant|Appraise:2:Merchant
     ::name:Silverwood Thief
     LEADER:
-      name:Dwarf Ranger|role:Thief Leader|faction:Thief Leader
-      level:8|cr:1.0|xp:200
-      ac:13|hp:38|speed:25
-      stats:STRENGTH:15|DEXTERITY:13|CONSTITUTION:8|INTELLIGENCE:12|WISDOM:14|CHARISMA:10
+      name:Dragonborn Barbarian|role:Thief Leader|faction:Thief Leader
+      level:5|cr:0.5|xp:100
+      ac:14|hp:36|speed:30
+      stats:STRENGTH:12|DEXTERITY:14|CONSTITUTION:10|INTELLIGENCE:8|WISDOM:15|CHARISMA:13
       abilities_for_sale:Evasion:4:Thief
     RIGHT_HAND:
-      name:Human Sorcerer|role:Thief Right Hand|faction:Thief Right Hand
-      level:6|cr:1.0|xp:200
-      ac:11|hp:31|speed:30
-      stats:STRENGTH:14|DEXTERITY:13|CONSTITUTION:15|INTELLIGENCE:12|WISDOM:8|CHARISMA:10
+      name:Dragonborn Fighter|role:Thief Right Hand|faction:Thief Right Hand
+      level:5|cr:0.5|xp:100
+      ac:12|hp:30|speed:30
+      stats:STRENGTH:12|DEXTERITY:15|CONSTITUTION:10|INTELLIGENCE:14|WISDOM:8|CHARISMA:13
       abilities_for_sale:Sneak:1:Thief|Pick Pocket:2:Thief|Lockpicking Expertise:2:Thief
     ::name:Silverwood Alchemist's League
     LEADER:
-      name:Dwarf Warlock|role:Alchemist's League Leader|faction:Alchemist's League Leader
-      level:7|cr:1.0|xp:200
-      ac:13|hp:26|speed:25
-      stats:STRENGTH:15|DEXTERITY:12|CONSTITUTION:8|INTELLIGENCE:13|WISDOM:10|CHARISMA:14
+      name:Halfling Fighter|role:Alchemist's League Leader|faction:Alchemist's League Leader
+      level:10|cr:2.0|xp:450
+      ac:9|hp:64|speed:25
+      stats:STRENGTH:10|DEXTERITY:8|CONSTITUTION:12|INTELLIGENCE:15|WISDOM:14|CHARISMA:13
       abilities_for_sale:Transmute Minerals:4:Alchemist's League
     RIGHT_HAND:
-      name:Dwarf Ranger|role:Alchemist's League Right Hand|faction:Alchemist's League Right Hand
+      name:Halfling Sorcerer|role:Alchemist's League Right Hand|faction:Alchemist's League Right Hand
       level:5|cr:0.5|xp:100
-      ac:14|hp:34|speed:25
-      stats:STRENGTH:14|DEXTERITY:15|CONSTITUTION:12|INTELLIGENCE:8|WISDOM:13|CHARISMA:10
+      ac:12|hp:14|speed:25
+      stats:STRENGTH:13|DEXTERITY:15|CONSTITUTION:8|INTELLIGENCE:12|WISDOM:10|CHARISMA:14
       abilities_for_sale:Potion of Healing Recipe:1:Alchemist's League|Alchemical Fire Formula:2:Alchemist's League
     ::name:Silverwood Ranger's Conclave
     LEADER:
-      name:Elf Monk|role:Ranger's Conclave Leader|faction:Ranger's Conclave Leader
-      level:10|cr:2.0|xp:450
-      ac:9|hp:62|speed:30
-      stats:STRENGTH:12|DEXTERITY:8|CONSTITUTION:15|INTELLIGENCE:14|WISDOM:10|CHARISMA:13
+      name:Dragonborn Artificer|role:Ranger's Conclave Leader|faction:Ranger's Conclave Leader
+      level:8|cr:1.0|xp:200
+      ac:11|hp:43|speed:30
+      stats:STRENGTH:15|DEXTERITY:8|CONSTITUTION:13|INTELLIGENCE:14|WISDOM:12|CHARISMA:10
       abilities_for_sale:Pass Without Trace:3:Ranger's Conclave
     RIGHT_HAND:
-      name:Halfling Artificer|role:Ranger's Conclave Right Hand|faction:Ranger's Conclave Right Hand
-      level:8|cr:1.0|xp:200
-      ac:14|hp:29|speed:25
-      stats:STRENGTH:10|DEXTERITY:14|CONSTITUTION:8|INTELLIGENCE:13|WISDOM:12|CHARISMA:15
+      name:Dwarf Cleric|role:Ranger's Conclave Right Hand|faction:Ranger's Conclave Right Hand
+      level:10|cr:2.0|xp:450
+      ac:13|hp:53|speed:25
+      stats:STRENGTH:14|DEXTERITY:13|CONSTITUTION:12|INTELLIGENCE:15|WISDOM:8|CHARISMA:10
       abilities_for_sale:Animal Friendship:1:Ranger's Conclave|Hunter's Mark:2:Ranger's Conclave
 ::
 name:Blacksail Archipelago|capital:Blacksail Archipelago City|alignment:Chaotic Evil
 relations:Eldoria:War|Zarthus:Neutral|Silverwood:Neutral
   RULER:
     name:Dread Pirate King Kaelen|role:Ruler|faction:Blacksail Archipelago
-    level:12|cr:3.0|xp:700
-    ac:13|hp:74|speed:30
-    stats:STRENGTH:8|DEXTERITY:13|CONSTITUTION:14|INTELLIGENCE:10|WISDOM:15|CHARISMA:12
+    level:11|cr:2.0|xp:450
+    ac:13|hp:48|speed:30
+    stats:STRENGTH:15|DEXTERITY:12|CONSTITUTION:10|INTELLIGENCE:13|WISDOM:14|CHARISMA:8
   [GUILDS]
     ::name:Blacksail Archipelago Assassin
     LEADER:
-      name:Elf Paladin|role:Assassin Leader|faction:Assassin Leader
-      level:5|cr:0.5|xp:100
-      ac:11|hp:30|speed:30
-      stats:STRENGTH:8|DEXTERITY:13|CONSTITUTION:10|INTELLIGENCE:12|WISDOM:15|CHARISMA:14
+      name:Elf Monk|role:Assassin Leader|faction:Assassin Leader
+      level:10|cr:2.0|xp:450
+      ac:11|hp:62|speed:30
+      stats:STRENGTH:14|DEXTERITY:12|CONSTITUTION:15|INTELLIGENCE:13|WISDOM:8|CHARISMA:10
       abilities_for_sale:Impostor:3:Assassin|Death Strike:5:Assassin
     RIGHT_HAND:
-      name:Dwarf Paladin|role:Assassin Right Hand|faction:Assassin Right Hand
+      name:Human Monk|role:Assassin Right Hand|faction:Assassin Right Hand
       level:9|cr:2.0|xp:450
-      ac:11|hp:58|speed:25
-      stats:STRENGTH:14|DEXTERITY:13|CONSTITUTION:12|INTELLIGENCE:10|WISDOM:15|CHARISMA:8
+      ac:9|hp:56|speed:30
+      stats:STRENGTH:14|DEXTERITY:8|CONSTITUTION:15|INTELLIGENCE:13|WISDOM:10|CHARISMA:12
       abilities_for_sale:Poisoner's Kit Proficiency:1:Assassin
     ::name:Blacksail Archipelago Thief
     LEADER:
-      name:Dwarf Warlock|role:Thief Leader|faction:Thief Leader
-      level:9|cr:2.0|xp:450
-      ac:12|hp:48|speed:25
-      stats:STRENGTH:15|DEXTERITY:10|CONSTITUTION:12|INTELLIGENCE:14|WISDOM:8|CHARISMA:13
+      name:Dragonborn Sorcerer|role:Thief Leader|faction:Thief Leader
+      level:7|cr:1.0|xp:200
+      ac:9|hp:24|speed:30
+      stats:STRENGTH:13|DEXTERITY:8|CONSTITUTION:10|INTELLIGENCE:15|WISDOM:14|CHARISMA:12
       abilities_for_sale:Evasion:4:Thief
     RIGHT_HAND:
-      name:Elf Barbarian|role:Thief Right Hand|faction:Thief Right Hand
-      level:10|cr:2.0|xp:450
-      ac:11|hp:75|speed:30
-      stats:STRENGTH:12|DEXTERITY:8|CONSTITUTION:13|INTELLIGENCE:15|WISDOM:14|CHARISMA:10
+      name:Dwarf Monk|role:Thief Right Hand|faction:Thief Right Hand
+      level:6|cr:1.0|xp:200
+      ac:11|hp:23|speed:25
+      stats:STRENGTH:10|DEXTERITY:12|CONSTITUTION:8|INTELLIGENCE:13|WISDOM:15|CHARISMA:14
       abilities_for_sale:Sneak:1:Thief|Pick Pocket:2:Thief|Lockpicking Expertise:2:Thief
-
-[NPCS]
-::
-name:King Theron|role:Ruler|faction:Eldoria
-level:15|cr:5.0|xp:1800
-ac:14|hp:50|speed:30
-stats:STRENGTH:10|DEXTERITY:15|CONSTITUTION:8|INTELLIGENCE:12|WISDOM:13|CHARISMA:14
-::
-name:Dwarf Courtier|role:Courtier|faction:Eldoria
-level:3|cr:0.25|xp:50
-ac:11|hp:16|speed:25
-stats:STRENGTH:14|DEXTERITY:12|CONSTITUTION:15|INTELLIGENCE:8|WISDOM:13|CHARISMA:10
-::
-name:Elf Courtier|role:Courtier|faction:Eldoria
-level:5|cr:0.5|xp:100
-ac:9|hp:24|speed:30
-stats:STRENGTH:13|DEXTERITY:8|CONSTITUTION:10|INTELLIGENCE:14|WISDOM:15|CHARISMA:12
-::
-name:Generic Innkeeper|role:Innkeeper
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Farmer|role:Farmer
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Blacksmith|role:Blacksmith
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Farmer|role:Farmer
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Farmer|role:Farmer
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Farmer|role:Farmer
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Farmer|role:Farmer
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Innkeeper|role:Innkeeper
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Innkeeper|role:Innkeeper
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Innkeeper|role:Innkeeper
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Farmer|role:Farmer
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Blacksmith|role:Blacksmith
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Innkeeper|role:Innkeeper
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Blacksmith|role:Blacksmith
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Innkeeper|role:Innkeeper
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Blacksmith|role:Blacksmith
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Innkeeper|role:Innkeeper
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Sorcerer-King Malakor|role:Ruler|faction:Zarthus
-level:10|cr:2.0|xp:450
-ac:14|hp:62|speed:30
-stats:STRENGTH:8|DEXTERITY:14|CONSTITUTION:15|INTELLIGENCE:12|WISDOM:13|CHARISMA:10
-::
-name:Halfling Courtier|role:Courtier|faction:Zarthus
-level:6|cr:1.0|xp:200
-ac:14|hp:28|speed:25
-stats:STRENGTH:12|DEXTERITY:15|CONSTITUTION:10|INTELLIGENCE:14|WISDOM:13|CHARISMA:8
-::
-name:Halfling Courtier|role:Courtier|faction:Zarthus
-level:4|cr:0.5|xp:100
-ac:14|hp:26|speed:25
-stats:STRENGTH:8|DEXTERITY:15|CONSTITUTION:14|INTELLIGENCE:12|WISDOM:13|CHARISMA:10
-::
-name:Generic Blacksmith|role:Blacksmith
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Blacksmith|role:Blacksmith
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Blacksmith|role:Blacksmith
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Blacksmith|role:Blacksmith
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Blacksmith|role:Blacksmith
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Innkeeper|role:Innkeeper
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Innkeeper|role:Innkeeper
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Farmer|role:Farmer
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Innkeeper|role:Innkeeper
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Innkeeper|role:Innkeeper
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Farmer|role:Farmer
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Blacksmith|role:Blacksmith
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Blacksmith|role:Blacksmith
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Farmer|role:Farmer
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Innkeeper|role:Innkeeper
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Farmer|role:Farmer
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Innkeeper|role:Innkeeper
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Farmer|role:Farmer
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Archdruid Elara|role:Ruler|faction:Silverwood
-level:14|cr:3.0|xp:700
-ac:13|hp:101|speed:25
-stats:STRENGTH:14|DEXTERITY:12|CONSTITUTION:15|INTELLIGENCE:8|WISDOM:13|CHARISMA:10
-::
-name:Halfling Courtier|role:Courtier|faction:Silverwood
-level:5|cr:0.5|xp:100
-ac:12|hp:32|speed:25
-stats:STRENGTH:12|DEXTERITY:10|CONSTITUTION:14|INTELLIGENCE:8|WISDOM:15|CHARISMA:13
-::
-name:Elf Courtier|role:Courtier|faction:Silverwood
-level:3|cr:0.25|xp:50
-ac:9|hp:22|speed:30
-stats:STRENGTH:14|DEXTERITY:8|CONSTITUTION:12|INTELLIGENCE:15|WISDOM:13|CHARISMA:10
-::
-name:Dragonborn Courtier|role:Courtier|faction:Silverwood
-level:3|cr:0.25|xp:50
-ac:13|hp:20|speed:30
-stats:STRENGTH:15|DEXTERITY:13|CONSTITUTION:14|INTELLIGENCE:12|WISDOM:8|CHARISMA:10
-::
-name:Generic Blacksmith|role:Blacksmith
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Blacksmith|role:Blacksmith
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Innkeeper|role:Innkeeper
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Innkeeper|role:Innkeeper
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Innkeeper|role:Innkeeper
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Farmer|role:Farmer
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Blacksmith|role:Blacksmith
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Farmer|role:Farmer
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Farmer|role:Farmer
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Innkeeper|role:Innkeeper
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Innkeeper|role:Innkeeper
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Farmer|role:Farmer
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Farmer|role:Farmer
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Innkeeper|role:Innkeeper
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Blacksmith|role:Blacksmith
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Dread Pirate King Kaelen|role:Ruler|faction:Blacksail Archipelago
-level:12|cr:3.0|xp:700
-ac:13|hp:74|speed:30
-stats:STRENGTH:8|DEXTERITY:13|CONSTITUTION:14|INTELLIGENCE:10|WISDOM:15|CHARISMA:12
-::
-name:Elf Courtier|role:Courtier|faction:Blacksail Archipelago
-level:5|cr:0.5|xp:100
-ac:14|hp:20|speed:30
-stats:STRENGTH:13|DEXTERITY:15|CONSTITUTION:8|INTELLIGENCE:10|WISDOM:14|CHARISMA:12
-::
-name:Dwarf Courtier|role:Courtier|faction:Blacksail Archipelago
-level:4|cr:0.5|xp:100
-ac:14|hp:28|speed:25
-stats:STRENGTH:8|DEXTERITY:14|CONSTITUTION:12|INTELLIGENCE:10|WISDOM:13|CHARISMA:15
-::
-name:Elf Courtier|role:Courtier|faction:Blacksail Archipelago
-level:4|cr:0.5|xp:100
-ac:12|hp:21|speed:30
-stats:STRENGTH:8|DEXTERITY:15|CONSTITUTION:14|INTELLIGENCE:12|WISDOM:10|CHARISMA:13
-::
-name:Generic Innkeeper|role:Innkeeper
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Innkeeper|role:Innkeeper
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Blacksmith|role:Blacksmith
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Innkeeper|role:Innkeeper
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Innkeeper|role:Innkeeper
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Blacksmith|role:Blacksmith
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Blacksmith|role:Blacksmith
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
-::
-name:Generic Blacksmith|role:Blacksmith
-level:1|cr:0.1|xp:10
-ac:10|hp:10|speed:30
-stats:STRENGTH:10|DEXTERITY:10|CONSTITUTION:10|INTELLIGENCE:10|WISDOM:10|CHARISMA:10
 
 // END-OF-FILE //

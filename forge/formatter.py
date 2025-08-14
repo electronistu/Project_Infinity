@@ -152,21 +152,7 @@ def format_world_to_wwf(world_state: WorldState, output_path: str):
                     #             f.write(format_special_abilities(member.special_abilities))
         f.write("\n")
         
-        # --- NPCS (Full Stat Blocks) ---
-        f.write("[NPCS]\n")
-        for npc in world_state.npcs:
-            f.write("::\n")
-            f.write(f"name:{npc.name}|role:{npc.role}{f'|faction:{npc.faction}' if npc.faction != 'Civilian' else ''}{'|is_walker:True' if npc.is_walker else ''}\n")
-            f.write(f"level:{npc.level}|cr:{npc.challenge_rating}|xp:{npc.xp_value}\n")
-            f.write(f"ac:{npc.armor_class}|hp:{npc.hit_points}|speed:{npc.speed}\n")
-            f.write(f"stats:{format_stats(npc.stats)}\n")
-            if npc.abilities_for_sale:
-                f.write(f"abilities_for_sale:{'|'.join([f'{a.name}:{a.tier}:{a.guild_source}' for a in npc.abilities_for_sale])}\n")
-            if npc.actions:
-                f.write(format_actions(npc.actions, 'actions'))
-            if npc.special_abilities:
-                 f.write(format_special_abilities(npc.special_abilities))
-        f.write("\n")
+        
 
         f.write("// END-OF-FILE //\n")
 

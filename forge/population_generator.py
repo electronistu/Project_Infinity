@@ -244,7 +244,6 @@ def create_courtier_npc(kingdom_name, config):
 def populate_world(config, map_grid):
     """Populates the world with kingdoms, capitals, settlements, and NPCs."""
     kingdoms = []
-    all_npcs = []
 
     kingdom_defs = {
         "Eldoria": {"alignment": "Lawful Good", "ruler_name": "King Theron"},
@@ -267,7 +266,6 @@ def populate_world(config, map_grid):
         ruler.name = data["ruler_name"] # Use the specific ruler name from kingdom_defs
         ruler.alignment = data["alignment"]
         ruler.dialogue_options = [f"I am the ruler of {name}.", "State your business."]
-        all_npcs.append(ruler)
 
         # Create the Capital City
         capital_coords = find_valid_placement(map_grid, (8, 8))
@@ -283,7 +281,6 @@ def populate_world(config, map_grid):
         for _ in range(num_courtiers):
             courtier = create_courtier_npc(name, config)
             capital_city.npcs.append(courtier)
-            all_npcs.append(courtier)
 
         # Create the Kingdom
         kingdom = Kingdom(
@@ -305,7 +302,6 @@ def populate_world(config, map_grid):
                 for _ in range(num_settlement_npcs):
                     settlement_npc = create_settlement_npc(random.choice(["Innkeeper", "Blacksmith", "Farmer"]), config)
                     settlement_npcs.append(settlement_npc)
-                    all_npcs.append(settlement_npc)
 
                 settlement = Location(
                     name=settlement_name,
@@ -318,4 +314,4 @@ def populate_world(config, map_grid):
         
         kingdoms.append(kingdom)
 
-    return kingdoms, all_npcs
+    return kingdoms
