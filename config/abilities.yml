@@ -1,4 +1,18 @@
-# Mage Guild
+# Guard Guild Abilities
+- name: Shield Bash
+  description: "You can use your shield as a weapon, potentially knocking an enemy prone."
+  tier: 1
+  guild_source: Guard
+- name: Hold the Line
+  description: "You can use your reaction to stop an enemy's movement when they enter your reach."
+  tier: 2
+  guild_source: Guard
+- name: Sentinel Training
+  description: "You gain the benefits of the Sentinel feat, allowing you to better control the battlefield."
+  tier: 3
+  guild_source: Guard
+
+# Mage Guild Abilities
 - name: Firebolt
   description: "Hurl a mote of fire at a creature or object."
   tier: 1
@@ -19,8 +33,52 @@
   description: "A creature you touch becomes invisible until the spell ends."
   tier: 4
   guild_source: Mage
+- name: Arcane Insight
+  description: "You gain proficiency in the Arcana skill, or expertise if you already have it."
+  tier: 1
+  guild_source: Mage
+- name: Counterspell Mastery
+  description: "You gain advantage on ability checks made to counterspell a spell."
+  tier: 3
+  guild_source: Mage
+- name: Teleportation Circle Access
+  description: "You gain access to the Mage Guild's teleportation network, allowing travel between major cities."
+  tier: 4
+  guild_source: Mage
 
-# Thief Guild
+# Assassin Guild Abilities
+- name: Poisoner's Kit Proficiency
+  description: "You gain proficiency with the poisoner's kit."
+  tier: 1
+  guild_source: Assassin
+- name: Impostor
+  description: "You can unerringly mimic the speech patterns and accent of a creature that you hear speak for at least 1 minute."
+  tier: 3
+  guild_source: Assassin
+- name: Death Strike
+  description: "When you attack and hit a creature that is surprised, it must make a Constitution saving throw or take double damage from the attack."
+  tier: 5
+  guild_source: Assassin
+- name: Silent Movement
+  description: "You gain proficiency in the Stealth skill, or expertise if you already have it."
+  tier: 1
+  guild_source: Assassin
+
+# Merchant Guild Abilities
+- name: Silver Tongue
+  description: "Gain advantage on persuasion checks when bartering."
+  tier: 1
+  guild_source: Merchant
+- name: Appraise
+  description: "Accurately determine the market value of any non-magical item."
+  tier: 2
+  guild_source: Merchant
+- name: Master Investor
+  description: "Once per week, you can make an investment in a local shop, potentially yielding a significant return."
+  tier: 3
+  guild_source: Merchant
+
+# Thief Guild Abilities
 - name: Sneak
   description: "Gain advantage on stealth checks for a short duration."
   tier: 1
@@ -38,45 +96,7 @@
   tier: 4
   guild_source: Thief
 
-# Guard Guild
-- name: Shield Bash
-  description: "After you attack, you can use a bonus action to try to shove a creature with your shield."
-  tier: 1
-  guild_source: Guard
-- name: Hold the Line
-  description: "Creatures you choose have disadvantage on attack rolls against targets other than you."
-  tier: 3
-  guild_source: Guard
-
-# Merchant Guild
-- name: Silver Tongue
-  description: "Gain advantage on persuasion checks when bartering."
-  tier: 1
-  guild_source: Merchant
-- name: Appraise
-  description: "Accurately determine the market value of any non-magical item."
-  tier: 2
-  guild_source: Merchant
-- name: Master Investor
-  description: "Once per week, you can make an investment in a local shop, potentially yielding a significant return."
-  tier: 3
-  guild_source: Merchant
-
-# Assassin Guild
-- name: Poisoner's Kit Proficiency
-  description: "You gain proficiency with the poisoner's kit."
-  tier: 1
-  guild_source: Assassin
-- name: Impostor
-  description: "You can unerringly mimic the speech patterns and accent of a creature that you hear speak for at least 1 minute."
-  tier: 3
-  guild_source: Assassin
-- name: Death Strike
-  description: "When you attack and hit a creature that is surprised, it must make a Constitution saving throw or take double damage from the attack."
-  tier: 5
-  guild_source: Assassin
-
-# Alchemist's League
+# Alchemist's League Abilities
 - name: Potion of Healing Recipe
   description: "Learn the recipe to craft a basic Potion of Healing from common herbs."
   tier: 1
@@ -90,7 +110,7 @@
   tier: 4
   guild_source: "Alchemist's League"
 
-# Ranger's Conclave
+# Ranger's Conclave Abilities
 - name: Animal Friendship
   description: "You can convince a beast that you mean it no harm."
   tier: 1
@@ -103,8 +123,20 @@
   description: "You and your companions are masked by shadows and silence, gaining a +10 bonus to Dexterity (Stealth) checks."
   tier: 3
   guild_source: "Ranger's Conclave"
+- name: Natural Explorer
+  description: "You are an expert at traveling through certain kinds of natural terrain."
+  tier: 1
+  guild_source: Ranger's Conclave
+- name: Primeval Awareness
+  description: "You can use your action and expend one ranger spell slot to focus your awareness on the region around you."
+  tier: 2
+  guild_source: Ranger's Conclave
+- name: Vanish
+  description: "You can use the Hide action as a bonus action on your turn."
+  tier: 3
+  guild_source: Ranger's Conclave
 
-# Order of Scribes
+# Order of Scribes Abilities
 - name: Identify
   description: "You choose one object that you must touch. You learn whether it is magical and what its properties are."
   tier: 1
