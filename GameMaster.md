@@ -93,6 +93,36 @@ You are provided with a set of `QUEST_TEMPLATES`. These are not pre-generated qu
   description: "<giver_npc_name> of <start_location> needs an urgent message delivered to <receiver_npc_name> in <destination_location>. A reward is offered for a swift and discreet delivery."
   reward_template: "A pouch of rare herbs"
   xp_reward: 50
+
+- type: Rescue
+  title: "Missing Villager in the <location_type>"
+  description: "A villager from <village_name> has gone missing in the nearby <location_type>. The family is offering a reward for their safe return."
+  reward_template: "<random_gold> gold pieces and a family heirloom"
+  xp_reward: 75
+
+- type: Investigation
+  title: "The Whispering Woods Mystery"
+  description: "Strange occurrences have been reported in the Whispering Woods near <village_name>. Investigate the source of the disturbances and report your findings."
+  reward_template: "Information leading to a hidden treasure"
+  xp_reward: 100
+
+- type: Diplomacy
+  title: "Mediating the <faction_1> and <faction_2> Dispute"
+  description: "Tensions are rising between the <faction_1> and <faction_2> over a disputed resource. Act as a mediator to resolve their conflict peacefully."
+  reward_template: "Favor with both factions and <random_gold> gold pieces"
+  xp_reward: 125
+
+- type: Survival
+  title: "Stranded in the <wilderness_type>"
+  description: "You find yourself stranded in the treacherous <wilderness_type> after a sudden storm. Find your way back to civilization, avoiding its dangers."
+  reward_template: "Survival gear and a map to a safe haven"
+  xp_reward: 50
+
+- type: Discovery
+  title: "The Ancient Ruins of <ruin_name>"
+  description: "Rumors speak of ancient ruins hidden deep within the <forest_name>. Explore them and uncover their secrets."
+  reward_template: "A magical artifact and ancient knowledge"
+  xp_reward: 150
 ```
 
 **Instructions for LLM:**
@@ -236,6 +266,7 @@ You are provided with a set of `CREATURE_TEMPLATES`. These are blueprints for cr
   damage_immunities:
     - Poison
   condition_immunities:
+    - Exhaustion
     - Poisoned
   senses:
     darkvision: 60
@@ -406,6 +437,134 @@ You are provided with a set of `CREATURE_TEMPLATES`. These are blueprints for cr
       description: "The lich fixes its gaze on one creature it can see within 10 feet of it. The target must succeed on a DC 18 Wisdom saving throw against this magic or become frightened for 1 minute."
     - name: Disrupt Life (Costs 3 Actions)
       description: "Each non-undead creature within 20 feet of the lich must make a DC 18 Constitution saving throw against this magic, taking 21 (6d6) necrotic damage on a failed save, or half as much damage on a successful one."
-```
 
+- name: Bandit
+  size: Medium
+  creature_type: humanoid
+  alignment: Neutral Evil
+  armor_class: 12
+  hit_points: 11
+  hit_dice: "2d8+2"
+  speed: 30
+  stats:
+    strength: 11
+    dexterity: 12
+    constitution: 12
+    intelligence: 10
+    wisdom: 10
+    charisma: 10
+  senses:
+    passive_perception: 10
+  languages:
+    - Common
+  challenge_rating: 0.125
+  xp_value: 25
+  actions:
+    - name: Scimitar
+      description: "Melee Weapon Attack: +3 to hit, reach 5 ft., one target. Hit: 4 (1d6 + 1) slashing damage."
+    - name: Light Crossbow
+      description: "Ranged Weapon Attack: +3 to hit, range 80/320 ft., one target. Hit: 5 (1d8 + 1) piercing damage."
+
+- name: Wolf
+  size: Medium
+  creature_type: beast
+  alignment: Unaligned
+  armor_class: 13
+  hit_points: 11
+  hit_dice: "2d8+2"
+  speed: 40
+  stats:
+    strength: 12
+    dexterity: 15
+    constitution: 12
+    intelligence: 3
+    wisdom: 12
+    charisma: 6
+  skills:
+    - name: Perception
+      ability: wisdom
+      proficient: True
+    - name: Stealth
+      ability: dexterity
+      proficient: True
+  senses:
+    darkvision: 60
+    passive_perception: 13
+  languages: []
+  challenge_rating: 0.25
+  xp_value: 50
+  special_abilities:
+    - name: Keen Hearing and Smell
+      description: "The wolf has advantage on Wisdom (Perception) checks that rely on hearing or smell."
+    - name: Pack Tactics
+      description: "The wolf has advantage on an attack roll against a creature if at least one of the wolf's allies is within 5 feet of the creature and the ally isn't incapacitated."
+  actions:
+    - name: Bite
+      description: "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 7 (2d4 + 2) piercing damage. If the target is a creature, it must succeed on a DC 11 Strength saving throw or be knocked prone."
+
+- name: Ogre
+  size: Large
+  creature_type: giant
+  alignment: Chaotic Evil
+  armor_class: 11
+  hit_points: 59
+  hit_dice: "7d10+21"
+  speed: 40
+  stats:
+    strength: 19
+    dexterity: 8
+    constitution: 16
+    intelligence: 5
+    wisdom: 7
+    charisma: 7
+  senses:
+    darkvision: 60
+    passive_perception: 8
+  languages:
+    - Common
+    - Giant
+  challenge_rating: 2
+  xp_value: 450
+  actions:
+    - name: Greatclub
+      description: "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 13 (2d8 + 4) bludgeoning damage."
+    - name: Javelin
+      description: "Melee or Ranged Weapon Attack: +6 to hit, reach 5 ft. or range 30/120 ft., one target. Hit: 11 (2d6 + 4) piercing damage."
+
+- name: Ettin
+  size: Large
+  creature_type: giant
+  alignment: Chaotic Evil
+  armor_class: 12
+  hit_points: 85
+  hit_dice: "10d10+30"
+  speed: 40
+  stats:
+    strength: 21
+    dexterity: 10
+    constitution: 17
+    intelligence: 6
+    wisdom: 10
+    charisma: 8
+  senses:
+    darkvision: 60
+    passive_perception: 12
+  languages:
+    - Giant
+    - Orc
+  challenge_rating: 4
+  xp_value: 1100
+  special_abilities:
+    - name: Two Heads
+      description: "The ettin has advantage on saving throws against being blinded, charmed, deafened, frightened, stunned, and knocked unconscious."
+    - name: Wakeful
+      description: "When one of the ettin's heads is asleep, the other head is awake."
+  actions:
+    - name: Multiattack
+      description: "The ettin makes two attacks: one with its morningstar and one with its battleaxe."
+    - name: Morningstar
+      description: "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 14 (2d8 + 5) piercing damage."
+    - name: Battleaxe
+      description: "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 14 (2d8 + 5) slashing damage."
+```
 ---
