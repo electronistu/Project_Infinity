@@ -1,3 +1,4 @@
+import os
 import yaml
 from pydantic import BaseModel
 from typing import List, Optional
@@ -10,6 +11,11 @@ class AbilityScoreIncrease(BaseModel):
 class Trait(BaseModel):
     name: str
     description: str
+
+current_dir = os.path.dirname(__file__)
+project_root = os.path.join(current_dir, '..')
+config_dir = os.path.join(project_root, 'config')
+gamemaster_path = os.path.join(project_root, 'GameMaster.md')
 
 class Race(BaseModel):
     name: str
@@ -31,9 +37,9 @@ class Config(BaseModel):
     abilities: List[PlayerAbility]
     creatures: List[Creature] # Moved here to be loaded from GameMaster.md
 
-def _extract_yaml_block_from_md(filepath: str, block_name: str) -> str:
+def _extract_yaml_block_from_md(block_name: str) -> str:
     """Extracts a YAML block from a Markdown file given its block name."""
-    with open(filepath, 'r') as f:
+    with open(gamemaster_path, 'r') as f:
         content = f.read()
     
     start_tag = f"**{block_name}:**\n```yaml\n"
@@ -52,26 +58,26 @@ def _extract_yaml_block_from_md(filepath: str, block_name: str) -> str:
     return content[start_index:end_index]
 
 def load_config() -> Config:
-    with open('/home/rtmi6/GitHub/project_infinity/config/races.yml', 'r') as f:
+    with open(os.path.join(config_dir, 'races.yml'), 'r') as f:
         races_data = yaml.safe_load(f)
     
-    with open('/home/rtmi6/GitHub/project_infinity/config/classes.yml', 'r') as f:
+    with open(os.path.join(config_dir, 'classes.yml'), 'r') as f:
         classes_data = yaml.safe_load(f)
 
-    with open('/home/rtmi6/GitHub/project_infinity/config/backgrounds.yml', 'r') as f:
+    with open(os.path.join(config_dir, 'backgrounds.yml'), 'r') as f:
         backgrounds_data = yaml.safe_load(f)
         
-    with open('/home/rtmi6/GitHub/project_infinity/config/alignments.yml', 'r') as f:
+    with open(os.path.join(config_dir, 'alignments.yml'), 'r') as f:
         alignments_data = yaml.safe_load(f)
         
     # Load creatures from GameMaster.md
-    creatures_yaml_str = _extract_yaml_block_from_md('/home/rtmi6/GitHub/project_infinity/GameMaster.md', 'CREATURE_TEMPLATES')
+    creatures_yaml_str = _extract_yaml_block_from_md('CREATURE_TEMPLATES')
     creatures_data = yaml.safe_load(creatures_yaml_str)
 
-    with open('/home/rtmi6/GitHub/project_infinity/config/items.yml', 'r') as f:
+    with open(os.path.join(config_dir, 'items.yml'), 'r') as f:
         items_data = yaml.safe_load(f)
 
-    with open('/home/rtmi6/GitHub/project_infinity/config/abilities.yml', 'r') as f:
+    with open(os.path.join(config_dir, 'abilities.yml'), 'r') as f:
         abilities_data = yaml.safe_load(f)
 
     return Config(

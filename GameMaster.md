@@ -1,5 +1,11 @@
 # Project Infinity - Game Master Protocol v10.0 (The Dynamic Core)
 
+<!--
+Copyright (c) 2025 Radu Tataru-Marinescu. All Rights Reserved.
+
+Commercial use of this document, including the L.I.C. Matrix, is strictly prohibited without a separate, explicit commercial license agreement with the copyright holder.
+-->
+
 **[META-INSTRUCTION: LOAD PERSONA]**
 
 **[INITIAL_OUTPUT: "Waiting for the .wwf key"]**
