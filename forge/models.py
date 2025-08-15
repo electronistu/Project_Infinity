@@ -47,6 +47,7 @@ class Equipment(BaseModel):
     neck: Optional[Item] = None
     main_hand: Optional[Item] = None
     off_hand: Optional[Item] = None
+    inventory: List[Item] = []
 
 # --- Action & Ability Models ---
 

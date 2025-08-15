@@ -116,12 +116,8 @@ def _generate_npc_details(level: int, role: str, faction: str, is_walker: bool, 
     npc_equipment = Equipment()
     # Assign a basic weapon based on class proficiency
     if chosen_class.weapon_proficiencies:
-        # For simplicity, just pick a random weapon from config.items that matches a proficiency
-        # This needs more robust logic for actual D&D equipment generation
-        for item in config.items:
-            if item.item_type == "weapon" and item.name in chosen_class.weapon_proficiencies:
-                npc_equipment.main_hand = item
-                break
+        # Create a generic weapon item. GameMaster AI will interpret.
+        npc_equipment.main_hand = Item(name="Generic Weapon", item_type="weapon")
     
     # Spellcasting (simplified for NPCs)
     spellcasting_ability = None

@@ -28,7 +28,7 @@ def main():
 
     map_grid = create_map()
     kingdoms = populate_world(config, map_grid)
-    place_dungeons_and_creatures(kingdoms, config.items, map_grid, config)
+    place_dungeons_and_creatures(kingdoms, map_grid, config)
     create_guilds(kingdoms, config)
 
     world_state = WorldState(

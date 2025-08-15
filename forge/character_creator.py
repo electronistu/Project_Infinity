@@ -126,11 +126,7 @@ def calculate_modifier(stat_value: int) -> int:
     return math.floor((stat_value - 10) / 2)
 
 # Helper to get item by name
-def _get_item_by_name(item_name: str, config: Config) -> Optional[Item]:
-    for item in config.items:
-        if item.name == item_name:
-            return item
-    return None
+
 
 # --- Core Creation Functions ---
 
@@ -261,19 +257,15 @@ def create_character(config: Config) -> PlayerCharacter:
         for option_group in chosen_class.starting_equipment_options:
             if option_group.choose_one_from:
                 chosen_item_name = select_from_list("Choose one item", option_group.choose_one_from, display_key=None)
-                item = _get_item_by_name(chosen_item_name, config)
+                item = Item(name=chosen_item_name, item_type="misc") # Create a generic Item object
                 if item:
-                    # Simplified assignment for now. A full implementation would handle specific slots.
-                    if item.item_type == "weapon": player_equipment.main_hand = item
-                    elif item.item_type == "armor": player_equipment.chest = item
-                    # Add more logic for other item types/slots
+                    player_equipment.inventory.append(item)
                 print(f"Added {chosen_item_name}")
             if option_group.fixed_items:
                 for item_name in option_group.fixed_items:
-                    item = _get_item_by_name(item_name, config)
+                    item = Item(name=item_name, item_type="misc") # Create a generic Item object
                     if item:
-                        if item.item_type == "weapon": player_equipment.main_hand = item
-                        elif item.item_type == "armor": player_equipment.chest = item
+                        player_equipment.inventory.append(item)
                     print(f"Added {item_name}")
             if option_group.gold_pieces:
                 player_gold += option_group.gold_pieces
@@ -283,17 +275,15 @@ def create_character(config: Config) -> PlayerCharacter:
         for option_group in chosen_background.starting_equipment_options:
             if option_group.choose_one_from:
                 chosen_item_name = select_from_list("Choose one item", option_group.choose_one_from, display_key=None)
-                item = _get_item_by_name(chosen_item_name, config)
+                item = Item(name=chosen_item_name, item_type="misc") # Create a generic Item object
                 if item:
-                    if item.item_type == "weapon": player_equipment.main_hand = item
-                    elif item.item_type == "armor": player_equipment.chest = item
+                    player_equipment.inventory.append(item)
                 print(f"Added {chosen_item_name}")
             if option_group.fixed_items:
                 for item_name in option_group.fixed_items:
-                    item = _get_item_by_name(item_name, config)
+                    item = Item(name=item_name, item_type="misc") # Create a generic Item object
                     if item:
-                        if item.item_type == "weapon": player_equipment.main_hand = item
-                        elif item.item_type == "armor": player_equipment.chest = item
+                        player_equipment.inventory.append(item)
                     print(f"Added {item_name}")
             if option_group.gold_pieces:
                 player_gold += option_group.gold_pieces

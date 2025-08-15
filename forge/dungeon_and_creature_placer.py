@@ -26,7 +26,7 @@ def find_valid_placement(map_grid, area_size=(5, 5)):
     
     return random.choice(possible_placements) if possible_placements else None
 
-def place_dungeons_and_creatures(kingdoms, all_items, map_grid, config):
+def place_dungeons_and_creatures(kingdoms, map_grid, config):
     """Places dungeons with loot and creatures in the world."""
     creature_map = {c.name: c for c in config.creatures}
 
@@ -52,7 +52,13 @@ def place_dungeons_and_creatures(kingdoms, all_items, map_grid, config):
                         dungeon_creatures.append(creature_map[boss_name])
 
                 # Add loot to the dungeon
-                dungeon_loot = random.sample(all_items, k=random.randint(1, 3))
+                dungeon_loot = []
+                possible_loot_types = ["Potion", "Scroll", "Weapon", "Armor", "Trinket"]
+                num_loot_items = random.randint(1, 3)
+                for _ in range(num_loot_items):
+                    loot_type = random.choice(possible_loot_types)
+                    # For simplicity, just create a generic item. GameMaster AI will interpret.
+                    dungeon_loot.append(Item(name=f"Generic {loot_type}", item_type=loot_type.lower()))
 
                 dungeon = Location(
                     name=f"The {dungeon_type_name} of {kingdom.name}",

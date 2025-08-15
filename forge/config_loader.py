@@ -33,7 +33,6 @@ class Config(BaseModel):
     classes: List[CharacterClass]
     backgrounds: List[Background]
     alignments: List[str]
-    items: List[Item]
     abilities: List[PlayerAbility]
     creatures: List[Creature] # Moved here to be loaded from GameMaster.md
 
@@ -74,8 +73,7 @@ def load_config() -> Config:
     creatures_yaml_str = _extract_yaml_block_from_md('CREATURE_TEMPLATES')
     creatures_data = yaml.safe_load(creatures_yaml_str)
 
-    with open(os.path.join(config_dir, 'items.yml'), 'r') as f:
-        items_data = yaml.safe_load(f)
+    
 
     with open(os.path.join(config_dir, 'abilities.yml'), 'r') as f:
         abilities_data = yaml.safe_load(f)
@@ -86,6 +84,5 @@ def load_config() -> Config:
         backgrounds=[Background(**bg) for bg in backgrounds_data],
         alignments=alignments_data,
         creatures=[Creature(**creature) for creature in creatures_data],
-        items=[Item(**item) for item in items_data],
         abilities=[PlayerAbility(**ability) for ability in abilities_data]
     )

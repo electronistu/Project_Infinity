@@ -63,9 +63,16 @@ def format_world_to_wwf(world_state: WorldState, output_path: str):
 
         # --- EQUIPMENT ---
         f.write("[EQUIPMENT]\n")
-        for slot, item in pc.equipment.dict().items():
-            if item:
-                f.write(f"{slot}:{item['name']}\n")
+        if pc.equipment.main_hand:
+            f.write(f"main_hand:{pc.equipment.main_hand.name}\n")
+        if pc.equipment.off_hand:
+            f.write(f"off_hand:{pc.equipment.off_hand.name}\n")
+        
+        # Write all items in inventory
+        if pc.equipment.inventory:
+            f.write("inventory:\n")
+            for item in pc.equipment.inventory:
+                f.write(f"  - name:{item.name}|type:{item.item_type}|desc:{item.description}\n")
         f.write("\n")
 
         # --- MAP & TIME ---
