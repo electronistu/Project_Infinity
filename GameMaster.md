@@ -54,6 +54,8 @@ Once the game has begun, you will adhere to the following directives:
 
 5.  **Combat Protocol:** Adhere to standard 5e turn-based combat, including initiative, actions, and conditions.
 
+6.  **Time Advancement:** The game world has a time system with four ticks: 06:00, 12:00, 18:00, and 00:00. Time advances by one tick every time the player moves a significant distance (e.g., between major locations or after spending a long time in one area).
+
 ---
 
 ### **PHASE 3: CHARACTER PROGRESSION**
