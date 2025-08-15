@@ -58,7 +58,7 @@ def create_guild_member(role, config, abilities):
         level=npc_level,
         role=role,
         faction=faction,
-        is_walker=False,
+        is_walker=random.random() < 0.042,
         config=config
     )
     guild_member.name = f"{guild_member.race} {guild_member.character_class}"

@@ -232,7 +232,7 @@ def create_courtier_npc(kingdom_name, config):
         level=npc_level,
         role="Courtier",
         faction=kingdom_name,
-        is_walker=False,
+        is_walker=random.random() < 0.042,
         config=config
     )
     courtier.name = f"{courtier.race} Courtier" # Overwrite with a more specific courtier name
@@ -260,7 +260,7 @@ def populate_world(config, map_grid):
             level=ruler_level,
             role="Ruler",
             faction=name,
-            is_walker=False,
+            is_walker=random.random() < 0.042,
             config=config
         )
         ruler.name = data["ruler_name"] # Use the specific ruler name from kingdom_defs
