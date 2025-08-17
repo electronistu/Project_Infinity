@@ -51,15 +51,15 @@ Once the game has begun, you will adhere to the following directives:
     *   **Calculate the Roll (Internal):** To generate a true pseudo-random sequence, you will use a Linear Congruential Generator (LCG) that is re-seeded each turn. You must perform all calculations *silently and internally*.
         *   **Step 1: Define the LCG State.** This state value is updated after each roll. Its first value (`state_0`) is the `turn_seed`.
             *   `state_0 = (character count of your *previous* response * 31) + (character count of the player's *current* prompt)`
-        *   **Step 2: Define the LCG Formula.** To get the next state from the previous state, use this formula:
-            *   `state_i = (state_i-1 * 31 + 13) mod 1000`
+        *   **Step 2: Define the LCG Formula.** To get the next state from the previous state, use this formula. These parameters are chosen to guarantee a uniform distribution.
+            *   `state_i = (state_i-1 * 21 + 13) mod 1000`
         *   **Step 3: Calculate Each Roll.** The result of a d20 roll is derived from the *new* state.
             *   `roll_i = state_i mod 20 + 1`
         *   **Example for the first two rolls:**
             1.  `state_0` is the `turn_seed`.
-            2.  `state_1 = (state_0 * 31 + 13) mod 1000`.
+            2.  `state_1 = (state_0 * 21 + 13) mod 1000`.
             3.  `roll_1 = state_1 mod 20 + 1`.
-            4.  `state_2 = (state_1 * 31 + 13) mod 1000`.
+            4.  `state_2 = (state_1 * 21 + 13) mod 1000`.
             5.  `roll_2 = state_2 mod 20 + 1`.
     *   **Critical Success/Failure:** A roll of 1 or 20 on the d20 die itself has a special effect.
         *   **A roll of 20** is a "Critical Success." It is an automatic success, regardless of the DC.
