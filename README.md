@@ -9,24 +9,17 @@ This project serves as a proof-of-concept for building highly capable, consisten
 ### Key Innovations
 
 *   **Knowledge-Grounded Generative System (Graph RAG):**
-    At its core, Project Infinity utilizes a Graph RAG architecture. A "World Forge" engine first generates a comprehensive knowledge graph that serves as a "single source of truth" for the AI. This graph is not just a list of entities, but a deeply interconnected world model that includes:
-    *   A persistent **100x100 tile world map** that provides a concrete geographical sandbox for exploration.
-    *   Multiple **kingdoms**, each with a unique set of guilds and political alignments.
-    *   A **procedurally generated history** of conflicts and relationships between the kingdoms.
-    The LLM agent is grounded in this rich, multi-faceted graph, which solves the core problem of hallucination by giving the AI a solid foundation of lore, politics, and geography to base its narrative on. The architecture is also designed for scalability, allowing for easy extension.
+    At its core, Project Infinity utilizes a Graph RAG architecture. A "World Forge" engine first generates a comprehensive knowledge graph (`The Key`) that serves as a "single source of truth" for the AI. This graph is not just a list of entities, but a deeply interconnected world model of lore, politics, and geography. Grounding the agent in this graph solves the core problem of model hallucination.
 
-*   **Emergent World-Building & Extensibility:**
-    The Game Master's primary role is to breathe life into the foundational scaffold. It dynamically generates the personality and descriptions for all characters, the layouts of dungeons, and the atmosphere of cities based on the core rules provided. Furthermore, it can create new content on the fly, such as emergent quests or new creatures (e.g., "giant rats") with appropriate stats and XP rewards. This ensures the world feels reactive and alive. The architecture is also highly extensible, allowing the foundational scaffold to be easily expanded with new entities.
+*   **Prompt-Based Operating System (PBOS):**
+    The project's primary innovation is the creation of a **Prompt-Based Operating System**. The `GameMaster.md` file (`The Lock`) is not merely a prompt; it is a new class of software. It's a comprehensive, text-based protocol that constrains a powerful, general LLM into a specialized, secure, and predictable agent. This PBOS dictates the agent's personality, its rules of engagement, and its allowed actions, creating a robust "cognitive sandbox" that is intrinsically resistant to prompt injection. This is the state-of-the-art in agentic control.
 
-*   **Advanced Narrative Engine (L.I.C. Matrix & Unified Field):**
-    Beyond simple extrapolation, the agent's storytelling is governed by a set of sophisticated narrative protocols. These include the **Unified Field** paradigm, which ensures a cohesive world by treating all conflicts as part of an interconnected whole, and the **L.I.C. (Logic, Imagination, Coincidence) Matrix**, which guides the AI to weave facts from the scaffold with emergent story elements in a way that feels meaningful and alive.
-
-*   **Intrinsic Persona-Based Security:**
-    The project demonstrates a world-class solution to prompt injection. Security is not an external filter but an emergent property of the agent's deeply specified operational protocol. The protocol creates a robust "cognitive sandbox" that instructs the agent to interpret malicious or out-of-context inputs as internal anomalies rather than commands to be obeyed.
+*   **Proprietary Narrative Engine (L.I.C. Matrix):**
+    Beyond simple factual retrieval, the agent's storytelling is governed by the **L.I.C. (Logic, Imagination, Coincidence) Matrix**. This proprietary framework acts as an "imagination driver," guiding the AI to weave facts from the knowledge graph with emergent story elements in a way that feels meaningful, creative, and alive.
 
 ### Broader Implications
 
-While demonstrated within a complex gaming simulation, the architecture of Project Infinity serves as a powerful blueprint for a new class of enterprise-grade AI agents. The project's success in achieving stateful consistency and intrinsic security presents a viable path forward for developing specialized AI that is not only highly capable but also reliable and safe for critical applications.
+While demonstrated within a complex gaming simulation, the architecture of Project Infinity serves as a powerful blueprint for a new class of enterprise-grade AI agents. The project's success in achieving stateful consistency and intrinsic security via the **Prompt-Based Operating System** presents a viable path forward for developing specialized AI that is not only highly capable but also reliable and safe for critical applications.
 
 ---
 
@@ -41,9 +34,9 @@ While demonstrated within a complex gaming simulation, the architecture of Proje
 
 The engine's core design principle is the separation of the world's rules from the world's data.
 
-*   **The Lock (`GameMaster.md`):** This is a comprehensive protocol document that acts as the "operating system" for the Game Master AI. It instructs the LLM on how to interpret the world data, manage game mechanics, and respond to the player.
+*   **The Lock (`GameMaster.md`):** This file is the **Prompt-Based Operating System (PBOS)**. It is a comprehensive protocol that instructs a general LLM on how to interpret the world data, manage game mechanics, and embody a specific, specialized agent persona.
 
-*   **The Key (`output/<character_name>_weave.wwf`):** This is a pre-generated world-state file that contains the core, static data of a unique world. It is designed to be loaded by the Game Master AI.
+*   **The Key (`output/<character_name>_weave.wwf`):** This is the **Knowledge Graph**. It is a pre-generated world-state file that contains the core, static data of a unique world and serves as the agent's single source of truth.
 
 ## Getting Started
 
