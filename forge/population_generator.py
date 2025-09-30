@@ -242,10 +242,10 @@ def populate_world(config, map_grid):
     kingdoms = []
 
     kingdom_defs = {
-        "Eldoria": {"alignment": "Lawful Good", "ruler_name": "King Theron"},
-        "Zarthus": {"alignment": "Lawful Evil", "ruler_name": "Sorcerer-King Malakor"},
-        "Silverwood": {"alignment": "True Neutral", "ruler_name": "Archdruid Elara"},
-        "Blacksail Archipelago": {"alignment": "Chaotic Evil", "ruler_name": "Dread Pirate King Kaelen"}
+        "Eldoria": {"alignment": "Lawful Good"},
+        "Zarthus": {"alignment": "Lawful Evil"},
+        "Silverwood": {"alignment": "True Neutral"},
+        "Blacksail Archipelago": {"alignment": "Chaotic Evil"}
     }
 
     for name, data in kingdom_defs.items():
@@ -259,7 +259,6 @@ def populate_world(config, map_grid):
             is_walker=random.random() < 0.042,
             config=config
         )
-        ruler.name = data["ruler_name"] # Use the specific ruler name from kingdom_defs
         ruler.alignment = data["alignment"]
         ruler.dialogue_options = [f"I am the ruler of {name}.", "State your business."]
 

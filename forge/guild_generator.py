@@ -29,7 +29,7 @@ def create_guilds(kingdoms, config):
             right_hand = create_guild_member(f"{guild_type} Right Hand", config, [])
             members = [create_guild_member(f"{guild_type} Member", config, []) for _ in range(random.randint(2, 4))]
             
-            reports_to = kingdom.ruler.name if guild_type == "Guard" else None
+            reports_to = "ruler" if guild_type == "Guard" else None
             guild = Guild(name=f"{kingdom.name} {guild_type}", leader=leader, right_hand=right_hand, members=members, reports_to=reports_to)
             kingdom.guilds.append(guild)
 

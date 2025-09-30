@@ -6,7 +6,7 @@ import json
 
 WWF_SCHEMA = """
 schemas:
-  npc: [name, lvl, race, class, ac, hp, stats, walker, abilities_for_sale]
+  npc: [lvl, race, class, ac, hp, stats, walker, abilities_for_sale]
   stats: [str, dex, con, int, wis, cha]
 """
 
@@ -14,7 +14,7 @@ def get_npc_array(npc: NPC) -> list:
     """Converts an NPC object to a compact array based on the schema."""
     stats_array = [npc.stats.strength, npc.stats.dexterity, npc.stats.constitution, npc.stats.intelligence, npc.stats.wisdom, npc.stats.charisma]
     abilities = [f"{a.name}:{a.tier}" for a in npc.abilities_for_sale] if npc.abilities_for_sale else None
-    return [npc.name, npc.level, npc.race, npc.character_class, npc.armor_class, npc.hit_points, stats_array, True if npc.is_walker else None, abilities]
+    return [npc.level, npc.race, npc.character_class, npc.armor_class, npc.hit_points, stats_array, True if npc.is_walker else None, abilities]
 
 def format_world_to_wwf(world_state: WorldState, output_path: str):
     """Serializes the WorldState to a schema-driven compact .wwf file."""

@@ -36,7 +36,7 @@ The engine's core design principle is the separation of the agent's rules from t
 
 *   **The Lock (`GameMaster.md`):** This file is the **Codified Agent Protocol** (3.7 KiB). It is a YAML-based schema that instructs a general LLM on how to interpret world data, manage game mechanics, and execute its core logic. The protocol is LLM-agnostic, ensuring consistent agent behavior across different foundational models.
 
-*   **The Key (`output/<character_name>_weave.wwf`):** This is the **Knowledge Graph**. It is a pre-generated world-state file that contains the core, static data of a unique world. The latest version uses a schema-driven, positional array format that reduces the file size from 27.7 KiB to a highly-efficient 18.5 KiB.
+*   **The Key (`output/<character_name>_weave.wwf`):** This is the **Knowledge Graph**. It is a pre-generated world-state file that contains the core, static data of a unique world. The latest version uses a schema-driven, positional array format that reduces the file size from 27.7 KiB to a hyper-efficient 17.7 KiB.
 
 ## Getting Started
 
