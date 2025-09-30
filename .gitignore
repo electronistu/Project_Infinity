@@ -9,3 +9,4 @@ __pycache__/
 *.wwf
 # ...but DO NOT ignore the example key.
 !electronistu_weave.wwf
+*.kate-swp
