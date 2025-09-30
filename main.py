@@ -4,7 +4,6 @@ from forge.config_loader import load_config
 from forge.character_creator import create_character, create_debug_character
 from forge.map_generator import create_map
 from forge.population_generator import populate_world
-from forge.dungeon_and_creature_placer import place_dungeons_and_creatures
 from forge.guild_generator import create_guilds
 from forge.geopolitical_engine import determine_relations
 from forge.history_generator import generate_histories
@@ -28,14 +27,12 @@ def main():
 
     map_grid = create_map()
     kingdoms = populate_world(config, map_grid)
-    place_dungeons_and_creatures(kingdoms, map_grid, config)
     create_guilds(kingdoms, config)
 
     world_state = WorldState(
         player_character=player_character,
         map_grid=map_grid,
         kingdoms=kingdoms,
-        # creatures=creatures, # Removed as creatures are now nested in locations
         current_tick="06:00"
     )
 

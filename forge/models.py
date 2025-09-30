@@ -195,9 +195,7 @@ class Location(BaseModel):
     biome: str
     description: str
     npcs: List[NPC] = []
-    creatures: List[Creature] = []
     guilds: List[Guild] = []
-    loot: List[Item] = []
 
 class Kingdom(BaseModel):
     name: str

@@ -2,7 +2,7 @@ import os
 import yaml
 from pydantic import BaseModel
 from typing import List, Optional
-from .models import Creature, Item, PlayerAbility, StartingEquipmentOption, CharacterClass, Background
+from .models import PlayerAbility, CharacterClass, Background
 
 class AbilityScoreIncrease(BaseModel):
     ability: str
@@ -15,7 +15,6 @@ class Trait(BaseModel):
 current_dir = os.path.dirname(__file__)
 project_root = os.path.join(current_dir, '..')
 config_dir = os.path.join(project_root, 'config')
-gamemaster_path = os.path.join(project_root, 'GameMaster.md')
 
 class Race(BaseModel):
     name: str
@@ -23,10 +22,7 @@ class Race(BaseModel):
     speed: int
     traits: List[Trait]
     languages: List[str]
-    proficiencies: List[dict] = [] # Changed to List[dict] to match data structure
-
-# CharacterClass and Background models are now imported from .models
-# so we don't redefine them here.
+    proficiencies: List[dict] = []
 
 class Config(BaseModel):
     races: List[Race]
@@ -34,27 +30,6 @@ class Config(BaseModel):
     backgrounds: List[Background]
     alignments: List[str]
     abilities: List[PlayerAbility]
-    creatures: List[Creature] # Moved here to be loaded from GameMaster.md
-
-def _extract_yaml_block_from_md(block_name: str) -> str:
-    """Extracts a YAML block from a Markdown file given its block name."""
-    with open(gamemaster_path, 'r') as f:
-        content = f.read()
-    
-    start_tag = f"**{block_name}:**\n```yaml\n"
-    end_tag = "\n```"
-    
-    start_index = content.find(start_tag)
-    if start_index == -1:
-        raise ValueError(f"YAML block '{block_name}' not found in {filepath}")
-    
-    start_index += len(start_tag)
-    end_index = content.find(end_tag, start_index)
-    
-    if end_index == -1:
-        raise ValueError(f"Closing YAML block tag not found for '{block_name}' in {filepath}")
-        
-    return content[start_index:end_index]
 
 def load_config() -> Config:
     with open(os.path.join(config_dir, 'races.yml'), 'r') as f:
@@ -68,12 +43,6 @@ def load_config() -> Config:
         
     with open(os.path.join(config_dir, 'alignments.yml'), 'r') as f:
         alignments_data = yaml.safe_load(f)
-        
-    # Load creatures from GameMaster.md
-    creatures_yaml_str = _extract_yaml_block_from_md('CREATURE_TEMPLATES')
-    creatures_data = yaml.safe_load(creatures_yaml_str)
-
-    
 
     with open(os.path.join(config_dir, 'abilities.yml'), 'r') as f:
         abilities_data = yaml.safe_load(f)
@@ -83,6 +52,5 @@ def load_config() -> Config:
         classes=[CharacterClass(**char_class) for char_class in classes_data],
         backgrounds=[Background(**bg) for bg in backgrounds_data],
         alignments=alignments_data,
-        creatures=[Creature(**creature) for creature in creatures_data],
         abilities=[PlayerAbility(**ability) for ability in abilities_data]
     )

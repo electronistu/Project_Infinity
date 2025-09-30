@@ -160,8 +160,6 @@ def create_character(config: Config) -> PlayerCharacter:
 
     # Basic Info
     name = input("Enter your character's name: ")
-    age = get_player_input("Enter your character's age: ", is_numeric=True)
-    sex = get_player_input("Enter your character's sex: ")
 
     # Race & Class Selection
     chosen_race = select_from_list("Choose your Race", config.races)
@@ -182,18 +180,12 @@ def create_character(config: Config) -> PlayerCharacter:
             print(f"\nPoints remaining: {points_remaining}")
             value = get_player_input(f"Set {stat.upper()} (8-15): ", [str(i) for i in range(8, 16)], is_numeric=True)
             
-            # Check if the new value exceeds points or range
             if value < 8 or value > 15:
                 print("Stat value must be between 8 and 15.")
                 continue
 
-            # Calculate the cost of the current stat value
             current_stat_cost = point_costs.get(base_stats[stat], 0)
-            
-            # Calculate the cost of the proposed new stat value
             new_stat_cost = point_costs.get(value, 0)
-
-            # Calculate the points that would be spent if this change is made
             potential_points_spent = points_spent - current_stat_cost + new_stat_cost
 
             if potential_points_spent <= 27:
@@ -203,24 +195,19 @@ def create_character(config: Config) -> PlayerCharacter:
             else:
                 print("Not enough points!")
     
-    # Apply Racial Bonuses
     final_stats = base_stats.copy()
     for increase in chosen_race.ability_score_increases:
         final_stats[increase.ability.lower()] += increase.value
     player_stats = Stats(**final_stats)
 
-    # Alignment
     chosen_alignment = select_from_list("Choose your Alignment", config.alignments)
 
-    # Proficiencies
-    # Initialize all proficiencies
     armor_proficiencies = set(chosen_class.armor_proficiencies)
     weapon_proficiencies = set(chosen_class.weapon_proficiencies)
     tool_proficiencies = set(chosen_class.tool_proficiencies)
     saving_throw_proficiencies = set(chosen_class.saving_throw_proficiencies)
     skill_proficiencies = set(chosen_background.skill_proficiencies)
 
-    # Add racial proficiencies
     for proficiency in chosen_race.proficiencies:
         if proficiency['type'] == "armor":
             armor_proficiencies.add(proficiency['name'])
@@ -231,7 +218,6 @@ def create_character(config: Config) -> PlayerCharacter:
         elif proficiency['type'] == "skill":
             skill_proficiencies.add(proficiency['name'])
 
-    # Add class skill proficiencies (interactive choice)
     class_skill_choices_data = chosen_class.skills
     print(f"\n--- Your background gives you proficiency in: {', '.join(skill_proficiencies)} ---")
     print(f"--- As a {chosen_class.name}, you can choose {class_skill_choices_data.number} more skills ---")
@@ -245,7 +231,6 @@ def create_character(config: Config) -> PlayerCharacter:
     final_skills = [Skill(name=s, ability=ALL_SKILLS[s], proficient=True) for s in skill_proficiencies]
     final_skills.extend([Skill(name=s, ability=ALL_SKILLS[s], proficient=False) for s in ALL_SKILLS if s not in skill_proficiencies])
 
-    # Equipment Selection
     player_equipment = Equipment()
     player_gold = 0
 
@@ -253,53 +238,39 @@ def create_character(config: Config) -> PlayerCharacter:
     equipment_choice_type = get_player_input("Do you want to choose starting equipment or take starting gold? (equipment/gold): ", ["equipment", "gold"])
 
     if equipment_choice_type.lower() == "equipment":
-        # Process class equipment options
         for option_group in chosen_class.starting_equipment_options:
             if option_group.choose_one_from:
                 chosen_item_name = select_from_list("Choose one item", option_group.choose_one_from, display_key=None)
-                item = Item(name=chosen_item_name, item_type="misc") # Create a generic Item object
-                if item:
-                    player_equipment.inventory.append(item)
+                player_equipment.inventory.append(Item(name=chosen_item_name, item_type="misc"))
                 print(f"Added {chosen_item_name}")
             if option_group.fixed_items:
                 for item_name in option_group.fixed_items:
-                    item = Item(name=item_name, item_type="misc") # Create a generic Item object
-                    if item:
-                        player_equipment.inventory.append(item)
+                    player_equipment.inventory.append(Item(name=item_name, item_type="misc"))
                     print(f"Added {item_name}")
             if option_group.gold_pieces:
                 player_gold += option_group.gold_pieces
                 print(f"Added {option_group.gold_pieces} gold pieces.")
 
-        # Process background equipment options
         for option_group in chosen_background.starting_equipment_options:
             if option_group.choose_one_from:
                 chosen_item_name = select_from_list("Choose one item", option_group.choose_one_from, display_key=None)
-                item = Item(name=chosen_item_name, item_type="misc") # Create a generic Item object
-                if item:
-                    player_equipment.inventory.append(item)
+                player_equipment.inventory.append(Item(name=chosen_item_name, item_type="misc"))
                 print(f"Added {chosen_item_name}")
             if option_group.fixed_items:
                 for item_name in option_group.fixed_items:
-                    item = Item(name=item_name, item_type="misc") # Create a generic Item object
-                    if item:
-                        player_equipment.inventory.append(item)
+                    player_equipment.inventory.append(Item(name=item_name, item_type="misc"))
                     print(f"Added {item_name}")
             if option_group.gold_pieces:
                 player_gold += option_group.gold_pieces
                 print(f"Added {option_group.gold_pieces} gold pieces.")
-    else: # Player chose gold
-        # D&D 5e standard starting gold is 4d4 * 10 for most classes, or specific amounts.
-        # For simplicity, let's give a fixed amount for now.
-        player_gold = 100 # Example fixed gold
+    else:
+        player_gold = 100
         print(f"You start with {player_gold} gold pieces.")
 
-    # Get features and traits
     features_and_traits = [SpecialAbility(name=t.name, description=t.description) for t in chosen_race.traits]
     class_features = [SpecialAbility(name=f.name, description=f.description) for f in chosen_class.features if f.level == 1]
     features_and_traits.extend(class_features)
 
-    # Spellcasting Logic
     spellcasting_ability = None
     spell_save_dc = None
     spell_attack_modifier = None
@@ -307,71 +278,55 @@ def create_character(config: Config) -> PlayerCharacter:
     spells_known = []
     spell_slots = {}
 
-    if chosen_class.name in ["Wizard", "Sorcerer", "Bard", "Cleric", "Druid", "Artificer", "Paladin", "Ranger"]:
+    if chosen_class.name in ["Wizard", "Sorcerer", "Bard", "Cleric", "Druid", "Artificer", "Warlock", "Paladin", "Ranger"]:
         if chosen_class.name == "Wizard":
             spellcasting_ability = "intelligence"
-            # Cantrips: 3 for Wizard at level 1
-            # Spells: 6 for Wizard at level 1
-            # Spell Slots: 2 for Wizard at level 1
-            # For now, we'll just note these. Actual selection would be interactive.
             cantrips_known = ["Fire Bolt", "Light", "Mage Hand"]
             spells_known = ["Magic Missile", "Shield", "Burning Hands", "Charm Person", "Detect Magic", "Sleep"]
             spell_slots = {"1": 2}
         elif chosen_class.name == "Cleric":
             spellcasting_ability = "wisdom"
-            # Cantrips: 3 for Cleric at level 1
-            # Spells: Prepared spells equal to Wisdom modifier + Cleric level
-            # Spell Slots: 2 for Cleric at level 1
             cantrips_known = ["Guidance", "Sacred Flame", "Thaumaturgy"]
             spells_known = ["Cure Wounds", "Guiding Bolt", "Healing Word", "Shield of Faith"]
             spell_slots = {"1": 2}
         elif chosen_class.name == "Sorcerer":
             spellcasting_ability = "charisma"
-            # Cantrips: 4 for Sorcerer at level 1
-            # Spells: 2 for Sorcerer at level 1
-            # Spell Slots: 2 for Sorcerer at level 1
             cantrips_known = ["Chill Touch", "Light", "Message", "Prestidigitation"]
             spells_known = ["Burning Hands", "Magic Missile"]
             spell_slots = {"1": 2}
+        elif chosen_class.name == "Warlock":
+            spellcasting_ability = "charisma"
+            cantrips_known = ["Eldritch Blast", "Chill Touch"]
+            spells_known = ["Hex", "Armor of Agathys"]
+            spell_slots = {"1": 1} # Pact Magic
         elif chosen_class.name == "Bard":
             spellcasting_ability = "charisma"
-            # Cantrips: 2 for Bard at level 1
-            # Spells: 4 for Bard at level 1
-            # Spell Slots: 2 for Bard at level 1
             cantrips_known = ["Light", "Vicious Mockery"]
             spells_known = ["Charm Person", "Cure Wounds", "Healing Word", "Tasha's Hideous Laughter"]
             spell_slots = {"1": 2}
         elif chosen_class.name == "Druid":
             spellcasting_ability = "wisdom"
-            # Cantrips: 2 for Druid at level 1
-            # Spells: Prepared spells equal to Wisdom modifier + Druid level
-            # Spell Slots: 2 for Druid at level 1
             cantrips_known = ["Druidcraft", "Produce Flame"]
             spells_known = ["Entangle", "Goodberry", "Thunderwave"]
             spell_slots = {"1": 2}
         elif chosen_class.name == "Artificer":
             spellcasting_ability = "intelligence"
-            # Cantrips: 2 for Artificer at level 1
-            # Spells: 2 for Artificer at level 1
-            # Spell Slots: 2 for Artificer at level 1
             cantrips_known = ["Acid Splash", "Mending"]
             spells_known = ["Cure Wounds", "Detect Magic"]
             spell_slots = {"1": 2}
         elif chosen_class.name == "Paladin":
-            # Paladins get spellcasting at level 2
             pass
         elif chosen_class.name == "Ranger":
-            # Rangers get spellcasting at level 2
             pass
 
     if spellcasting_ability:
-        proficiency_bonus = 2 # For a level 1 character
+        proficiency_bonus = 2
         spell_save_dc = 8 + calculate_modifier(player_stats.dict()[spellcasting_ability]) + proficiency_bonus
         spell_attack_modifier = calculate_modifier(player_stats.dict()[spellcasting_ability]) + proficiency_bonus
 
     print("\n--- Character Complete! ---")
     return PlayerCharacter(
-        name=name, age=age, sex=sex, race=chosen_race.name,
+        name=name, race=chosen_race.name,
         character_class=chosen_class.name, background=chosen_background.name,
         alignment=chosen_alignment, stats=player_stats,
         armor_proficiencies=list(armor_proficiencies),
