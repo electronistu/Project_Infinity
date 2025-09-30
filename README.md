@@ -1,6 +1,6 @@
 # Project Infinity: A Dynamic, Text-Based RPG World Engine
 
-Project Infinity is a sophisticated, procedural world-generation engine and AI agent architecture. It demonstrates a novel solution to several critical challenges in modern AI, including state management, factual consistency, and the creation of highly efficient, specialized agents. The latest version introduces a radically improved agent protocol that enables more dynamic and emergent storytelling from the very first turn.
+Project Infinity is a sophisticated, procedural world-generation engine and AI agent architecture. It demonstrates a novel solution to several critical challenges in modern AI, including state management, factual consistency, and the creation of highly efficient, specialized agents. The latest version introduces a radically improved agent protocol that enables more dynamic, emergent storytelling and achieves a new level of LLM-agnostic portability.
 
 ## A Case Study in Next-Generation AI Architecture
 
@@ -12,7 +12,7 @@ This project serves as a proof-of-concept for building highly capable, consisten
     At its core, Project Infinity utilizes a Graph RAG architecture. A "World Forge" engine first generates a comprehensive knowledge graph (`The Key`) that serves as a "single source of truth" for the AI. This graph is not just a list of entities, but a deeply interconnected world model of lore, politics, and geography. Grounding the agent in this graph solves the core problem of model hallucination.
 
 *   **Codified Agent Protocol:**
-    The project's primary innovation is its method for agent specialization. The `GameMaster.md` file (`The Lock`) is not a natural language prompt, but a highly structured, token-efficient protocol. Written as a YAML-based schema, it defines the agent's core logic, operational states, and behavioral directives in a format optimized for LLM-to-LLM communication. This constrains a general LLM into a specialized, predictable, and powerful Game Master agent, capable of initiating complex narratives immediately.
+    The project's primary innovation is its method for agent specialization. The `GameMaster.md` file (`The Lock`) is not a natural language prompt, but a highly structured, token-efficient protocol. Written as a YAML-based schema, it defines the agent's core logic, operational states, and behavioral directives in a format optimized for LLM-to-LLM communication. Crucially, the protocol now includes priming meta-instructions, making it robustly compatible across different foundational models (including Gemini, ChatGPT, and Mistral), ensuring the agent behaves consistently in any environment.
 
 *   **Proprietary Narrative Engine (L.I.C. Matrix):**
     Beyond simple factual retrieval, the agent's storytelling is governed by the **L.I.C. (Logic, Imagination, Coincidence) Matrix**. This proprietary framework acts as an "imagination driver," guiding the AI to weave facts from the knowledge graph with emergent story elements in a way that feels meaningful, creative, and alive.
@@ -80,26 +80,32 @@ python3 main.py --debug
 
 This project includes a pre-generated world file, `output/electronistu_weave.wwf`, so you can start playing immediately.
 
-It is highly recommended to use a powerful Large Language Model with a large context window to run the game.
+### Compatible Platforms
 
-### Recommended Platforms:
+The protocol is designed to be LLM-agnostic and has been successfully tested on the following platforms. For best results, use the latest available models and set the **Temperature** to `0` for maximum consistency.
 
-1.  **Google AI Studio (Easiest):**
-    *   Go to [aistudio.google.com](https://aistudio.google.com).
-    *   Select a powerful model like **Gemini 1.5 Pro**.
-    *   Set the **Temperature** to `0` for maximum consistency.
-    *   Follow the two-step "Lock & Key" process below.
-
-2.  **Gemini CLI (Advanced):**
-    *   For users comfortable with the command line, the Gemini CLI provides a powerful and efficient way to play.
-    *   Follow the two-step "Lock & Key" process below.
+*   **Google:** Gemini 2.5 Pro (via AI Studio, Gemini CLI, etc.)
+*   **OpenAI:** ChatGPT-5
+*   **Mistral AI:** chat.mistral.ai
 
 ### The "Lock & Key" Process:
 
 1.  **Load the "Lock":** Start your session by providing the contents of the `GameMaster.md` file to your chosen AI platform.
 
-2.  **Await Confirmation:** The AI should respond with the words: `Awaiting Key...` (or similar).
+2.  **Await Confirmation:** The AI should respond with the words: `Awaiting Key...`
 
 3.  **Provide the "Key":** Paste the entire contents of the generated `.wwf` file (e.g. `output/electronistu_weave.wwf`).
 
 4.  **Begin Your Adventure:** The Game Master will parse the world and begin your unique, text-based adventure.
+
+### Emergent Agent Personas
+
+A fascinating outcome of this project is observing the distinct "personalities" that emerge when the same `GameMaster.md` protocol is executed by different foundational models. While the core rules and logic remain identical, the *flavor* of the Game Master changes, revealing the unique architectural biases of each LLM.
+
+*   **Gemini as "The Cinematic Narrator":** Gemini tends to produce a highly immersive, story-focused experience. Its output is often cinematic, with descriptive prose that sets a rich scene and immediately draws the player into a narrative, much like the opening of a film.
+
+*   **ChatGPT as "The Interactive Guide":** ChatGPT often adopts the role of a classic Game Master. It presents the world in a slightly more gamified manner, clearly outlining choices (often with numbered lists) and explicitly referencing game concepts, creating an experience reminiscent of a classic gamebook.
+
+*   **Mistral as "The World Simulator":** Mistral acts like a data-rich world simulator. Its output is incredibly structured, often presenting the player with a detailed dashboard of the current world state, including emergent quests, notable NPCs with stats, and environmental details. This empowers the player with a wealth of information, encouraging tactical and strategic decision-making.
+
+This demonstrates that even with a rigid, codified protocol, the underlying model's "imagination" still shapes the final experience, making the choice of LLM a creative decision in itself.
