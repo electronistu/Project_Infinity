@@ -9,12 +9,13 @@ SILVERWOOD_GUILDS = ["Ranger's Conclave"]
 ELDORIA_GUILDS = ["Order of Scribes"]
 
 def create_guilds(kingdoms, config):
-    """Creates guilds for each kingdom based on its type and assigns abilities."""
-    for kingdom in kingdoms:
-        # Start with common guilds
-        guild_types_to_create = list(COMMON_GUILDS)
+    """Creates guilds, distributing abilities for common guilds across kingdoms."""
+    guild_structures = {}
+    all_guild_types = set()
 
-        # Add or filter guilds based on kingdom name
+    # First pass: Create all guild structures without abilities
+    for kingdom in kingdoms:
+        guild_types_to_create = list(COMMON_GUILDS)
         if kingdom.name == "Blacksail Archipelago":
             guild_types_to_create = PIRATE_GUILDS
         elif kingdom.name == "Silverwood":
@@ -23,27 +24,42 @@ def create_guilds(kingdoms, config):
             guild_types_to_create.extend(ELDORIA_GUILDS)
 
         for guild_type in guild_types_to_create:
-            # Filter abilities for the current guild type
-            leader_abilities = [ability for ability in config.abilities if ability.guild_source == guild_type and ability.tier > 2]
-            right_hand_abilities = [ability for ability in config.abilities if ability.guild_source == guild_type and ability.tier <= 2]
-
-            # Create guild members
-            leader = create_guild_member(f"{guild_type} Leader", config, leader_abilities)
-            right_hand = create_guild_member(f"{guild_type} Right Hand", config, right_hand_abilities)
+            all_guild_types.add(guild_type)
+            leader = create_guild_member(f"{guild_type} Leader", config, [])
+            right_hand = create_guild_member(f"{guild_type} Right Hand", config, [])
+            members = [create_guild_member(f"{guild_type} Member", config, []) for _ in range(random.randint(2, 4))]
             
-            # Create additional guild members
-            guild_members = []
-            num_members = random.randint(2, 4)
-            for _ in range(num_members):
-                guild_members.append(create_guild_member(f"{guild_type} Member", config, []))
-
-            # Create and add the guild to the kingdom
-            reports_to_ruler = None
-            if guild_type == "Guard":
-                reports_to_ruler = kingdom.ruler.name
-
-            guild = Guild(name=f"{kingdom.name} {guild_type}", leader=leader, right_hand=right_hand, members=guild_members, reports_to=reports_to_ruler)
+            reports_to = kingdom.ruler.name if guild_type == "Guard" else None
+            guild = Guild(name=f"{kingdom.name} {guild_type}", leader=leader, right_hand=right_hand, members=members, reports_to=reports_to)
             kingdom.guilds.append(guild)
+
+            if guild_type not in guild_structures:
+                guild_structures[guild_type] = []
+            guild_structures[guild_type].append(guild)
+
+    # Second pass: Distribute abilities
+    for guild_type in all_guild_types:
+        leader_abilities = [ability for ability in config.abilities if ability.guild_source == guild_type and ability.tier > 2]
+        right_hand_abilities = [ability for ability in config.abilities if ability.guild_source == guild_type and ability.tier <= 2]
+        random.shuffle(leader_abilities)
+        random.shuffle(right_hand_abilities)
+
+        guilds_of_type = guild_structures.get(guild_type, [])
+        if not guilds_of_type:
+            continue
+
+        # If it's a unique guild, it gets all abilities
+        if len(guilds_of_type) == 1:
+            guilds_of_type[0].leader.abilities_for_sale = leader_abilities
+            guilds_of_type[0].right_hand.abilities_for_sale = right_hand_abilities
+        else: # Distribute abilities among common guilds
+            for i, ability in enumerate(leader_abilities):
+                guild_index = i % len(guilds_of_type)
+                guilds_of_type[guild_index].leader.abilities_for_sale.append(ability)
+            
+            for i, ability in enumerate(right_hand_abilities):
+                guild_index = i % len(guilds_of_type)
+                guilds_of_type[guild_index].right_hand.abilities_for_sale.append(ability)
 
 def create_guild_member(role, config, abilities):
     """Creates a new NPC to serve as a guild member with specific abilities."""

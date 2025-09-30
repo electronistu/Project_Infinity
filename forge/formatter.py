@@ -1,166 +1,85 @@
 # forge/formatter.py
-# Version 2.0 - Full D&D 5e Compliance
+# Version 4.0 - Schema-Driven Compact Formatter
 
-from .models import WorldState, Stats, Item, Action, SpecialAbility, Skill
+from .models import WorldState, Stats, NPC
+import json
 
-# --- Helper Functions for complex formatting ---
+WWF_SCHEMA = """
+schemas:
+  npc: [name, lvl, race, class, ac, hp, stats, walker, abilities_for_sale]
+  stats: [str, dex, con, int, wis, cha]
+"""
 
-def format_stats(stats: Stats) -> str:
-    return '|'.join([f"{k.upper()}:{v}" for k, v in stats.dict().items()])
-
-def format_list_of_objects(obj_list: list) -> str:
-    return '|'.join([obj.name for obj in obj_list])
-
-def format_skills(skills: list[Skill]) -> str:
-    return '|'.join([f"{s.name} ({s.ability[:3].upper()}){'[P]' if s.proficient else ''}" for s in skills])
-
-def format_actions(actions: list[Action], action_type: str) -> str:
-    action_str = f"  {action_type}:\n"
-    for action in actions:
-        action_str += f"    - name:{action.name}|desc:{action.description}\n"
-    return action_str
-
-def format_special_abilities(abilities: list[SpecialAbility]) -> str:
-    ability_str = "  special_abilities:\n"
-    for ability in abilities:
-        usage = f"|usage:{ability.usage}" if ability.usage else ""
-        ability_str += f"    - name:{ability.name}|desc:{ability.description}{usage}\n"
-    return ability_str
-
-# --- Main Formatter ---
+def get_npc_array(npc: NPC) -> list:
+    """Converts an NPC object to a compact array based on the schema."""
+    stats_array = [npc.stats.strength, npc.stats.dexterity, npc.stats.constitution, npc.stats.intelligence, npc.stats.wisdom, npc.stats.charisma]
+    abilities = [f"{a.name}:{a.tier}" for a in npc.abilities_for_sale] if npc.abilities_for_sale else None
+    return [npc.name, npc.level, npc.race, npc.character_class, npc.armor_class, npc.hit_points, stats_array, True if npc.is_walker else None, abilities]
 
 def format_world_to_wwf(world_state: WorldState, output_path: str):
-    """Serializes the new 5e-compliant WorldState object to a .wwf file."""
+    """Serializes the WorldState to a schema-driven compact .wwf file."""
+    output = []
+    output.append("// WWF v4.0 //")
+    output.append("// SCHEMA-DRIVEN COMPACT FORMAT //\n")
+    output.append(WWF_SCHEMA)
+    output.append("\n---\n")
+
+    # --- Player ---
+    pc = world_state.player_character
+    output.append("player:")
+    output.append(f"  name: {pc.name}")
+    output.append(f"  lvl: {pc.level}")
+    output.append(f"  xp: {pc.xp}")
+    output.append(f"  gold: {pc.gold}")
+    output.append(f"  class: {pc.character_class}")
+    output.append(f"  race: {pc.race}")
+    output.append(f"  background: {pc.background}")
+    output.append(f"  align: {pc.alignment}")
+    output.append(f"  ac: {pc.armor_class}")
+    output.append(f"  hp: {pc.hit_points}")
+    output.append(f"  speed: {pc.speed}")
+    output.append(f"  stats: {{str:{pc.stats.strength},dex:{pc.stats.dexterity},con:{pc.stats.constitution},int:{pc.stats.intelligence},wis:{pc.stats.wisdom},cha:{pc.stats.charisma}}}")
+    output.append(f"  prof_bonus: {pc.proficiency_bonus}")
+    output.append("  prof:")
+    output.append(f"    skills: {json.dumps([s.name for s in pc.skills if s.proficient])}")
+    output.append(f"    saves: {json.dumps([s.name for s in pc.saving_throws if s.proficient])}")
+    output.append(f"  features: {json.dumps([f.name for f in pc.features_and_traits])}")
+    output.append(f"  inventory: {json.dumps([item.name for item in pc.equipment.inventory])}")
+    if pc.spellcasting_ability:
+        output.append("  spellcasting:")
+        output.append(f"    ability: {pc.spellcasting_ability}")
+        output.append(f"    dc: {pc.spell_save_dc}")
+        output.append(f"    atk: {pc.spell_attack_modifier}")
+        output.append(f"    cantrips: {json.dumps(pc.cantrips_known)}")
+        output.append(f"    spells: {json.dumps(pc.spells_known)}")
+        output.append(f"    slots: {json.dumps(pc.spell_slots)}")
+
+    # --- Map, Time, History ---
+    output.append("map:")
+    output.append(f"  size: {len(world_state.map_grid[0])}x{len(world_state.map_grid)}")
+    output.append("  grid: |\n    " + "\n    ".join("".join(row) for row in world_state.map_grid))
+    output.append(f"time: {world_state.current_tick}")
+    output.append("history:")
+    for entry in world_state.world_history:
+        output.append(f"  - {entry}")
+
+    # --- Kingdoms ---
+    output.append("kingdoms:")
+    for k in world_state.kingdoms:
+        output.append(f"  - name: {k.name}")
+        output.append(f"    capital: {k.capital}")
+        output.append(f"    align: {k.alignment}")
+        output.append(f"    relations: {json.dumps(k.relations)}")
+        output.append(f"    ruler: {json.dumps(get_npc_array(k.ruler))}")
+        output.append("    guilds:")
+        for g in k.guilds:
+            output.append(f"      - name: {g.name}")
+            if g.reports_to:
+                output.append(f"        reports_to: {g.reports_to}")
+            output.append(f"        leader: {json.dumps(get_npc_array(g.leader))}")
+            output.append(f"        right_hand: {json.dumps(get_npc_array(g.right_hand))}")
+
     with open(output_path, 'w') as f:
-        f.write("// WORLD-WEAVE-FILE v2.0 //\n\n")
+        f.write("\n".join(output))
 
-        # --- PLAYER ---
-        f.write("[PLAYER]\n")
-        pc = world_state.player_character
-        f.write(f"name:{pc.name}\n")
-        f.write(f"level:{pc.level}|xp:{pc.xp}|gold:{pc.gold}\n")
-        f.write(f"class:{pc.character_class}|background:{pc.background}\n")
-        f.write(f"race:{pc.race}|alignment:{pc.alignment}\n")
-        f.write(f"ac:{pc.armor_class}|hp:{pc.hit_points}|speed:{pc.speed}\n")
-        f.write(f"stats:{format_stats(pc.stats)}\n")
-        f.write(f"prof_bonus:{pc.proficiency_bonus}\n")
-        f.write(f"armor_proficiencies:{'|'.join(pc.armor_proficiencies)}\n")
-        f.write(f"weapon_proficiencies:{'|'.join(pc.weapon_proficiencies)}\n")
-        f.write(f"tool_proficiencies:{'|'.join(pc.tool_proficiencies)}\n")
-        f.write(f"skills:{format_skills(pc.skills)}\n")
-        f.write(f"saving_throws:{format_skills(pc.saving_throws)}\n")
-        f.write(f"languages:{'|'.join(pc.languages)}\n")
-        if pc.spellcasting_ability:
-            f.write(f"spellcasting_ability:{pc.spellcasting_ability}\n")
-            f.write(f"spell_save_dc:{pc.spell_save_dc}\n")
-            f.write(f"spell_attack_modifier:{pc.spell_attack_modifier}\n")
-            f.write(f"cantrips_known:{'|'.join(pc.cantrips_known)}\n")
-            f.write(f"spells_known:{'|'.join(pc.spells_known)}\n")
-            f.write(f"spell_slots:{'|'.join([f'{k}:{v}' for k, v in pc.spell_slots.items()])}\n")
-        if pc.features_and_traits:
-            f.write(format_special_abilities(pc.features_and_traits))
-        f.write("\n")
-
-        # --- EQUIPMENT ---
-        f.write("[EQUIPMENT]\n")
-        if pc.equipment.main_hand:
-            f.write(f"main_hand:{pc.equipment.main_hand.name}\n")
-        if pc.equipment.off_hand:
-            f.write(f"off_hand:{pc.equipment.off_hand.name}\n")
-        
-        # Write all items in inventory
-        if pc.equipment.inventory:
-            f.write("inventory:\n")
-            for item in pc.equipment.inventory:
-                f.write(f"  - name:{item.name}|type:{item.item_type}|desc:{item.description}\n")
-        f.write("\n")
-
-        # --- MAP & TIME ---
-        f.write("[MAP]\n")
-        f.write(f"size:{len(world_state.map_grid[0])}x{len(world_state.map_grid)}\n")
-        f.write("grid:\n")
-        for row in world_state.map_grid:
-            f.write("".join(row) + "\n")
-        f.write("\n")
-        f.write(f"[TIME]\ncurrent_tick:{world_state.current_tick}\n\n")
-
-        # --- WORLD HISTORY (L.I.C.) ---
-        if world_state.world_history:
-            f.write("[HISTORY]\n")
-            for entry in world_state.world_history:
-                f.write(f"- {entry}\n")
-            f.write("\n")
-
-        # --- KINGDOMS --- (Summary view)
-        f.write("[KINGDOMS]\n")
-        for kingdom in world_state.kingdoms:
-            f.write("::\n")
-            f.write(f"name:{kingdom.name}|capital:{kingdom.capital}|alignment:{kingdom.alignment}\n")
-            relations_str = '|'.join([f"{k}:{v}" for k, v in kingdom.relations.items()])
-            f.write(f"relations:{relations_str}\n")
-
-            # --- RULER ---
-            f.write("  RULER:\n")
-            f.write(f"    name:{kingdom.ruler.name}|role:{kingdom.ruler.role}|faction:{kingdom.ruler.faction}{'|is_walker:True' if kingdom.ruler.is_walker else ''}\n")
-            f.write(f"    level:{kingdom.ruler.level}|cr:{kingdom.ruler.challenge_rating}|xp:{kingdom.ruler.xp_value}\n")
-            f.write(f"    ac:{kingdom.ruler.armor_class}|hp:{kingdom.ruler.hit_points}|speed:{kingdom.ruler.speed}\n")
-            f.write(f"    stats:{format_stats(kingdom.ruler.stats)}\n")
-            if kingdom.ruler.actions:
-                f.write(format_actions(kingdom.ruler.actions, '    actions'))
-            if kingdom.ruler.special_abilities:
-                f.write(format_special_abilities(kingdom.ruler.special_abilities))
-            
-            # --- GUILDS within Kingdom ---
-            if kingdom.guilds:
-                f.write("  [GUILDS]\n")
-                for guild in kingdom.guilds:
-                    f.write(f"    ::name:{guild.name}\n")
-                    if guild.reports_to:
-                        f.write(f"      reports_to:{guild.reports_to}\n")
-                    
-                    # Format Leader
-                    f.write("    LEADER:\n")
-                    f.write(f"      name:{guild.leader.name}|role:{guild.leader.role}{f'|faction:{guild.leader.faction}' if guild.leader.faction != 'Civilian' else ''}{'|is_walker:True' if guild.leader.is_walker else ''}\n")
-                    f.write(f"      level:{guild.leader.level}|cr:{guild.leader.challenge_rating}|xp:{guild.leader.xp_value}\n")
-                    f.write(f"      ac:{guild.leader.armor_class}|hp:{guild.leader.hit_points}|speed:{guild.leader.speed}\n")
-                    f.write(f"      stats:{format_stats(guild.leader.stats)}\n")
-                    if guild.leader.abilities_for_sale:
-                        f.write(f"      abilities_for_sale:{'|'.join([f'{a.name}:{a.tier}:{a.guild_source}' for a in guild.leader.abilities_for_sale])}\n")
-                    if guild.leader.actions:
-                        f.write(format_actions(guild.leader.actions, '      actions'))
-                    if guild.leader.special_abilities:
-                        f.write(format_special_abilities(guild.leader.special_abilities))
-
-                    # Format Right Hand
-                    f.write("    RIGHT_HAND:\n")
-                    f.write(f"      name:{guild.right_hand.name}|role:{guild.right_hand.role}{f'|faction:{guild.right_hand.faction}' if guild.right_hand.faction != 'Civilian' else ''}{'|is_walker:True' if guild.right_hand.is_walker else ''}\n")
-                    f.write(f"      level:{guild.right_hand.level}|cr:{guild.right_hand.challenge_rating}|xp:{guild.right_hand.xp_value}\n")
-                    f.write(f"      ac:{guild.right_hand.armor_class}|hp:{guild.right_hand.hit_points}|speed:{guild.right_hand.speed}\n")
-                    f.write(f"      stats:{format_stats(guild.right_hand.stats)}\n")
-                    if guild.right_hand.abilities_for_sale:
-                        f.write(f"      abilities_for_sale:{'|'.join([f'{a.name}:{a.tier}:{a.guild_source}' for a in guild.right_hand.abilities_for_sale])}\n")
-                    if guild.right_hand.actions:
-                        f.write(format_actions(guild.right_hand.actions, '      actions'))
-                    if guild.right_hand.special_abilities:
-                        f.write(format_special_abilities(guild.right_hand.special_abilities))
-
-                    # Format Members
-                    # Format Members (Removed for brevity)
-                    # if guild.members:
-                    #     f.write("    MEMBERS:\n")
-                    #     for member in guild.members:
-                    #         f.write(f"      - name:{member.name}|role:{member.role}{f'|faction:{member.faction}' if member.faction != 'Civilian' else ''}{'|is_walker:True' if member.is_walker else ''}\n")
-                    #         f.write(f"        level:{member.level}|cr:{member.challenge_rating}|xp:{member.xp_value}\n")
-                    #         f.write(f"        ac:{member.armor_class}|hp:{member.hit_points}|speed:{member.speed}\n")
-                    #         f.write(f"        stats:{format_stats(member.stats)}\n")
-                    #         if member.actions:
-                    #             f.write(format_actions(member.actions, '        actions'))
-                    #         if member.special_abilities:
-                    #             f.write(format_special_abilities(member.special_abilities))
-        f.write("\n")
-        
-        
-
-        f.write("// END-OF-FILE //\n")
-
-    print(f"World-Weave File successfully generated at: {output_path}")
+    print(f"Schema-driven World-Weave File successfully generated at: {output_path}")

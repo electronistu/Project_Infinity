@@ -1,470 +1,238 @@
-// WORLD-WEAVE-FILE v2.0 //
+// WWF v4.0 //
+// SCHEMA-DRIVEN COMPACT FORMAT //
 
-[PLAYER]
-name:Electronistu
-level:1|xp:0|gold:100
-class:Wizard|background:Criminal
-race:Elf|alignment:Chaotic Evil
-ac:10|hp:5|speed:30
-stats:STRENGTH:8|DEXTERITY:17|CONSTITUTION:8|INTELLIGENCE:15|WISDOM:15|CHARISMA:8
-prof_bonus:2
-armor_proficiencies:
-weapon_proficiencies:Longsword|Shortsword|Longbow|Slings|Quarterstaffs|Daggers|Shortbow|Darts|Light crossbows
-tool_proficiencies:
-skills:Perception (WIS)[P]|Stealth (DEX)[P]|Deception (CHA)[P]|Arcana (INT)[P]|Insight (WIS)[P]|Acrobatics (DEX)|Animal Handling (WIS)|Athletics (STR)|History (INT)|Intimidation (CHA)|Investigation (INT)|Medicine (WIS)|Nature (INT)|Performance (CHA)|Persuasion (CHA)|Religion (INT)|Sleight of Hand (DEX)|Survival (WIS)
-saving_throws:
-languages:Common|Elvish
-spellcasting_ability:intelligence
-spell_save_dc:12
-spell_attack_modifier:4
-cantrips_known:Fire Bolt|Light|Mage Hand
-spells_known:Magic Missile|Shield|Burning Hands|Charm Person|Detect Magic|Sleep
-spell_slots:1:2
-  special_abilities:
-    - name:Darkvision|desc:Accustomed to twilit forests and the night sky, you have superior vision in dark and dim conditions. You can see in dim light within 60 feet of you as if it were bright light, and in darkness as if it were dim light.
-    - name:Fey Ancestry|desc:You have advantage on saving throws against being charmed, and magic can’t put you to sleep.
-    - name:Trance|desc:Elves don’t need to sleep. Instead, they meditate deeply, remaining semiconscious, for 4 hours a day.
-    - name:Spellcasting|desc:As a student of arcane magic, you have a spellbook containing spells that show the first glimmerings of your true power.
-    - name:Arcane Recovery|desc:You have learned to regain some of your magical energy by studying your spellbook.
 
-[EQUIPMENT]
+schemas:
+  npc: [name, lvl, race, class, ac, hp, stats, walker, abilities_for_sale]
+  stats: [str, dex, con, int, wis, cha]
 
-[MAP]
-size:100x100
-grid:
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.~~~~~~~~~~~~~~~~~~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.....~~~~~~~~~~~~~~~~~~~~~~~~.~~~~~~~~~~~~~~~~~~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~......~~~~~~~~~~~~~~~~~~~~~..~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~........~~~~~~~~~~~~~~~~~~~~...~~~~~~~~~~~~~~~~~~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~..~~...........~~~~~~~~~~~~~~~~~~~...~~~~~~~~~~~~~~~~~~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~..................~~~~~~~~~~~~~~~~~~~.~~~....................~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.....................~~~~~~~~~~~~~~~~~~..~~....................~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~........................~~~~~~~~~~~~~~~~~....~....................~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.........................~~~~~~~~~~~~~~~.....~....................~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~..........................~.~~~~~~~~~~~~~~..........................~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~...........................~~..~~~~~~~~~.~~...........................~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~...........................~~......~~.................................~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~........................................................................~~~~~
-~~~~~~~~~~~~~~~~~~~~~~.........................................................................~~~~~
-~~~~~~~~~~~~~~~~~~~............................................................................~~~~~
-~~~~~~~~~~~~~~~~~~.....~.......................................................................~~~~~
-~~~~~~~~~~~~~~~~~~~~..~~.......................................................................~~~~~
-~~~~~~~~~~~~~~~~~~~~...........................................................................~~~~~
-~~~~~~~~~~~~~~~~~~~............................................................................~~~~~
-~~~~~~~~~~~~~~~~~~~............................................................................~~~~~
-~~~~~~~~~~~~~~~~~~~............................................................................~~~~~
-~~~~~~~~~~~~~~~~~~~~~..........................................................................~~~~~
-~~~~~~~~~~~~~~~~~~~~...........................................................................~~~~~
-~~~~~~~~~~~~~~~~~~~~...........................................................................~~~~~
-~~~~~~~~~~~~~~~~~~~~~...~~.....................................................................~~~~~
-~~~~~~~~~~~~~~~~~~~~...~~.......................................................~~~~~~~~~~~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~....~~.......................................................~~~~~~~~~~~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~...~~~~......................................................~~~~~~~~~~~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...................................................~~~~~~~~~~~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~..................................................~~~~~~~~~~~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...................................................~~~~~~~~~~~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~....................................................~~~~~~~~~~~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~.....................................................~~~~~~~~~~~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~......................................................~~~~~~~~~~~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~......................................................~~~~~~~~~~~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~......................................................~~~~~~~~~~~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~.......................................................~~~~~~~~~~~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~........................................................~~~~~~~~~~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~..........................................................~~~~~~~~~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~...........................................................~~~~~~~~~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~...........................................................~~~~~~~~~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~...........................................................~~~~~~~~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~............................................................~~~~~~~~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~...........................................................~~~~~~~~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~............................................................~~~~~~~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~.............................................................~~~..~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~.....................................................................~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~......................................................................~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~......................................................................~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~......................................................................~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~.....................................................................~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~.....................................................................~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~......................................................................~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~.......................................................................~~~~~~
-~~~~~~~~~~~~~~~~~~~~~..........................................................................~~~~~
-~~~~~~~~~~~~~~~~~~~~~..........................................................................~~~~~
-~~~~~~~~~~~~~~~~~~~~~~........................................................................~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~........................................................................~~~~~~
-~~~~~~~~~~~~~~~~~~~~.........................................................................~~~~~~~
-~~~~~~~~~~~~~~~~~~~..........................................................................~~~~~~~
-~~~~~~~~~~~~~~~~~~~..........................................................................~~~~~~~
-~~~~~~~~~~~~~~~~.............................................................................~~~~~~~
-~~~~~~~~~~~~~~~..............................................................................~~~~~~~
-~~~~~~~~~~~~~~~..............................................................................~~~~~~~
-~~~~~~~~~~~~~~~..............................................................................~~~~~~~
-.....~~~~~~~~.................................................................................~~~~~.
-.........~~~~.......................................................................................
-....................................................................................................
-....................................................................................................
-....................................................................................................
-....................................................................................................
-....................................................................................................
-....................................................................................................
-..............~~~~..................................................................................
-........~....~~~~~..................................................................................
-.......~~~~.~~~~~~~.................................................................................
-......~~~~~~~~~~~~~.................................................................................
-.....~~~~~~~~~~~~~~~................................................................................
-....~~~~~~~~~~~~~~~~~~~~............................................................................
-...~~~~~~~~~~~~~~~~~~~~~~...........................................................................
-...~~~~~~~~~~~~~~~~~~~~~~~..........................................................................
-..~~~~~~~~~~~~~~~~~~~~~~~~~...~~.~~.................................................................
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~................................................................
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~................................................................
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.............................................................~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~........................................................~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~......................................................~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~....................................................~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.................................................~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...............................................~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...............................................~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.............................................~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.............................................~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~............................................~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...........................................~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.........................................~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.......................................~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~......................................~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~....~...............................~~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.............................~~~~~~~~~~~~
 
-[TIME]
-current_tick:06:00
+---
 
-[HISTORY]
-- A bitter trade dispute over rare spices escalated into the War of the Ashen Crown when a Eldoria merchant vessel was sunk by Zarthus privateers.
-- The The Salt-Stained War began after Eldoria (driven by an unknown motive) laid claim to the fertile Whispering Plains which had long been considered part of Blacksail Archipelago (driven by an unknown motive).
-
-[KINGDOMS]
-::
-name:Eldoria|capital:Eldoria City|alignment:Lawful Good
-relations:Zarthus:War|Silverwood:Neutral|Blacksail Archipelago:War
-  RULER:
-    name:King Theron|role:Ruler|faction:Eldoria
-    level:13|cr:3.0|xp:700
-    ac:11|hp:80|speed:25
-    stats:STRENGTH:14|DEXTERITY:13|CONSTITUTION:15|INTELLIGENCE:10|WISDOM:12|CHARISMA:8
-  [GUILDS]
-    ::name:Eldoria Guard
-      reports_to:King Theron
-    LEADER:
-      name:Dwarf Sorcerer|role:Guard Leader|faction:Guard Leader
-      level:8|cr:1.0|xp:200
-      ac:11|hp:34|speed:25
-      stats:STRENGTH:14|DEXTERITY:12|CONSTITUTION:13|INTELLIGENCE:15|WISDOM:8|CHARISMA:10
-      abilities_for_sale:Sentinel Training:3:Guard
-    RIGHT_HAND:
-      name:Halfling Fighter|role:Guard Right Hand|faction:Guard Right Hand
-      level:9|cr:2.0|xp:450
-      ac:11|hp:50|speed:25
-      stats:STRENGTH:14|DEXTERITY:12|CONSTITUTION:10|INTELLIGENCE:8|WISDOM:15|CHARISMA:13
-      abilities_for_sale:Shield Bash:1:Guard|Hold the Line:2:Guard
-    ::name:Eldoria Mage
-    LEADER:
-      name:Dwarf Ranger|role:Mage Leader|faction:Mage Leader
-      level:5|cr:0.5|xp:100
-      ac:13|hp:34|speed:25
-      stats:STRENGTH:15|DEXTERITY:12|CONSTITUTION:13|INTELLIGENCE:8|WISDOM:14|CHARISMA:10
-      abilities_for_sale:Fireball:3:Mage|Invisibility:4:Mage|Counterspell Mastery:3:Mage|Teleportation Circle Access:4:Mage
-    RIGHT_HAND:
-      name:Halfling Monk|role:Mage Right Hand|faction:Mage Right Hand
-      level:10|cr:2.0|xp:450
-      ac:9|hp:44|speed:25
-      stats:STRENGTH:12|DEXTERITY:8|CONSTITUTION:10|INTELLIGENCE:14|WISDOM:13|CHARISMA:15
-      abilities_for_sale:Firebolt:1:Mage|Detect Magic:1:Mage|Mage Armor:2:Mage|Arcane Insight:1:Mage
-    ::name:Eldoria Assassin
-    LEADER:
-      name:Human Sorcerer|role:Assassin Leader|faction:Assassin Leader
-      level:8|cr:1.0|xp:200
-      ac:11|hp:41|speed:30
-      stats:STRENGTH:12|DEXTERITY:13|CONSTITUTION:15|INTELLIGENCE:14|WISDOM:10|CHARISMA:8
-      abilities_for_sale:Impostor:3:Assassin|Death Strike:5:Assassin
-    RIGHT_HAND:
-      name:Halfling Wizard|role:Assassin Right Hand|faction:Assassin Right Hand
-      level:5|cr:0.5|xp:100
-      ac:12|hp:18|speed:25
-      stats:STRENGTH:12|DEXTERITY:15|CONSTITUTION:10|INTELLIGENCE:13|WISDOM:8|CHARISMA:14
-      abilities_for_sale:Poisoner's Kit Proficiency:1:Assassin|Silent Movement:1:Assassin
-    ::name:Eldoria Merchant
-    LEADER:
-      name:Human Paladin|role:Merchant Leader|faction:Merchant Leader
-      level:7|cr:1.0|xp:200
-      ac:11|hp:52|speed:30
-      stats:STRENGTH:10|DEXTERITY:13|CONSTITUTION:15|INTELLIGENCE:8|WISDOM:14|CHARISMA:12
-      abilities_for_sale:Master Investor:3:Merchant
-    RIGHT_HAND:
-      name:Human Paladin|role:Merchant Right Hand|faction:Merchant Right Hand
-      level:5|cr:0.5|xp:100
-      ac:11|hp:38|speed:30
-      stats:STRENGTH:8|DEXTERITY:13|CONSTITUTION:15|INTELLIGENCE:14|WISDOM:12|CHARISMA:10
-      abilities_for_sale:Silver Tongue:1:Merchant|Appraise:2:Merchant
-    ::name:Eldoria Thief
-    LEADER:
-      name:Dwarf Monk|role:Thief Leader|faction:Thief Leader
-      level:8|cr:1.0|xp:200
-      ac:10|hp:29|speed:25
-      stats:STRENGTH:12|DEXTERITY:10|CONSTITUTION:8|INTELLIGENCE:13|WISDOM:14|CHARISMA:15
-      abilities_for_sale:Evasion:4:Thief
-    RIGHT_HAND:
-      name:Halfling Monk|role:Thief Right Hand|faction:Thief Right Hand
-      level:7|cr:1.0|xp:200
-      ac:10|hp:38|speed:25
-      stats:STRENGTH:14|DEXTERITY:10|CONSTITUTION:12|INTELLIGENCE:15|WISDOM:13|CHARISMA:8
-      abilities_for_sale:Sneak:1:Thief|Pick Pocket:2:Thief|Lockpicking Expertise:2:Thief
-    ::name:Eldoria Alchemist's League
-    LEADER:
-      name:Dragonborn Barbarian|role:Alchemist's League Leader|faction:Alchemist's League Leader
-      level:8|cr:1.0|xp:200
-      ac:14|hp:47|speed:30
-      stats:STRENGTH:13|DEXTERITY:14|CONSTITUTION:8|INTELLIGENCE:15|WISDOM:12|CHARISMA:10
-      abilities_for_sale:Transmute Minerals:4:Alchemist's League
-    RIGHT_HAND:
-      name:Halfling Ranger|role:Alchemist's League Right Hand|faction:Alchemist's League Right Hand
-      level:10|cr:2.0|xp:450
-      ac:12|hp:64|speed:25
-      stats:STRENGTH:12|DEXTERITY:10|CONSTITUTION:13|INTELLIGENCE:15|WISDOM:8|CHARISMA:14
-      abilities_for_sale:Potion of Healing Recipe:1:Alchemist's League|Alchemical Fire Formula:2:Alchemist's League
-    ::name:Eldoria Order of Scribes
-    LEADER:
-      name:Human Barbarian|role:Order of Scribes Leader|faction:Order of Scribes Leader
-      level:10|cr:2.0|xp:450
-      ac:12|hp:75|speed:30
-      stats:STRENGTH:15|DEXTERITY:10|CONSTITUTION:12|INTELLIGENCE:8|WISDOM:13|CHARISMA:14
-      abilities_for_sale:Legend Lore:4:Order of Scribes
-    RIGHT_HAND:
-      name:Dwarf Bard|role:Order of Scribes Right Hand|faction:Order of Scribes Right Hand
-      level:5|cr:0.5|xp:100
-      ac:11|hp:24|speed:25
-      stats:STRENGTH:14|DEXTERITY:8|CONSTITUTION:10|INTELLIGENCE:15|WISDOM:12|CHARISMA:13
-      abilities_for_sale:Identify:1:Order of Scribes|Comprehend Languages:2:Order of Scribes
-::
-name:Zarthus|capital:Zarthus City|alignment:Lawful Evil
-relations:Eldoria:War|Silverwood:Neutral|Blacksail Archipelago:Neutral
-  RULER:
-    name:Sorcerer-King Malakor|role:Ruler|faction:Zarthus
-    level:13|cr:3.0|xp:700
-    ac:11|hp:80|speed:25
-    stats:STRENGTH:15|DEXTERITY:8|CONSTITUTION:14|INTELLIGENCE:13|WISDOM:12|CHARISMA:10
-  [GUILDS]
-    ::name:Zarthus Guard
-      reports_to:Sorcerer-King Malakor
-    LEADER:
-      name:Elf Rogue|role:Guard Leader|faction:Guard Leader
-      level:10|cr:2.0|xp:450
-      ac:12|hp:62|speed:30
-      stats:STRENGTH:12|DEXTERITY:10|CONSTITUTION:15|INTELLIGENCE:13|WISDOM:14|CHARISMA:8
-      abilities_for_sale:Sentinel Training:3:Guard
-    RIGHT_HAND:
-      name:Dwarf Paladin|role:Guard Right Hand|faction:Guard Right Hand
-      level:9|cr:2.0|xp:450
-      ac:12|hp:58|speed:25
-      stats:STRENGTH:14|DEXTERITY:15|CONSTITUTION:12|INTELLIGENCE:8|WISDOM:13|CHARISMA:10
-      abilities_for_sale:Shield Bash:1:Guard|Hold the Line:2:Guard
-    ::name:Zarthus Mage
-    LEADER:
-      name:Human Paladin|role:Mage Leader|faction:Mage Leader
-      level:10|cr:2.0|xp:450
-      ac:9|hp:73|speed:30
-      stats:STRENGTH:14|DEXTERITY:8|CONSTITUTION:15|INTELLIGENCE:10|WISDOM:12|CHARISMA:13
-      abilities_for_sale:Fireball:3:Mage|Invisibility:4:Mage|Counterspell Mastery:3:Mage|Teleportation Circle Access:4:Mage
-    RIGHT_HAND:
-      name:Dwarf Rogue|role:Mage Right Hand|faction:Mage Right Hand
-      level:5|cr:0.5|xp:100
-      ac:13|hp:32|speed:25
-      stats:STRENGTH:10|DEXTERITY:12|CONSTITUTION:15|INTELLIGENCE:14|WISDOM:8|CHARISMA:13
-      abilities_for_sale:Firebolt:1:Mage|Detect Magic:1:Mage|Mage Armor:2:Mage|Arcane Insight:1:Mage
-    ::name:Zarthus Assassin
-    LEADER:
-      name:Dragonborn Monk|role:Assassin Leader|faction:Assassin Leader
-      level:10|cr:2.0|xp:450
-      ac:11|hp:44|speed:30
-      stats:STRENGTH:8|DEXTERITY:12|CONSTITUTION:10|INTELLIGENCE:13|WISDOM:15|CHARISMA:14
-      abilities_for_sale:Impostor:3:Assassin|Death Strike:5:Assassin
-    RIGHT_HAND:
-      name:Dragonborn Warlock|role:Assassin Right Hand|faction:Assassin Right Hand
-      level:10|cr:2.0|xp:450
-      ac:14|hp:53|speed:30
-      stats:STRENGTH:13|DEXTERITY:14|CONSTITUTION:12|INTELLIGENCE:8|WISDOM:15|CHARISMA:10
-      abilities_for_sale:Poisoner's Kit Proficiency:1:Assassin|Silent Movement:1:Assassin
-    ::name:Zarthus Merchant
-    LEADER:
-      name:Elf Wizard|role:Merchant Leader|faction:Merchant Leader
-      level:5|cr:0.5|xp:100
-      ac:10|hp:26|speed:30
-      stats:STRENGTH:8|DEXTERITY:10|CONSTITUTION:14|INTELLIGENCE:15|WISDOM:12|CHARISMA:13
-      abilities_for_sale:Master Investor:3:Merchant
-    RIGHT_HAND:
-      name:Human Druid|role:Merchant Right Hand|faction:Merchant Right Hand
-      level:5|cr:0.5|xp:100
-      ac:13|hp:20|speed:30
-      stats:STRENGTH:10|DEXTERITY:12|CONSTITUTION:8|INTELLIGENCE:15|WISDOM:14|CHARISMA:13
-      abilities_for_sale:Silver Tongue:1:Merchant|Appraise:2:Merchant
-    ::name:Zarthus Thief
-    LEADER:
-      name:Dragonborn Ranger|role:Thief Leader|faction:Thief Leader
-      level:8|cr:1.0|xp:200
-      ac:12|hp:52|speed:30
-      stats:STRENGTH:14|DEXTERITY:10|CONSTITUTION:13|INTELLIGENCE:12|WISDOM:8|CHARISMA:15
-      abilities_for_sale:Evasion:4:Thief
-    RIGHT_HAND:
-      name:Elf Paladin|role:Thief Right Hand|faction:Thief Right Hand
-      level:10|cr:2.0|xp:450
-      ac:11|hp:73|speed:30
-      stats:STRENGTH:15|DEXTERITY:13|CONSTITUTION:14|INTELLIGENCE:12|WISDOM:8|CHARISMA:10
-      abilities_for_sale:Sneak:1:Thief|Pick Pocket:2:Thief|Lockpicking Expertise:2:Thief
-    ::name:Zarthus Alchemist's League
-    LEADER:
-      name:Dragonborn Fighter|role:Alchemist's League Leader|faction:Alchemist's League Leader
-      level:8|cr:1.0|xp:200
-      ac:11|hp:38|speed:30
-      stats:STRENGTH:14|DEXTERITY:13|CONSTITUTION:8|INTELLIGENCE:10|WISDOM:15|CHARISMA:12
-      abilities_for_sale:Transmute Minerals:4:Alchemist's League
-    RIGHT_HAND:
-      name:Halfling Paladin|role:Alchemist's League Right Hand|faction:Alchemist's League Right Hand
-      level:8|cr:1.0|xp:200
-      ac:11|hp:52|speed:25
-      stats:STRENGTH:8|DEXTERITY:12|CONSTITUTION:13|INTELLIGENCE:10|WISDOM:15|CHARISMA:14
-      abilities_for_sale:Potion of Healing Recipe:1:Alchemist's League|Alchemical Fire Formula:2:Alchemist's League
-::
-name:Silverwood|capital:Silverwood City|alignment:True Neutral
-relations:Eldoria:Neutral|Zarthus:Neutral|Blacksail Archipelago:Neutral
-  RULER:
-    name:Archdruid Elara|role:Ruler|faction:Silverwood
-    level:11|cr:2.0|xp:450
-    ac:13|hp:68|speed:25
-    stats:STRENGTH:13|DEXTERITY:12|CONSTITUTION:15|INTELLIGENCE:8|WISDOM:14|CHARISMA:10
-  [GUILDS]
-    ::name:Silverwood Guard
-      reports_to:Archdruid Elara
-    LEADER:
-      name:Halfling Cleric|role:Guard Leader|faction:Guard Leader
-      level:8|cr:1.0|xp:200
-      ac:14|hp:36|speed:25
-      stats:STRENGTH:12|DEXTERITY:15|CONSTITUTION:10|INTELLIGENCE:14|WISDOM:8|CHARISMA:13
-      abilities_for_sale:Sentinel Training:3:Guard
-    RIGHT_HAND:
-      name:Dwarf Monk|role:Guard Right Hand|faction:Guard Right Hand
-      level:9|cr:2.0|xp:450
-      ac:9|hp:40|speed:25
-      stats:STRENGTH:14|DEXTERITY:8|CONSTITUTION:10|INTELLIGENCE:12|WISDOM:15|CHARISMA:13
-      abilities_for_sale:Shield Bash:1:Guard|Hold the Line:2:Guard
-    ::name:Silverwood Mage
-    LEADER:
-      name:Human Bard|role:Mage Leader|faction:Mage Leader
-      level:8|cr:1.0|xp:200
-      ac:12|hp:50|speed:30
-      stats:STRENGTH:13|DEXTERITY:10|CONSTITUTION:15|INTELLIGENCE:8|WISDOM:14|CHARISMA:12
-      abilities_for_sale:Fireball:3:Mage|Invisibility:4:Mage|Counterspell Mastery:3:Mage|Teleportation Circle Access:4:Mage
-    RIGHT_HAND:
-      name:Human Monk|role:Mage Right Hand|faction:Mage Right Hand
-      level:5|cr:0.5|xp:100
-      ac:11|hp:24|speed:30
-      stats:STRENGTH:14|DEXTERITY:12|CONSTITUTION:10|INTELLIGENCE:15|WISDOM:8|CHARISMA:13
-      abilities_for_sale:Firebolt:1:Mage|Detect Magic:1:Mage|Mage Armor:2:Mage|Arcane Insight:1:Mage
-    ::name:Silverwood Assassin
-    LEADER:
-      name:Dwarf Artificer|role:Assassin Leader|faction:Assassin Leader
-      level:5|cr:0.5|xp:100
-      ac:13|hp:20|speed:25
-      stats:STRENGTH:15|DEXTERITY:12|CONSTITUTION:8|INTELLIGENCE:14|WISDOM:10|CHARISMA:13
-      abilities_for_sale:Impostor:3:Assassin|Death Strike:5:Assassin
-    RIGHT_HAND:
-      name:Elf Barbarian|role:Assassin Right Hand|faction:Assassin Right Hand
-      level:6|cr:1.0|xp:200
-      ac:13|hp:42|speed:30
-      stats:STRENGTH:14|DEXTERITY:13|CONSTITUTION:10|INTELLIGENCE:12|WISDOM:15|CHARISMA:8
-      abilities_for_sale:Poisoner's Kit Proficiency:1:Assassin|Silent Movement:1:Assassin
-    ::name:Silverwood Merchant
-    LEADER:
-      name:Human Monk|role:Merchant Leader|faction:Merchant Leader
-      level:6|cr:1.0|xp:200
-      ac:9|hp:33|speed:30
-      stats:STRENGTH:10|DEXTERITY:8|CONSTITUTION:13|INTELLIGENCE:14|WISDOM:15|CHARISMA:12
-      abilities_for_sale:Master Investor:3:Merchant
-    RIGHT_HAND:
-      name:Dwarf Rogue|role:Merchant Right Hand|faction:Merchant Right Hand
-      level:10|cr:2.0|xp:450
-      ac:14|hp:53|speed:25
-      stats:STRENGTH:13|DEXTERITY:15|CONSTITUTION:12|INTELLIGENCE:8|WISDOM:10|CHARISMA:14
-      abilities_for_sale:Silver Tongue:1:Merchant|Appraise:2:Merchant
-    ::name:Silverwood Thief
-    LEADER:
-      name:Human Fighter|role:Thief Leader|faction:Thief Leader
-      level:6|cr:1.0|xp:200
-      ac:12|hp:40|speed:30
-      stats:STRENGTH:15|DEXTERITY:14|CONSTITUTION:12|INTELLIGENCE:13|WISDOM:8|CHARISMA:10
-      abilities_for_sale:Evasion:4:Thief
-    RIGHT_HAND:
-      name:Elf Rogue|role:Thief Right Hand|faction:Thief Right Hand
-      level:10|cr:2.0|xp:450
-      ac:13|hp:62|speed:30
-      stats:STRENGTH:12|DEXTERITY:13|CONSTITUTION:15|INTELLIGENCE:8|WISDOM:10|CHARISMA:14
-      abilities_for_sale:Sneak:1:Thief|Pick Pocket:2:Thief|Lockpicking Expertise:2:Thief
-    ::name:Silverwood Alchemist's League
-    LEADER:
-      name:Dwarf Monk|role:Alchemist's League Leader|faction:Alchemist's League Leader
-      level:8|cr:1.0|xp:200
-      ac:12|hp:43|speed:25
-      stats:STRENGTH:10|DEXTERITY:14|CONSTITUTION:12|INTELLIGENCE:13|WISDOM:8|CHARISMA:15
-      abilities_for_sale:Transmute Minerals:4:Alchemist's League
-    RIGHT_HAND:
-      name:Dwarf Monk|role:Alchemist's League Right Hand|faction:Alchemist's League Right Hand
-      level:8|cr:1.0|xp:200
-      ac:10|hp:43|speed:25
-      stats:STRENGTH:15|DEXTERITY:10|CONSTITUTION:13|INTELLIGENCE:14|WISDOM:8|CHARISMA:12
-      abilities_for_sale:Potion of Healing Recipe:1:Alchemist's League|Alchemical Fire Formula:2:Alchemist's League
-    ::name:Silverwood Ranger's Conclave
-    LEADER:
-      name:Human Ranger|role:Ranger's Conclave Leader|faction:Ranger's Conclave Leader
-      level:7|cr:1.0|xp:200
-      ac:12|hp:46|speed:30
-      stats:STRENGTH:8|DEXTERITY:10|CONSTITUTION:12|INTELLIGENCE:14|WISDOM:13|CHARISMA:15
-      abilities_for_sale:Pass Without Trace:3:Ranger's Conclave|Vanish:3:Ranger's Conclave
-    RIGHT_HAND:
-      name:Human Warlock|role:Ranger's Conclave Right Hand|faction:Ranger's Conclave Right Hand
-      level:10|cr:2.0|xp:450
-      ac:14|hp:62|speed:30
-      stats:STRENGTH:10|DEXTERITY:14|CONSTITUTION:15|INTELLIGENCE:13|WISDOM:8|CHARISMA:12
-      abilities_for_sale:Animal Friendship:1:Ranger's Conclave|Hunter's Mark:2:Ranger's Conclave|Natural Explorer:1:Ranger's Conclave|Primeval Awareness:2:Ranger's Conclave
-::
-name:Blacksail Archipelago|capital:Blacksail Archipelago City|alignment:Chaotic Evil
-relations:Eldoria:War|Zarthus:Neutral|Silverwood:Neutral
-  RULER:
-    name:Dread Pirate King Kaelen|role:Ruler|faction:Blacksail Archipelago
-    level:15|cr:5.0|xp:1800
-    ac:14|hp:96|speed:25
-    stats:STRENGTH:12|DEXTERITY:14|CONSTITUTION:10|INTELLIGENCE:15|WISDOM:8|CHARISMA:13
-  [GUILDS]
-    ::name:Blacksail Archipelago Assassin
-    LEADER:
-      name:Halfling Monk|role:Assassin Leader|faction:Assassin Leader|is_walker:True
-      level:8|cr:1.0|xp:200
-      ac:9|hp:36|speed:25
-      stats:STRENGTH:14|DEXTERITY:8|CONSTITUTION:10|INTELLIGENCE:15|WISDOM:13|CHARISMA:12
-      abilities_for_sale:Impostor:3:Assassin|Death Strike:5:Assassin
-    RIGHT_HAND:
-      name:Elf Druid|role:Assassin Right Hand|faction:Assassin Right Hand
-      level:7|cr:1.0|xp:200
-      ac:14|hp:44|speed:30
-      stats:STRENGTH:12|DEXTERITY:14|CONSTITUTION:15|INTELLIGENCE:10|WISDOM:13|CHARISMA:8
-      abilities_for_sale:Poisoner's Kit Proficiency:1:Assassin|Silent Movement:1:Assassin
-    ::name:Blacksail Archipelago Thief
-    LEADER:
-      name:Human Cleric|role:Thief Leader|faction:Thief Leader
-      level:6|cr:1.0|xp:200
-      ac:14|hp:23|speed:30
-      stats:STRENGTH:12|DEXTERITY:15|CONSTITUTION:8|INTELLIGENCE:10|WISDOM:13|CHARISMA:14
-      abilities_for_sale:Evasion:4:Thief
-    RIGHT_HAND:
-      name:Elf Ranger|role:Thief Right Hand|faction:Thief Right Hand
-      level:5|cr:0.5|xp:100
-      ac:14|hp:34|speed:30
-      stats:STRENGTH:8|DEXTERITY:15|CONSTITUTION:13|INTELLIGENCE:10|WISDOM:14|CHARISMA:12
-      abilities_for_sale:Sneak:1:Thief|Pick Pocket:2:Thief|Lockpicking Expertise:2:Thief
-
-// END-OF-FILE //
+player:
+  name: Electronistu
+  lvl: 1
+  xp: 0
+  gold: 100
+  class: Wizard
+  race: Elf
+  background: Criminal
+  align: Chaotic Evil
+  ac: 10
+  hp: 6
+  speed: 30
+  stats: {str:8,dex:17,con:10,int:15,wis:12,cha:11}
+  prof_bonus: 2
+  prof:
+    skills: ["Stealth", "Perception", "Deception", "Investigation", "Arcana"]
+    saves: []
+  features: ["Darkvision", "Fey Ancestry", "Trance", "Spellcasting", "Arcane Recovery"]
+  inventory: []
+  spellcasting:
+    ability: intelligence
+    dc: 12
+    atk: 4
+    cantrips: ["Fire Bolt", "Light", "Mage Hand"]
+    spells: ["Magic Missile", "Shield", "Burning Hands", "Charm Person", "Detect Magic", "Sleep"]
+    slots: {"1": 2}
+map:
+  size: 100x100
+  grid: |
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.....~~~~~~~~~~~~~~~~~~~~~~~~.~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~......~~~~~~~~~~~~~~~~~~~~~..~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~........~~~~~~~~~~~~~~~~~~~~...~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~..~~...........~~~~~~~~~~~~~~~~~~~...~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~..................~~~~~~~~~~~~~~~~~~~.~~~....................~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.....................~~~~~~~~~~~~~~~~~~..~~....................~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~........................~~~~~~~~~~~~~~~~~....~....................~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.........................~~~~~~~~~~~~~~~.....~....................~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~..........................~.~~~~~~~~~~~~~~..........................~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~...........................~~..~~~~~~~~~.~~...........................~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~...........................~~......~~.................................~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~........................................................................~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~.........................................................................~~~~~
+    ~~~~~~~~~~~~~~~~~~~............................................................................~~~~~
+    ~~~~~~~~~~~~~~~~~~.....~.......................................................................~~~~~
+    ~~~~~~~~~~~~~~~~~~~~..~~.......................................................................~~~~~
+    ~~~~~~~~~~~~~~~~~~~~...........................................................................~~~~~
+    ~~~~~~~~~~~~~~~~~~~............................................................................~~~~~
+    ~~~~~~~~~~~~~~~~~~~............................................................................~~~~~
+    ~~~~~~~~~~~~~~~~~~~............................................................................~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~..........................................................................~~~~~
+    ~~~~~~~~~~~~~~~~~~~~...........................................................................~~~~~
+    ~~~~~~~~~~~~~~~~~~~~...........................................................................~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~...~~.....................................................................~~~~~
+    ~~~~~~~~~~~~~~~~~~~~...~~.......................................................~~~~~~~~~~~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~....~~.......................................................~~~~~~~~~~~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~...~~~~......................................................~~~~~~~~~~~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...................................................~~~~~~~~~~~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~..................................................~~~~~~~~~~~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...................................................~~~~~~~~~~~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~....................................................~~~~~~~~~~~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~.....................................................~~~~~~~~~~~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~......................................................~~~~~~~~~~~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~......................................................~~~~~~~~~~~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~......................................................~~~~~~~~~~~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~.......................................................~~~~~~~~~~~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~........................................................~~~~~~~~~~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~..........................................................~~~~~~~~~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~...........................................................~~~~~~~~~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~...........................................................~~~~~~~~~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~...........................................................~~~~~~~~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~............................................................~~~~~~~~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~...........................................................~~~~~~~~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~............................................................~~~~~~~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~.............................................................~~~..~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~.....................................................................~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~......................................................................~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~......................................................................~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~......................................................................~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~.....................................................................~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~.....................................................................~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~......................................................................~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~.......................................................................~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~..........................................................................~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~..........................................................................~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~........................................................................~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~........................................................................~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~.........................................................................~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~..........................................................................~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~..........................................................................~~~~~~~
+    ~~~~~~~~~~~~~~~~.............................................................................~~~~~~~
+    ~~~~~~~~~~~~~~~..............................................................................~~~~~~~
+    ~~~~~~~~~~~~~~~..............................................................................~~~~~~~
+    ~~~~~~~~~~~~~~~..............................................................................~~~~~~~
+    .....~~~~~~~~.................................................................................~~~~~.
+    .........~~~~.......................................................................................
+    ....................................................................................................
+    ....................................................................................................
+    ....................................................................................................
+    ....................................................................................................
+    ....................................................................................................
+    ....................................................................................................
+    ..............~~~~..................................................................................
+    ........~....~~~~~..................................................................................
+    .......~~~~.~~~~~~~.................................................................................
+    ......~~~~~~~~~~~~~.................................................................................
+    .....~~~~~~~~~~~~~~~................................................................................
+    ....~~~~~~~~~~~~~~~~~~~~............................................................................
+    ...~~~~~~~~~~~~~~~~~~~~~~...........................................................................
+    ...~~~~~~~~~~~~~~~~~~~~~~~..........................................................................
+    ..~~~~~~~~~~~~~~~~~~~~~~~~~...~~.~~.................................................................
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~................................................................
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~................................................................
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.............................................................~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~........................................................~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~......................................................~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~....................................................~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.................................................~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...............................................~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...............................................~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.............................................~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.............................................~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~............................................~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...........................................~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.........................................~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.......................................~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~......................................~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~....~...............................~~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.............................~~~~~~~~~~~~
+time: 06:00
+history:
+  - A bitter trade dispute over ancient artifacts escalated into the The War of Crimson Rivers when a Eldoria merchant vessel was sunk by Blacksail Archipelago privateers.
+  - The The War of Crimson Rivers was sparked by an ideological schism, with the Lawful Evil Zarthus declaring a holy crusade against the True Neutral people of Silverwood.
+kingdoms:
+  - name: Eldoria
+    capital: Eldoria City
+    align: Lawful Good
+    relations: {"Zarthus": "Neutral", "Silverwood": "Neutral", "Blacksail Archipelago": "War"}
+    ruler: ["King Theron", 14, "Dragonborn", "Paladin", 10, 101, [12, 10, 14, 13, 8, 15], null, null]
+    guilds:
+      - name: Eldoria Guard
+        reports_to: King Theron
+        leader: ["Dwarf Artificer", 6, "Dwarf", "Artificer", 13, 38, [10, 13, 15, 12, 8, 14], null, ["Sentinel Training:3"]]
+        right_hand: ["Dwarf Druid", 10, "Dwarf", "Druid", 13, 53, [14, 12, 13, 15, 10, 8], null, ["Hold the Line:2"]]
+      - name: Eldoria Mage
+        leader: ["Human Druid", 9, "Human", "Druid", 14, 48, [10, 15, 12, 8, 14, 13], null, ["Fireball:3", "Counterspell Mastery:3"]]
+        right_hand: ["Elf Barbarian", 5, "Elf", "Barbarian", 12, 40, [14, 10, 12, 13, 8, 15], null, ["Arcane Insight:1", "Mage Armor:2"]]
+      - name: Eldoria Assassin
+        leader: ["Dwarf Warlock", 9, "Dwarf", "Warlock", 11, 48, [14, 8, 13, 10, 15, 12], null, ["Death Strike:5"]]
+        right_hand: ["Elf Paladin", 10, "Elf", "Paladin", 12, 46, [12, 15, 8, 13, 10, 14], null, ["Poisoner's Kit Proficiency:1"]]
+      - name: Eldoria Merchant
+        leader: ["Elf Monk", 8, "Elf", "Monk", 9, 50, [12, 8, 15, 10, 13, 14], null, ["Master Investor:3"]]
+        right_hand: ["Dwarf Druid", 5, "Dwarf", "Druid", 13, 28, [10, 12, 13, 15, 14, 8], null, ["Appraise:2"]]
+      - name: Eldoria Thief
+        leader: ["Elf Paladin", 7, "Elf", "Paladin", 9, 52, [10, 8, 14, 13, 15, 12], null, ["Evasion:4"]]
+        right_hand: ["Halfling Druid", 10, "Halfling", "Druid", 12, 53, [14, 10, 12, 8, 13, 15], null, ["Pick Pocket:2"]]
+      - name: Eldoria Alchemist's League
+        leader: ["Elf Ranger", 7, "Elf", "Ranger", 12, 46, [13, 10, 12, 14, 15, 8], null, ["Transmute Minerals:4"]]
+        right_hand: ["Elf Barbarian", 10, "Elf", "Barbarian", 14, 66, [13, 15, 10, 14, 8, 12], null, ["Alchemical Fire Formula:2"]]
+      - name: Eldoria Order of Scribes
+        leader: ["Dwarf Sorcerer", 5, "Dwarf", "Sorcerer", 12, 22, [13, 15, 12, 10, 14, 8], null, ["Legend Lore:4"]]
+        right_hand: ["Halfling Rogue", 9, "Halfling", "Rogue", 14, 48, [10, 14, 13, 15, 8, 12], null, ["Comprehend Languages:2", "Identify:1"]]
+  - name: Zarthus
+    capital: Zarthus City
+    align: Lawful Evil
+    relations: {"Eldoria": "Neutral", "Silverwood": "War", "Blacksail Archipelago": "Neutral"}
+    ruler: ["Sorcerer-King Malakor", 13, "Human", "Artificer", 12, 44, [12, 10, 8, 13, 15, 14], null, null]
+    guilds:
+      - name: Zarthus Guard
+        reports_to: Sorcerer-King Malakor
+        leader: ["Halfling Barbarian", 6, "Halfling", "Barbarian", 14, 47, [8, 15, 13, 14, 12, 10], null, null]
+        right_hand: ["Halfling Fighter", 8, "Halfling", "Fighter", 11, 38, [10, 13, 8, 15, 14, 12], null, ["Shield Bash:1"]]
+      - name: Zarthus Mage
+        leader: ["Halfling Monk", 5, "Halfling", "Monk", 9, 28, [14, 8, 13, 15, 12, 10], null, ["Teleportation Circle Access:4"]]
+        right_hand: ["Halfling Bard", 8, "Halfling", "Bard", 13, 29, [14, 13, 8, 10, 15, 12], null, ["Firebolt:1"]]
+      - name: Zarthus Assassin
+        leader: ["Halfling Warlock", 5, "Halfling", "Warlock", 14, 24, [14, 15, 10, 8, 12, 13], null, ["Impostor:3"]]
+        right_hand: ["Elf Artificer", 7, "Elf", "Artificer", 13, 38, [14, 12, 13, 10, 15, 8], null, ["Silent Movement:1"]]
+      - name: Zarthus Merchant
+        leader: ["Dwarf Rogue", 9, "Dwarf", "Rogue", 13, 40, [14, 13, 10, 12, 15, 8], null, null]
+        right_hand: ["Elf Sorcerer", 8, "Elf", "Sorcerer", 11, 34, [15, 12, 13, 14, 10, 8], null, ["Silver Tongue:1"]]
+      - name: Zarthus Thief
+        leader: ["Dwarf Fighter", 8, "Dwarf", "Fighter", 11, 45, [12, 13, 10, 14, 8, 15], null, null]
+        right_hand: ["Human Cleric", 6, "Human", "Cleric", 13, 38, [15, 13, 14, 12, 10, 8], null, ["Lockpicking Expertise:2"]]
+      - name: Zarthus Alchemist's League
+        leader: ["Dwarf Monk", 5, "Dwarf", "Monk", 12, 20, [12, 14, 8, 10, 15, 13], null, null]
+        right_hand: ["Halfling Barbarian", 6, "Halfling", "Barbarian", 11, 47, [13, 8, 12, 14, 10, 15], null, ["Potion of Healing Recipe:1"]]
+  - name: Silverwood
+    capital: Silverwood City
+    align: True Neutral
+    relations: {"Eldoria": "Neutral", "Zarthus": "War", "Blacksail Archipelago": "Neutral"}
+    ruler: ["Archdruid Elara", 11, "Halfling", "Paladin", 9, 80, [15, 8, 14, 13, 12, 10], null, null]
+    guilds:
+      - name: Silverwood Guard
+        reports_to: Archdruid Elara
+        leader: ["Elf Wizard", 7, "Elf", "Wizard", 11, 24, [8, 13, 10, 12, 14, 15], null, null]
+        right_hand: ["Human Monk", 8, "Human", "Monk", 10, 29, [12, 10, 8, 14, 15, 13], null, null]
+      - name: Silverwood Mage
+        leader: ["Elf Artificer", 6, "Elf", "Artificer", 13, 23, [14, 13, 8, 10, 15, 12], null, ["Invisibility:4"]]
+        right_hand: ["Dragonborn Bard", 9, "Dragonborn", "Bard", 11, 56, [10, 8, 15, 13, 14, 12], null, ["Detect Magic:1"]]
+      - name: Silverwood Assassin
+        leader: ["Elf Ranger", 8, "Elf", "Ranger", 14, 52, [8, 14, 12, 10, 15, 13], null, null]
+        right_hand: ["Halfling Barbarian", 7, "Halfling", "Barbarian", 12, 60, [8, 10, 15, 13, 14, 12], null, null]
+      - name: Silverwood Merchant
+        leader: ["Elf Rogue", 6, "Elf", "Rogue", 13, 38, [8, 12, 14, 15, 13, 10], null, null]
+        right_hand: ["Human Sorcerer", 6, "Human", "Sorcerer", 10, 26, [14, 10, 12, 8, 13, 15], true, null]
+      - name: Silverwood Thief
+        leader: ["Dwarf Sorcerer", 7, "Dwarf", "Sorcerer", 11, 30, [10, 13, 12, 8, 14, 15], null, null]
+        right_hand: ["Human Barbarian", 5, "Human", "Barbarian", 11, 36, [15, 8, 10, 13, 12, 14], null, ["Sneak:1"]]
+      - name: Silverwood Alchemist's League
+        leader: ["Dwarf Paladin", 10, "Dwarf", "Paladin", 10, 64, [12, 10, 13, 14, 8, 15], null, null]
+        right_hand: ["Halfling Bard", 7, "Halfling", "Bard", 13, 38, [15, 13, 12, 14, 8, 10], null, null]
+      - name: Silverwood Ranger's Conclave
+        leader: ["Dragonborn Paladin", 10, "Dragonborn", "Paladin", 9, 55, [12, 8, 10, 14, 13, 15], null, ["Pass Without Trace:3", "Vanish:3"]]
+        right_hand: ["Human Monk", 10, "Human", "Monk", 10, 53, [14, 10, 12, 8, 15, 13], null, ["Animal Friendship:1", "Primeval Awareness:2", "Natural Explorer:1", "Hunter's Mark:2"]]
+  - name: Blacksail Archipelago
+    capital: Blacksail Archipelago City
+    align: Chaotic Evil
+    relations: {"Eldoria": "War", "Zarthus": "Neutral", "Silverwood": "Neutral"}
+    ruler: ["Dread Pirate King Kaelen", 10, "Dragonborn", "Artificer", 14, 35, [13, 14, 8, 12, 10, 15], null, null]
+    guilds:
+      - name: Blacksail Archipelago Assassin
+        leader: ["Elf Artificer", 6, "Elf", "Artificer", 13, 38, [10, 12, 14, 15, 8, 13], null, null]
+        right_hand: ["Human Druid", 10, "Human", "Druid", 12, 62, [13, 10, 14, 8, 12, 15], null, null]
+      - name: Blacksail Archipelago Thief
+        leader: ["Dragonborn Warlock", 6, "Dragonborn", "Warlock", 13, 28, [8, 13, 10, 14, 15, 12], null, null]
+        right_hand: ["Dwarf Paladin", 5, "Dwarf", "Paladin", 9, 34, [10, 8, 12, 14, 13, 15], null, null]

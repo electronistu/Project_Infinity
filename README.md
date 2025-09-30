@@ -34,9 +34,9 @@ While demonstrated within a complex gaming simulation, the architecture of Proje
 
 The engine's core design principle is the separation of the agent's rules from the world's data.
 
-*   **The Lock (`GameMaster.md`):** This file is the **Codified Agent Protocol**. It is a YAML-based schema that instructs a general LLM on how to interpret world data, manage game mechanics, and execute its core logic. The latest version is a fraction of the size of its natural language predecessor, resulting in a huge leap in token efficiency and performance.
+*   **The Lock (`GameMaster.md`):** This file is the **Codified Agent Protocol** (3.7 KiB). It is a YAML-based schema that instructs a general LLM on how to interpret world data, manage game mechanics, and execute its core logic. The protocol is LLM-agnostic, ensuring consistent agent behavior across different foundational models.
 
-*   **The Key (`output/<character_name>_weave.wwf`):** This is the **Knowledge Graph**. It is a pre-generated world-state file that contains the core, static data of a unique world and serves as the agent's single source of truth.
+*   **The Key (`output/<character_name>_weave.wwf`):** This is the **Knowledge Graph**. It is a pre-generated world-state file that contains the core, static data of a unique world. The latest version uses a schema-driven, positional array format that reduces the file size from 27.7 KiB to a highly-efficient 18.5 KiB.
 
 ## Getting Started
 
