@@ -1,11 +1,11 @@
 import noise
 import numpy as np
 
-def create_map(width=100, height=100):
-    """Creates a 100x100 map using Perlin noise and adds a pirate island."""
+def create_map(width=50, height=50):
+    """Creates a 50x50 map using Perlin noise and adds a pirate island."""
     
     # Perlin noise parameters
-    scale = 50.0
+    scale = 25.0
     octaves = 6
     persistence = 0.5
     lacunarity = 2.0
@@ -43,7 +43,7 @@ def create_map(width=100, height=100):
     grid = [['.' if world[i][j] > land_threshold else '~' for j in range(width)] for i in range(height)]
 
     # Create the pirate island
-    island_size = 20
+    island_size = 10
     island_x, island_y = width - island_size - 5, 5
     for i in range(island_y, island_y + island_size):
         for j in range(island_x, island_x + island_size):
