@@ -32,9 +32,9 @@ def generate_histories(world_state: WorldState):
 
                 template = random.choice(WAR_TEMPLATES)
                 
-                # For simplicity, we'll just grab the first interest if available
-                interest1 = "an unknown motive" # Placeholder
-                interest2 = "an unknown motive" # Placeholder
+                # Get the actual interests from the kingdom objects
+                interest1 = k1.interests[0] if k1.interests else "an unknown motive"
+                interest2 = k2.interests[0] if k2.interests else "an unknown motive"
 
                 history_entry = template.replace("<WAR_NAME>", random.choice(WAR_NAMES)) \
                                       .replace("<KINGDOM1_NAME>", k1.name) \

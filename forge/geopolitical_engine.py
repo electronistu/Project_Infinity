@@ -28,13 +28,14 @@ def assign_interests(kingdom):
 
 def determine_relations(world_state: WorldState):
     """Dynamically sets kingdom relations based on conflicting interests."""
-    # First, assign interests to all kingdoms
-    kingdom_interests = {k.name: assign_interests(k) for k in world_state.kingdoms}
+    # First, assign interests to all kingdoms and store them
+    for k in world_state.kingdoms:
+        k.interests = assign_interests(k)
 
     for i, k1 in enumerate(world_state.kingdoms):
         for k2 in world_state.kingdoms[i+1:]:
-            interests1 = set(kingdom_interests[k1.name])
-            interests2 = set(kingdom_interests[k2.name])
+            interests1 = set(k1.interests)
+            interests2 = set(k2.interests)
 
             is_at_war = False
             for interest in interests1:
