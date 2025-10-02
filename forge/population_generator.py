@@ -1,5 +1,4 @@
 from .models import Kingdom, Location, NPC, Stats
-from .name_generator import generate_name # Import the new name generator
 import random
 from .models import CharacterClass, Background, PlayerAbility, StartingEquipmentOption, Item, Skill, SpecialAbility, Equipment, Stats
 from .character_creator import calculate_modifier, ALL_SKILLS
@@ -167,7 +166,7 @@ def _generate_npc_details(level: int, role: str, faction: str, is_walker: bool, 
     cr, xp = get_cr_and_xp(level)
 
     # Generate a more specific name
-    npc_name = generate_name(context=f"{chosen_race.name} {chosen_class.name} {role}")
+    npc_name = f"{chosen_race.name} {chosen_class.name}"
     return NPC(
         name=npc_name,
         level=level,
@@ -238,7 +237,7 @@ def create_courtier_npc(kingdom_name, config):
 # --- Main Population Generator ---
 
 def populate_world(config, map_grid):
-    """Populates the world with kingdoms, capitals, settlements, and NPCs."""
+    """Populates the world with kingdoms, capitals, and NPCs with hardcoded relations."""
     kingdoms = []
 
     kingdom_defs = {
@@ -248,10 +247,17 @@ def populate_world(config, map_grid):
         "Blacksail Archipelago": {"alignment": "Chaotic Evil"}
     }
 
+    # Hardcoded relationship matrix reflecting a tense, post-war world
+    RELATIONS = {
+        "Eldoria": {"Zarthus": "Rivalry", "Silverwood": "Suspicion", "Blacksail Archipelago": "Raiding"},
+        "Zarthus": {"Eldoria": "Rivalry", "Silverwood": "Contempt", "Blacksail Archipelago": "Alliance"},
+        "Silverwood": {"Eldoria": "Suspicion", "Zarthus": "Contempt", "Blacksail Archipelago": "Raiding"},
+        "Blacksail Archipelago": {"Eldoria": "Raiding", "Zarthus": "Alliance", "Silverwood": "Raiding"}
+    }
+
     for name, data in kingdom_defs.items():
         # Create the Ruler
         ruler_level = random.randint(10, 15)
-        cr, xp = get_cr_and_xp(ruler_level)
         ruler = _generate_npc_details(
             level=ruler_level,
             role="Ruler",
@@ -264,7 +270,7 @@ def populate_world(config, map_grid):
 
         # Create the Capital City
         capital_coords = find_valid_placement(map_grid, (8, 8))
-        if not capital_coords: continue # Skip kingdom if no place for capital
+        if not capital_coords: continue
         
         capital_city = Location(
             name=f"{name} City", coordinates=capital_coords, biome="Plains",
@@ -280,33 +286,9 @@ def populate_world(config, map_grid):
         # Create the Kingdom
         kingdom = Kingdom(
             name=name, capital=capital_city.name, alignment=data["alignment"], 
-            ruler=ruler, locations=[capital_city]
+            ruler=ruler, locations=[capital_city],
+            relations=RELATIONS[name]
         )
-
-        # Generate Smaller Settlements
-        existing_location_names = [loc.name for loc in kingdom.locations]
-        num_settlements = random.randint(2, 4)
-        for i in range(num_settlements):
-            settlement_coords = find_valid_placement(map_grid, (3, 3))
-            if settlement_coords:
-                settlement_name = generate_name(kingdom.name, existing_location_names)
-                existing_location_names.append(settlement_name)
-                
-                num_settlement_npcs = random.randint(3, 5) # Increased NPC count per settlement
-                settlement_npcs = []
-                for _ in range(num_settlement_npcs):
-                    settlement_npc = create_settlement_npc(random.choice(["Innkeeper", "Blacksmith", "Farmer"]), config)
-                    settlement_npcs.append(settlement_npc)
-
-                settlement = Location(
-                    name=settlement_name,
-                    coordinates=settlement_coords, 
-                    biome="Plains",
-                    description=f"A small settlement in the realm of {name}.",
-                    npcs=settlement_npcs
-                )
-                kingdom.locations.append(settlement)
-        
         kingdoms.append(kingdom)
 
     return kingdoms

@@ -205,7 +205,6 @@ class Kingdom(BaseModel):
     locations: List[Location] = []
     guilds: List[Guild] = []
     relations: Dict[str, str] = {} # Will be updated by UFP engine
-    interests: List[str] = []
 
 class WorldState(BaseModel):
     player_character: PlayerCharacter

@@ -5,8 +5,6 @@ from forge.character_creator import create_character, create_debug_character
 from forge.map_generator import create_map
 from forge.population_generator import populate_world
 from forge.guild_generator import create_guilds
-from forge.geopolitical_engine import determine_relations
-from forge.history_generator import generate_histories
 from forge.formatter import format_world_to_wwf
 from forge.models import WorldState
 
@@ -29,18 +27,20 @@ def main():
     kingdoms = populate_world(config, map_grid)
     create_guilds(kingdoms, config)
 
+    world_history = [
+        "The War of the Ashen Crown, a bitter conflict ignited by Zarthus's expansionism, ended a decade ago in a fragile truce. The cities of Eldoria still bear the scars, and its people have long memories.",
+        "During the war, the Blacksail Archipelago allied with Zarthus, preying on Eldorian shipping lanes. Though the war is over, their piracy continues, a constant thorn in the side of all civilized kingdoms.",
+        "Silverwood's staunch neutrality during the war earned it no friends. Eldoria views them with suspicion for not aiding their cause, while Zarthus holds them in contempt for refusing to bow to their power.",
+        "An uneasy peace now holds between Eldoria and Zarthus. It is not a peace of friendship, but a bitter rivalry of two great powers rebuilding their strength, each waiting for the other to show a sign of weakness."
+    ]
+
     world_state = WorldState(
         player_character=player_character,
         map_grid=map_grid,
         kingdoms=kingdoms,
-        current_tick="06:00"
+        current_tick="06:00",
+        world_history=world_history
     )
-
-    # Determine kingdom relations based on the UFP Engine
-    determine_relations(world_state)
-
-    # Generate narrative history based on the L.I.C. Engine
-    generate_histories(world_state)
 
     output_dir = "output"
     output_filename = f"{player_character.name.lower().replace(' ', '_')}_weave.wwf"
