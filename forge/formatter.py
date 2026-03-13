@@ -57,6 +57,14 @@ def format_world_to_wwf(world_state: WorldState, output_path: str):
     # --- Map, Time, History ---
     output.append("map:")
     output.append(f"  size: {len(world_state.map_grid[0])}x{len(world_state.map_grid)}")
+    
+    legend = {".": "Water"}
+    for k in world_state.kingdoms:
+        legend[k.name[0]] = f"{k.name} Capital"
+        legend[k.name[0].lower()] = f"{k.name} Territory"
+    output.append(f"  legend: {json.dumps(legend)}")
+    
+    output.append("  coordinate_system: \"[x, y] from top-left (0,0), x goes right, y goes down\"")
     output.append("  grid: |\n    " + "\n    ".join("".join(row) for row in world_state.map_grid))
     output.append(f"time: {world_state.current_tick}")
     output.append("history:")

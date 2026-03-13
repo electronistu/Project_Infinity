@@ -40,7 +40,7 @@ def create_map(width=50, height=50):
     land_threshold = -0.1
 
     # Create the map grid
-    grid = [['.' if world[i][j] > land_threshold else '~' for j in range(width)] for i in range(height)]
+    grid = [['~' if world[i][j] > land_threshold else '.' for j in range(width)] for i in range(height)]
 
     # Create the pirate island
     island_size = 10
@@ -48,6 +48,6 @@ def create_map(width=50, height=50):
     for i in range(island_y, island_y + island_size):
         for j in range(island_x, island_x + island_size):
             if i >= 0 and i < height and j >= 0 and j < width:
-                grid[i][j] = '.'
+                grid[i][j] = '~'
 
     return grid

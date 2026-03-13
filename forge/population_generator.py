@@ -35,7 +35,7 @@ def find_valid_placement(map_grid, area_size=(5, 5)):
     for r in range(5, height - area_size[1] - 5):
         for c in range(5, width - area_size[0] - 5):
             is_valid = all(
-                map_grid[r + i][c + j] == '.' 
+                map_grid[r + i][c + j] == '~' 
                 for i in range(area_size[1]) 
                 for j in range(area_size[0])
             )
@@ -272,6 +272,10 @@ def populate_world(config, map_grid):
         capital_coords = find_valid_placement(map_grid, (8, 8))
         if not capital_coords: continue
         
+        c_x, c_y = capital_coords
+        capital_char = name[0]
+        map_grid[c_y][c_x] = capital_char
+
         capital_city = Location(
             name=f"{name} City", coordinates=capital_coords, biome="Plains",
             description=f"The bustling capital of {name}.", npcs=[ruler]
@@ -290,5 +294,26 @@ def populate_world(config, map_grid):
             relations=RELATIONS[name]
         )
         kingdoms.append(kingdom)
+
+    # Assign borders (territory) based on closest capital
+    height = len(map_grid)
+    width = len(map_grid[0])
+    
+    caps = []
+    for k in kingdoms:
+        if k.locations:
+            caps.append((k.locations[0].coordinates[0], k.locations[0].coordinates[1], k.name[0]))
+            
+    for y in range(height):
+        for x in range(width):
+            if map_grid[y][x] == '~':
+                min_dist = float('inf')
+                closest_char = '~'
+                for cx, cy, kchar in caps:
+                    dist = (x - cx)**2 + (y - cy)**2
+                    if dist < min_dist:
+                        min_dist = dist
+                        closest_char = kchar.lower()
+                map_grid[y][x] = closest_char
 
     return kingdoms
