@@ -84,3 +84,4 @@ The `.wwf` (World Weave Format) uses a schema-driven, positional array format to
 - **Data Validation**: Pydantic
 - **Configuration**: PyYAML
 - **Procedural Generation**: NumPy
+- **TUI & Connectivity**: Rich, Ollama
