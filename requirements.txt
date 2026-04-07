@@ -1,3 +1,5 @@
 pydantic
 pyyaml
 numpy
+ollama
+rich
