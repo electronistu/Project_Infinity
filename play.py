@@ -12,7 +12,10 @@ from rich.theme import Theme
 from rich.padding import Padding
 
 # Configuration
-MODEL = "gemma4:31b-cloud"
+AVAILABLE_MODELS = [
+    "gemma4:31b-cloud",
+    "qwen3.5:cloud",
+]
 LOCK_FILE = "GameMaster.md"
 OUTPUT_DIR = "output"
 TEMP = 0.0
@@ -44,6 +47,36 @@ def render_gm_text(text):
     
     return "\n".join(lines)
 
+def select_model():
+    """TUI for selecting the LLM model."""
+    console.print(Panel("[bold magenta] Infinity Project: LLM Selection [/bold magenta]", expand=False))
+    for i, model in enumerate(AVAILABLE_MODELS):
+        console.print(f"[cyan]{i+1}[/cyan] {model}")
+    
+    choice = Prompt.ask("\n[bold white]Select an LLM (number)[/bold white]", default="1")
+    try:
+        idx = int(choice) - 1
+        selected_model = AVAILABLE_MODELS[idx]
+        
+        console.print(f"\n[yellow]Validating model availability...[/yellow]")
+        try:
+            models_response = ollama.list()
+            available_model_names = [m.model for m in models_response.models]
+            
+            if selected_model not in available_model_names:
+                console.print(f"[bold red]Error:[/bold red] Model '{selected_model}' is not available in Ollama.")
+                console.print("[yellow]Please ensure Ollama is running and the model is downloaded.[/yellow]")
+                sys.exit(1)
+        except Exception as e:
+            console.print(f"[yellow]Could not validate model: {e}[/yellow]")
+            console.print("[yellow]Proceeding anyway...[/yellow]")
+        
+        console.print(Panel(f"[bold green]Model validated:[/bold green] {selected_model}", border_style="green"))
+        return selected_model
+    except (ValueError, IndexError):
+        console.print("[red]Invalid selection. Defaulting to first model.[/red]")
+        return AVAILABLE_MODELS[0]
+
 def select_wwf():
     """TUI for selecting the world file."""
     files = get_wwf_files()
@@ -64,17 +97,20 @@ def select_wwf():
         return os.path.join(OUTPUT_DIR, files[0])
 
 def main():
-    # 1. World File Selection
+    # 1. LLM Model Selection
+    model = select_model()
+    
+    # 2. World File Selection
     wwf_path = select_wwf()
     console.print(f"\n[green]Selected world:[/green] {wwf_path}")
     
-    # 2. Load Files
+    # 3. Load Files
     with open(LOCK_FILE, "r") as f:
         lock_content = f.read()
     with open(wwf_path, "r") as f:
         key_content = f.read()
 
-    # 3. Initialize Ollama Session
+    # 4. Initialize Ollama Session
     messages = []
     
     # BOOT SEQUENCE - STEP 1: Provide the Lock
@@ -82,7 +118,7 @@ def main():
     messages.append({"role": "user", "content": lock_content})
     
     response = ollama.chat(
-        model=MODEL,
+        model=model,
         messages=messages,
         options={"temperature": TEMP}
     )
@@ -101,7 +137,7 @@ def main():
     messages.append({"role": "user", "content": key_content})
     
     response = ollama.chat(
-        model=MODEL,
+        model=model,
         messages=messages,
         options={"temperature": TEMP}
     )
@@ -129,7 +165,7 @@ def main():
         
         with console.status("[bold blue]GM is thinking...[/bold blue]"):
             response = ollama.chat(
-                model=MODEL,
+                model=model,
                 messages=messages,
                 options={"temperature": TEMP}
             )

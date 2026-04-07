@@ -16,7 +16,9 @@ For the most immersive experience, use the built-in game client. This provides a
 **Requirements:**
 - Python 3.8+
 - [Ollama](https://ollama.ai/) installed and running.
-- The `gemma4:31b-cloud` model downloaded via Ollama.
+- At least one of the supported models downloaded via Ollama:
+  - `gemma4:31b-cloud` (recommended for best results)
+  - `qwen3.5:cloud`
 
 **Quick Start:**
 1. Install dependencies:
@@ -27,7 +29,8 @@ For the most immersive experience, use the built-in game client. This provides a
    ```bash
    python3 play.py
    ```
-3. Select your desired world (`.wwf` file) from the list and begin your adventure.
+3. Select your preferred LLM from the available models.
+4. Select your desired world (`.wwf` file) from the list and begin your adventure.
 
 ### Option 2: The Universal Experience (Manual)
 You can play Project Infinity with any capable LLM (such as Gemini, ChatGPT, or Mistral) by manually providing the "Lock" and the "Key".
@@ -56,10 +59,7 @@ Follow the interactive prompts to create your character. The Forge will then pro
 ## 🌟 Player's Guide for Best Results
 
 - **Temperature 0**: For maximum consistency and adherence to game rules, set your LLM's **Temperature to 0**.
-- **Model Personalities**: Different models interpret the protocol differently:
-    - **Gemini**: The Cinematic Narrator (immersive and descriptive).
-    - **ChatGPT**: The Interactive Guide (gamified and structured).
-    - **Mistral**: The World Simulator (data-rich and tactical).
+- **Model Selection**: The GameMaster's personality and output quality depend on the model you choose. Generally, larger models produce richer, more coherent narratives and better rule adherence.
 
 ---
 
