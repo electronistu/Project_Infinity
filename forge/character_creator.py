@@ -91,26 +91,40 @@ ARTIFICER_SPELL_SLOTS = {
 
 # --- Helper Functions ---
 
-def get_player_input(prompt: str, valid_options: list = None, is_numeric: bool = False):
+def get_player_input(prompt: str, valid_options: list = None, is_numeric: bool = False, range_min: int = None, range_max: int = None):
     """Generic function to get validated user input."""
     while True:
         user_input = input(prompt).strip()
         
         if is_numeric:
             if user_input.isdigit():
-                return int(user_input)
+                val = int(user_input)
+                if range_min is not None and val < range_min:
+                    print(f"Invalid input. Minimum value is {range_min}.")
+                    continue
+                if range_max is not None and val > range_max:
+                    print(f"Invalid input. Maximum value is {range_max}.")
+                    continue
+                return val
             else:
                 print("Invalid input. Please enter a number.")
         elif valid_options:
-            if user_input.lower() in [str(opt).lower() for opt in valid_options]:
-                return user_input
-            else:
-                print(f"Invalid choice. Please select from: {', '.join(map(str, valid_options))}")
+            # Find the original option that matches the lowercase input
+            for opt in valid_options:
+                if user_input.lower() == str(opt).lower():
+                    return opt
+            print(f"Invalid choice. Please select from: {', '.join(map(str, valid_options))}")
         else:
+            if not user_input:
+                print("Input cannot be empty.")
+                continue
             return user_input
 
 def select_from_list(prompt: str, options: list, display_key='name'):
     """Helper to present a list and get a numbered choice."""
+    if not options:
+        return None
+
     print(f"\n--- {prompt} ---")
     for i, option in enumerate(options):
         if display_key is None:
@@ -118,7 +132,15 @@ def select_from_list(prompt: str, options: list, display_key='name'):
         else:
             print(f"{i + 1}. {getattr(option, display_key) if hasattr(option, display_key) else option}")
     
-    choice_index = get_player_input(f"Select a {prompt.lower()[:-1]}: ", [str(i + 1) for i in range(len(options))], is_numeric=True) - 1
+    # Dynamically determine the noun for the prompt (e.g., "Choose your Race" -> "race")
+    noun = prompt.replace("Choose your ", "").lower()
+    
+    choice_index = get_player_input(
+        f"Select a {noun}: ", 
+        is_numeric=True, 
+        range_min=1, 
+        range_max=len(options)
+    ) - 1
     return options[choice_index]
 
 def calculate_modifier(stat_value: int) -> int:
@@ -178,12 +200,8 @@ def create_character(config: Config) -> PlayerCharacter:
         while True:
             points_remaining = 27 - points_spent
             print(f"\nPoints remaining: {points_remaining}")
-            value = get_player_input(f"Set {stat.upper()} (8-15): ", [str(i) for i in range(8, 16)], is_numeric=True)
+            value = get_player_input(f"Set {stat.upper()} (8-15): ", is_numeric=True, range_min=8, range_max=15)
             
-            if value < 8 or value > 15:
-                print("Stat value must be between 8 and 15.")
-                continue
-
             current_stat_cost = point_costs.get(base_stats[stat], 0)
             new_stat_cost = point_costs.get(value, 0)
             potential_points_spent = points_spent - current_stat_cost + new_stat_cost
@@ -193,7 +211,7 @@ def create_character(config: Config) -> PlayerCharacter:
                 points_spent = potential_points_spent
                 break
             else:
-                print("Not enough points!")
+                print(f"Not enough points! This change would cost {new_stat_cost} points, but you only have {points_remaining} left (after accounting for the {current_stat_cost} you'd get back).")
     
     final_stats = base_stats.copy()
     for increase in chosen_race.ability_score_increases:
@@ -241,8 +259,9 @@ def create_character(config: Config) -> PlayerCharacter:
         for option_group in chosen_class.starting_equipment_options:
             if option_group.choose_one_from:
                 chosen_item_name = select_from_list("Choose one item", option_group.choose_one_from, display_key=None)
-                player_equipment.inventory.append(Item(name=chosen_item_name, item_type="misc"))
-                print(f"Added {chosen_item_name}")
+                if chosen_item_name:
+                    player_equipment.inventory.append(Item(name=chosen_item_name, item_type="misc"))
+                    print(f"Added {chosen_item_name}")
             if option_group.fixed_items:
                 for item_name in option_group.fixed_items:
                     player_equipment.inventory.append(Item(name=item_name, item_type="misc"))
@@ -254,8 +273,9 @@ def create_character(config: Config) -> PlayerCharacter:
         for option_group in chosen_background.starting_equipment_options:
             if option_group.choose_one_from:
                 chosen_item_name = select_from_list("Choose one item", option_group.choose_one_from, display_key=None)
-                player_equipment.inventory.append(Item(name=chosen_item_name, item_type="misc"))
-                print(f"Added {chosen_item_name}")
+                if chosen_item_name:
+                    player_equipment.inventory.append(Item(name=chosen_item_name, item_type="misc"))
+                    print(f"Added {chosen_item_name}")
             if option_group.fixed_items:
                 for item_name in option_group.fixed_items:
                     player_equipment.inventory.append(Item(name=item_name, item_type="misc"))

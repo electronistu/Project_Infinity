@@ -269,7 +269,27 @@ def populate_world(config, map_grid):
         ruler.dialogue_options = [f"I am the ruler of {name}.", "State your business."]
 
         # Create the Capital City
-        capital_coords = find_valid_placement(map_grid, (8, 8))
+        if name == "Blacksail Archipelago":
+            # Force capital to be placed within the pirate island area
+            # Pirate Island: x=width-15 to width-5, y=5 to 15 (approx)
+            width = len(map_grid[0])
+            height = len(map_grid)
+            island_x, island_y = width - 15, 5
+            island_size = 10
+            
+            possible_spots = []
+            for r in range(island_y, island_y + island_size):
+                for c in range(island_x, island_x + island_size):
+                    if 0 <= r < height and 0 <= c < width and map_grid[r][c] in ['~', 'b']:
+                        possible_spots.append((c, r))
+            
+            if possible_spots:
+                capital_coords = random.choice(possible_spots)
+            else:
+                capital_coords = find_valid_placement(map_grid, (2, 2)) # Fallback
+        else:
+            capital_coords = find_valid_placement(map_grid, (8, 8))
+
         if not capital_coords: continue
         
         c_x, c_y = capital_coords

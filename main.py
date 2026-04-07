@@ -47,8 +47,5 @@ def main():
     output_path = os.path.abspath(os.path.join(output_dir, output_filename))
     format_world_to_wwf(world_state, output_path)
 
-    print("\n--- World Forge Complete! ---\n")
-    print(f"Your world has been saved to: {output_path}")
-
 if __name__ == "__main__":
     main()
