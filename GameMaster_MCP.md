@@ -59,12 +59,12 @@ systems:
   checks:
     dc_levels: {easy: 10, medium: 15, hard: 20}
     roll_engine: MCP_TOOL
-    required_tool: roll_d20
+    required_tool: perform_check
     execution_protocol:
-      - MUST use the `roll_d20` tool for every single dice roll.
-      - NEVER simulate or guess a roll.
+      - MUST use the `perform_check` tool for every check.
+      - NEVER simulate the calculation or the roll.
+      - MUST output the tool's result exactly, including the formula ({roll} + {mod}), to the user.
       - Use the tool result as the absolute truth for the check.
-    criticals: {success: 20, failure: 1}
     output_format: "{check}: {total} vs {dc} ({result}) ({d20} + {mod})"
   combat:
     protocol: DND_5E_TURN_BASED

@@ -11,7 +11,7 @@ Project Infinity is a sophisticated, procedural world-generation engine and AI a
 Depending on your setup, you can choose between two ways to experience the world.
 
 ### Option 1: The Automated Experience (Recommended)
-For the most immersive experience, use the built-in game client. This provides a high-fidelity, colored TUI (Terminal User Interface) and handles the "boot sequence" automatically. This mode utilizes an external MCP server for verified, fair dice rolling, ensuring total fairness and preventing LLM "hallucinated" results.
+For the most immersive experience, use the built-in game client. This provides a high-fidelity, colored TUI (Terminal User Interface) and handles the "boot sequence" automatically. This mode utilizes an external MCP server for verified, fair dice rolling and rule enforcement, ensuring total fairness and preventing LLM "hallucinated" results.
 
 **Requirements:**
 - Python 3.8+
@@ -19,7 +19,6 @@ For the most immersive experience, use the built-in game client. This provides a
 - At least one of the supported models downloaded via Ollama:
   - `gemma4:31b-cloud`
   - `qwen3.5:cloud`
-- `mcp` Python SDK
 
 **Quick Start:**
 1. Install dependencies:
@@ -37,7 +36,7 @@ For the most immersive experience, use the built-in game client. This provides a
 You can play Project Infinity with any capable LLM (such as Gemini, ChatGPT, or Mistral) by manually providing the "Lock" and the "Key".
 
 **The Process:**
-1. **The Lock**: Copy and paste the entire contents of `GameMaster.md` into your AI chat. **Note:** Use `GameMaster.md` and NOT `GameMaster_MCP.md` for manual play, as standard chat interfaces cannot communicate with the MCP dice server.
+1. **The Lock**: Copy and paste the entire contents of `GameMaster.md` into your AI chat. **Note:** Use `GameMaster.md` and NOT `GameMaster_MCP.md` for manual play, as standard chat interfaces cannot communicate with the MCP server.
 2. **The Key**: Provide the contents of a world file from the `output/` directory (e.g., `electronistu_weave.wwf`).
 
 **💡 Understanding the Mechanics Difference:**
@@ -77,11 +76,11 @@ Rather than relying on the LLM's internal memory, the engine uses a **World Forg
 ### The Codified Agent Protocol
 The protocol (`The Lock`) is not a prompt, but a YAML-based schema. The TUI client uses `GameMaster_MCP.md` to enable external tool integration. It defines:
 - **State Machine**: `DORMANT` -> `AWAKENING` -> `ACTIVE`.
-- **Mechanics**: Strict D&D 5E rules.
+- **Mechanics**: Strict D&D 5E rules, with a mandated transparent roll formula (Roll + Modifier) for all complexity checks.
 - **Narrative Driver**: The **L.I.C. (Logic, Imagination, Coincidence) Matrix**, which guides the AI to weave grounded facts with emergent storytelling.
 
 ### MCP-Powered Mechanics
-To eliminate "LLM luck" and hallucinations, the automated experience uses the **Model Context Protocol (MCP)**. This offloads critical game logic (like d20 dice rolling) to a dedicated Python server, ensuring that every roll is mathematically random and externally verified.
+To eliminate "LLM luck" and hallucinations, the automated experience uses the **Model Context Protocol (MCP)**. This offloads critical game logic—such as Complexity Checks (d20 rolls, modifier additions, and DC comparisons)—to a dedicated Python server. This ensures that every mechanical result is mathematically accurate, externally verified, and transparent to the player.
 
 ### Hyper-Efficient Data Schema
 The `.wwf` (World Weave Format) uses a schema-driven, positional array format to minimize token usage, reducing world-state files significantly while maintaining a deep level of detail for NPCs and guilds.
