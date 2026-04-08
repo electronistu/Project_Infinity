@@ -1,5 +1,6 @@
 import os
 import sys
+import asyncio
 import ollama
 from rich.console import Console
 from rich.panel import Panel
@@ -10,15 +11,21 @@ from rich.live import Live
 from rich.layout import Layout
 from rich.theme import Theme
 from rich.padding import Padding
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
 
 # Configuration
 AVAILABLE_MODELS = [
     "gemma4:31b-cloud",
     "qwen3.5:cloud",
 ]
-LOCK_FILE = "GameMaster.md"
+LOCK_FILE = "GameMaster_MCP.md"
 OUTPUT_DIR = "output"
 TEMP = 0.0
+SERVER_PARAMS = StdioServerParameters(
+    command="python3",
+    args=["dice_server.py"],
+)
 
 console = Console()
 
@@ -96,7 +103,7 @@ def select_wwf():
         console.print("[red]Invalid selection. Defaulting to first file.[/red]")
         return os.path.join(OUTPUT_DIR, files[0])
 
-def main():
+async def main():
     # 1. LLM Model Selection
     model = select_model()
     
@@ -110,79 +117,103 @@ def main():
     with open(wwf_path, "r") as f:
         key_content = f.read()
 
-    # 4. Initialize Ollama Session
-    messages = []
-    
-    # BOOT SEQUENCE - STEP 1: Provide the Lock
-    console.print("\n[yellow]Loading Agent Protocol (The Lock)...[/yellow]")
-    messages.append({"role": "user", "content": lock_content})
-    
-    response = ollama.chat(
-        model=model,
-        messages=messages,
-        options={"temperature": TEMP}
-    )
-    
-    response_text = response['message']['content']
-    messages.append({"role": "assistant", "content": response_text})
-    
-    # Check for "Awaiting Key..."
-    if "Awaiting Key..." in response_text:
-        console.print(Panel("[bold green]SOCIALLY VERIFIED:[/bold green] Model is awaiting the key.", border_style="green"))
-    else:
-        console.print(Panel("[bold yellow]SOCIALLY UNVERIFIED:[/bold yellow] Model did not respond with 'Awaiting Key...', but proceeding anyway.", border_style="yellow"))
-
-    # BOOT SEQUENCE - STEP 2: Provide the Key
-    console.print("\n[yellow]Injecting World Data (The Key)...[/yellow]")
-    messages.append({"role": "user", "content": key_content})
-    
-    response = ollama.chat(
-        model=model,
-        messages=messages,
-        options={"temperature": TEMP}
-    )
-    
-    response_text = response['message']['content']
-    messages.append({"role": "assistant", "content": response_text})
-    
-    console.print(Panel(
-        Padding(render_gm_text(response_text), (1, 1)), 
-        title="[bold magenta]The Game Master Awakens[/bold magenta]", 
-        border_style="magenta"
-    ))
-
-    # 4. Game Loop
-    console.print("\n[bold cyan]--- Game Started. Type 'quit' or 'exit' to leave. ---[/bold cyan]\n")
-    
-    while True:
-        user_input = Prompt.ask("[bold white]Your Action[/bold white]")
-        
-        if user_input.lower() in ["quit", "exit"]:
-            console.print("[yellow]Closing connection to the void... Goodbye.[/yellow]")
-            break
+    # 4. Setup MCP Client and Ollama Tools
+    async with stdio_client(SERVER_PARAMS) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
             
-        messages.append({"role": "user", "content": user_input})
-        
-        with console.status("[bold blue]GM is thinking...[/bold blue]"):
-            response = ollama.chat(
-                model=model,
-                messages=messages,
-                options={"temperature": TEMP}
-            )
+            # Fetch tools from MCP server to present to Ollama
+            mcp_tools = await session.list_tools()
+            ollama_tools = []
+            for tool in mcp_tools.tools:
+                ollama_tools.append({
+                    "type": "function",
+                    "function": {
+                        "name": tool.name,
+                        "description": tool.description,
+                        "parameters": tool.inputSchema
+                    }
+                })
+
+            messages = []
             
-        gm_response = response['message']['content']
-        messages.append({"role": "assistant", "content": gm_response})
-        
-        console.print(Panel(
-            Padding(render_gm_text(gm_response), (1, 1)), 
-            title="[bold magenta]Game Master[/bold magenta]", 
-            border_style="magenta"
-        ))
-        console.print("\n")
+            async def chat_with_tools(role_content):
+                nonlocal messages
+                if isinstance(role_content, str):
+                    messages.append({"role": "user", "content": role_content})
+                else:
+                    messages.append(role_content)
+
+                while True:
+                    response = ollama.chat(
+                        model=model,
+                        messages=messages,
+                        tools=ollama_tools,
+                        options={"temperature": TEMP}
+                    )
+                    
+                    response_msg = response['message']
+                    messages.append(response_msg)
+
+                    if not response_msg.get('tool_calls'):
+                        return response_msg['content']
+
+                    for tool_call in response_msg['tool_calls']:
+                        tool_name = tool_call['function']['name']
+                        tool_args = tool_call['function']['arguments']
+                        
+                        # Call MCP tool
+                        result = await session.call_tool(tool_name, arguments=tool_args)
+                        
+                        messages.append({
+                            "role": "tool",
+                            "content": str(result.content),
+                            "name": tool_name
+                        })
+
+            # BOOT SEQUENCE - STEP 1: Provide the Lock
+            console.print("\n[yellow]Loading Agent Protocol (The Lock)...[/yellow]")
+            response_text = await chat_with_tools(lock_content)
+            
+            # Check for "Awaiting Key..."
+            if "Awaiting Key..." in response_text:
+                console.print(Panel("[bold green]SOCIALLY VERIFIED:[/bold green] Model is awaiting the key.", border_style="green"))
+            else:
+                console.print(Panel("[bold yellow]SOCIALLY UNVERIFIED:[/bold yellow] Model did not respond with 'Awaiting Key...', but proceeding anyway.", border_style="yellow"))
+
+            # BOOT SEQUENCE - STEP 2: Provide the Key
+            console.print("\n[yellow]Injecting World Data (The Key)...[/yellow]")
+            response_text = await chat_with_tools(key_content)
+            
+            console.print(Panel(
+                Padding(render_gm_text(response_text), (1, 1)), 
+                title="[bold magenta]The Game Master Awakens[/bold magenta]", 
+                border_style="magenta"
+            ))
+
+            # 4. Game Loop
+            console.print("\n[bold cyan]--- Game Started. Type 'quit' or 'exit' to leave. ---[/bold cyan]\n")
+            
+            while True:
+                user_input = Prompt.ask("[bold white]Your Action[/bold white]")
+                
+                if user_input.lower() in ["quit", "exit"]:
+                    console.print("[yellow]Closing connection to the void... Goodbye.[/yellow]")
+                    break
+                
+                with console.status("[bold blue]GM is thinking...[/bold blue]"):
+                    gm_response = await chat_with_tools(user_input)
+                
+                console.print(Panel(
+                    Padding(render_gm_text(gm_response), (1, 1)), 
+                    title="[bold magenta]Game Master[/bold magenta]", 
+                    border_style="magenta"
+                ))
+                console.print("\n")
 
 if __name__ == "__main__":
     try:
-        main()
+        asyncio.run(main())
     except KeyboardInterrupt:
         console.print("\n[yellow]Interrupted by user. Exiting...[/yellow]")
         sys.exit(0)
