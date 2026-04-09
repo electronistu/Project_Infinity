@@ -1,11 +1,12 @@
 import random
+import sys
 from mcp.server.fastmcp import FastMCP
 
-# Initialize FastMCP server
-mcp = FastMCP("InfinityRolls")
+# FastMCP handles logging internally, but this guarantees stderr usage
+mcp = FastMCP("InfinityRolls", log_level="WARNING")
 
 @mcp.tool()
-def perform_check(modifier: int, dc: int, check_name: str = "Check") -> str:
+def perform_check(modifier: int, dc: int, check_name: str = "Check") -> dict:
     """
     Performs a D&D 5E complexity check.
     :param modifier: The bonus added to the roll.
@@ -14,7 +15,7 @@ def perform_check(modifier: int, dc: int, check_name: str = "Check") -> str:
     """
     roll = random.randint(1, 20)
     total = roll + modifier
-    
+   
     if roll == 20:
         result = "Critical Success"
     elif roll == 1:
@@ -23,8 +24,17 @@ def perform_check(modifier: int, dc: int, check_name: str = "Check") -> str:
         result = "Success"
     else:
         result = "Failure"
-        
-    return f"{check_name}: {total} vs {dc} ({result}) ({roll} + {modifier})"
+       
+    # Returning a dictionary allows the AI to parse the exact variables
+    # perfectly without having to read a formatted sentence.
+    return {
+        "check_name": check_name,
+        "base_roll": roll,
+        "modifier": modifier,
+        "total": total,
+        "dc_to_beat": dc,
+        "outcome": result
+    }
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")
