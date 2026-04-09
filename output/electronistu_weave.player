@@ -1,0 +1,59 @@
+{
+  "name": "electronistu",
+  "level": 1,
+  "xp": 0,
+  "gold": 100,
+  "character_class": "Wizard",
+  "race": "Elf",
+  "background": "Criminal",
+  "alignment": "Chaotic Neutral",
+  "armor_class": 10,
+  "hit_points": 6,
+  "speed": 30,
+  "stats": {
+    "str": 8,
+    "dex": 17,
+    "con": 11,
+    "int": 15,
+    "wis": 11,
+    "cha": 11
+  },
+  "proficiency_bonus": 2,
+  "skills": [
+    "Deception",
+    "Investigation",
+    "Perception",
+    "Stealth",
+    "Arcana"
+  ],
+  "saves": [],
+  "features": [
+    "Darkvision",
+    "Fey Ancestry",
+    "Trance",
+    "Spellcasting",
+    "Arcane Recovery"
+  ],
+  "inventory": [],
+  "spellcasting": {
+    "ability": "intelligence",
+    "dc": 12,
+    "attack_modifier": 4,
+    "cantrips": [
+      "Fire Bolt",
+      "Light",
+      "Mage Hand"
+    ],
+    "spells": [
+      "Magic Missile",
+      "Shield",
+      "Burning Hands",
+      "Charm Person",
+      "Detect Magic",
+      "Sleep"
+    ],
+    "slots": {
+      "1": 2
+    }
+  }
+}

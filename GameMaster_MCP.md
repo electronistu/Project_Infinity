@@ -59,13 +59,20 @@ systems:
   checks:
     dc_levels: {easy: 10, medium: 15, hard: 20}
     roll_engine: MCP_TOOL
-    required_tool: perform_check
+    required_tools: [perform_check, dump_player_db, get_player_stat, update_player_stat, modify_player_numeric, update_player_list]
     execution_protocol:
-      - MUST use the `perform_check` tool for every check.
+      # Part 1: Mechanical Checks (The Roll Engine)
+      - MUST use `perform_check` for every complexity check.
       - NEVER simulate the calculation or the roll.
       - MUST output the tool's result exactly, including the formula ({roll} + {mod}), to the user.
       - Use the tool result as the absolute truth for the check.
-    output_format: "{check}: {total} vs {dc} ({result}) ({d20} + {mod})"
+      - output_format: "{check}: {total} vs {dc} ({result}) ({d20} + {mod})"
+      
+      # Part 2: State Management (The SQLite DB)
+      - MUST use `get_player_stat` for quick checks of specific attributes (Level, Gold, XP, etc.) to minimize token noise.
+      - MUST use `dump_player_db` to synchronize the current world state with the in-memory SQLite database when a full state refresh is required.
+      - MUST use `update_player_stat`, `modify_player_numeric`, or `update_player_list` to reflect any changes in player state (e.g. HP, XP, Level, Gold, Inventory) immediately as they occur in the narrative.
+      
   combat:
     protocol: DND_5E_TURN_BASED
   progression:

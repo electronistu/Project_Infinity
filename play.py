@@ -111,6 +111,8 @@ async def main():
     wwf_path = select_wwf()
     console.print(f"\n[green]Selected world:[/green] {wwf_path}")
     
+    player_path = wwf_path.replace(".wwf", ".player")
+    
     # 3. Load Files
     with open(LOCK_FILE, "r") as f:
         lock_content = f.read()
@@ -122,6 +124,14 @@ async def main():
         async with ClientSession(read, write) as session:
             await session.initialize()
             
+            # Initialize Player Database in Dice Server
+            console.print("\n[yellow]Initializing Player Database in Dice Server...[/yellow]")
+            try:
+                init_result = await session.call_tool("init_player_db", arguments={"player_file_path": player_path})
+                console.print(f"[bold green]DB Status:[/bold green] {init_result.content}")
+            except Exception as e:
+                console.print(f"[bold red]DB Initialization Error:[/bold red] {e}")
+
             # Fetch tools from MCP server to present to Ollama
             mcp_tools = await session.list_tools()
             ollama_tools = []

@@ -16,8 +16,46 @@ def get_npc_array(npc: NPC) -> list:
     abilities = [f"{a.name}:{a.tier}" for a in npc.abilities_for_sale] if npc.abilities_for_sale else None
     return [npc.level, npc.race, npc.character_class, npc.armor_class, npc.hit_points, stats_array, True if npc.is_walker else None, abilities]
 
+def get_player_json(pc) -> str:
+    """Converts the player character to a JSON string for SQLite compatibility."""
+    player_data = {
+        "name": pc.name,
+        "level": pc.level,
+        "xp": pc.xp,
+        "gold": pc.gold,
+        "character_class": pc.character_class,
+        "race": pc.race,
+        "background": pc.background,
+        "alignment": pc.alignment,
+        "armor_class": pc.armor_class,
+        "hit_points": pc.hit_points,
+        "speed": pc.speed,
+        "stats": {
+            "str": pc.stats.strength,
+            "dex": pc.stats.dexterity,
+            "con": pc.stats.constitution,
+            "int": pc.stats.intelligence,
+            "wis": pc.stats.wisdom,
+            "cha": pc.stats.charisma
+        },
+        "proficiency_bonus": pc.proficiency_bonus,
+        "skills": [s.name for s in pc.skills if s.proficient],
+        "saves": [s.name for s in pc.saving_throws if s.proficient],
+        "features": [f.name for f in pc.features_and_traits],
+        "inventory": [item.name for item in pc.equipment.inventory],
+    }
+    if pc.spellcasting_ability:
+        player_data["spellcasting"] = {
+            "ability": pc.spellcasting_ability,
+            "dc": pc.spell_save_dc,
+            "attack_modifier": pc.spell_attack_modifier,
+            "cantrips": pc.cantrips_known,
+            "spells": pc.spells_known,
+            "slots": pc.spell_slots
+        }
+    return json.dumps(player_data, indent=2)
+
 def format_world_to_wwf(world_state: WorldState, output_path: str):
-    """Serializes the WorldState to a schema-driven compact .wwf file."""
     output = []
     output.append("// WWF v4.0 //")
     output.append("// SCHEMA-DRIVEN COMPACT FORMAT //\n")
@@ -26,6 +64,12 @@ def format_world_to_wwf(world_state: WorldState, output_path: str):
 
     # --- Player ---
     pc = world_state.player_character
+    
+    # Save player data as JSON for MCP/SQLite
+    player_json_path = output_path.replace(".wwf", ".player")
+    with open(player_json_path, 'w') as pf:
+        pf.write(get_player_json(pc))
+
     output.append("player:")
     output.append(f"  name: {pc.name}")
     output.append(f"  lvl: {pc.level}")
