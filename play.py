@@ -18,6 +18,7 @@ from mcp.client.stdio import stdio_client
 AVAILABLE_MODELS = [
     "gemma4:31b-cloud",
     "qwen3.5:cloud",
+    "qwen3.5:397b-cloud",
 ]
 LOCK_FILE = "GameMaster_MCP.md"
 OUTPUT_DIR = "output"

@@ -21,7 +21,7 @@ This mode utilizes an external **Model Context Protocol (MCP)** server to act as
 **Requirements:**
 - Python 3.8+
 - [Ollama](https://ollama.ai/) installed and running.
-- Supported models: `gemma4:31b-cloud` or `qwen3.5:cloud`.
+- Supported models: `gemma4:31b-cloud`, `qwen3.5:cloud`, or `qwen3.5:397b-cloud`.
 
 **Quick Start:**
 1. Install dependencies:
@@ -84,6 +84,7 @@ The Forge guides you through character creation and procedurally generates a uni
 For the most immersive and consistent experience:
 - **Temperature 0:** Set your LLM's **Temperature to 0**. This is critical for maximum rule adherence and consistency.
 - **Model Selection:** Larger models generally produce richer narratives and better adhere to the complex MCP protocols.
+- **Note on Model Behavior:** The GameMaster may occasionally be forgetful about awarding XP, gold, or syncing the database. If you notice this, simply remind the GameMaster, and it will update the state accordingly.
 
 ---
 
