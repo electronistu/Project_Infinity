@@ -62,18 +62,23 @@ systems:
     required_tools: [perform_check, roll_dice, dump_player_db, get_player_stat, update_player_stat, modify_player_numeric, update_player_list]
     execution_protocol:
       # Part 1: The Roll Engine
-      - Chapter 1: Complexity Checks
-        - MUST use `perform_check` for every complexity check.
-        - NEVER simulate the calculation or the roll.
-        - MUST output the tool's result exactly, including the formula ({roll} + {mod}), to the user.
-        - Use the tool result as the absolute truth for the check.
-        - output_format: "{check}: {total} vs {dc} ({result}) ({d20} + {mod})"
+       - Chapter 1: Complexity Checks
+         - MUST use `perform_check` for every complexity check, whether performed by the player, a creature, or an NPC.
+         - NEVER simulate the calculation or the roll.
+         - MUST output the tool's result exactly, including the formula ({roll} + {mod}), to the user.
+         - Use the tool result as the absolute truth for the check.
+         - output_format: "{actor} {check}: {total} vs {dc} ({result}) ({d20} + {mod})"
       
-      - Chapter 2: Magnitude & Damage Rolls
-        - MUST use `roll_dice` for all damage, healing, and quantity rolls.
-        - NEVER simulate the dice rolls.
-        - MUST output the tool's result exactly, including the individual dice values, to the user.
-        - output_format: "{dice_type}: {notation} -> {total} ({rolls} + {mod})"
+       - Chapter 2: Magnitude & Damage Rolls
+         - MUST use `roll_dice` for all damage, healing, and quantity rolls, including those initiated by creatures and NPCs.
+         - NEVER simulate the dice rolls.
+         - MUST output the tool's result exactly, including the individual dice values, to the user.
+         - output_format: "{actor} {dice_type}: {notation} -> {total} ({rolls} + {mod})"
+       
+       - Chapter 3: Non-Player Actor Protocol
+         - When a creature or NPC performs an action (e.g., an attack in combat), the GameMaster MUST first call `perform_check` and then `roll_dice` if the check succeeds.
+         - The GameMaster MUST NOT narrate a success or failure for an NPC action without first evoking the roll engine.
+         - All NPC/Creature rolls must remain transparent and follow the output formats defined in Chapters 1 and 2.
       
       # Part 2: State Management (The SQLite DB)
       - MUST use `get_player_stat` for quick checks of specific attributes (Level, Gold, XP, etc.) to minimize token noise.

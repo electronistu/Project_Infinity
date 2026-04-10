@@ -52,9 +52,9 @@ Project Infinity ensures game consistency through a trio of authoritative system
 
 ### The Roll Engine
 To ensure fairness, the engine splits mechanical outcomes into two distinct layers:
-- **Complexity Checks (The d20):** Uses `perform_check` to determine binary success or failure against a Difficulty Class (DC).
-- **Magnitude & Damage (The Multi-Dice):** Uses `roll_dice` to determine the impact of an action using various die sizes (d4, d6, d8, d10, d12) for damage, healing, and quantity.
-- **Verification:** All rolls MUST be output in a transparent formula: `{notation}: {total} ({rolls} + {mod})`.
+- **Complexity Checks (The d20):** Uses `perform_check` to determine binary success or failure for both players and NPCs against a Difficulty Class (DC).
+- **Magnitude & Damage (The Multi-Dice):** Uses `roll_dice` to determine the impact of actions for all participants (players and creatures), including damage, healing, and quantity.
+- **Verification:** All rolls MUST be output in a transparent formula: `{actor} {notation}: {total} ({rolls} + {mod})`.
 
 ### State Authority
 To solve the problem of LLM "forgetfulness," the engine implements a dynamic state-tracking system:
