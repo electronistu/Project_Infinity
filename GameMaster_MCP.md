@@ -59,14 +59,21 @@ systems:
   checks:
     dc_levels: {easy: 10, medium: 15, hard: 20}
     roll_engine: MCP_TOOL
-    required_tools: [perform_check, dump_player_db, get_player_stat, update_player_stat, modify_player_numeric, update_player_list]
+    required_tools: [perform_check, roll_dice, dump_player_db, get_player_stat, update_player_stat, modify_player_numeric, update_player_list]
     execution_protocol:
-      # Part 1: Mechanical Checks (The Roll Engine)
-      - MUST use `perform_check` for every complexity check.
-      - NEVER simulate the calculation or the roll.
-      - MUST output the tool's result exactly, including the formula ({roll} + {mod}), to the user.
-      - Use the tool result as the absolute truth for the check.
-      - output_format: "{check}: {total} vs {dc} ({result}) ({d20} + {mod})"
+      # Part 1: The Roll Engine
+      - Chapter 1: Complexity Checks
+        - MUST use `perform_check` for every complexity check.
+        - NEVER simulate the calculation or the roll.
+        - MUST output the tool's result exactly, including the formula ({roll} + {mod}), to the user.
+        - Use the tool result as the absolute truth for the check.
+        - output_format: "{check}: {total} vs {dc} ({result}) ({d20} + {mod})"
+      
+      - Chapter 2: Magnitude & Damage Rolls
+        - MUST use `roll_dice` for all damage, healing, and quantity rolls.
+        - NEVER simulate the dice rolls.
+        - MUST output the tool's result exactly, including the individual dice values, to the user.
+        - output_format: "{dice_type}: {notation} -> {total} ({rolls} + {mod})"
       
       # Part 2: State Management (The SQLite DB)
       - MUST use `get_player_stat` for quick checks of specific attributes (Level, Gold, XP, etc.) to minimize token noise.

@@ -164,6 +164,37 @@ def dump_player_db() -> str:
         return f"Error dumping database: {str(e)}"
 
 @mcp.tool()
+def roll_dice(dice_notation: str, modifier: int = 0) -> dict:
+    """
+    Rolls dice based on standard notation (e.g., '2d6', '1d12', '3d8').
+    :param dice_notation: The dice to roll (e.g., '2d6').
+    :param modifier: A flat bonus added to the total.
+    """
+    try:
+        # Parse notation like '2d6'
+        parts = dice_notation.lower().split('d')
+        if len(parts) != 2:
+            return {"error": "Invalid dice notation. Use format 'XdY' (e.g., '2d6')."}
+        
+        num_dice = int(parts[0]) if parts[0] else 1
+        die_size = int(parts[1])
+        
+        if num_dice <= 0 or die_size <= 0:
+            return {"error": "Number of dice and die size must be positive integers."}
+
+        rolls = [random.randint(1, die_size) for _ in range(num_dice)]
+        total = sum(rolls) + modifier
+        
+        return {
+            "notation": dice_notation,
+            "rolls": rolls,
+            "modifier": modifier,
+            "total": total
+        }
+    except ValueError:
+        return {"error": "Invalid dice notation. Please provide integers (e.g., '2d6')."}
+
+@mcp.tool()
 def perform_check(modifier: int, dc: int, check_name: str = "Check") -> dict:
     """
     Performs a D&D 5E complexity check.

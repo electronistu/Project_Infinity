@@ -1,24 +1,27 @@
 # Project Infinity: A Dynamic, Text-Based RPG World Engine
 
-Project Infinity is a sophisticated, procedural world-generation engine and AI agent architecture. It allows you to instantiate a high-fidelity, consistent, and deep RPG world in any Large Language Model (LLM), turning a general AI into a specialized Game Master.
+Project Infinity is a sophisticated, procedural world-generation engine and AI agent architecture. It transforms a general-purpose Large Language Model (LLM) into a specialized Game Master by combining a codified agent protocol with an external mechanical authority, ensuring a consistent, fair, and deep RPG experience.
 
 ![Project Infinity TUI](screenshot.png)
 
 ---
 
-## 🎮 How to Play
+## 🎮 Entry Points: The Two Paths to Adventure
 
-Depending on your setup, you can choose between two ways to experience the world.
+Depending on your setup, you can experience the world through two different levels of mechanical authority.
 
-### Option 1: The Automated Experience (Recommended)
-For the most immersive experience, use the built-in game client. This provides a high-fidelity, colored TUI (Terminal User Interface) and handles the "boot sequence" automatically. This mode utilizes an external MCP server for verified, fair dice rolling and rule enforcement, while simultaneously managing an in-memory SQLite database to track your character's evolving state in real-time, ensuring total fairness and preventing LLM "hallucinated" results.
+### 1. The Automated Path (The Authoritative Experience)
+This mode utilizes an external **Model Context Protocol (MCP)** server to act as the absolute authority for game mechanics. By offloading logic to a dedicated server, it eliminates "LLM luck" and hallucinations regarding stats and dice rolls.
+
+**The MCP Advantage:**
+- **Verified Dice:** All rolls are performed externally and returned to the AI.
+- **State Authority:** Player progress is tracked in a real-time SQLite database, preventing "memory drift."
+- **Fairness:** Every mechanical result is mathematically accurate and transparent.
 
 **Requirements:**
 - Python 3.8+
 - [Ollama](https://ollama.ai/) installed and running.
-- At least one of the supported models downloaded via Ollama:
-  - `gemma4:31b-cloud`
-  - `qwen3.5:cloud`
+- Supported models: `gemma4:31b-cloud` or `qwen3.5:cloud`.
 
 **Quick Start:**
 1. Install dependencies:
@@ -29,71 +32,72 @@ For the most immersive experience, use the built-in game client. This provides a
    ```bash
    python3 play.py
    ```
-3. Select your preferred LLM from the available models.
-4. Select your desired world (`.wwf` file) from the list and begin your adventure.
+3. Select your model and world file (`.wwf`).
 
-### Option 2: The Universal Experience (Manual)
-You can play Project Infinity with any capable LLM (such as Gemini, ChatGPT, or Mistral) by manually providing the "Lock" and the "Key".
+### 2. The Universal Path (The Manual Experience)
+Play with any capable LLM (Gemini, ChatGPT, Mistral) by manually providing the "Lock" and the "Key."
 
 **The Process:**
-1. **The Lock**: Copy and paste the entire contents of `GameMaster.md` into your AI chat. **Note:** Use `GameMaster.md` and NOT `GameMaster_MCP.md` for manual play, as standard chat interfaces cannot communicate with the MCP server.
-2. **The Key**: Provide the contents of a world file from the `output/` directory (e.g., `electronistu_weave.wwf`).
+1. **The Lock:** Copy and paste the entire contents of `GameMaster.md` into your AI chat.
+2. **The Key:** Provide a world file from the `output/` directory (e.g., `electronistu_weave.wwf`).
 
-**💡 Understanding the Mechanics Difference:**
-When playing manually, the Game Master uses its internal **LCG (Linear Congruential Generator)** engine—a deterministic mathematical formula—to simulate dice rolls and manages your state through the chat history. Because it lacks the authoritative MCP SQLite database, the manual experience is more prone to "memory drift" regarding your stats and inventory, and is less reliable and transparent than the MCP-powered tool used in the automated experience.
-
-**💡 Pro-Tip for ChatGPT users:**
-ChatGPT may occasionally protest the "boot sequence" in `GameMaster.md` or fail to respond with "Awaiting Key...". **Ignore the protest.** Simply proceed to paste the `.wwf` file regardless; the engine will still initialize and function.
+**The Trade-off:**
+Since standard chat interfaces cannot communicate with the MCP server, the Game Master uses an internal deterministic formula (LCG) and chat history to manage state. This experience is more prone to memory drift and is less transparent than the MCP-powered automated path.
 
 ---
 
-## 🛠 World Generation
+## 🔬 Technical Architecture
 
-Want a world tailored to your own character? Use the **World Forge**.
+Project Infinity ensures game consistency through a trio of authoritative systems.
 
-Run the main script:
+### The Roll Engine
+To ensure fairness, the engine splits mechanical outcomes into two distinct layers:
+- **Complexity Checks (The d20):** Uses `perform_check` to determine binary success or failure against a Difficulty Class (DC).
+- **Magnitude & Damage (The Multi-Dice):** Uses `roll_dice` to determine the impact of an action using various die sizes (d4, d6, d8, d10, d12) for damage, healing, and quantity.
+- **Verification:** All rolls MUST be output in a transparent formula: `{notation}: {total} ({rolls} + {mod})`.
+
+### State Authority
+To solve the problem of LLM "forgetfulness," the engine implements a dynamic state-tracking system:
+- **The `.player` Sidecar:** Each world (`.wwf`) is paired with a JSON file containing the character's current state.
+- **In-Memory SQLite Engine:** Upon boot, the MCP server initializes a queryable database from the player file.
+- **Real-Time Synchronization:** The Game Master updates the database via MCP tools immediately as HP, XP, or inventory changes occur in the narrative.
+
+### World Weave Format (.wwf)
+The engine uses a schema-driven, positional array format (Graph RAG) to store world lore. This ensures factual consistency across geography, politics, and NPCs while significantly reducing token usage compared to standard text descriptions.
+
+---
+
+## 🛠 The World Forge
+
+Tired of generic settings? Use the **World Forge** to create a world tailored to your character.
+
+Run the forge:
 ```bash
 python3 main.py
 ```
-Follow the interactive prompts to create your character. The Forge will then procedurally generate a unique knowledge graph (a `.wwf` file) in the `output/` directory, serving as the single source of truth for your specific adventure.
+The Forge guides you through character creation and procedurally generates a unique knowledge graph (`.wwf` file) in the `output/` directory, which serves as the single source of truth for your specific adventure.
 
 ---
 
-## 🌟 Player's Guide for Best Results
+## 🌟 The Game Master's Codex
 
-- **Temperature 0**: For maximum consistency and adherence to game rules, set your LLM's **Temperature to 0**.
-- **Model Selection**: The GameMaster's personality and output quality depend on the model you choose. Generally, larger models produce richer, more coherent narratives and better rule adherence.
+For the most immersive and consistent experience:
+- **Temperature 0:** Set your LLM's **Temperature to 0**. This is critical for maximum rule adherence and consistency.
+- **Model Selection:** Larger models generally produce richer narratives and better adhere to the complex MCP protocols.
 
 ---
 
-## 🔬 Under the Hood (Technical Architecture)
+## 🛠 Technology Stack
 
-For those interested in the engineering, Project Infinity implements several novel AI patterns:
+**Core Dependencies:**
+- `mcp`: Model Context Protocol for external tool integration.
+- `ollama`: Local LLM orchestration.
+- `rich`: High-fidelity Terminal User Interface (TUI).
+- `pydantic`: Data validation and settings management.
+- `numpy`: Procedural generation logic.
+- `pyyaml`: Protocol and schema configuration.
 
-### Knowledge-Grounded Generative System (Graph RAG)
-Rather than relying on the LLM's internal memory, the engine uses a **World Forge** to create a knowledge graph (`The Key`). This ensures factual consistency and eliminates hallucinations regarding world lore, geography, and politics.
-
-### The Codified Agent Protocol
-The protocol (`The Lock`) is not a prompt, but a YAML-based schema. The TUI client uses `GameMaster_MCP.md` to enable external tool integration. It defines:
-- **State Machine**: `DORMANT` -> `AWAKENING` -> `ACTIVE`.
-- **Mechanics**: Strict D&D 5E rules, with a mandated transparent roll formula (Roll + Modifier) for all complexity checks.
-- **Narrative Driver**: The **L.I.C. (Logic, Imagination, Coincidence) Matrix**, which guides the AI to weave grounded facts with emergent storytelling.
-
-### MCP-Powered Mechanics & State Authority
-To eliminate "LLM luck" and hallucinations, the automated experience uses the **Model Context Protocol (MCP)**. This offloads critical game logic—such as Complexity Checks (d20 rolls, modifier additions, and DC comparisons)—to a dedicated Python server, serving as the absolute authority for mechanics and player state. This ensures that every mechanical result and character progression update is mathematically accurate, externally verified, and transparent to the player.
-
-### Real-Time State Synchronization
-Project Infinity implements a dynamic state-tracking system to maintain consistency across long sessions:
-- **The `.player` Sidecar**: Each world (`.wwf`) is paired with a `.player` JSON file containing the character's current state.
-- **In-Memory SQLite Engine**: Upon boot, the MCP server initializes an in-memory SQLite database from the player file, transforming the AI's context from static text into a queryable, authoritative database.
-- **Dynamic Feedback Loop**: The GameMaster actively updates this database in real-time via MCP tools whenever the player gains XP, loses HP, or acquires new equipment, preventing "memory drift" common in LLMs.
-
-### Hyper-Efficient Data Schema
-The `.wwf` (World Weave Format) uses a schema-driven, positional array format to minimize token usage, reducing world-state files significantly while maintaining a deep level of detail for NPCs and guilds.
-
-### Technology Stack
-- **Backend**: Python 3
-- **Data Validation**: Pydantic
-- **Configuration**: PyYAML
-- **Procedural Generation**: NumPy
-- **TUI & Connectivity**: Rich, Ollama, MCP Python SDK
+**Infrastructure:**
+- Python 3
+- SQLite (In-memory engine)
+- Graph RAG architecture
