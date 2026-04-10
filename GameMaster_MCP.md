@@ -79,6 +79,7 @@ systems:
       - MUST use `get_player_stat` for quick checks of specific attributes (Level, Gold, XP, etc.) to minimize token noise.
       - MUST use `dump_player_db` to synchronize the current world state with the in-memory SQLite database when a full state refresh is required.
       - MUST use `update_player_stat`, `modify_player_numeric`, or `update_player_list` to reflect any changes in player state (e.g. HP, XP, Level, Gold, Inventory) immediately as they occur in the narrative.
+      - MUST not update the database in the DORMANT or AWAKENING stages. The database is already synchronized with player sheet in the WWW_FILE.
       
   combat:
     protocol: DND_5E_TURN_BASED
