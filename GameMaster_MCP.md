@@ -27,7 +27,7 @@ states:
         input: WWF_FILE
         output: world_model
       - action: identify_player
-        input: world_model
+        input: use_dump_player_db_tool
         output: protagonist
       - action: generate_opening_scene
         input: world_model

@@ -6,11 +6,8 @@ Project Infinity is a sophisticated, procedural world-generation engine and AI a
 
 ---
 
-## 🎮 Entry Points: The Two Paths to Adventure
+## 🎮 How to Play: The Authoritative Experience
 
-Depending on your setup, you can experience the world through two different levels of mechanical authority.
-
-### 1. The Automated Path (The Authoritative Experience)
 This mode utilizes an external **Model Context Protocol (MCP)** server to act as the absolute authority for game mechanics. By offloading logic to a dedicated server, it eliminates "LLM luck" and hallucinations regarding stats and dice rolls.
 
 **The MCP Advantage:**
@@ -34,16 +31,6 @@ This mode utilizes an external **Model Context Protocol (MCP)** server to act as
    ```
 3. Select your model and world file (`.wwf`).
 
-### 2. The Universal Path (The Manual Experience)
-Play with any capable LLM (Gemini, ChatGPT, Mistral) by manually providing the "Lock" and the "Key."
-
-**The Process:**
-1. **The Lock:** Copy and paste the entire contents of `GameMaster.md` into your AI chat.
-2. **The Key:** Provide a world file from the `output/` directory (e.g., `electronistu_weave.wwf`).
-
-**The Trade-off:**
-Since standard chat interfaces cannot communicate with the MCP server, the Game Master uses an internal deterministic formula (LCG) and chat history to manage state. This experience is more prone to memory drift and is less transparent than the MCP-powered automated path.
-
 ---
 
 ## 🔬 Technical Architecture
@@ -58,12 +45,8 @@ To ensure fairness, the engine splits mechanical outcomes into two distinct laye
 
 ### State Authority
 To solve the problem of LLM "forgetfulness," the engine implements a dynamic state-tracking system:
-- **The `.player` Sidecar:** Each world (`.wwf`) is paired with a JSON file containing the character's current state.
 - **In-Memory SQLite Engine:** Upon boot, the MCP server initializes a queryable database from the player file.
-- **Real-Time Synchronization:** The Game Master updates the database via MCP tools immediately as HP, XP, or inventory changes occur in the narrative.
-
-### World Weave Format (.wwf)
-The engine uses a schema-driven, positional array format (Graph RAG) to store world lore. This ensures factual consistency across geography, politics, and NPCs while significantly reducing token usage compared to standard text descriptions.
+- **Real-Time Synchronization:** The Game Master updates the player database via MCP tools immediately as changes occur in the narrative.
 
 ---
 
@@ -75,7 +58,9 @@ Run the forge:
 ```bash
 python3 main.py
 ```
-The Forge guides you through character creation and procedurally generates a unique knowledge graph (`.wwf` file) in the `output/` directory, which serves as the single source of truth for your specific adventure.
+The Forge guides you through character creation and procedurally generates a unique world knowledge graph (`.wwf` file) and a corresponding character state file (`.player`) in the `output/` directory. Together, these files serve as the complete source of truth for your adventure.
+
+When you launch `play.py`, the system feeds the `GameMaster_MCP.md` protocol and the `.wwf` file to the LLM to set the stage. Simultaneously, `play.py` initializes `dice_server.py` using the `.player` file to boot the SQLite database.
 
 ---
 
