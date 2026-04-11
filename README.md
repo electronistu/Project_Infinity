@@ -84,6 +84,7 @@ The Forge guides you through character creation and procedurally generates a uni
 For the most immersive and consistent experience:
 - **Temperature 0:** Set your LLM's **Temperature to 0**. This is critical for maximum rule adherence and consistency.
 - **Model Selection:** Larger models generally produce richer narratives and better adhere to the complex MCP protocols.
+- **Debug Mode:** Use the `--verbose` or `-v` flag when launching `play.py` to see detailed MCP tool calls and responses.
 - **Note on Model Behavior:** The GameMaster may occasionally be forgetful about awarding XP, gold, or syncing the database. If you notice this, simply remind the GameMaster, and it will update the state accordingly.
 
 ---
