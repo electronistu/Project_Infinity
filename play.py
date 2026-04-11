@@ -229,8 +229,12 @@ async def main():
                     console.print("[yellow]Closing connection to the void... Goodbye.[/yellow]")
                     break
                 
-                with console.status("[bold blue]GM is thinking...[/bold blue]"):
+                if VERBOSE:
                     gm_response = await chat_with_tools(user_input)
+                else:
+                    with console.status("[bold blue]GM is thinking...[/bold blue]"):
+                        gm_response = await chat_with_tools(user_input)
+
                 
                 console.print(Panel(
                     Padding(render_gm_text(gm_response), (1, 1)), 

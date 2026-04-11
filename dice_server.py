@@ -44,17 +44,50 @@ def init_player_db(player_file_path: str) -> str:
     except Exception as e:
         return f"Failed to initialize database: {str(e)}"
 
+def get_nested_value(data, path):
+    """Traverse a dictionary using a dotted path."""
+    parts = path.split('.')
+    for part in parts:
+        if isinstance(data, dict):
+            data = data.get(part)
+        else:
+            return None
+    return data
+
+def set_nested_value(data, path, value):
+    """Set a value in a dictionary using a dotted path."""
+    parts = path.split('.')
+    for part in parts[:-1]:
+        data = data.setdefault(part, {})
+    data[parts[-1]] = value
+    return data
+
 @mcp.tool()
 def update_player_stat(key: str, value: str) -> str:
     """
-    Updates a specific player attribute in the database.
+    Updates a specific player attribute. Supports dotted notation for nested attributes.
+    Example: To change the spellcasting ability, use 'spellcasting.ability'.
+    Correct: update_player_stat(key='spellcasting.ability', value='intelligence')
     """
     global DB_CONNECTION
     if DB_CONNECTION is None:
         return "Database not initialized."
     try:
         cursor = DB_CONNECTION.cursor()
-        cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", (key, value))
+        
+        if '.' in key:
+            root_key = key.split('.')[0]
+            cursor.execute("SELECT value FROM player WHERE key = ?", (root_key,))
+            row = cursor.fetchone()
+            if not row:
+                return f"Root key {root_key} not found."
+            
+            data = json.loads(row[0])
+            set_nested_value(data, key[len(root_key)+1:], value)
+            cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", (root_key, json.dumps(data)))
+        else:
+            cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", (key, value))
+            
         DB_CONNECTION.commit()
         return f"Successfully updated {key} to {value}."
     except Exception as e:
@@ -63,30 +96,56 @@ def update_player_stat(key: str, value: str) -> str:
 @mcp.tool()
 def modify_player_numeric(key: str, delta: int) -> str:
     """
-    Increments or decrements a numeric player attribute (e.g., hp, gold, xp).
+    Increments or decrements a numeric player attribute. Supports dotted notation.
+    Examples:
+    - For top-level stats: modify_player_numeric(key='gold', delta=-10)
+    - For nested slots: modify_player_numeric(key='spellcasting.slots.1', delta=-1)
     """
     global DB_CONNECTION
     if DB_CONNECTION is None:
         return "Database not initialized."
     try:
         cursor = DB_CONNECTION.cursor()
-        cursor.execute("SELECT value FROM player WHERE key = ?", (key,))
-        row = cursor.fetchone()
-        if not row:
-            return f"Key {key} not found in database."
         
-        current_val = int(row[0])
-        new_val = current_val + delta
-        cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", (key, str(new_val)))
+        if '.' in key:
+            root_key = key.split('.')[0]
+            cursor.execute("SELECT value FROM player WHERE key = ?", (root_key,))
+            row = cursor.fetchone()
+            if not row:
+                return f"Root key {root_key} not found."
+            
+            data = json.loads(row[0])
+            path_in_obj = key[len(root_key)+1:]
+            current_val = get_nested_value(data, path_in_obj)
+            
+            if current_val is None:
+                return f"Key {key} not found in database."
+            
+            new_val = int(current_val) + delta
+            set_nested_value(data, path_in_obj, new_val)
+            cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", (root_key, json.dumps(data)))
+        else:
+            cursor.execute("SELECT value FROM player WHERE key = ?", (key,))
+            row = cursor.fetchone()
+            if not row:
+                return f"Key {key} not found in database."
+            
+            current_val = int(row[0])
+            new_val = current_val + delta
+            cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", (key, str(new_val)))
+        
         DB_CONNECTION.commit()
-        return f"Updated {key} from {current_val} to {new_val}."
+        return f"Updated {key} to {new_val}."
     except Exception as e:
         return f"Error modifying numeric value: {str(e)}"
 
 @mcp.tool()
 def update_player_list(key: str, item: str, action: str) -> str:
     """
-    Adds or removes an item from a player list (e.g., inventory, skills).
+    Adds or removes an item from a player list. Supports dotted notation.
+    Examples:
+    - Update inventory: update_player_list(key='inventory', item='Health Potion', action='add')
+    - Remove a spell: update_player_list(key='spellcasting.spells', item='Shield', action='remove')
     action: 'add' or 'remove'
     """
     global DB_CONNECTION
@@ -94,12 +153,27 @@ def update_player_list(key: str, item: str, action: str) -> str:
         return "Database not initialized."
     try:
         cursor = DB_CONNECTION.cursor()
-        cursor.execute("SELECT value FROM player WHERE key = ?", (key,))
-        row = cursor.fetchone()
-        if not row:
-            return f"Key {key} not found in database."
         
-        current_list = json.loads(row[0])
+        if '.' in key:
+            root_key = key.split('.')[0]
+            cursor.execute("SELECT value FROM player WHERE key = ?", (root_key,))
+            row = cursor.fetchone()
+            if not row:
+                return f"Root key {root_key} not found."
+            
+            data = json.loads(row[0])
+            path_in_obj = key[len(root_key)+1:]
+            current_list = get_nested_value(data, path_in_obj)
+            
+            if current_list is None or not isinstance(current_list, list):
+                return f"Key {key} not found or is not a list."
+        else:
+            cursor.execute("SELECT value FROM player WHERE key = ?", (key,))
+            row = cursor.fetchone()
+            if not row:
+                return f"Key {key} not found in database."
+            current_list = json.loads(row[0]) if 'json' in row[0] or '[' in row[0] else [row[0]]
+
         if action == "add":
             if item not in current_list:
                 current_list.append(item)
@@ -110,8 +184,13 @@ def update_player_list(key: str, item: str, action: str) -> str:
                 return f"Item {item} not found in {key}."
         else:
             return "Invalid action. Use 'add' or 'remove'."
+
+        if '.' in key:
+            set_nested_value(data, path_in_obj, current_list)
+            cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", (root_key, json.dumps(data)))
+        else:
+            cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", (key, json.dumps(current_list)))
         
-        cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", (key, json.dumps(current_list)))
         DB_CONNECTION.commit()
         return f"Successfully performed {action} on {item} in {key}."
     except Exception as e:
@@ -160,9 +239,13 @@ def dump_player_db() -> str:
 @mcp.tool()
 def roll_dice(dice_notation: str, modifier: int = 0) -> dict:
     """
-    Rolls dice based on standard notation (e.g., '2d6', '1d12', '3d8').
-    :param dice_notation: The dice to roll (e.g., '2d6').
-    :param modifier: A flat bonus added to the total.
+    Rolls dice based on standard notation. 
+    IMPORTANT: dice_notation must ONLY contain the dice (e.g., '3d4'). 
+    Do NOT include modifiers or operators like '+' in the notation string.
+    All bonuses or penalties MUST be passed as a separate integer in the modifier parameter.
+    
+    Correct: roll_dice(dice_notation='3d4', modifier=3)
+    Incorrect: roll_dice(dice_notation='3d4+3', modifier=0)
     """
     try:
         # Parse notation like '2d6'
