@@ -18,9 +18,9 @@ from dice_server import init_player_db
 
 # Configuration
 AVAILABLE_MODELS = [
-    "gemma4:31b-cloud",
     "qwen3.5:cloud",
     "qwen3.5:397b-cloud",
+    "deepseek-v3.2:cloud",
 ]
 LOCK_FILE = "GameMaster_MCP.md"
 OUTPUT_DIR = "output"
