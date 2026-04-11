@@ -173,7 +173,8 @@ def create_debug_character(config: Config) -> PlayerCharacter:
         skills=[Skill(name="Athletics", ability="strength", proficient=True)],
         languages=["Common", "Dwarvish"],
         features_and_traits=[SpecialAbility(name="Dwarven Resilience", description="Adv. on saves vs. poison.")],
-        gold=100
+        gold=100,
+        start_location="Zarthus City"
     )
 
 def create_character(config: Config) -> PlayerCharacter:
@@ -344,6 +345,10 @@ def create_character(config: Config) -> PlayerCharacter:
         spell_save_dc = 8 + calculate_modifier(player_stats.dict()[spellcasting_ability]) + proficiency_bonus
         spell_attack_modifier = calculate_modifier(player_stats.dict()[spellcasting_ability]) + proficiency_bonus
 
+    print("\n--- Choose Your Starting Location ---")
+    kingdom_capitals = ["Eldoria City", "Zarthus City", "Silverwood City", "Blacksail Archipelago City"]
+    start_location = select_from_list("Select your starting location", kingdom_capitals, display_key=None)
+
     print("\n--- Character Complete! ---")
     return PlayerCharacter(
         name=name, race=chosen_race.name,
@@ -359,6 +364,7 @@ def create_character(config: Config) -> PlayerCharacter:
         languages=chosen_race.languages,
         equipment=player_equipment,
         gold=player_gold,
+        start_location=start_location,
         spellcasting_ability=spellcasting_ability,
         spell_save_dc=spell_save_dc,
         spell_attack_modifier=spell_attack_modifier,
