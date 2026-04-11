@@ -45,21 +45,63 @@ def init_player_db(player_file_path: str) -> str:
         return f"Failed to initialize database: {str(e)}"
 
 def get_nested_value(data, path):
-    """Traverse a dictionary using a dotted path."""
+    """Traverse a dictionary or list using a dotted path. Numeric segments are treated as list indices."""
     parts = path.split('.')
     for part in parts:
         if isinstance(data, dict):
             data = data.get(part)
+        elif isinstance(data, list):
+            try:
+                idx = int(part)
+                if 0 <= idx < len(data):
+                    data = data[idx]
+                else:
+                    return None
+            except ValueError:
+                return None
         else:
             return None
     return data
 
 def set_nested_value(data, path, value):
-    """Set a value in a dictionary using a dotted path."""
+    """Set a value in a dictionary or list using a dotted path. Numeric segments are treated as list indices."""
     parts = path.split('.')
-    for part in parts[:-1]:
-        data = data.setdefault(part, {})
-    data[parts[-1]] = value
+    for i in range(len(parts) - 1):
+        part = parts[i]
+        if isinstance(data, dict):
+            data = data.setdefault(part, {})
+        elif isinstance(data, list):
+            try:
+                idx = int(part)
+                if 0 <= idx < len(data):
+                    data = data[idx]
+                else:
+                    # If index is out of bounds, we cannot easily "setdefault" 
+                    # for a list without knowing the size. Return data as is.
+                    return data
+            except ValueError:
+                return data
+        else:
+            return data
+            
+    last_part = parts[-1]
+    if isinstance(data, dict):
+        data[last_part] = value
+    elif isinstance(data, list):
+        try:
+            idx = int(last_part)
+            if 0 <= idx < len(data):
+                data[idx] = value
+            else:
+                # If the list is too short, we append if the index is exactly len(data)
+                if idx == len(data):
+                    data.append(value)
+                else:
+                    # Out of bounds
+                    pass
+        except ValueError:
+            # Treat as dict key if we are unexpectedly in a list
+            pass
     return data
 
 @mcp.tool()
@@ -96,10 +138,10 @@ def update_player_stat(key: str, value: str) -> str:
 @mcp.tool()
 def modify_player_numeric(key: str, delta: int) -> str:
     """
-    Increments or decrements a numeric player attribute. Supports dotted notation.
+    Increments or decrements a numeric player attribute. Supports dotted notation for nested attributes and list indices.
     Examples:
     - For top-level stats: modify_player_numeric(key='gold', delta=-10)
-    - For nested slots: modify_player_numeric(key='spellcasting.slots.1', delta=-1)
+    - For nested slots (using index): modify_player_numeric(key='spellcasting.slots.1', delta=-1)
     """
     global DB_CONNECTION
     if DB_CONNECTION is None:
@@ -143,9 +185,11 @@ def modify_player_numeric(key: str, delta: int) -> str:
 def update_player_list(key: str, item: str, action: str) -> str:
     """
     Adds or removes an item from a player list. Supports dotted notation.
+    For 'add' actions, use the format 'Item Name: Description' to include a description.
     Examples:
-    - Update inventory: update_player_list(key='inventory', item='Health Potion', action='add')
-    - Remove a spell: update_player_list(key='spellcasting.spells', item='Shield', action='remove')
+    - Update inventory with description: update_player_list(key='inventory', item='Dagger: A rusty iron blade', action='add')
+    - Update inventory simply: update_player_list(key='inventory', item='Health Potion', action='add')
+    - Remove an item by name: update_player_list(key='spellcasting.spells', item='Shield', action='remove')
     action: 'add' or 'remove'
     """
     global DB_CONNECTION
@@ -175,12 +219,26 @@ def update_player_list(key: str, item: str, action: str) -> str:
             current_list = json.loads(row[0]) if 'json' in row[0] or '[' in row[0] else [row[0]]
 
         if action == "add":
-            if item not in current_list:
-                current_list.append(item)
+            name = item
+            desc = ""
+            if ":" in item:
+                name, desc = [p.strip() for p in item.split(":", 1)]
+            
+            new_entry = {"name": name, "description": desc} if (desc or ":" in item) else name
+            
+            # Avoid duplicates by name
+            exists = any((isinstance(e, dict) and e.get("name") == name) or e == name for e in current_list)
+            if not exists:
+                current_list.append(new_entry)
         elif action == "remove":
-            if item in current_list:
-                current_list.remove(item)
-            else:
+            # Find and remove by name
+            found = False
+            for i, e in enumerate(current_list):
+                if (isinstance(e, dict) and e.get("name") == item) or e == item:
+                    current_list.pop(i)
+                    found = True
+                    break
+            if not found:
                 return f"Item {item} not found in {key}."
         else:
             return "Invalid action. Use 'add' or 'remove'."
