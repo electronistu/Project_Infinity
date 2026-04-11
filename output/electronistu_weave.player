@@ -16,15 +16,15 @@
     "con": 12,
     "int": 15,
     "wis": 12,
-    "cha": 8
+    "cha": 9
   },
   "proficiency_bonus": 2,
   "skills": [
     "Perception",
-    "Deception",
     "Stealth",
     "Arcana",
-    "Investigation"
+    "Investigation",
+    "Deception"
   ],
   "saves": [],
   "features": [
