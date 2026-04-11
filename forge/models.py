@@ -211,7 +211,6 @@ class WorldState(BaseModel):
     kingdoms: List[Kingdom]
     all_abilities: List[PlayerAbility] = [] # New field for all available abilities
 # Note: Creatures are now part of Locations, not a separate top-level list
-    current_tick: str
     world_history: List[str] = [] # For L.I.C. Engine
 
 # Update forward reference for NPC

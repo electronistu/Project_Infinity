@@ -35,7 +35,6 @@ def main():
     world_state = WorldState(
         player_character=player_character,
         kingdoms=kingdoms,
-        current_tick="06:00",
         world_history=world_history
     )
 

@@ -9,7 +9,6 @@ schemas:
 
 ---
 
-time: 06:00
 history:
   - The War of the Ashen Crown, a bitter conflict ignited by Zarthus's expansionism, ended a decade ago in a fragile truce. The cities of Eldoria still bear the scars, and its people have long memories.
   - During the war, the Blacksail Archipelago allied with Zarthus, preying on Eldorian shipping lanes. Though the war is over, their piracy continues, a constant thorn in the side of all civilized kingdoms.
@@ -20,92 +19,92 @@ kingdoms:
     capital: Eldoria City
     align: Lawful Good
     relations: {"Zarthus": "Rivalry", "Silverwood": "Suspicion", "Blacksail Archipelago": "Raiding"}
-    ruler: [11, "Elf", "Cleric", 13, 58, [15, 12, 13, 8, 10, 14], null, null]
+    ruler: [13, "Human", "Warlock", 11, 68, [14, 8, 12, 13, 10, 15], null, null]
     guilds:
       - name: Eldoria Guard
         reports_to: ruler
-        leader: [8, "Elf", "Monk", 9, 50, [13, 8, 14, 10, 15, 12], true, ["Sentinel Training:3"]]
-        right_hand: [6, "Halfling", "Warlock", 14, 23, [10, 15, 8, 12, 13, 14], true, ["Hold the Line:2"]]
+        leader: [6, "Human", "Sorcerer", 9, 31, [12, 8, 14, 10, 15, 13], null, ["Sentinel Training:3"]]
+        right_hand: [6, "Dwarf", "Sorcerer", 12, 16, [12, 15, 8, 13, 10, 14], null, ["Shield Bash:1"]]
       - name: Eldoria Mage
-        leader: [10, "Elf", "Artificer", 14, 53, [8, 15, 13, 14, 12, 10], null, ["Counterspell Mastery:3", "Teleportation Circle Access:4"]]
-        right_hand: [5, "Dragonborn", "Rogue", 14, 24, [8, 15, 10, 14, 12, 13], null, ["Firebolt:1", "Detect Magic:1"]]
+        leader: [6, "Dwarf", "Bard", 14, 28, [8, 14, 10, 13, 15, 12], null, ["Counterspell Mastery:3", "Teleportation Circle Access:4"]]
+        right_hand: [9, "Human", "Rogue", 14, 56, [8, 14, 15, 10, 12, 13], null, ["Arcane Insight:1", "Firebolt:1"]]
       - name: Eldoria Assassin
-        leader: [9, "Dwarf", "Artificer", 14, 56, [10, 14, 15, 12, 8, 13], null, ["Impostor:3"]]
-        right_hand: [6, "Human", "Ranger", 13, 30, [14, 13, 8, 10, 15, 12], null, ["Silent Movement:1"]]
+        leader: [10, "Dwarf", "Cleric", 12, 35, [12, 10, 8, 14, 13, 15], null, ["Impostor:3"]]
+        right_hand: [5, "Human", "Rogue", 12, 32, [8, 10, 15, 13, 14, 12], null, ["Poisoner's Kit Proficiency:1"]]
       - name: Eldoria Merchant
-        leader: [8, "Human", "Artificer", 14, 29, [12, 14, 8, 15, 13, 10], null, ["Master Investor:3"]]
-        right_hand: [7, "Human", "Barbarian", 12, 60, [13, 10, 15, 12, 14, 8], null, ["Appraise:2"]]
+        leader: [6, "Dragonborn", "Ranger", 13, 40, [15, 13, 12, 8, 14, 10], true, ["Master Investor:3"]]
+        right_hand: [8, "Human", "Cleric", 13, 29, [10, 12, 8, 15, 14, 13], null, ["Appraise:2"]]
       - name: Eldoria Thief
-        leader: [10, "Halfling", "Monk", 10, 53, [15, 10, 12, 8, 13, 14], null, ["Evasion:4"]]
-        right_hand: [9, "Dragonborn", "Barbarian", 11, 76, [14, 8, 15, 12, 10, 13], null, ["Pick Pocket:2"]]
+        leader: [8, "Elf", "Fighter", 11, 52, [8, 12, 13, 14, 10, 15], null, ["Evasion:4"]]
+        right_hand: [9, "Human", "Paladin", 11, 42, [14, 12, 8, 10, 15, 13], null, ["Pick Pocket:2"]]
       - name: Eldoria Alchemist's League
-        leader: [5, "Human", "Rogue", 14, 24, [8, 14, 10, 13, 15, 12], null, ["Transmute Minerals:4"]]
-        right_hand: [10, "Dwarf", "Fighter", 12, 55, [13, 14, 10, 15, 8, 12], null, ["Alchemical Fire Formula:2"]]
+        leader: [6, "Dragonborn", "Wizard", 11, 26, [15, 12, 13, 14, 8, 10], null, ["Transmute Minerals:4"]]
+        right_hand: [9, "Human", "Artificer", 12, 56, [12, 10, 14, 8, 13, 15], null, ["Potion of Healing Recipe:1"]]
       - name: Eldoria Order of Scribes
-        leader: [6, "Dwarf", "Warlock", 13, 38, [10, 13, 15, 8, 12, 14], null, ["Legend Lore:4"]]
-        right_hand: [6, "Halfling", "Artificer", 14, 33, [10, 14, 13, 12, 15, 8], null, ["Comprehend Languages:2", "Identify:1"]]
+        leader: [5, "Dragonborn", "Monk", 12, 32, [10, 15, 14, 12, 13, 8], null, ["Legend Lore:4"]]
+        right_hand: [8, "Halfling", "Artificer", 12, 43, [14, 10, 12, 15, 8, 13], null, ["Identify:1", "Comprehend Languages:2"]]
   - name: Zarthus
     capital: Zarthus City
     align: Lawful Evil
     relations: {"Eldoria": "Rivalry", "Silverwood": "Contempt", "Blacksail Archipelago": "Alliance"}
-    ruler: [12, "Human", "Fighter", 11, 87, [14, 12, 15, 13, 10, 8], null, null]
+    ruler: [15, "Halfling", "Wizard", 12, 62, [10, 15, 12, 13, 14, 8], null, null]
     guilds:
       - name: Zarthus Guard
         reports_to: ruler
-        leader: [10, "Halfling", "Rogue", 13, 53, [10, 13, 12, 8, 14, 15], null, null]
-        right_hand: [6, "Dwarf", "Artificer", 13, 33, [14, 12, 13, 15, 8, 10], null, ["Shield Bash:1"]]
+        leader: [6, "Elf", "Paladin", 11, 45, [13, 12, 14, 15, 10, 8], null, null]
+        right_hand: [8, "Elf", "Paladin", 9, 59, [10, 8, 15, 12, 13, 14], null, ["Hold the Line:2"]]
       - name: Zarthus Mage
-        leader: [10, "Halfling", "Rogue", 13, 35, [15, 13, 8, 14, 12, 10], null, ["Fireball:3"]]
-        right_hand: [10, "Human", "Ranger", 14, 55, [13, 15, 10, 14, 8, 12], null, ["Mage Armor:2"]]
+        leader: [7, "Human", "Paladin", 11, 52, [10, 12, 15, 13, 14, 8], null, ["Fireball:3"]]
+        right_hand: [9, "Human", "Warlock", 12, 48, [13, 10, 12, 15, 8, 14], null, ["Detect Magic:1"]]
       - name: Zarthus Assassin
-        leader: [9, "Dwarf", "Sorcerer", 10, 22, [13, 10, 8, 12, 14, 15], null, ["Death Strike:5"]]
-        right_hand: [7, "Dwarf", "Rogue", 13, 32, [14, 13, 10, 12, 8, 15], null, ["Poisoner's Kit Proficiency:1"]]
+        leader: [8, "Halfling", "Monk", 12, 29, [10, 14, 8, 13, 15, 12], null, ["Death Strike:5"]]
+        right_hand: [5, "Halfling", "Wizard", 12, 14, [10, 15, 8, 12, 14, 13], null, ["Silent Movement:1"]]
       - name: Zarthus Merchant
-        leader: [10, "Human", "Rogue", 13, 44, [15, 13, 10, 14, 8, 12], null, null]
-        right_hand: [9, "Human", "Warlock", 13, 32, [10, 13, 8, 14, 15, 12], null, ["Silver Tongue:1"]]
+        leader: [5, "Dwarf", "Paladin", 9, 38, [10, 8, 14, 13, 15, 12], true, null]
+        right_hand: [7, "Human", "Cleric", 14, 32, [8, 14, 10, 15, 12, 13], null, ["Silver Tongue:1"]]
       - name: Zarthus Thief
-        leader: [9, "Halfling", "Paladin", 11, 50, [8, 12, 10, 14, 13, 15], null, null]
-        right_hand: [8, "Halfling", "Sorcerer", 11, 20, [15, 13, 8, 14, 12, 10], null, ["Sneak:1"]]
+        leader: [5, "Human", "Paladin", 11, 38, [13, 12, 14, 15, 8, 10], null, null]
+        right_hand: [10, "Dwarf", "Rogue", 14, 53, [10, 14, 12, 8, 13, 15], null, ["Lockpicking Expertise:2"]]
       - name: Zarthus Alchemist's League
-        leader: [9, "Halfling", "Sorcerer", 11, 22, [15, 13, 8, 10, 12, 14], null, null]
-        right_hand: [8, "Halfling", "Rogue", 13, 36, [8, 13, 10, 15, 12, 14], null, ["Potion of Healing Recipe:1"]]
+        leader: [5, "Human", "Monk", 12, 28, [10, 15, 12, 13, 8, 14], null, null]
+        right_hand: [8, "Halfling", "Rogue", 14, 43, [8, 15, 12, 14, 13, 10], null, ["Alchemical Fire Formula:2"]]
   - name: Silverwood
     capital: Silverwood City
     align: True Neutral
     relations: {"Eldoria": "Suspicion", "Zarthus": "Contempt", "Blacksail Archipelago": "Raiding"}
-    ruler: [11, "Dragonborn", "Fighter", 10, 80, [8, 10, 15, 14, 12, 13], null, null]
+    ruler: [15, "Human", "Sorcerer", 11, 48, [15, 13, 10, 8, 14, 12], null, null]
     guilds:
       - name: Silverwood Guard
         reports_to: ruler
-        leader: [6, "Dragonborn", "Cleric", 11, 33, [13, 8, 12, 15, 14, 10], null, null]
-        right_hand: [9, "Dragonborn", "Wizard", 12, 30, [8, 15, 10, 14, 12, 13], null, null]
+        leader: [9, "Dwarf", "Paladin", 12, 50, [13, 15, 10, 8, 12, 14], null, null]
+        right_hand: [10, "Dwarf", "Warlock", 12, 53, [14, 10, 13, 15, 12, 8], null, null]
       - name: Silverwood Mage
-        leader: [10, "Human", "Bard", 12, 53, [12, 10, 13, 15, 8, 14], null, ["Invisibility:4"]]
-        right_hand: [10, "Dwarf", "Wizard", 10, 42, [14, 10, 13, 8, 15, 12], null, ["Arcane Insight:1"]]
+        leader: [7, "Halfling", "Sorcerer", 10, 18, [14, 10, 8, 12, 13, 15], null, ["Invisibility:4"]]
+        right_hand: [5, "Halfling", "Warlock", 13, 20, [10, 13, 8, 12, 15, 14], null, ["Mage Armor:2"]]
       - name: Silverwood Assassin
-        leader: [10, "Human", "Cleric", 13, 62, [12, 13, 14, 15, 8, 10], null, null]
-        right_hand: [9, "Halfling", "Rogue", 12, 56, [15, 10, 14, 8, 12, 13], null, null]
+        leader: [9, "Halfling", "Paladin", 10, 66, [13, 10, 15, 14, 12, 8], null, null]
+        right_hand: [10, "Dragonborn", "Ranger", 12, 64, [15, 10, 13, 12, 14, 8], null, null]
       - name: Silverwood Merchant
-        leader: [10, "Dragonborn", "Fighter", 12, 64, [10, 14, 13, 8, 15, 12], null, null]
-        right_hand: [6, "Elf", "Wizard", 11, 26, [15, 12, 13, 14, 10, 8], null, null]
+        leader: [7, "Dragonborn", "Artificer", 13, 44, [13, 12, 14, 8, 15, 10], true, null]
+        right_hand: [7, "Dwarf", "Ranger", 14, 40, [15, 14, 10, 12, 8, 13], null, null]
       - name: Silverwood Thief
-        leader: [9, "Dragonborn", "Ranger", 12, 42, [15, 10, 8, 13, 12, 14], null, null]
-        right_hand: [6, "Dwarf", "Artificer", 14, 33, [8, 14, 12, 10, 13, 15], null, ["Lockpicking Expertise:2"]]
+        leader: [8, "Halfling", "Bard", 12, 29, [12, 10, 8, 15, 13, 14], null, null]
+        right_hand: [8, "Dragonborn", "Ranger", 12, 52, [8, 10, 12, 15, 13, 14], null, ["Sneak:1"]]
       - name: Silverwood Alchemist's League
-        leader: [9, "Dwarf", "Bard", 14, 48, [13, 15, 12, 8, 10, 14], null, null]
-        right_hand: [10, "Dragonborn", "Ranger", 14, 46, [10, 14, 8, 13, 12, 15], true, null]
+        leader: [9, "Dwarf", "Barbarian", 14, 52, [14, 15, 8, 12, 13, 10], null, null]
+        right_hand: [10, "Halfling", "Ranger", 12, 64, [12, 10, 13, 14, 8, 15], null, null]
       - name: Silverwood Ranger's Conclave
-        leader: [9, "Dragonborn", "Paladin", 11, 50, [14, 13, 10, 8, 12, 15], null, ["Pass Without Trace:3", "Vanish:3"]]
-        right_hand: [8, "Human", "Monk", 9, 43, [13, 8, 12, 15, 10, 14], null, ["Hunter's Mark:2", "Animal Friendship:1", "Primeval Awareness:2", "Natural Explorer:1"]]
+        leader: [10, "Dragonborn", "Rogue", 13, 44, [8, 13, 10, 15, 12, 14], null, ["Pass Without Trace:3", "Vanish:3"]]
+        right_hand: [9, "Dragonborn", "Druid", 13, 40, [8, 12, 10, 14, 15, 13], null, ["Animal Friendship:1", "Primeval Awareness:2", "Hunter's Mark:2", "Natural Explorer:1"]]
   - name: Blacksail Archipelago
     capital: Blacksail Archipelago City
     align: Chaotic Evil
     relations: {"Eldoria": "Raiding", "Zarthus": "Alliance", "Silverwood": "Raiding"}
-    ruler: [15, "Dwarf", "Barbarian", 13, 82, [14, 12, 8, 15, 10, 13], null, null]
+    ruler: [15, "Human", "Rogue", 13, 92, [8, 12, 14, 10, 15, 13], null, null]
     guilds:
       - name: Blacksail Archipelago Assassin
-        leader: [6, "Halfling", "Artificer", 14, 33, [8, 15, 12, 10, 13, 14], null, null]
-        right_hand: [6, "Dragonborn", "Monk", 12, 38, [8, 15, 14, 12, 10, 13], null, null]
+        leader: [6, "Dwarf", "Druid", 14, 23, [12, 14, 8, 15, 13, 10], null, null]
+        right_hand: [6, "Human", "Druid", 14, 28, [13, 14, 10, 12, 8, 15], null, null]
       - name: Blacksail Archipelago Thief
-        leader: [7, "Elf", "Warlock", 14, 38, [15, 14, 12, 13, 8, 10], null, null]
-        right_hand: [10, "Elf", "Barbarian", 14, 66, [13, 14, 10, 12, 15, 8], null, null]
+        leader: [5, "Dwarf", "Bard", 13, 28, [15, 13, 12, 8, 10, 14], null, null]
+        right_hand: [9, "Human", "Rogue", 13, 32, [15, 12, 8, 13, 14, 10], null, null]

@@ -61,30 +61,64 @@ systems:
     dc_levels: {easy: 10, medium: 15, hard: 20}
     roll_engine: MCP_TOOL
     required_tools: [perform_check, roll_dice, dump_player_db, get_player_stat, update_player_stat, modify_player_numeric, update_player_list]
-    execution_protocol: 
-      # Part 1: The Roll Engine
-       - Chapter 1: Complexity Checks
-         - MUST use `perform_check` for every complexity check, whether performed by the player, a creature, or an NPC.
-         - NEVER simulate the calculation or the roll.
-         - MUST output the tool's result exactly.
-         - Use the tool result as the absolute truth for the check.
-         - output_format: "{actor} {check}: {total} vs {dc} ({result}) ({d20} + {mod})"
+    execution_protocol:
+      roll_engine:
+        complexity_checks:
+          tool: perform_check
+          applies_to: [player, creature, npc]
+          rules:
+            - mandatory_tool_usage: true
+            - no_simulation: true
+            - exact_output: true
+            - absolute_truth: true
+          output_format: "{actor} {check_name}: {total} vs {dc_to_beat} ({outcome}) ({base_roll} + {modifier})"
+        
+        magnitude_damage_rolls:
+          tool: roll_dice
+          applies_to: [damage, healing, quantity]
+          rules:
+            - mandatory_tool_usage: true
+            - no_simulation: true
+            - exact_output: true
+            - include_individual_dice: true
+          output_format: "{actor} {notation}: {total} ({rolls} + {modifier})"
+        
+        non_player_actor_protocol:
+          sequence: [perform_check, roll_dice]
+          trigger: creature_or_npc_action
+          rules:
+            - mandatory_roll_before_narration: true
+            - transparent_output: true
+            - inherit_output_formats: true
       
-       - Chapter 2: Magnitude & Damage Rolls
-         - MUST use `roll_dice` for all damage, healing, and quantity rolls, including those initiated by creatures and NPCs.
-         - NEVER simulate the dice rolls.
-         - MUST output the tool's result exactly, including the individual dice values, to the user.
-         - output_format: "{actor} {dice_type}: {notation} -> {total} ({rolls} + {mod})"
-       
-       - Chapter 3: Non-Player Actor Protocol
-         - When a creature or NPC performs an action (e.g., an attack in combat), you MUST first call `perform_check` and then `roll_dice` if the check succeeds.
-         - You MUST NOT narrate a success or failure for an NPC action without first evoking the roll engine.
-         - All NPC/Creature rolls must remain transparent and follow the output formats defined in Chapters 1 and 2.
-      
-      # Part 2: State Management (The SQLite DB)
-      - MUST use `get_player_stat` for quick checks of specific attributes (Level, Gold, XP, etc.) to minimize token noise.
-      - MUST use `dump_player_db` to synchronize the current world state with the in-memory SQLite database when a full state refresh is required.
-      - MUST use `update_player_stat`, `modify_player_numeric`, or `update_player_list` to reflect any changes in player state (e.g. HP, XP, Level, Gold, Inventory, slots) immediately as they occur in the narrative.
+      state_management:
+        database: sqlite_memory
+        notation: dotted_path_supported
+        examples: [stats.dex, spellcasting.slots.1, spellcasting.ability]
+        operations:
+          read:
+            quick_check:
+              tool: get_player_stat
+              scope: all_fields
+              use_case: specific_attributes
+            full_sync:
+              tool: dump_player_db
+              use_case: world_state_refresh
+          write:
+            tools:
+              - name: update_player_stat
+                operation: set_value
+                supports: [strings, numbers, nested_paths]
+              - name: modify_player_numeric
+                operation: delta_change
+                supports: [increment, decrement, nested_paths]
+              - name: update_player_list
+                operation: list_management
+                actions: [add, remove]
+                targets: [inventory, spells, skills, features, cantrips]
+            trigger: on_state_change
+            scope: all_fields
+            timing: immediate
   combat:
     protocol: DND_5E_TURN_BASED
   progression:

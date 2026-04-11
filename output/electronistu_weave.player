@@ -20,11 +20,11 @@
   },
   "proficiency_bonus": 2,
   "skills": [
-    "Perception",
-    "Stealth",
+    "Deception",
     "Arcana",
+    "Stealth",
     "Investigation",
-    "Deception"
+    "Perception"
   ],
   "saves": [],
   "features": [

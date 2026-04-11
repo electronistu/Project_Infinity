@@ -70,8 +70,7 @@ def format_world_to_wwf(world_state: WorldState, output_path: str):
     with open(player_json_path, 'w') as pf:
         pf.write(get_player_json(pc))
 
-    # --- Time, History ---
-    output.append(f"time: {world_state.current_tick}")
+    # --- History ---
     output.append("history:")
     for entry in world_state.world_history:
         output.append(f"  - {entry}")
