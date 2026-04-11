@@ -240,6 +240,10 @@ def dump_player_db() -> str:
 def roll_dice(dice_notation: str, modifier: int = 0) -> dict:
     """
     Rolls dice based on standard notation. 
+    
+    DECISION GUIDE: Use this tool ONLY for "How much X?" scenarios (e.g., damage, healing, loot quantity, or random results).
+    CRITICAL: Do NOT use this tool for complexity checks, attacks, or any action where you need to determine success or failure. For those, use 'perform_check'.
+    
     IMPORTANT: dice_notation must ONLY contain the dice (e.g., '3d4'). 
     Do NOT include modifiers or operators like '+' in the notation string.
     All bonuses or penalties MUST be passed as a separate integer in the modifier parameter.
@@ -275,9 +279,12 @@ def roll_dice(dice_notation: str, modifier: int = 0) -> dict:
 def perform_check(modifier: int, dc: int, check_name: str = "Check") -> dict:
     """
     Performs a D&D 5E complexity check.
-    :param modifier: The bonus added to the roll.
-    :param dc: The difficulty class to beat.
-    :param check_name: The name of the check (e.g., 'Stealth', 'Athletics').
+    
+    DECISION GUIDE: Use this tool for any "Can I do X?" or "Does Y happen?" scenarios. 
+    This is the ONLY tool for attacks, skill checks, and saving throws. 
+    If the outcome is binary (Success/Failure) and depends on a Difficulty Class (DC), use this tool.
+    
+    Example: To check if the player can punch a guard (Sleight of Hand), use perform_check(modifier=2, dc=12, check_name='Sleight of Hand').
     """
     roll = random.randint(1, 20)
     total = roll + modifier
