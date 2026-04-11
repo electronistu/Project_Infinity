@@ -35,7 +35,7 @@ This mode utilizes an external **Model Context Protocol (MCP)** server to act as
 
 ## 🔬 Technical Architecture
 
-Project Infinity ensures game consistency through a trio of authoritative systems.
+Project Infinity ensures game consistency through these authoritative systems:
 
 ### The Roll Engine
 To ensure fairness, the engine splits mechanical outcomes into two distinct layers:
@@ -52,13 +52,13 @@ To solve the problem of LLM "forgetfulness," the engine implements a dynamic sta
 
 ## 🛠 The World Forge
 
-Tired of generic settings? Use the **World Forge** to create a world tailored to your character.
+Use the **World Forge** to create a world tailored to your character.
 
 Run the forge:
 ```bash
 python3 main.py
 ```
-The Forge guides you through character creation and procedurally generates a unique world knowledge graph (`.wwf` file) and a corresponding character state file (`.player`) in the `output/` directory. Together, these files serve as the complete source of truth for your adventure.
+The Forge guides you through character creation and procedurally generates a world knowledge graph (`.wwf` file) and a corresponding character state file (`.player`) in the `output/` directory. Together, these files serve as the complete source of truth for your adventure.
 
 When you launch `play.py`, the system feeds the `GameMaster_MCP.md` protocol and the `.wwf` file to the LLM to set the stage. Simultaneously, `play.py` initializes `dice_server.py` using the `.player` file to boot the SQLite database.
 
@@ -66,10 +66,8 @@ When you launch `play.py`, the system feeds the `GameMaster_MCP.md` protocol and
 
 ## 🌟 The Game Master's Codex
 
-For the most immersive and consistent experience:
-- **Temperature 0:** Set your LLM's **Temperature to 0**. This is critical for maximum rule adherence and consistency.
 - **Model Selection:** Larger models generally produce richer narratives and better adhere to the complex MCP protocols. 
-- **Model Performance Note:** While `gemma4:31b-cloud` is supported, it may struggle with the complexity of the protocol, often truncating narratives or failing to report dice rolls in the chat despite updating the database correctly. For the best experience and full adherence to the mechanical transparency rules, the `qwen3.5` models (especially `qwen3.5:397b-cloud`) are strongly recommended.
+- **Model Performance Note:** While `gemma4:31b-cloud` is supported, it may struggle with the complexity of the protocol, often truncating narratives or failing to report dice rolls in the chat despite using the MCP tools correctly. For the best experience and full adherence to the mechanical transparency rules, the `qwen3.5` models (especially `qwen3.5:397b-cloud`) are strongly recommended.
 - **Debug Mode:** Use the `--verbose` or `-v` flag when launching `play.py` to see detailed MCP tool calls and responses.
 - **Note on Model Behavior:** The GameMaster may occasionally be forgetful about awarding XP, gold, or syncing the database. If you notice this, simply remind the GameMaster, and it will update the state accordingly.
 

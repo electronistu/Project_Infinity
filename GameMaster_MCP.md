@@ -66,7 +66,7 @@ systems:
        - Chapter 1: Complexity Checks
          - MUST use `perform_check` for every complexity check, whether performed by the player, a creature, or an NPC.
          - NEVER simulate the calculation or the roll.
-         - MUST output the tool's result exactly, including the formula ({roll} + {mod}), to the user.
+         - MUST output the tool's result exactly.
          - Use the tool result as the absolute truth for the check.
          - output_format: "{actor} {check}: {total} vs {dc} ({result}) ({d20} + {mod})"
       
@@ -85,7 +85,6 @@ systems:
       - MUST use `get_player_stat` for quick checks of specific attributes (Level, Gold, XP, etc.) to minimize token noise.
       - MUST use `dump_player_db` to synchronize the current world state with the in-memory SQLite database when a full state refresh is required.
       - MUST use `update_player_stat`, `modify_player_numeric`, or `update_player_list` to reflect any changes in player state (e.g. HP, XP, Level, Gold, Inventory, slots) immediately as they occur in the narrative.
-      - MUST not update the database in the DORMANT or AWAKENING stages. The database is already synchronized
   combat:
     protocol: DND_5E_TURN_BASED
   progression:
