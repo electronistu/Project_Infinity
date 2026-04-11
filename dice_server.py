@@ -27,13 +27,18 @@ def init_player_db(player_file_path: str) -> str:
         cursor.execute("CREATE TABLE player (key TEXT PRIMARY KEY, value TEXT)")
         
         # Flatten the JSON and insert into the database
-        # For simplicity and flexibility, we store as key-value pairs
+        # For simplicity and flexibility, we store nested structures as JSON strings
         def flatten_json(y):
             out = {}
-            def flatten(x, name=''):
+            def flatten(x, name='', depth=0):
                 if type(x) is dict:
-                    for i in x:
-                        flatten(x[i], name + i + '_')
+                    if depth > 0:
+                        # Store nested dicts as JSON
+                        out[name[:-1]] = json.dumps(x)
+                    else:
+                        # Root level dict - flatten it
+                        for i in x:
+                            flatten(x[i], name + i + '_', depth + 1)
                 elif type(x) is list:
                     out[name[:-1]] = json.dumps(x)
                 else:
