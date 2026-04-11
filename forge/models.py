@@ -191,7 +191,7 @@ class Guild(BaseModel):
 
 class Location(BaseModel):
     name: str
-    coordinates: Tuple[int, int]
+    coordinates: Optional[Tuple[int, int]] = None
     biome: str
     description: str
     npcs: List[NPC] = []
@@ -208,7 +208,6 @@ class Kingdom(BaseModel):
 
 class WorldState(BaseModel):
     player_character: PlayerCharacter
-    map_grid: List[List[str]]
     kingdoms: List[Kingdom]
     all_abilities: List[PlayerAbility] = [] # New field for all available abilities
 # Note: Creatures are now part of Locations, not a separate top-level list

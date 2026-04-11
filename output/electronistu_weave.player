@@ -6,7 +6,7 @@
   "character_class": "Wizard",
   "race": "Elf",
   "background": "Criminal",
-  "alignment": "Chaotic Neutral",
+  "alignment": "True Neutral",
   "armor_class": 10,
   "hit_points": 7,
   "speed": 30,
@@ -15,15 +15,15 @@
     "dex": 17,
     "con": 12,
     "int": 15,
-    "wis": 10,
-    "cha": 11
+    "wis": 12,
+    "cha": 9
   },
   "proficiency_bonus": 2,
   "skills": [
-    "Deception",
     "Arcana",
-    "Medicine",
     "Perception",
+    "Investigation",
+    "Deception",
     "Stealth"
   ],
   "saves": [],

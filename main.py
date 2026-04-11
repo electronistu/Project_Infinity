@@ -2,7 +2,6 @@ import argparse
 import os
 from forge.config_loader import load_config
 from forge.character_creator import create_character, create_debug_character
-from forge.map_generator import create_map
 from forge.population_generator import populate_world
 from forge.guild_generator import create_guilds
 from forge.formatter import format_world_to_wwf
@@ -23,8 +22,7 @@ def main():
     
     print("\n--- Forging Your World... ---")
 
-    map_grid = create_map()
-    kingdoms = populate_world(config, map_grid)
+    kingdoms = populate_world(config)
     create_guilds(kingdoms, config)
 
     world_history = [
@@ -36,7 +34,6 @@ def main():
 
     world_state = WorldState(
         player_character=player_character,
-        map_grid=map_grid,
         kingdoms=kingdoms,
         current_tick="06:00",
         world_history=world_history

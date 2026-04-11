@@ -26,24 +26,6 @@ def get_cr_and_xp(level: int) -> (float, int):
     if level <= 14: return (3, 700)
     return (5, 1800) # For levels 15+
 
-def find_valid_placement(map_grid, area_size=(5, 5)):
-    """Finds a random valid top-left coordinate for a location on land."""
-    height = len(map_grid)
-    width = len(map_grid[0])
-    possible_placements = []
-    # Give a buffer from the edge of the map
-    for r in range(5, height - area_size[1] - 5):
-        for c in range(5, width - area_size[0] - 5):
-            is_valid = all(
-                map_grid[r + i][c + j] == '~' 
-                for i in range(area_size[1]) 
-                for j in range(area_size[0])
-            )
-            if is_valid:
-                possible_placements.append((c, r))
-    
-    return random.choice(possible_placements) if possible_placements else None
-
 def _generate_npc_details(level: int, role: str, faction: str, is_walker: bool, config):
     """Generates detailed NPC attributes based on level, role, and config."""
     # Randomly choose race, class, background
@@ -236,17 +218,17 @@ def create_courtier_npc(kingdom_name, config):
 
 # --- Main Population Generator ---
 
-def populate_world(config, map_grid):
+def populate_world(config):
     """Populates the world with kingdoms, capitals, and NPCs with hardcoded relations."""
     kingdoms = []
-
+    
     kingdom_defs = {
         "Eldoria": {"alignment": "Lawful Good"},
         "Zarthus": {"alignment": "Lawful Evil"},
         "Silverwood": {"alignment": "True Neutral"},
         "Blacksail Archipelago": {"alignment": "Chaotic Evil"}
     }
-
+    
     # Hardcoded relationship matrix reflecting a tense, post-war world
     RELATIONS = {
         "Eldoria": {"Zarthus": "Rivalry", "Silverwood": "Suspicion", "Blacksail Archipelago": "Raiding"},
@@ -254,7 +236,7 @@ def populate_world(config, map_grid):
         "Silverwood": {"Eldoria": "Suspicion", "Zarthus": "Contempt", "Blacksail Archipelago": "Raiding"},
         "Blacksail Archipelago": {"Eldoria": "Raiding", "Zarthus": "Alliance", "Silverwood": "Raiding"}
     }
-
+    
     for name, data in kingdom_defs.items():
         # Create the Ruler
         ruler_level = random.randint(10, 15)
@@ -267,46 +249,19 @@ def populate_world(config, map_grid):
         )
         ruler.alignment = data["alignment"]
         ruler.dialogue_options = [f"I am the ruler of {name}.", "State your business."]
-
+    
         # Create the Capital City
-        if name == "Blacksail Archipelago":
-            # Force capital to be placed within the pirate island area
-            # Pirate Island: x=width-15 to width-5, y=5 to 15 (approx)
-            width = len(map_grid[0])
-            height = len(map_grid)
-            island_x, island_y = width - 15, 5
-            island_size = 10
-            
-            possible_spots = []
-            for r in range(island_y, island_y + island_size):
-                for c in range(island_x, island_x + island_size):
-                    if 0 <= r < height and 0 <= c < width and map_grid[r][c] in ['~', 'b']:
-                        possible_spots.append((c, r))
-            
-            if possible_spots:
-                capital_coords = random.choice(possible_spots)
-            else:
-                capital_coords = find_valid_placement(map_grid, (2, 2)) # Fallback
-        else:
-            capital_coords = find_valid_placement(map_grid, (8, 8))
-
-        if not capital_coords: continue
-        
-        c_x, c_y = capital_coords
-        capital_char = name[0]
-        map_grid[c_y][c_x] = capital_char
-
         capital_city = Location(
-            name=f"{name} City", coordinates=capital_coords, biome="Plains",
+            name=f"{name} City", coordinates=None, biome="Plains",
             description=f"The bustling capital of {name}.", npcs=[ruler]
         )
-
+    
         # Add courtiers to the capital
         num_courtiers = random.randint(2, 3)
         for _ in range(num_courtiers):
             courtier = create_courtier_npc(name, config)
             capital_city.npcs.append(courtier)
-
+    
         # Create the Kingdom
         kingdom = Kingdom(
             name=name, capital=capital_city.name, alignment=data["alignment"], 
@@ -314,26 +269,6 @@ def populate_world(config, map_grid):
             relations=RELATIONS[name]
         )
         kingdoms.append(kingdom)
-
-    # Assign borders (territory) based on closest capital
-    height = len(map_grid)
-    width = len(map_grid[0])
     
-    caps = []
-    for k in kingdoms:
-        if k.locations:
-            caps.append((k.locations[0].coordinates[0], k.locations[0].coordinates[1], k.name[0]))
-            
-    for y in range(height):
-        for x in range(width):
-            if map_grid[y][x] == '~':
-                min_dist = float('inf')
-                closest_char = '~'
-                for cx, cy, kchar in caps:
-                    dist = (x - cx)**2 + (y - cy)**2
-                    if dist < min_dist:
-                        min_dist = dist
-                        closest_char = kchar.lower()
-                map_grid[y][x] = closest_char
-
     return kingdoms
+
