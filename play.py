@@ -1,5 +1,6 @@
 import os
 import sys
+import argparse
 import asyncio
 import ollama
 from rich.console import Console
@@ -13,6 +14,7 @@ from rich.theme import Theme
 from rich.padding import Padding
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+from dice_server import init_player_db
 
 # Configuration
 AVAILABLE_MODELS = [
@@ -29,6 +31,7 @@ SERVER_PARAMS = StdioServerParameters(
 )
 
 console = Console()
+VERBOSE = False
 
 def get_wwf_files():
     """List all .wwf files in the output directory."""
@@ -104,7 +107,20 @@ def select_wwf():
         console.print("[red]Invalid selection. Defaulting to first file.[/red]")
         return os.path.join(OUTPUT_DIR, files[0])
 
+def parse_args():
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(description="Project Infinity: A Dynamic, Text-Based RPG World Engine")
+    parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed MCP tool calls and responses")
+    return parser.parse_args()
+
 async def main():
+    global VERBOSE
+    args = parse_args()
+    VERBOSE = args.verbose
+    
+    if VERBOSE:
+        console.print("[dim]Verbose mode enabled[/dim]")
+    
     # 1. LLM Model Selection
     model = select_model()
     
@@ -121,17 +137,12 @@ async def main():
         key_content = f.read()
 
     # 4. Setup MCP Client and Ollama Tools
-    async with stdio_client(SERVER_PARAMS) as (read, write):
+    async with stdio_client(StdioServerParameters(
+        command="python3",
+        args=["dice_server.py", player_path],
+    )) as (read, write):
         async with ClientSession(read, write) as session:
             await session.initialize()
-            
-            # Initialize Player Database in Dice Server
-            console.print("\n[yellow]Initializing Player Database in Dice Server...[/yellow]")
-            try:
-                init_result = await session.call_tool("init_player_db", arguments={"player_file_path": player_path})
-                console.print(f"[bold green]DB Status:[/bold green] {init_result.content}")
-            except Exception as e:
-                console.print(f"[bold red]DB Initialization Error:[/bold red] {e}")
 
             # Fetch tools from MCP server to present to Ollama
             mcp_tools = await session.list_tools()
@@ -156,7 +167,7 @@ async def main():
                     messages.append(role_content)
 
                 while True:
-                    response = ollama.chat(
+                    response = await ollama.AsyncClient().chat(
                         model=model,
                         messages=messages,
                         tools=ollama_tools,
@@ -174,7 +185,13 @@ async def main():
                         tool_args = tool_call['function']['arguments']
                         
                         # Call MCP tool
+                        if VERBOSE:
+                            console.print(f"[dim]🔧 Tool: {tool_name}({tool_args})[/dim]")
+                        
                         result = await session.call_tool(tool_name, arguments=tool_args)
+                        
+                        if VERBOSE:
+                            console.print(f"[dim]   → {result.content}[/dim]")
                         
                         messages.append({
                             "role": "tool",
@@ -228,3 +245,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         console.print("\n[yellow]Interrupted by user. Exiting...[/yellow]")
         sys.exit(0)
+    except SystemExit as e:
+        sys.exit(e.code)

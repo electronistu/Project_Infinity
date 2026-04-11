@@ -10,10 +10,10 @@ mcp = FastMCP("InfinityRolls", log_level="WARNING")
 # In-memory database connection
 DB_CONNECTION = None
 
-@mcp.tool()
 def init_player_db(player_file_path: str) -> str:
     """
     Initializes the in-memory SQLite database using the provided .player JSON file.
+    This function is NOT exposed as an MCP tool - it's called directly by play.py
     """
     global DB_CONNECTION
     try:
@@ -27,28 +27,17 @@ def init_player_db(player_file_path: str) -> str:
         cursor.execute("CREATE TABLE player (key TEXT PRIMARY KEY, value TEXT)")
         
         # Flatten the JSON and insert into the database
-        # For simplicity and flexibility, we store nested structures as JSON strings
-        def flatten_json(y):
-            out = {}
-            def flatten(x, name='', depth=0):
-                if type(x) is dict:
-                    if depth > 0:
-                        # Store nested dicts as JSON
-                        out[name[:-1]] = json.dumps(x)
-                    else:
-                        # Root level dict - flatten it
-                        for i in x:
-                            flatten(x[i], name + i + '_', depth + 1)
-                elif type(x) is list:
-                    out[name[:-1]] = json.dumps(x)
-                else:
-                    out[name[:-1]] = x
-            flatten(y)
-            return out
+        # We only flatten at the root level to preserve complex objects (dict/list) as JSON strings
+        flattened_data = {}
+        for key, value in data.items():
+            if isinstance(value, (dict, list)):
+                flattened_data[key] = json.dumps(value)
+            else:
+                flattened_data[key] = value
 
-        flattened_data = flatten_json(data)
         for key, value in flattened_data.items():
             cursor.execute("INSERT INTO player (key, value) VALUES (?, ?)", (key, str(value)))
+
         
         DB_CONNECTION.commit()
         return f"Database initialized with player data from {player_file_path}."
@@ -231,4 +220,10 @@ def perform_check(modifier: int, dc: int, check_name: str = "Check") -> dict:
     }
 
 if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        player_file = sys.argv[1]
+        init_status = init_player_db(player_file)
+        # Log the status to stderr because stdout is reserved for MCP
+        print(f"Server DB Init: {init_status}", file=sys.stderr)
+    
     mcp.run(transport="stdio")
