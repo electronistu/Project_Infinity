@@ -104,36 +104,6 @@ def set_nested_value(data, path, value):
             pass
     return data
 
-@mcp.tool()
-def update_player_stat(key: str, value: str) -> str:
-    """
-    Updates a specific player attribute. Supports dotted notation for nested attributes.
-    Example: To change the spellcasting ability, use 'spellcasting.ability'.
-    Correct: update_player_stat(key='spellcasting.ability', value='intelligence')
-    """
-    global DB_CONNECTION
-    if DB_CONNECTION is None:
-        return "Database not initialized."
-    try:
-        cursor = DB_CONNECTION.cursor()
-        
-        if '.' in key:
-            root_key = key.split('.')[0]
-            cursor.execute("SELECT value FROM player WHERE key = ?", (root_key,))
-            row = cursor.fetchone()
-            if not row:
-                return f"Root key {root_key} not found."
-            
-            data = json.loads(row[0])
-            set_nested_value(data, key[len(root_key)+1:], value)
-            cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", (root_key, json.dumps(data)))
-        else:
-            cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", (key, value))
-            
-        DB_CONNECTION.commit()
-        return f"Successfully updated {key} to {value}."
-    except Exception as e:
-        return f"Error updating stat: {str(e)}"
 
 @mcp.tool()
 def modify_player_numeric(key: str, delta: int) -> str:
@@ -273,13 +243,13 @@ def get_player_stat(key: str) -> str:
         return f"Error retrieving stat: {str(e)}"
 
 @mcp.tool()
-def dump_player_db() -> str:
+def dump_player_db() -> dict:
     """
-    Returns a full dump of the current in-memory player database.
+    Returns a full dump of the current in-memory player database as a dictionary.
     """
     global DB_CONNECTION
     if DB_CONNECTION is None:
-        return "Database not initialized."
+        return {"error": "Database not initialized."}
     
     try:
         cursor = DB_CONNECTION.cursor()
@@ -287,12 +257,19 @@ def dump_player_db() -> str:
         rows = cursor.fetchall()
         
         if not rows:
-            return "Database is empty."
+            return {}
             
-        dump = "\n".join([f"{row[0]}: {row[1]}" for row in rows])
-        return f"--- Player DB Dump ---\n{dump}\n--------------------"
+        result = {}
+        for key, value in rows:
+            try:
+                # Attempt to parse JSON strings back into python objects
+                result[key] = json.loads(value)
+            except (json.JSONDecodeError, TypeError):
+                result[key] = value
+                
+        return result
     except Exception as e:
-        return f"Error dumping database: {str(e)}"
+        return {"error": f"Error dumping database: {str(e)}"}
 
 @mcp.tool()
 def roll_dice(dice_notation: str, modifier: int = 0) -> dict:

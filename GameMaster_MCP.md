@@ -60,7 +60,7 @@ systems:
   checks:
     dc_levels: {easy: 10, medium: 15, hard: 20}
     roll_engine: MCP_TOOL
-    required_tools: [perform_check, roll_dice, dump_player_db, get_player_stat, update_player_stat, modify_player_numeric, update_player_list]
+    required_tools: [perform_check, roll_dice, dump_player_db, get_player_stat, modify_player_numeric, update_player_list]
     execution_protocol:
       roll_engine:
         complexity_checks:
@@ -97,28 +97,22 @@ systems:
         examples: [stats.dex, spellcasting.slots.1, spellcasting.ability]
         operations:
           read:
-            quick_check:
-              tool: get_player_stat
-              scope: all_fields
-              use_case: specific_attributes
             full_sync:
               tool: dump_player_db
-              use_case: world_state_refresh
+              use_case: player_state_refresh
           write:
             tools:
-              - name: update_player_stat
-                operation: set_value
-                supports: [strings, numbers, nested_paths]
-              - name: modify_player_numeric
-                operation: delta_change
-                supports: [increment, decrement, nested_paths]
-              - name: update_player_list
-                operation: list_management
-                actions: [add, remove]
-                targets: [inventory, spells, skills, features, cantrips]
-            trigger: on_state_change
-            scope: all_fields
-            timing: immediate
+               - name: modify_player_numeric
+                 operation: delta_change
+                 supports: [increment, decrement, nested_paths]
+               - name: update_player_list
+                 operation: list_management
+                 actions: [add, remove]
+                 targets: [inventory, spells, skills, features, cantrips]
+             trigger: on_state_change
+             scope: all_fields
+             timing: immediate
+
   combat:
     protocol: DND_5E_TURN_BASED
   progression:
