@@ -21,6 +21,7 @@ AVAILABLE_MODELS = [
     "qwen3.5:cloud",
     "qwen3.5:397b-cloud",
     "deepseek-v3.2:cloud",
+    "glm-5.1:cloud",
 ]
 LOCK_FILE = "GameMaster_MCP.md"
 OUTPUT_DIR = "output"

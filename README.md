@@ -18,7 +18,7 @@ This mode utilizes an external **Model Context Protocol (MCP)** server to act as
 **Requirements:**
 - Python 3.8+
 - [Ollama](https://ollama.ai/) installed and running.
-- Supported models: `deepseek-v3.2:cloud` (Recommended), `qwen3.5:397b-cloud`, or `qwen3.5:cloud`.
+- Supported models: `deepseek-v3.2:cloud`, `qwen3.5:397b-cloud`, `qwen3.5:cloud`, or `glm-5.1:cloud`.
 
 **Quick Start:**
 1. Install dependencies:
@@ -67,7 +67,7 @@ When you launch `play.py`, the system feeds the `GameMaster_MCP.md` protocol and
 ## 🌟 The Game Master's Codex
 
 - **Model Selection:** Larger models generally produce richer narratives and better adhere to the complex MCP protocols.
-- **Model Performance Note:** For the best experience and full adherence to the mechanical transparency rules, `deepseek-v3.2:cloud` is strongly recommended. The `qwen3.5` models (especially `qwen3.5:397b-cloud`) are excellent alternatives. Smaller models may struggle with the complexity of the protocol, potentially truncating narratives or failing to report dice rolls despite using MCP tools correctly.
+- **Model Performance Note:** Smaller models may struggle with the complexity of the protocol, potentially truncating narratives or failing to report dice rolls despite using MCP tools correctly. Note that GameMaster performance may vary in different sessions using the same model.
 - **Debug Mode:** Use the `--verbose` or `-v` flag when launching `play.py` to see detailed MCP tool calls and responses.
 - **Note on Model Behavior:** The GameMaster may occasionally be forgetful about awarding XP, gold, or syncing the database. If you notice this, simply remind the GameMaster, and it will update the state accordingly.
 
