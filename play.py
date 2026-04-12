@@ -183,14 +183,36 @@ async def main():
                         console.print(f"[dim]DEBUG RESPONSE: {response}[/dim]")
                     
                     response_msg = response['message']
+                    
+                    # Extract content safely from Message object or dict
+                    content = ""
+                    if hasattr(response_msg, 'content'):
+                        content = response_msg.content
+                    elif isinstance(response_msg, dict):
+                        content = response_msg.get('content', "")
+
                     messages.append(response_msg)
 
-                    if not response_msg.get('tool_calls'):
-                        return response_msg['content']
+                    # 1. Check for pause token FIRST, before returning or processing tools
+                    if "{{_NEED_AN_OTHER_PROMPT}}" in (content or ""):
+                        if DEBUG:
+                            console.print("[bold yellow]DEBUG: Checkpoint token detected. Pausing...[/bold yellow]")
+                        return "__SYSTEM_PAUSE__"
 
-                    for tool_call in response_msg['tool_calls']:
-                        tool_name = tool_call['function']['name']
-                        tool_args = tool_call['function']['arguments']
+                    # 2. If no pause token, check if we should return content now
+                    tool_calls_list = response_msg.get('tool_calls') if isinstance(response_msg, dict) else getattr(response_msg, 'tool_calls', None)
+                    if not tool_calls_list:
+                        return content
+
+                    # 3. Process tool calls
+                    for tool_call in tool_calls_list:
+                        # Support both dict and object access for tool_call
+                        if isinstance(tool_call, dict):
+                            tool_name = tool_call['function']['name']
+                            tool_args = tool_call['function']['arguments']
+                        else:
+                            tool_name = tool_call.function.name
+                            tool_args = tool_call.function.arguments
                         
                         # Call MCP tool
                         if VERBOSE:
@@ -243,13 +265,22 @@ async def main():
                     with console.status("[bold blue]GM is thinking...[/bold blue]"):
                         gm_response = await chat_with_tools(user_input)
 
-                
-                console.print(Panel(
-                    Padding(render_gm_text(gm_response), (1, 1)), 
-                    title="[bold magenta]Game Master[/bold magenta]", 
-                    border_style="magenta"
-                ))
-                console.print("\n")
+                while gm_response == "__SYSTEM_PAUSE__":
+                    if DEBUG:
+                        console.print("[bold cyan]DEBUG: Injecting Resume Token ({{_CONTINUE_EXECUTION}})[/bold cyan]")
+                    gm_response = await chat_with_tools("{{_CONTINUE_EXECUTION}}")
+
+                if gm_response and gm_response != "__SYSTEM_PAUSE__":
+                    # Strip the pause token if it leaked into the final narrative
+                    clean_response = gm_response.replace("{{_NEED_AN_OTHER_PROMPT}}", "").strip()
+                    
+                    if clean_response:
+                        console.print(Panel(
+                            Padding(render_gm_text(clean_response), (1, 1)), 
+                            title="[bold magenta]Game Master[/bold magenta]", 
+                            border_style="magenta"
+                        ))
+                        console.print("\n")
 
 if __name__ == "__main__":
     try:

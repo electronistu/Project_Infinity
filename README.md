@@ -48,6 +48,12 @@ To solve the problem of LLM "forgetfulness," the engine implements a dynamic sta
 - **In-Memory SQLite Engine:** Upon boot, the MCP server initializes a queryable database from the player file.
 - **Real-Time Synchronization:** The Game Master updates the player database via MCP tools immediately as changes occur in the narrative.
 
+### Cognitive Load Management
+To prevent "model collapse" during high-complexity turns, the engine implements a **State Checkpoint Protocol**:
+- **Tool-First Execution:** For sequences requiring multiple tool calls, the GM executes all mechanical tools and suppresses immediate narrative output.
+- **System Handshake:** The GM emits a pause token, which `play.py` intercepts to inject a resume signal.
+- **Coherent Narrative:** This process resets the LLM's attention window, ensuring the final storytelling is based on the complete, resolved mechanical state.
+
 ---
 
 ## 🛠 The World Forge
