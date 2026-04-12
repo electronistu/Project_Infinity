@@ -33,6 +33,7 @@ SERVER_PARAMS = StdioServerParameters(
 
 console = Console()
 VERBOSE = False
+DEBUG = False
 
 def get_wwf_files():
     """List all .wwf files in the output directory."""
@@ -112,15 +113,19 @@ def parse_args():
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(description="Project Infinity: A Dynamic, Text-Based RPG World Engine")
     parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed MCP tool calls and responses")
+    parser.add_argument("--debug", "-d", action="store_true", help="Show raw LLM responses and tool calls")
     return parser.parse_args()
 
 async def main():
-    global VERBOSE
+    global VERBOSE, DEBUG
     args = parse_args()
-    VERBOSE = args.verbose
+    DEBUG = args.debug
+    VERBOSE = args.verbose or args.debug
     
     if VERBOSE:
         console.print("[dim]Verbose mode enabled[/dim]")
+    if DEBUG:
+        console.print("[dim]Debug mode enabled[/dim]")
     
     # 1. LLM Model Selection
     model = select_model()
@@ -174,6 +179,8 @@ async def main():
                         tools=ollama_tools,
                         options={"temperature": TEMP}
                     )
+                    if DEBUG:
+                        console.print(f"[dim]DEBUG RESPONSE: {response}[/dim]")
                     
                     response_msg = response['message']
                     messages.append(response_msg)

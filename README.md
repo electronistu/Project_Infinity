@@ -68,7 +68,8 @@ When you launch `play.py`, the system feeds the `GameMaster_MCP.md` protocol and
 
 - **Model Selection:** Larger models generally produce richer narratives and better adhere to the complex MCP protocols.
 - **Model Performance Note:** Smaller models may struggle with the complexity of the protocol, potentially truncating narratives or failing to report dice rolls despite using MCP tools correctly. Note that GameMaster performance may vary in different sessions using the same model.
-- **Debug Mode:** Use the `--verbose` or `-v` flag when launching `play.py` to see detailed MCP tool calls and responses.
+- **Verbose Mode:** Use the `--verbose` or `-v` flag when launching `play.py` to see detailed MCP tool calls and responses.
+- **Developer Debug Mode:** Use the `--debug` or `-d` flag for deep inspection. This displays the raw JSON responses from the LLM—including internal reasoning and thought processes—and automatically enables Verbose Mode.
 - **Note on Model Behavior:** The GameMaster may occasionally be forgetful about awarding XP, gold, or syncing the database. If you notice this, simply remind the GameMaster, and it will update the state accordingly.
 
 ---
