@@ -131,7 +131,10 @@ def modify_player_numeric(key: str, delta: int) -> str:
             current_val = get_nested_value(data, path_in_obj)
             
             if current_val is None:
-                return f"Key {key} not found in database."
+                if key.startswith("spellcasting.slots."):
+                    current_val = 0
+                else:
+                    return f"Key {key} not found in database."
             
             new_val = int(current_val) + delta
             set_nested_value(data, path_in_obj, new_val)
