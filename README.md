@@ -18,7 +18,7 @@ This mode utilizes an external **Model Context Protocol (MCP)** server to act as
 **Requirements:**
 - Python 3.8+
 - [Ollama](https://ollama.ai/) installed and running.
-- Supported models: `deepseek-v3.2:cloud`, `qwen3.5:397b-cloud`, `qwen3.5:cloud`, or `glm-5.1:cloud`.
+- Supported models: `gemma4:31b-cloud`, `deepseek-v3.2:cloud`, `qwen3.5:397b-cloud`, `qwen3.5:cloud`, or `glm-5.1:cloud`.
 
 **Quick Start:**
 1. Install dependencies:
@@ -54,7 +54,6 @@ To prevent "model collapse" during high-complexity turns, the engine implements 
 - **Mechanical Resolution Phase:** The GM resolves all mechanical truths (rolls, state updates) using a **Batch-Sync Cycle**. It groups independent tool calls into batches and must emit a pause token (`{{_NEED_AN_OTHER_PROMPT}}`) after every batch of results.
 - **Recursive Synchronization:** The system intercepts the pause token and injects a resume signal (`{{_CONTINUE_EXECUTION}}`). This cycle repeats recursively until all mechanical updates are finalized.
 - **Narrative Phase:** Only after the final mechanical state is resolved and synced does the GM transition to storytelling, ensuring the narrative is based on the complete, verified state.
-- **Strict Output Formatting:** To prevent "interstitial narration," the GM is restricted to emitting either Tool Calls or the Sync Token, never both in the same response.
 
 ---
 
@@ -75,7 +74,6 @@ When you launch `play.py`, the system initializes the LLM with the `GameMaster_M
 ## 🌟 The Game Master's Codex
 
 - **Model Selection:** Larger models generally produce richer narratives and better adhere to the complex MCP protocols.
-- **Model Performance Note:** Smaller models may struggle with the complexity of the protocol, potentially truncating narratives or failing to report dice rolls despite using MCP tools correctly. Note that GameMaster performance may vary in different sessions using the same model.
 - **Verbose Mode:** Use the `--verbose` or `-v` flag when launching `play.py` to see detailed MCP tool calls and responses.
 - **Developer Debug Mode:** Use the `--debug` or `-d` flag for deep inspection. This displays the raw JSON responses from the LLM—including internal reasoning and thought processes—and automatically enables Verbose Mode.
 
