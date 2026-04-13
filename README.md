@@ -49,10 +49,11 @@ To solve the problem of LLM "forgetfulness," the engine implements a dynamic sta
 - **Real-Time Synchronization:** The Game Master updates the player database via MCP tools immediately as changes occur in the narrative.
 
 ### Cognitive Load Management
-To prevent "model collapse" during high-complexity turns, the engine implements a **State Checkpoint Protocol**:
-- **Tool-First Execution:** For sequences requiring multiple tool calls, the GM executes all mechanical tools and suppresses immediate narrative output.
-- **System Handshake:** The GM emits a pause token, which `play.py` intercepts to inject a resume signal.
-- **Coherent Narrative:** This process resets the LLM's attention window, ensuring the final storytelling is based on the complete, resolved mechanical state.
+To prevent "model collapse" during high-complexity turns, the engine implements a **Phased Resolution Protocol**:
+- **Mechanical Resolution Phase:** The GM resolves all mechanical truths (rolls, state updates) using a **Batch-Sync Cycle**. It groups independent tool calls into batches and must emit a pause token (`{{_NEED_AN_OTHER_PROMPT}}`) after every batch of results.
+- **Recursive Synchronization:** The system intercepts the pause token and injects a resume signal (`{{_CONTINUE_EXECUTION}}`). This cycle repeats recursively until all mechanical updates are finalized.
+- **Narrative Phase:** Only after the final mechanical state is resolved and synced does the GM transition to storytelling, ensuring the narrative is based on the complete, verified state.
+- **Strict Output Formatting:** To prevent "interstitial narration," the GM is restricted to emitting either Tool Calls or the Sync Token, never both in the same response.
 
 ---
 
