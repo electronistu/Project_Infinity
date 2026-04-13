@@ -66,7 +66,7 @@ python3 main.py
 ```
 The Forge guides you through character creation and procedurally generates a world knowledge graph (`.wwf` file) and a corresponding character state file (`.player`) in the `output/` directory. Together, these files serve as the complete source of truth for your adventure.
 
-When you launch `play.py`, the system feeds the `GameMaster_MCP.md` protocol and the `.wwf` file to the LLM to set the stage. Simultaneously, `play.py` initializes `dice_server.py` using the `.player` file to boot the SQLite database.
+When you launch `play.py`, the system initializes the LLM with the `GameMaster_MCP.md` protocol as the system prompt and injects the `.wwf` file as the activation key to awaken the Game Master. Simultaneously, `play.py` initializes `dice_server.py` using the `.player` file to boot the SQLite database.
 
 ---
 

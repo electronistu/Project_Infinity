@@ -163,7 +163,9 @@ async def main():
                     }
                 })
 
-            messages = []
+            messages = [
+                {"role": "system", "content": lock_content}
+            ]
             
             async def chat_with_tools(role_content):
                 nonlocal messages
@@ -229,17 +231,7 @@ async def main():
                             "name": tool_name
                         })
 
-            # BOOT SEQUENCE - STEP 1: Provide the Lock
-            console.print("\n[yellow]Loading Agent Protocol (The Lock)...[/yellow]")
-            response_text = await chat_with_tools(lock_content)
-            
-            # Check for "Awaiting Key..."
-            if "Awaiting Key..." in response_text:
-                console.print(Panel("[bold green]SOCIALLY VERIFIED:[/bold green] Model is awaiting the key.", border_style="green"))
-            else:
-                console.print(Panel("[bold yellow]SOCIALLY UNVERIFIED:[/bold yellow] Model did not respond with 'Awaiting Key...', but proceeding anyway.", border_style="yellow"))
-
-            # BOOT SEQUENCE - STEP 2: Provide the Key
+            # BOOT SEQUENCE: Provide the Key
             console.print("\n[yellow]Injecting World Data (The Key)...[/yellow]")
             response_text = await chat_with_tools(key_content)
             
