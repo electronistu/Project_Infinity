@@ -235,6 +235,11 @@ async def main():
             console.print("\n[yellow]Injecting World Data (The Key)...[/yellow]")
             response_text = await chat_with_tools(key_content)
             
+            while response_text == "__SYSTEM_PAUSE__":
+                if DEBUG:
+                    console.print("[bold cyan]DEBUG: Injecting Resume Token ({{_CONTINUE_EXECUTION}})[/bold cyan]")
+                response_text = await chat_with_tools("{{_CONTINUE_EXECUTION}}")
+
             console.print(Panel(
                 Padding(render_gm_text(response_text), (1, 1)), 
                 title="[bold magenta]The Game Master Awakens[/bold magenta]", 
