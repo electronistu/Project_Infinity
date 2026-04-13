@@ -122,13 +122,28 @@ systems:
                - name: modify_player_numeric
                  operation: delta_change
                  supports: [increment, decrement, nested_paths]
-               - name: update_player_list
-                 operation: list_management
-                 actions: [add, remove]
-                 targets: [inventory, spells, skills, features, cantrips]
-             trigger: on_state_change
-             scope: all_fields
-             timing: immediate
+                - name: update_player_list
+                  operation: list_management
+                  actions: [add, remove]
+                  targets: [inventory, spells, skills, features, cantrips]
+              trigger: on_state_change
+              scope: all_fields
+              timing: immediate
+              sync_handshake:
+                trigger: "{{_SYNC_DATABASE}}"
+                workflow:
+                  - action: call_tool
+                    tool: dump_player_db
+                    purpose: "Refresh and verify current state against narrative"
+                  - action: reconcile_state
+                    method: "Use modify_player_numeric / update_player_list for any missed updates"
+                  - action: emit_completion
+                    token: "{{COMPLETE_SYNC}}"
+                constraints:
+                  - no_narrative: true
+                  - mandatory_tool_usage: true
+                  - output_format: "Only tool calls or {{COMPLETE_SYNC}}"
+
 
   combat:
     protocol: DND_5E_TURN_BASED

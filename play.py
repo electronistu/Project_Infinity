@@ -249,6 +249,7 @@ async def main():
             # 4. Game Loop
             console.print("\n[bold cyan]--- Game Started. Type 'quit' or 'exit' to leave. ---[/bold cyan]\n")
             
+            prompt_count = 0
             while True:
                 user_input = Prompt.ask("[bold white]Your Action[/bold white]")
                 
@@ -256,17 +257,18 @@ async def main():
                     console.print("[yellow]Closing connection to the void... Goodbye.[/yellow]")
                     break
                 
+                prompt_count += 1
                 if VERBOSE:
                     gm_response = await chat_with_tools(user_input)
                 else:
                     with console.status("[bold blue]GM is thinking...[/bold blue]"):
                         gm_response = await chat_with_tools(user_input)
-
+                
                 while gm_response == "__SYSTEM_PAUSE__":
                     if DEBUG:
                         console.print("[bold cyan]DEBUG: Injecting Resume Token ({{_CONTINUE_EXECUTION}})[/bold cyan]")
                     gm_response = await chat_with_tools("{{_CONTINUE_EXECUTION}}")
-
+                
                 if gm_response and gm_response != "__SYSTEM_PAUSE__":
                     # Strip the pause token if it leaked into the final narrative
                     clean_response = gm_response.replace("{{_NEED_AN_OTHER_PROMPT}}", "").strip()
@@ -278,6 +280,16 @@ async def main():
                             border_style="magenta"
                         ))
                         console.print("\n")
+
+                # Sync database every 5 prompts for all users
+                if prompt_count > 0 and prompt_count % 5 == 0:
+                    if DEBUG or VERBOSE:
+                        console.print("[dim]Synchronizing database...[/dim]")
+                    sync_response = await chat_with_tools("{{_SYNC_DATABASE}}")
+                    while sync_response == "__SYSTEM_PAUSE__":
+                        sync_response = await chat_with_tools("{{_CONTINUE_EXECUTION}}")
+                    # The GM should respond with {{COMPLETE_SYNC}}; we just swallow it to keep UI clean
+
 
 if __name__ == "__main__":
     try:

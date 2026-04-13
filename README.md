@@ -47,6 +47,7 @@ To ensure fairness, the engine splits mechanical outcomes into two distinct laye
 To solve the problem of LLM "forgetfulness," the engine implements a dynamic state-tracking system:
 - **In-Memory SQLite Engine:** Upon boot, the MCP server initializes a queryable database from the player file.
 - **Real-Time Synchronization:** The Game Master updates the player database via MCP tools immediately as changes occur in the narrative.
+- **Periodic State Synchronization:** To prevent long-term divergence, the system triggers a mandatory synchronization cycle every 5 prompts, forcing the GM to verify and reconcile the database state via a `dump_player_db` handshake.
 
 ### Cognitive Load Management
 To prevent "model collapse" during high-complexity turns, the engine implements a **Phased Resolution Protocol**:
@@ -77,7 +78,6 @@ When you launch `play.py`, the system initializes the LLM with the `GameMaster_M
 - **Model Performance Note:** Smaller models may struggle with the complexity of the protocol, potentially truncating narratives or failing to report dice rolls despite using MCP tools correctly. Note that GameMaster performance may vary in different sessions using the same model.
 - **Verbose Mode:** Use the `--verbose` or `-v` flag when launching `play.py` to see detailed MCP tool calls and responses.
 - **Developer Debug Mode:** Use the `--debug` or `-d` flag for deep inspection. This displays the raw JSON responses from the LLM—including internal reasoning and thought processes—and automatically enables Verbose Mode.
-- **Note on Model Behavior:** The GameMaster may occasionally be forgetful about awarding XP, gold, or syncing the database. If you notice this, simply remind the GameMaster, and it will update the state accordingly.
 
 ---
 
