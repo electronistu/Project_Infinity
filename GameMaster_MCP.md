@@ -137,11 +137,3 @@ systems:
     rewards: [xp, gold, items]
     on_success: [award_all, announce_all]
 
-cognitive_load_protocol:
-  trigger: "total_sequence_tool_calls > 1"
-  immediate_action: "execute(batch) -> receive(results) -> emit('{{_NEED_AN_OTHER_PROMPT}}') && suppress(narrative)"
-  state: "PHASE_MECHANICAL_RESOLUTION"
-  awaiting: "{{_CONTINUE_EXECUTION}}"
-  on_resume: "if(pending_mechanics) { repeat_batch_sync_cycle } else { transition_to_narrative_phase }"
-  objective: "prevent_context_collapse_via_strict_batch_sync"
-

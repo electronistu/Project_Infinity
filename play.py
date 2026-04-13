@@ -196,7 +196,7 @@ async def main():
                     messages.append(response_msg)
 
                     # 1. Check for pause token FIRST, before returning or processing tools
-                    if "{{_NEED_AN_OTHER_PROMPT}}" in (content or ""):
+                    if any(token in (content or "") for token in ["{{_NEED_AN_OTHER_PROMPT}}", "{{_NEED_ANOTHER_PROMPT}}"]):
                         if DEBUG:
                             console.print("[bold yellow]DEBUG: Checkpoint token detected. Pausing...[/bold yellow]")
                         return "__SYSTEM_PAUSE__"
