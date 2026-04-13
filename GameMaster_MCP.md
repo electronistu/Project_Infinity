@@ -125,7 +125,7 @@ systems:
                 - name: update_player_list
                   operation: list_management
                   actions: [add, remove]
-                  targets: [inventory, spells, skills, features, cantrips]
+                  targets: all_fields
               trigger: on_state_change
               scope: all_fields
               timing: immediate
