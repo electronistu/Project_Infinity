@@ -51,9 +51,9 @@ To solve the problem of LLM "forgetfulness," the engine implements a dynamic sta
 
 ### Cognitive Load Management
 To prevent "model collapse" during high-complexity turns, the engine implements a **Phased Resolution Protocol**:
-- **Mechanical Resolution Phase:** The GM resolves all mechanical truths (rolls, state updates) using a **Batch-Sync Cycle**. It groups independent tool calls into batches and must emit a pause token (`{{_NEED_AN_OTHER_PROMPT}}`) after every batch of results.
-- **Recursive Synchronization:** The system intercepts the pause token and injects a resume signal (`{{_CONTINUE_EXECUTION}}`). This cycle repeats recursively until all mechanical updates are finalized.
-- **Narrative Phase:** Only after the final mechanical state is resolved and synced does the GM transition to storytelling, ensuring the narrative is based on the complete, verified state.
+- **Mechanical Resolution Phase:** The GM resolves all mechanical truths (rolls, state updates) via a **Linear Resolution Sequence**. The GM emits a batch of all required tool calls and must emit a pause token (`{{_NEED_AN_OTHER_PROMPT}}`) immediately after receiving the results.
+- **Sync Handshake:** The system intercepts the pause token and injects a resume signal (`{{_CONTINUE_EXECUTION}}`). This handshake ensures the GM has internally audited all mechanical results before moving to narrative.
+- **Narrative Phase:** Only after the sync handshake is complete does the GM transition to storytelling, ensuring the narrative is based on the complete, verified state.
 
 ---
 
