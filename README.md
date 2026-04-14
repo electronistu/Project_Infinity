@@ -16,7 +16,7 @@ This mode utilizes an external **Model Context Protocol (MCP)** server to act as
 - **Fairness:** Every mechanical result is mathematically accurate and transparent.
 
 **Requirements:**
-- Python 3.8+
+- Python 3.11+
 - [Ollama](https://ollama.ai/) installed and running.
 - Supported models: `gemma4:31b-cloud`, `deepseek-v3.2:cloud`, `qwen3.5:397b-cloud`, `qwen3.5:cloud`, or `glm-5.1:cloud`.
 
