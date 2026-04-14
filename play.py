@@ -176,12 +176,25 @@ async def main():
                     messages.append(role_content)
 
                 while True:
-                    response = await ollama.AsyncClient().chat(
-                        model=model,
-                        messages=messages,
-                        tools=ollama_tools,
-                        options={"temperature": TEMP}
-                    )
+                    # 1. LLM Request with Retry Logic
+                    max_retries = 3
+                    for attempt in range(max_retries):
+                        try:
+                            response = await ollama.AsyncClient().chat(
+                                model=model,
+                                messages=messages,
+                                tools=ollama_tools,
+                                options={"temperature": TEMP}
+                            )
+                            break
+                        except ollama._types.ResponseError as e:
+                            if e.status_code in [502, 503] and attempt < max_retries - 1:
+                                if DEBUG:
+                                    console.print(f"[bold yellow]DEBUG: Ollama overloaded ({e.status_code}). Retrying... ({attempt+1}/{max_retries})[/bold yellow]")
+                                await asyncio.sleep(2)
+                                continue
+                            raise e
+                    
                     if DEBUG:
                         console.print(f"[dim]DEBUG RESPONSE: {response}[/dim]")
                     
@@ -282,14 +295,14 @@ async def main():
                         ))
                         console.print("\n")
 
-                # Sync database every 5 prompts for all users
-                if prompt_count > 0 and prompt_count % 5 == 0:
-                    if DEBUG or VERBOSE:
-                        console.print("[dim]Synchronizing database...[/dim]")
-                    sync_response = await chat_with_tools("{{_SYNC_DATABASE}}")
-                    while sync_response == "__SYSTEM_PAUSE__":
-                        sync_response = await chat_with_tools("{{_CONTINUE_EXECUTION}}")
-                    # The GM should respond with {{COMPLETE_SYNC}}; we just swallow it to keep UI clean
+                    # Sync database every 5 prompts for all users
+                    if prompt_count > 0 and prompt_count % 5 == 0:
+                        if DEBUG or VERBOSE:
+                            console.print("[dim]Synchronizing database...[/dim]")
+                        # We only trigger the sync and process mechanical steps/pause tokens.
+                        # We do NOT send {{_CONTINUE_EXECUTION}} here to avoid double-confirmation.
+                        await chat_with_tools("{{_SYNC_DATABASE}}")
+
 
 
 if __name__ == "__main__":

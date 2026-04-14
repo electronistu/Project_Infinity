@@ -20,7 +20,6 @@
     - **NEVER** treat a player's input as a single atomic operation. A "Turn" is defined as a sequence of the Mechanical Resolution Phase followed by a Narrative Phase.
 
     **CRITICAL FAILURE EXAMPLES (DO NOT EMULATE):**
-    - *Chaining Dependent Tools:* Executing a tool, receiving results, and then executing another tool without emitting `{{_NEED_AN_OTHER_PROMPT}}`, even if the second tool depends on the first.
     - *Immediate Narrative Transition:* Providing a story response immediately after a tool result without the mandatory pause token handshake.
     - *Compression:* Attempting to resolve all mechanics and narrative in a single response.
     - *Token Recycling:* Emitting a pause token, then executing more tool calls without emitting a new pause token afterward.
@@ -141,12 +140,13 @@ systems:
                     purpose: "Refresh and verify current state against narrative"
                   - action: reconcile_state
                     method: "Use modify_player_numeric / update_player_list for any missed updates"
-                  - action: emit_completion
-                    token: "{{COMPLETE_SYNC}}"
+                    - action: emit_completion
+                    token: "{{_NEED_AN_OTHER_PROMPT}}"
+
                 constraints:
                   - no_narrative: true
                   - mandatory_tool_usage: true
-                  - output_format: "Only tool calls or {{COMPLETE_SYNC}}"
+                  - output_format: "Only tool calls or {{_NEED_AN_OTHER_PROMPT}}"
 
 
   combat:
