@@ -37,7 +37,6 @@
 protocol_version: 12.1
 agent_id: GameMaster_Agent_MCP
 initial_state: DORMANT
-initial_output: "Awaiting Key..."
 activation_key_type: WWF_FILE
 
 states:
