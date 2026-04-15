@@ -154,13 +154,16 @@ systems:
                - name: modify_player_numeric
                   operation: delta_change
                   supports: [increment, decrement, nested_paths]
-                  level_up_signal: |
-                    When key='xp' is updated and the new total meets or exceeds a D&D 5E level threshold,
-                    this tool appends a level-up message to its return value (e.g., "Updated xp to 350. Player has reached level 2!").
-                    IMPORTANT: The tool does NOT update the 'level' key or any other stats. The GM MUST
-                    apply all level-up changes immediately: increment 'level', update 'proficiency_bonus',
-                    adjust 'hit_points', update 'spellcasting.slots', add new features/spells, and any
-                    other progression changes required by the ruleset.
+                   level_up_signal: |
+                     When key='xp' is updated and the new total meets or exceeds a D&D 5E level threshold,
+                     this tool automatically applies all numeric level-up changes and appends a detailed
+                     summary to its return value. The following fields are updated automatically:
+                     level, proficiency_bonus, hit_dice_count, hit_points (rolled hit dice + CON mod),
+                     and spellcasting (slots, dc, attack_modifier). All changes are listed with old and
+                     new values in the return message.
+                     The GM MUST still apply manually: new class features, new cantrips, new spells known,
+                     ability score improvements (at levels 4, 8, 12, 16, 19), and any subclass-specific
+                     progression changes required by the ruleset.
                 - name: update_player_list
                   operation: list_management
                   actions: [add, remove]

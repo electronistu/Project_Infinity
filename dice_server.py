@@ -3,6 +3,7 @@ import sys
 import json
 import sqlite3
 from mcp.server.fastmcp import FastMCP
+from level_up import apply_level_up
 
 # FastMCP handles logging internally, but this guarantees stderr usage
 mcp = FastMCP("InfinityRolls", log_level="WARNING")
@@ -175,6 +176,16 @@ def modify_player_numeric(key: str, delta: int) -> str:
                 current_level = int(level_row[0])
                 new_level = get_level_for_xp(new_val)
                 if new_level > current_level:
+                    cursor.execute("SELECT key, value FROM player")
+                    all_rows = cursor.fetchall()
+                    player_data = {row[0]: row[1] for row in all_rows}
+                    character_class = player_data.get('character_class', '')
+                    changes, summary = apply_level_up(character_class, current_level, new_level, player_data)
+                    for db_key, db_value in changes.items():
+                        cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", (db_key, db_value))
+                    DB_CONNECTION.commit()
+                    for line in summary:
+                        result_msg += f" {line}."
                     result_msg += f" Player has reached level {new_level}!"
         return result_msg
     except Exception as e:

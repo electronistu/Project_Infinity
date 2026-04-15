@@ -4,7 +4,12 @@
 from .models import PlayerCharacter, Stats, Equipment, Skill, SpecialAbility, Item, StartingEquipmentOption, CharacterClass
 from .config_loader import Config
 import math
+import sys
+import os
 from typing import Optional, List, Dict
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from level_up import FULL_CASTER_SPELL_SLOTS, HALF_CASTER_SPELL_SLOTS, ARTIFICER_SPELL_SLOTS, WARLOCK_SPELL_SLOTS
 
 # --- Data for 5e Rules ---
 ALL_SKILLS = {
@@ -36,78 +41,6 @@ ARMOR_DATA = {
 }
 
 SHIELD_NAMES = {"Shield", "Wooden Shield"}
-
-# Spell slots per level for full casters (Wizard, Cleric, Sorcerer, Bard, Druid)
-FULL_CASTER_SPELL_SLOTS = {
-    1: {1: 2},
-    2: {1: 3},
-    3: {1: 4, 2: 2},
-    4: {1: 4, 2: 3},
-    5: {1: 4, 2: 3, 3: 2},
-    6: {1: 4, 2: 3, 3: 3},
-    7: {1: 4, 2: 3, 3: 3, 4: 1},
-    8: {1: 4, 2: 3, 3: 3, 4: 2},
-    9: {1: 4, 2: 3, 3: 3, 4: 3, 5: 1},
-    10: {1: 4, 2: 3, 3: 3, 4: 3, 5: 2},
-    11: {1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1},
-    12: {1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1},
-    13: {1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1, 7: 1},
-    14: {1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1, 7: 1},
-    15: {1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1, 7: 1, 8: 1},
-    16: {1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1, 7: 1, 8: 1},
-    17: {1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1, 7: 1, 8: 1, 9: 1},
-    18: {1: 4, 2: 3, 3: 3, 4: 3, 5: 3, 6: 1, 7: 1, 8: 1, 9: 1},
-    19: {1: 4, 2: 3, 3: 3, 4: 3, 5: 3, 6: 2, 7: 1, 8: 1, 9: 1},
-    20: {1: 4, 2: 3, 3: 3, 4: 3, 5: 3, 6: 2, 7: 2, 8: 1, 9: 1},
-}
-
-# Spell slots per level for half casters (Paladin, Ranger)
-HALF_CASTER_SPELL_SLOTS = {
-    1: {},
-    2: {1: 2},
-    3: {1: 3},
-    4: {1: 3},
-    5: {1: 4, 2: 2},
-    6: {1: 4, 2: 2},
-    7: {1: 4, 2: 3},
-    8: {1: 4, 2: 3},
-    9: {1: 4, 2: 3, 3: 2},
-    10: {1: 4, 2: 3, 3: 2},
-    11: {1: 4, 2: 3, 3: 3},
-    12: {1: 4, 2: 3, 3: 3},
-    13: {1: 4, 2: 3, 3: 3, 4: 1},
-    14: {1: 4, 2: 3, 3: 3, 4: 1},
-    15: {1: 4, 2: 3, 3: 3, 4: 2},
-    16: {1: 4, 2: 3, 3: 3, 4: 2},
-    17: {1: 4, 2: 3, 3: 3, 4: 3},
-    18: {1: 4, 2: 3, 3: 3, 4: 3},
-    19: {1: 4, 2: 3, 3: 3, 4: 3, 5: 1},
-    20: {1: 4, 2: 3, 3: 3, 4: 3, 5: 2},
-}
-
-# Spell slots per level for Artificer (unique progression)
-ARTIFICER_SPELL_SLOTS = {
-    1: {1: 2},
-    2: {1: 2},
-    3: {1: 3},
-    4: {1: 3},
-    5: {1: 4, 2: 2},
-    6: {1: 4, 2: 2},
-    7: {1: 4, 2: 3},
-    8: {1: 4, 2: 3},
-    9: {1: 4, 2: 3, 3: 2},
-    10: {1: 4, 2: 3, 3: 2},
-    11: {1: 4, 2: 3, 3: 3},
-    12: {1: 4, 2: 3, 3: 3},
-    13: {1: 4, 2: 3, 3: 3, 4: 1},
-    14: {1: 4, 2: 3, 3: 3, 4: 1},
-    15: {1: 4, 2: 3, 3: 3, 4: 2},
-    16: {1: 4, 2: 3, 3: 3, 4: 2},
-    17: {1: 4, 2: 3, 3: 3, 4: 3},
-    18: {1: 4, 2: 3, 3: 3, 4: 3},
-    19: {1: 4, 2: 3, 3: 3, 4: 3, 5: 1},
-    20: {1: 4, 2: 3, 3: 3, 4: 3, 5: 2},
-}
 
 # --- Helper Functions ---
 
@@ -401,7 +334,7 @@ def create_character(config: Config) -> PlayerCharacter:
             spellcasting_ability = "charisma"
             cantrips_known = ["Eldritch Blast", "Chill Touch"]
             spells_known = ["Hex", "Armor of Agathys"]
-            spell_slots = {"1": 1}
+            spell_slots = {str(k): v for k, v in WARLOCK_SPELL_SLOTS[1].items()}
         elif chosen_class.name == "Bard":
             spellcasting_ability = "charisma"
             cantrips_known = ["Light", "Vicious Mockery"]
