@@ -188,7 +188,7 @@ async def main():
                             )
                             break
                         except ollama._types.ResponseError as e:
-                            if e.status_code in [502, 503] and attempt < max_retries - 1:
+                            if e.status_code in [500, 502, 503] and attempt < max_retries - 1:
                                 if DEBUG:
                                     console.print(f"[bold yellow]DEBUG: Ollama overloaded ({e.status_code}). Retrying... ({attempt+1}/{max_retries})[/bold yellow]")
                                 await asyncio.sleep(2)
