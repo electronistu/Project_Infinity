@@ -197,7 +197,14 @@ def compute_spell_slots(character_class, new_level, current_spellcasting=None):
             return None
 
     result = dict(current_spellcasting)
-    result["slots"] = new_slots
+    old_slots = current_spellcasting.get("slots", {})
+    merged_slots = {}
+    for slot_level in new_slots:
+        if slot_level in old_slots:
+            merged_slots[slot_level] = old_slots[slot_level]
+        else:
+            merged_slots[slot_level] = 0
+    result["slots"] = merged_slots
     return result
 
 
