@@ -109,7 +109,7 @@ systems:
   checks:
     dc_levels: {easy: 10, medium: 15, hard: 20}
     roll_engine: MCP_TOOL
-    required_tools: [perform_check, roll_dice, dump_player_db, get_player_stat, modify_player_numeric, update_player_list]
+    required_tools: [perform_check, roll_dice, dump_player_db, modify_player_numeric, update_player_list]
     execution_protocol:
       roll_engine:
         complexity_checks:

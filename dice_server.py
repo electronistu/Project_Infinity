@@ -227,23 +227,6 @@ def update_player_list(key: str, item: str, action: str) -> str:
     except Exception as e:
         return f"Error updating list: {str(e)}"
 
-@mcp.tool()
-def get_player_stat(key: str) -> str:
-    """
-    Retrieves a single specific attribute from the player database.
-    """
-    global DB_CONNECTION
-    if DB_CONNECTION is None:
-        return "Database not initialized."
-    try:
-        cursor = DB_CONNECTION.cursor()
-        cursor.execute("SELECT value FROM player WHERE key = ?", (key,))
-        row = cursor.fetchone()
-        if row:
-            return f"{key}: {row[0]}"
-        return f"Stat '{key}' not found in database."
-    except Exception as e:
-        return f"Error retrieving stat: {str(e)}"
 
 @mcp.tool()
 def dump_player_db() -> dict:
