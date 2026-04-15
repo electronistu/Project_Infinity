@@ -29,6 +29,8 @@ def get_player_json(pc) -> str:
         "alignment": pc.alignment,
         "armor_class": pc.armor_class,
         "hit_points": pc.hit_points,
+        "hit_dice_count": pc.hit_dice_count,
+        "hit_dice_size": pc.hit_dice_size,
         "speed": pc.speed,
         "stats": {
             "str": pc.stats.strength,
@@ -41,6 +43,10 @@ def get_player_json(pc) -> str:
         "proficiency_bonus": pc.proficiency_bonus,
         "skills": [s.name for s in pc.skills if s.proficient],
         "saves": [s.name for s in pc.saving_throws if s.proficient],
+        "armor_proficiencies": pc.armor_proficiencies,
+        "weapon_proficiencies": pc.weapon_proficiencies,
+        "tool_proficiencies": pc.tool_proficiencies,
+        "languages": pc.languages,
         "features": [f.name for f in pc.features_and_traits],
         "inventory": [item.name for item in pc.equipment.inventory],
     }

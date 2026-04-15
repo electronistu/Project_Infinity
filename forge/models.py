@@ -74,6 +74,8 @@ class BaseEntity(BaseModel):
     armor_class: int = 10
     hit_points: int = 10
     hit_dice: str = "1d8"
+    hit_dice_count: int = 1
+    hit_dice_size: int = 8
     languages: List[str] = ["Common"]
     senses: Dict[str, int] = {"passive_perception": 10}
 
