@@ -245,7 +245,7 @@ def apply_level_up(character_class, old_level, new_level, player_data):
 
     # 4. Hit points — roll hit dice for each level gained
     hit_dice_size = int(player_data.get('hit_dice_size', CLASS_HIT_DICE.get(character_class, 8)))
-    old_hp = int(player_data.get('hit_points', 0))
+    old_total_hp = int(player_data.get('total_hit_points', 0))
     levels_gained = new_level - old_level
 
     stats_raw = player_data.get('stats', '{}')
@@ -266,13 +266,13 @@ def apply_level_up(character_class, old_level, new_level, player_data):
         rolls.append(roll)
         total_gain += hp_gain
 
-    new_hp = old_hp + total_gain
-    changes['hit_points'] = str(new_hp)
+    new_total_hp = old_total_hp + total_gain
+    changes['total_hit_points'] = str(new_total_hp)
     roll_str = ", ".join(str(r) for r in rolls)
     if levels_gained == 1:
-        summary.append(f"hit_points: {old_hp} -> {new_hp} (rolled {rolls[0]} on d{hit_dice_size} + {con_mod} CON)")
+        summary.append(f"total_hit_points: {old_total_hp} -> {new_total_hp} (rolled {rolls[0]} on d{hit_dice_size} + {con_mod} CON)")
     else:
-        summary.append(f"hit_points: {old_hp} -> {new_hp} (rolled [{roll_str}] on d{hit_dice_size} each + {con_mod}/level CON)")
+        summary.append(f"total_hit_points: {old_total_hp} -> {new_total_hp} (rolled [{roll_str}] on d{hit_dice_size} each + {con_mod}/level CON)")
 
     # 5. Spellcasting
     sc_raw = player_data.get('spellcasting')

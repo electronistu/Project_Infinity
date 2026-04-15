@@ -47,7 +47,7 @@ To ensure fairness, the engine splits mechanical outcomes into two distinct laye
 To solve the problem of LLM "forgetfulness," the engine implements a dynamic state-tracking system:
 - **In-Memory SQLite Engine:** Upon boot, the MCP server initializes a queryable database from the player file.
 - **Real-Time Synchronization:** The Game Master updates the player database via MCP tools immediately as changes occur in the narrative.
-- **Periodic State Synchronization:** To prevent long-term divergence, the system triggers a mandatory synchronization cycle every 5 prompts, forcing the GM to verify and reconcile the database state via a `dump_player_db` handshake.
+- **Periodic State Synchronization:** To prevent long-term divergence, the system triggers a mandatory synchronization cycle every 8 prompts, forcing the GM to verify and reconcile the database state via a `dump_player_db` handshake.
 
 ### Cognitive Load Management
 To prevent "model collapse" during high-complexity turns, the engine implements a **Phased Resolution Protocol**:

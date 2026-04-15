@@ -296,7 +296,7 @@ async def main():
                         console.print("\n")
 
                     # Sync database every 5 prompts for all users
-                    if prompt_count > 0 and prompt_count % 5 == 0:
+                    if prompt_count > 0 and prompt_count % 8 == 0:
                         if DEBUG or VERBOSE:
                             console.print("[dim]Synchronizing database...[/dim]")
                         # We only trigger the sync and process mechanical steps/pause tokens.

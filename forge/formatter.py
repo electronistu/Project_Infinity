@@ -14,7 +14,7 @@ def get_npc_array(npc: NPC) -> list:
     """Converts an NPC object to a compact array based on the schema."""
     stats_array = [npc.stats.strength, npc.stats.dexterity, npc.stats.constitution, npc.stats.intelligence, npc.stats.wisdom, npc.stats.charisma]
     abilities = [f"{a.name}:{a.tier}" for a in npc.abilities_for_sale] if npc.abilities_for_sale else None
-    return [npc.level, npc.race, npc.character_class, npc.armor_class, npc.hit_points, stats_array, True if npc.is_walker else None, abilities]
+    return [npc.level, npc.race, npc.character_class, npc.armor_class, npc.total_hit_points, stats_array, True if npc.is_walker else None, abilities]
 
 def get_player_json(pc) -> str:
     """Converts the player character to a JSON string for SQLite compatibility."""
@@ -28,7 +28,8 @@ def get_player_json(pc) -> str:
         "background": pc.background,
         "alignment": pc.alignment,
         "armor_class": pc.armor_class,
-        "hit_points": pc.hit_points,
+        "current_hit_points": pc.current_hit_points,
+        "total_hit_points": pc.total_hit_points,
         "hit_dice_count": pc.hit_dice_count,
         "hit_dice_size": pc.hit_dice_size,
         "speed": pc.speed,

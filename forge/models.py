@@ -72,7 +72,8 @@ class BaseEntity(BaseModel):
     speed: int = 30
     stats: Stats = Field(default_factory=Stats)
     armor_class: int = 10
-    hit_points: int = 10
+    current_hit_points: int = 10
+    total_hit_points: int = 10
     hit_dice: str = "1d8"
     hit_dice_count: int = 1
     hit_dice_size: int = 8

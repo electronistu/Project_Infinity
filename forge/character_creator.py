@@ -147,7 +147,8 @@ def create_debug_character(config: Config) -> PlayerCharacter:
         alignment="Lawful Good",
         stats=debug_stats,
         speed=25,
-        hit_points=10 + con_mod,
+        current_hit_points=10 + con_mod,
+        total_hit_points=10 + con_mod,
         hit_dice="1d10",
         hit_dice_count=1,
         hit_dice_size=10,
@@ -371,6 +372,7 @@ def create_character(config: Config) -> PlayerCharacter:
     # --- HP ---
     con_mod = calculate_modifier(player_stats.constitution)
     hit_points = chosen_class.hit_die + con_mod
+    total_hit_points = hit_points
 
     print("\n--- Character Complete! ---")
     return PlayerCharacter(
@@ -381,7 +383,8 @@ def create_character(config: Config) -> PlayerCharacter:
         alignment=chosen_alignment,
         stats=player_stats,
         speed=chosen_race.speed,
-        hit_points=hit_points,
+        current_hit_points=hit_points,
+        total_hit_points=total_hit_points,
         hit_dice=f"1d{chosen_class.hit_die}",
         hit_dice_count=1,
         hit_dice_size=chosen_class.hit_die,

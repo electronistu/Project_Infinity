@@ -8,7 +8,8 @@
   "background": "Criminal",
   "alignment": "Chaotic Neutral",
   "armor_class": 13,
-  "hit_points": 7,
+  "current_hit_points": 7,
+  "total_hit_points": 7,
   "hit_dice_count": 1,
   "hit_dice_size": 6,
   "speed": 30,
@@ -18,15 +19,15 @@
     "con": 12,
     "int": 15,
     "wis": 12,
-    "cha": 8
+    "cha": 9
   },
   "proficiency_bonus": 2,
   "skills": [
-    "Investigation",
-    "Deception",
+    "Perception",
     "Stealth",
     "Arcana",
-    "Perception"
+    "Deception",
+    "Investigation"
   ],
   "saves": [
     "Intelligence",
@@ -34,15 +35,15 @@
   ],
   "armor_proficiencies": [],
   "weapon_proficiencies": [
-    "Light crossbows",
-    "Longsword",
-    "Shortsword",
-    "Darts",
-    "Daggers",
-    "Quarterstaffs",
     "Longbow",
+    "Shortsword",
+    "Longsword",
+    "Quarterstaffs",
+    "Shortbow",
+    "Daggers",
+    "Darts",
     "Slings",
-    "Shortbow"
+    "Light crossbows"
   ],
   "tool_proficiencies": [
     "One type of gaming set",
