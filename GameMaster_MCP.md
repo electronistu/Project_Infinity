@@ -152,8 +152,15 @@ systems:
           write:
             tools:
                - name: modify_player_numeric
-                 operation: delta_change
-                 supports: [increment, decrement, nested_paths]
+                  operation: delta_change
+                  supports: [increment, decrement, nested_paths]
+                  level_up_signal: |
+                    When key='xp' is updated and the new total meets or exceeds a D&D 5E level threshold,
+                    this tool appends a level-up message to its return value (e.g., "Updated xp to 350. Player has reached level 2!").
+                    IMPORTANT: The tool does NOT update the 'level' key or any other stats. The GM MUST
+                    apply all level-up changes immediately: increment 'level', update 'proficiency_bonus',
+                    adjust 'hit_points', update 'spellcasting.slots', add new features/spells, and any
+                    other progression changes required by the ruleset.
                 - name: update_player_list
                   operation: list_management
                   actions: [add, remove]

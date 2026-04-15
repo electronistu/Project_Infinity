@@ -10,6 +10,23 @@ mcp = FastMCP("InfinityRolls", log_level="WARNING")
 # In-memory database connection
 DB_CONNECTION = None
 
+XP_THRESHOLDS = [
+    (2, 300), (3, 900), (4, 2700), (5, 6500),
+    (6, 14000), (7, 23000), (8, 33000), (9, 48000),
+    (10, 64000), (11, 85000), (12, 100000), (13, 120000),
+    (14, 145000), (15, 175000), (16, 210000), (17, 255000),
+    (18, 305000), (19, 360000), (20, 400000),
+]
+
+def get_level_for_xp(xp: int) -> int:
+    level = 1
+    for lvl, threshold in XP_THRESHOLDS:
+        if xp >= threshold:
+            level = lvl
+        else:
+            break
+    return level
+
 def init_player_db(player_file_path: str) -> str:
     """
     Initializes the in-memory SQLite database using the provided .player JSON file.
@@ -150,7 +167,16 @@ def modify_player_numeric(key: str, delta: int) -> str:
             cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", (key, str(new_val)))
         
         DB_CONNECTION.commit()
-        return f"Updated {key} to {new_val}."
+        result_msg = f"Updated {key} to {new_val}."
+        if key == "xp":
+            cursor.execute("SELECT value FROM player WHERE key = ?", ("level",))
+            level_row = cursor.fetchone()
+            if level_row:
+                current_level = int(level_row[0])
+                new_level = get_level_for_xp(new_val)
+                if new_level > current_level:
+                    result_msg += f" Player has reached level {new_level}!"
+        return result_msg
     except Exception as e:
         return f"Error modifying numeric value: {str(e)}"
 
