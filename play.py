@@ -1,20 +1,18 @@
 import os
 import sys
+import json
 import argparse
 import asyncio
 import ollama
 from rich.console import Console
 from rich.panel import Panel
-from rich.prompt import Prompt
-from rich.text import Text
-from rich.markdown import Markdown
-from rich.live import Live
-from rich.layout import Layout
-from rich.theme import Theme
 from rich.padding import Padding
+from prompt_toolkit import PromptSession
+from prompt_toolkit.formatted_text import HTML
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from dice_server import init_player_db
+from display import format_stats, render_gm_text
 
 # Configuration
 AVAILABLE_MODELS = [
@@ -49,41 +47,22 @@ def get_wwf_files():
         return []
     return [f for f in os.listdir(OUTPUT_DIR) if f.endswith(".wwf")]
 
-def render_gm_text(text):
-    """Custom renderer to force styles on LLM output since Markdown theme is unreliable."""
-    import re
-    
-    processed = text
-    # Bold
-    processed = re.sub(r'\*\*(.*?)\*\*', r'[bold white]\1[/]', processed)
-    # Italics
-    processed = re.sub(r'\*(.*?)\*', r'[italic cyan]\1[/]', processed)
-    # Headers (simple # check at start of line)
-    lines = processed.split('\n')
-    for i in range(len(lines)):
-        if lines[i].startswith('#'):
-            level = len([c for c in lines[i] if c == '#'])
-            content = lines[i].strip('#').strip()
-            lines[i] = f"[bold magenta]{content}[/]"
-    
-    return "\n".join(lines)
-
-def select_model():
+async def select_model(input_session):
     """TUI for selecting the LLM model."""
     console.print(Panel("[bold magenta] Infinity Project: LLM Selection [/bold magenta]", expand=False))
     for i, model in enumerate(AVAILABLE_MODELS):
         console.print(f"[cyan]{i+1}[/cyan] {model}")
-    
-    choice = Prompt.ask("\n[bold white]Select an LLM (number)[/bold white]", default="1")
+
+    choice = await input_session.prompt_async(HTML('<ansicyan><b>Select an LLM (number)</b></ansicyan> '))
     try:
         idx = int(choice) - 1
         selected_model = AVAILABLE_MODELS[idx]
-        
+
         console.print(f"\n[yellow]Validating model availability...[/yellow]")
         try:
             models_response = ollama.list()
             available_model_names = [m.model for m in models_response.models]
-            
+
             if selected_model not in available_model_names:
                 console.print(f"[bold red]Error:[/bold red] Model '{selected_model}' is not available in Ollama.")
                 console.print("[yellow]Please ensure Ollama is running and the model is downloaded.[/yellow]")
@@ -91,14 +70,14 @@ def select_model():
         except Exception as e:
             console.print(f"[yellow]Could not validate model: {e}[/yellow]")
             console.print("[yellow]Proceeding anyway...[/yellow]")
-        
+
         console.print(Panel(f"[bold green]Model validated:[/bold green] {selected_model}", border_style="green"))
         return selected_model
     except (ValueError, IndexError):
         console.print("[red]Invalid selection. Defaulting to first model.[/red]")
         return AVAILABLE_MODELS[0]
 
-def select_wwf():
+async def select_wwf(input_session):
     """TUI for selecting the world file."""
     files = get_wwf_files()
     if not files:
@@ -108,8 +87,8 @@ def select_wwf():
     console.print(Panel("[bold magenta] Infinity Project: World Selection [/bold magenta]", expand=False))
     for i, f in enumerate(files):
         console.print(f"[cyan]{i+1}[/cyan] {f}")
-    
-    choice = Prompt.ask("\n[bold white]Select a world file (number)[/bold white]", default="1")
+
+    choice = await input_session.prompt_async(HTML('<ansicyan><b>Select a world file (number)</b></ansicyan> '))
     try:
         idx = int(choice) - 1
         return os.path.join(OUTPUT_DIR, files[idx])
@@ -129,15 +108,17 @@ async def main():
     args = parse_args()
     DEBUG = args.debug
     VERBOSE = args.verbose or args.debug
-    
+
     if VERBOSE:
         console.print("[dim]Verbose mode enabled[/dim]")
     if DEBUG:
         console.print("[dim]Debug mode enabled[/dim]")
-    
+
+    input_session = PromptSession()
+
     # 1. LLM Model Selection
-    model = select_model()
-    
+    model = await select_model(input_session)
+
     # 1b. Fetch model context window
     context_window = MODEL_CONTEXT_LENGTHS.get(model)
     if context_window is None:
@@ -150,11 +131,11 @@ async def main():
         console.print(f"[dim]Context window: {context_window:,} tokens[/dim]")
 
     # 2. World File Selection
-    wwf_path = select_wwf()
+    wwf_path = await select_wwf(input_session)
     console.print(f"\n[green]Selected world:[/green] {wwf_path}")
-    
+
     player_path = wwf_path.replace(".wwf", ".player")
-    
+
     # 3. Load Files
     with open(LOCK_FILE, "r") as f:
         lock_content = f.read()
@@ -186,7 +167,7 @@ async def main():
                 {"role": "system", "content": lock_content}
             ]
             current_context_tokens = 0
-            
+
             async def chat_with_tools(role_content):
                 nonlocal messages, current_context_tokens
                 if isinstance(role_content, str):
@@ -213,14 +194,14 @@ async def main():
                                 await asyncio.sleep(2)
                                 continue
                             raise e
-                    
+
                     current_context_tokens = response.get('prompt_eval_count', current_context_tokens)
-                    
+
                     if DEBUG:
                         console.print(f"[dim]DEBUG RESPONSE: {response}[/dim]")
-                    
+
                     response_msg = response['message']
-                    
+
                     # Extract content safely from Message object or dict
                     content = ""
                     if hasattr(response_msg, 'content'):
@@ -250,82 +231,124 @@ async def main():
                         else:
                             tool_name = tool_call.function.name
                             tool_args = tool_call.function.arguments
-                        
+
                         # Call MCP tool
                         if VERBOSE:
                             console.print(f"[dim]🔧 Tool: {tool_name}({tool_args})[/dim]")
-                        
+
                         result = await session.call_tool(tool_name, arguments=tool_args)
-                        
+
                         if VERBOSE:
                             console.print(f"[dim]   → {result.content}[/dim]")
-                        
+
                         messages.append({
                             "role": "tool",
-                            "content": str(result.content),
+                            "content": "\n".join(block.text for block in result.content if hasattr(block, "text")),
                             "name": tool_name
                         })
+
+            async def handle_slash_command(cmd):
+                cmd = cmd.strip().lower()
+                if cmd == '/help':
+                    help_text = (
+                        "[bold white]Available Commands:[/bold white]\n\n"
+                        "  [cyan]/help[/cyan]  - Show this help message\n"
+                        "  [cyan]/stats[/cyan] - Display current player stats\n"
+                        "  [cyan]/sync[/cyan]  - Force a database sync with the GM\n"
+                        "  [cyan]/quit[/cyan]  - Exit the game\n\n"
+                        "[dim]Type anything else to send as an action to the Game Master.[/dim]"
+                    )
+                    console.print(Panel(help_text, title="[bold magenta]Help[/bold magenta]", border_style="magenta", expand=False))
+                elif cmd == '/stats':
+                    result = await session.call_tool("dump_player_db", arguments={})
+                    if hasattr(result, 'content') and result.content:
+                        text = "\n".join(block.text for block in result.content if hasattr(block, "text"))
+                        try:
+                            db_data = json.loads(text)
+                        except (json.JSONDecodeError, TypeError):
+                            db_data = text
+                        if isinstance(db_data, dict):
+                            for panel in format_stats(db_data):
+                                console.print(panel)
+                        else:
+                            console.print(Panel(str(db_data), title="[bold green]Player Stats[/bold green]", border_style="green", expand=False))
+                    else:
+                        console.print("[yellow]Could not retrieve player stats.[/yellow]")
+                elif cmd == '/sync':
+                    console.print("[dim]Synchronizing database...[/dim]")
+                    await chat_with_tools("{{_SYNC_DATABASE}}")
+                    console.print(Panel("[green]Database synchronized.[/green]", border_style="green", expand=False))
+                elif cmd == '/quit':
+                    return 'quit'
+                else:
+                    console.print(f"[yellow]Unknown command: {cmd}[/yellow]")
+                    console.print("[dim]Type /help for available commands.[/dim]")
+                return None
 
             # BOOT SEQUENCE: Provide the Key
             console.print("\n[yellow]Injecting World Data (The Key)...[/yellow]")
             response_text = await chat_with_tools(key_content)
-            
+
             while response_text == "__SYSTEM_PAUSE__":
                 if DEBUG:
                     console.print("[bold cyan]DEBUG: Injecting Resume Token ({{_CONTINUE_EXECUTION}})[/bold cyan]")
                 response_text = await chat_with_tools("{{_CONTINUE_EXECUTION}}")
 
             console.print(Panel(
-                Padding(render_gm_text(response_text), (1, 1)), 
-                title="[bold magenta]The Game Master Awakens[/bold magenta]", 
+                Padding(render_gm_text(response_text), (1, 1)),
+                title="[bold magenta]The Game Master Awakens[/bold magenta]",
                 border_style="magenta"
             ))
 
             # 4. Game Loop
-            console.print("\n[bold cyan]--- Game Started. Type 'quit' or 'exit' to leave. ---[/bold cyan]\n")
-            
+            console.print("\n[bold cyan]--- Game Started. Type /help for commands. ---[/bold cyan]\n")
+
             prompt_count = 0
             while True:
                 if VERBOSE or DEBUG:
                     console.print(f"[dim]Context: {current_context_tokens:,} / {context_window:,} tokens[/dim]")
-                user_input = Prompt.ask("[bold white]Your Action[/bold white]")
-                
-                if user_input.lower() in ["quit", "exit"]:
-                    console.print("[yellow]Closing connection to the void... Goodbye.[/yellow]")
-                    break
-                
+                user_input = await input_session.prompt_async(HTML('<ansicyan><b>Your Action:</b></ansicyan> '))
+                user_input = user_input.strip()
+
+                if not user_input:
+                    continue
+
+                if user_input.startswith('/'):
+                    result = await handle_slash_command(user_input)
+                    if result == 'quit':
+                        console.print("[yellow]Closing connection to the void... Goodbye.[/yellow]")
+                        break
+                    continue
+
                 prompt_count += 1
                 if VERBOSE:
                     gm_response = await chat_with_tools(user_input)
                 else:
                     with console.status("[bold blue]GM is thinking...[/bold blue]"):
                         gm_response = await chat_with_tools(user_input)
-                
+
                 while gm_response == "__SYSTEM_PAUSE__":
                     if DEBUG:
                         console.print("[bold cyan]DEBUG: Injecting Resume Token ({{_CONTINUE_EXECUTION}})[/bold cyan]")
                     gm_response = await chat_with_tools("{{_CONTINUE_EXECUTION}}")
-                
+
                 if gm_response and gm_response != "__SYSTEM_PAUSE__":
                     # Strip the pause token if it leaked into the final narrative
                     clean_response = gm_response.replace("{{_NEED_AN_OTHER_PROMPT}}", "").strip()
-                    
+
                     if clean_response:
                         console.print(Panel(
-                            Padding(render_gm_text(clean_response), (1, 1)), 
-                            title="[bold magenta]Game Master[/bold magenta]", 
+                            Padding(render_gm_text(clean_response), (1, 1)),
+                            title="[bold magenta]Game Master[/bold magenta]",
                             border_style="magenta"
                         ))
                         console.print("\n")
 
-                    # Sync database every 5 prompts for all users
+                    # Sync database every 8 prompts
                     if prompt_count > 0 and prompt_count % 8 == 0:
                         if DEBUG or VERBOSE:
                             console.print("[dim]Synchronizing database...[/dim]")
-                        # We only trigger the sync and process mechanical steps/pause tokens.
-                        # We do NOT send {{_CONTINUE_EXECUTION}} here to avoid double-confirmation.
                         await chat_with_tools("{{_SYNC_DATABASE}}")
-
 
 
 if __name__ == "__main__":

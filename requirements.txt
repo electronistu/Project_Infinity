@@ -1,6 +1,6 @@
 pydantic
 pyyaml
-numpy
 ollama
 rich
 mcp
+prompt_toolkit

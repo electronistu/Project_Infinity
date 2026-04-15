@@ -86,7 +86,7 @@ When you launch `play.py`, the system initializes the LLM with the `GameMaster_M
 - `ollama`: Local LLM orchestration.
 - `rich`: High-fidelity Terminal User Interface (TUI).
 - `pydantic`: Data validation and settings management.
-- `numpy`: Procedural generation logic.
+- `prompt_toolkit`: Interactive terminal input with line editing and slash commands.
 - `pyyaml`: Protocol and schema configuration.
 
 **Infrastructure:**
