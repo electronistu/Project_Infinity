@@ -24,6 +24,13 @@ AVAILABLE_MODELS = [
     "glm-5.1:cloud",
     "gemma4:31b-cloud",
 ]
+MODEL_CONTEXT_LENGTHS = {
+    "qwen3.5:cloud": 262144,
+    "qwen3.5:397b-cloud": 262144,
+    "deepseek-v3.2:cloud": 163840,
+    "glm-5.1:cloud": 202752,
+    "gemma4:31b-cloud": 262144,
+}
 LOCK_FILE = "GameMaster_MCP.md"
 OUTPUT_DIR = "output"
 TEMP = 0.0
@@ -131,6 +138,17 @@ async def main():
     # 1. LLM Model Selection
     model = select_model()
     
+    # 1b. Fetch model context window
+    context_window = MODEL_CONTEXT_LENGTHS.get(model)
+    if context_window is None:
+        model_info = ollama.show(model)
+        context_window = next(
+            (v for k, v in model_info.get('model_info', {}).items() if k.endswith('.context_length')),
+            4096
+        )
+    if VERBOSE:
+        console.print(f"[dim]Context window: {context_window:,} tokens[/dim]")
+
     # 2. World File Selection
     wwf_path = select_wwf()
     console.print(f"\n[green]Selected world:[/green] {wwf_path}")
@@ -167,9 +185,10 @@ async def main():
             messages = [
                 {"role": "system", "content": lock_content}
             ]
+            current_context_tokens = 0
             
             async def chat_with_tools(role_content):
-                nonlocal messages
+                nonlocal messages, current_context_tokens
                 if isinstance(role_content, str):
                     messages.append({"role": "user", "content": role_content})
                 else:
@@ -184,7 +203,7 @@ async def main():
                                 model=model,
                                 messages=messages,
                                 tools=ollama_tools,
-                                options={"temperature": TEMP}
+                                options={"temperature": TEMP, "num_ctx": context_window}
                             )
                             break
                         except ollama._types.ResponseError as e:
@@ -194,6 +213,8 @@ async def main():
                                 await asyncio.sleep(2)
                                 continue
                             raise e
+                    
+                    current_context_tokens = response.get('prompt_eval_count', current_context_tokens)
                     
                     if DEBUG:
                         console.print(f"[dim]DEBUG RESPONSE: {response}[/dim]")
@@ -265,6 +286,8 @@ async def main():
             
             prompt_count = 0
             while True:
+                if VERBOSE or DEBUG:
+                    console.print(f"[dim]Context: {current_context_tokens:,} / {context_window:,} tokens[/dim]")
                 user_input = Prompt.ask("[bold white]Your Action[/bold white]")
                 
                 if user_input.lower() in ["quit", "exit"]:
