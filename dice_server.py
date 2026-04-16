@@ -130,6 +130,8 @@ def modify_player_numeric(key: str, delta: int) -> str:
     Examples:
     - For top-level stats: modify_player_numeric(key='gold', delta=-10)
     - For nested slots (using index): modify_player_numeric(key='spellcasting.slots.1', delta=-1)
+    - For consumables (ammunition, potions, rations): modify_player_numeric(key='consumables.Bolts', delta=-1)
+    - Add consumable items: modify_player_numeric(key='consumables.Arrows', delta=20)
     """
     global DB_CONNECTION
     if DB_CONNECTION is None:
@@ -141,21 +143,39 @@ def modify_player_numeric(key: str, delta: int) -> str:
             root_key = key.split('.')[0]
             cursor.execute("SELECT value FROM player WHERE key = ?", (root_key,))
             row = cursor.fetchone()
-            if not row:
-                return f"Root key {root_key} not found."
             
-            data = json.loads(row[0])
+            auto_init_root = False
+            if not row:
+                if root_key == "consumables":
+                    data = {}
+                    auto_init_root = True
+                else:
+                    return f"Root key {root_key} not found."
+            else:
+                data = json.loads(row[0])
+            
             path_in_obj = key[len(root_key)+1:]
             current_val = get_nested_value(data, path_in_obj)
             
             if current_val is None:
                 if key.startswith("spellcasting.slots."):
                     current_val = 0
+                elif key.startswith("consumables."):
+                    current_val = 0
                 else:
                     return f"Key {key} not found in database."
             
             new_val = int(current_val) + delta
             set_nested_value(data, path_in_obj, new_val)
+            
+            if key.startswith("consumables.") and new_val <= 0:
+                consumable_name = path_in_obj
+                if consumable_name in data:
+                    del data[consumable_name]
+                    cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", (root_key, json.dumps(data)))
+                    DB_CONNECTION.commit()
+                    return f"Updated {key} to 0. ITEM DEPLETED — {consumable_name} removed from consumables."
+            
             cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", (root_key, json.dumps(data)))
         else:
             cursor.execute("SELECT value FROM player WHERE key = ?", (key,))

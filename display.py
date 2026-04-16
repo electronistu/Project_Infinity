@@ -109,7 +109,12 @@ def format_stats(db_data):
         prof_lines.append(f"🌟 Features: {', '.join(str(f) for f in features)}")
     inventory = get('inventory')
     if isinstance(inventory, list) and inventory:
-        prof_lines.append(f"🎒 Inventory: {', '.join(str(i) for i in inventory)}")
+        inv_display = ', '.join(str(i) for i in inventory)
+        prof_lines.append(f"🎒 Inventory: {inv_display}")
+    consumables = get('consumables')
+    if isinstance(consumables, dict) and consumables:
+        cons_display = ', '.join(f"{k}: {v}" for k, v in consumables.items())
+        prof_lines.append(f"🧪 Consumables: {cons_display}")
     languages = get('languages')
     if isinstance(languages, list) and languages:
         prof_lines.append(f"🗣️ Languages: {', '.join(str(l) for l in languages)}")

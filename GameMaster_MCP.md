@@ -14,6 +14,7 @@
    **Mandatory Internal Audit:** Before proceeding to Step 3, you MUST internally verify that all mechanical truths are fully resolved. Use this checklist:
     - [ ] All dice rolls completed and logged?
     - [ ] All inventory changes (purchases, gifts, loot, equipment) added via `update_player_list`?
+    - [ ] All consumable changes (ammunition spent, potions used, rations consumed) applied via `modify_player_numeric(key='consumables.ITEM', delta=N)`?
     - [ ] All numeric changes (gold, HP, AC, XP, spell slots) applied via `modify_player_numeric`?
     - [ ] Every narrative event with mechanical consequence has a corresponding tool call?
     - [ ] ALL player actions from their input have been mechanically resolved?
@@ -157,7 +158,27 @@ systems:
       state_management:
         database: sqlite_memory
         notation: dotted_path_supported
-        examples: [stats.dex, spellcasting.slots.1, spellcasting.ability]
+        examples: [stats.dex, spellcasting.slots.1, spellcasting.ability, consumables.Bolts]
+        consumables_system:
+          description: |
+            Consumable items (ammunition, potions, rations, torches, etc.) are tracked in a dedicated
+            `consumables` dictionary, separate from the `inventory` list. Each entry is a name-quantity pair.
+            The GM MUST use `modify_player_numeric` with the `consumables.ITEM` key pattern to adjust quantities.
+            NEVER use `update_player_list` for consumable quantity management.
+          field: consumables
+          type: dict[str, int]
+          examples:
+            - consume_bolt: "modify_player_numeric(key='consumables.Bolts', delta=-1)"
+            - buy_arrows: "modify_player_numeric(key='consumables.Arrows', delta=20)"
+            - drink_potion: "modify_player_numeric(key='consumables.Health Potion', delta=-1)"
+            - add_new_consumable: "modify_player_numeric(key='consumables.Torches', delta=10)"
+          auto_behavior: |
+            - If `consumables` dict is missing from the database, it is auto-created as {} on first use.
+            - If a consumable item name is referenced but does not exist yet, it auto-initializes to 0
+              before applying the delta (e.g., adding 20 Arrows to a new character works directly).
+            - When a consumable reaches 0, it is automatically removed from the dict and the tool
+              returns a DEPLETION message: "ITEM DEPLETED — {name} removed from consumables."
+              The GM MUST narrate this depletion to the player (e.g., "Your quiver is empty.").
         operations:
           read:
             full_sync:
@@ -166,8 +187,12 @@ systems:
           write:
             tools:
                - name: modify_player_numeric
-                  operation: delta_change
-                  supports: [increment, decrement, nested_paths]
+                   operation: delta_change
+                   supports: [increment, decrement, nested_paths]
+                   consumables: |
+                     Use `consumables.ITEM` key pattern for any quantity-tracked item.
+                     Consumables are auto-initialized at 0 if missing from the database.
+                     Depletion at 0 triggers automatic removal and explicit DEPLETION message.
                    level_up_signal: |
                      When key='xp' is updated and the new total meets or exceeds a D&D 5E level threshold,
                      this tool automatically applies all numeric level-up changes and appends a detailed
@@ -178,10 +203,11 @@ systems:
                      The GM MUST still apply manually: new class features, new cantrips, new spells known,
                      ability score improvements (at levels 4, 8, 12, 16, 19), and any subclass-specific
                      progression changes required by the ruleset.
-                - name: update_player_list
-                   operation: list_management
-                   actions: [add, remove]
-                   targets: all_fields
+                 - name: update_player_list
+                    operation: list_management
+                    actions: [add, remove]
+                    targets: all_fields
+                    constraint: NEVER use this tool for consumable quantity changes. Use modify_player_numeric with consumables.ITEM key instead.
               trigger: on_state_change
               scope: all_fields
               timing: immediate

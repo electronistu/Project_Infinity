@@ -140,9 +140,36 @@ def classify_item(item_name: str) -> str:
         return "gear"
     if any(w in item_name for w in ["Symbol", "Focus", "Spellbook", "Book"]):
         return "focus"
-    if any(w in item_name for w in ["Bolts", "Arrows", "Javelins", "Darts", "Daggers"]):
+    if any(w in item_name for w in ["Bolts", "Arrows", "Javelins", "Darts"]):
         return "ammunition"
+    if any(w in item_name for w in ["Potion", "Vial", "Flask", "Rations", "Torch", "Oil",
+                                     "Incense", "Candle", "Caltrop", "Chalk", "Piton",
+                                     "Tinderbox", "Waterskin", "Antitoxin", "Alchemist",
+                                     "Acid", "Ball Bearing", "Healing"]):
+        return "consumable"
+    if re.match(r'^(\d+)\s', item_name):
+        if item_name not in WEAPON_NAMES:
+            return "consumable"
+    word_num_pattern = r'^(One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten|Eleven|Twelve|Fifteen|Twenty|Fifty)\s'
+    if re.match(word_num_pattern, item_name, re.IGNORECASE):
+        if item_name not in WEAPON_NAMES:
+            return "consumable"
     return "misc"
+
+def parse_consumable_quantity(item_name: str):
+    word_to_num = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+                   "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+                   "eleven": 11, "twelve": 12, "fifteen": 15, "twenty": 20,
+                   "fifty": 50}
+    match = re.search(r'(\d+)\s+([A-Za-z].*)', item_name)
+    if match:
+        return match.group(2).strip(), int(match.group(1))
+    word_match = re.match(r'(\w+)\s+(.*)', item_name, re.IGNORECASE)
+    if word_match:
+        num_word = word_match.group(1).lower()
+        if num_word in word_to_num:
+            return word_match.group(2).strip(), word_to_num[num_word]
+    return item_name, 1
 
 def split_compound_items(item_name: str) -> List[Item]:
     parts = [p.strip() for p in item_name.split(",")]
@@ -265,7 +292,8 @@ def create_debug_character(config: Config) -> PlayerCharacter:
             SpecialAbility(name="Second Wind", description="Regain 1d10+level HP as bonus action."),
         ],
         equipment=debug_equipment,
-        gold=100
+        gold=100,
+        consumables={},
     )
 
 
@@ -413,6 +441,7 @@ def create_character(config: Config) -> PlayerCharacter:
     # --- Equipment ---
     player_equipment = Equipment()
     player_gold = 0
+    player_consumables = {}
 
     print("\n--- Starting Equipment ---")
     equipment_choice_type = get_player_input("Do you want to choose starting equipment or take starting gold? (equipment/gold): ", ["equipment", "gold"])
@@ -423,13 +452,23 @@ def create_character(config: Config) -> PlayerCharacter:
                 chosen_item_name = select_from_list("Choose one item", option_group.choose_one_from, display_key=None)
                 if chosen_item_name:
                     for item in split_compound_items(chosen_item_name):
-                        player_equipment.inventory.append(item)
-                        print(f"  Added {item.name} ({item.item_type})")
+                        if item.item_type in ("ammunition", "consumable"):
+                            cons_name, qty = parse_consumable_quantity(item.name)
+                            player_consumables[cons_name] = player_consumables.get(cons_name, 0) + qty
+                            print(f"  Added {item.name} → consumables.{cons_name}: {qty}")
+                        else:
+                            player_equipment.inventory.append(item)
+                            print(f"  Added {item.name} ({item.item_type})")
             if option_group.fixed_items:
                 for item_name in option_group.fixed_items:
                     for item in split_compound_items(item_name):
-                        player_equipment.inventory.append(item)
-                        print(f"  Added {item.name} ({item.item_type})")
+                        if item.item_type in ("ammunition", "consumable"):
+                            cons_name, qty = parse_consumable_quantity(item.name)
+                            player_consumables[cons_name] = player_consumables.get(cons_name, 0) + qty
+                            print(f"  Added {item.name} → consumables.{cons_name}: {qty}")
+                        else:
+                            player_equipment.inventory.append(item)
+                            print(f"  Added {item.name} ({item.item_type})")
             if option_group.gold_pieces:
                 player_gold += option_group.gold_pieces
                 print(f"  Added {option_group.gold_pieces} gold pieces.")
@@ -439,13 +478,23 @@ def create_character(config: Config) -> PlayerCharacter:
                 chosen_item_name = select_from_list("Choose one item", option_group.choose_one_from, display_key=None)
                 if chosen_item_name:
                     for item in split_compound_items(chosen_item_name):
-                        player_equipment.inventory.append(item)
-                        print(f"  Added {item.name} ({item.item_type})")
+                        if item.item_type in ("ammunition", "consumable"):
+                            cons_name, qty = parse_consumable_quantity(item.name)
+                            player_consumables[cons_name] = player_consumables.get(cons_name, 0) + qty
+                            print(f"  Added {item.name} → consumables.{cons_name}: {qty}")
+                        else:
+                            player_equipment.inventory.append(item)
+                            print(f"  Added {item.name} ({item.item_type})")
             if option_group.fixed_items:
                 for item_name in option_group.fixed_items:
                     for item in split_compound_items(item_name):
-                        player_equipment.inventory.append(item)
-                        print(f"  Added {item.name} ({item.item_type})")
+                        if item.item_type in ("ammunition", "consumable"):
+                            cons_name, qty = parse_consumable_quantity(item.name)
+                            player_consumables[cons_name] = player_consumables.get(cons_name, 0) + qty
+                            print(f"  Added {item.name} → consumables.{cons_name}: {qty}")
+                        else:
+                            player_equipment.inventory.append(item)
+                            print(f"  Added {item.name} ({item.item_type})")
             if option_group.gold_pieces:
                 player_gold += option_group.gold_pieces
                 print(f"  Added {option_group.gold_pieces} gold pieces.")
@@ -639,6 +688,7 @@ def create_character(config: Config) -> PlayerCharacter:
         languages=languages,
         equipment=player_equipment,
         gold=player_gold,
+        consumables=player_consumables,
         spellcasting_ability=spellcasting_ability,
         spell_save_dc=spell_save_dc,
         spell_attack_modifier=spell_attack_modifier,

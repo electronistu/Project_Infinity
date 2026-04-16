@@ -190,6 +190,7 @@ class PlayerCharacter(BaseEntity):
     features_and_traits: List[SpecialAbility] = []
     perks: List[str] = [] # Consolidating perks here
     gold: int = 0
+    consumables: Dict[str, int] = {}
     
     # Spellcasting attributes
     spellcasting_ability: Optional[Literal['intelligence', 'wisdom', 'charisma']] = None

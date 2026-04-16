@@ -155,8 +155,7 @@
         - "Leather Tunic"
         - "Chain Mail"
     - choose_one_from:
-        - "Light Crossbow"
-        - "20 Bolts"
+        - "Light Crossbow, 20 Bolts"
         - "Any Simple Weapon"
     - choose_one_from:
         - "Priest's Pack"
