@@ -32,10 +32,17 @@ class Item(BaseModel):
     armor_class: Optional[int] = None
 
 class StartingEquipmentOption(BaseModel):
-    # Represents a choice between items or a fixed set of items
-    choose_one_from: Optional[List[str]] = None # List of item names to choose one from
-    fixed_items: Optional[List[str]] = None # List of item names that are always given
-    gold_pieces: Optional[int] = None # Amount of gold given
+    choose_one_from: Optional[List[str]] = None
+    fixed_items: Optional[List[str]] = None
+    gold_pieces: Optional[int] = None
+
+class ToolProficiencyChoices(BaseModel):
+    choose_one_from: List[str]
+    number: int = 1
+
+class FightingStyleChoice(BaseModel):
+    name: str
+    description: str
 
 class Equipment(BaseModel):
     head: Optional[Item] = None
@@ -146,7 +153,14 @@ class CharacterClass(BaseModel):
     skills: SkillChoices
     features: List[ClassFeature]
     starting_equipment_options: List['StartingEquipmentOption'] = []
-    tool_proficiencies: List[str] = [] # Modified: Added default empty list
+    tool_proficiencies: List[str] = []
+    tool_proficiency_choices: Optional['ToolProficiencyChoices'] = None
+    fighting_styles: Optional[List['FightingStyleChoice']] = None
+    starting_gold_dice: Optional[str] = None
+
+class BackgroundFeature(BaseModel):
+    name: str
+    description: str
 
 class Background(BaseModel):
     name: str
@@ -155,12 +169,14 @@ class Background(BaseModel):
     languages: Optional[str] = None
     equipment: List[str]
     starting_equipment_options: List['StartingEquipmentOption'] = []
+    feature: Optional[BackgroundFeature] = None
 
 class PlayerCharacter(BaseEntity):
     level: int = 1
     character_class: str
     background: str
     race: str
+    subrace: Optional[str] = None
     alignment: str
     xp: int = 0
     inspiration: bool = False

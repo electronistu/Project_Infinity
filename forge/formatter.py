@@ -17,7 +17,6 @@ def get_npc_array(npc: NPC) -> list:
     return [npc.level, npc.race, npc.character_class, npc.armor_class, npc.total_hit_points, stats_array, True if npc.is_walker else None, abilities]
 
 def get_player_json(pc) -> str:
-    """Converts the player character to a JSON string for SQLite compatibility."""
     player_data = {
         "name": pc.name,
         "level": pc.level,
@@ -25,6 +24,7 @@ def get_player_json(pc) -> str:
         "gold": pc.gold,
         "character_class": pc.character_class,
         "race": pc.race,
+        "subrace": pc.subrace,
         "background": pc.background,
         "alignment": pc.alignment,
         "armor_class": pc.armor_class,

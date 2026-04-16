@@ -16,24 +16,32 @@ WORD_TO_NUMBER = {
     "ten": 10
 }
 
-def get_cr_and_xp(level: int) -> (float, int):
-    """Determines Challenge Rating and XP value based on level."""
+PROFICIENCY_BONUS_BY_LEVEL = {
+    1: 2, 2: 2, 3: 2, 4: 2,
+    5: 3, 6: 3, 7: 3, 8: 3,
+    9: 4, 10: 4, 11: 4, 12: 4,
+    13: 5, 14: 5, 15: 5, 16: 5,
+    17: 6, 18: 6, 19: 6, 20: 6,
+}
+
+def get_cr_and_xp(level: int):
     if level <= 1: return (0.125, 25)
     if level <= 3: return (0.25, 50)
     if level <= 5: return (0.5, 100)
     if level <= 8: return (1, 200)
     if level <= 11: return (2, 450)
     if level <= 14: return (3, 700)
-    return (5, 1800) # For levels 15+
+    return (5, 1800)
 
 def _generate_npc_details(level: int, role: str, faction: str, is_walker: bool, config):
-    """Generates detailed NPC attributes based on level, role, and config."""
-    # Randomly choose race, class, background
     chosen_race = random.choice(config.races)
     chosen_class = random.choice(config.classes)
     chosen_background = random.choice(config.backgrounds)
 
-    # Generate stats (simplified point buy for NPCs)
+    chosen_subrace = None
+    if chosen_race.subraces:
+        chosen_subrace = random.choice(chosen_race.subraces)
+
     stats_values = [15, 14, 13, 12, 10, 8]
     random.shuffle(stats_values)
     base_stats = Stats(
@@ -41,13 +49,14 @@ def _generate_npc_details(level: int, role: str, faction: str, is_walker: bool, 
         intelligence=stats_values[3], wisdom=stats_values[4], charisma=stats_values[5]
     )
 
-    # Apply Racial Bonuses
     final_stats = base_stats.copy()
     for increase in chosen_race.ability_score_increases:
         final_stats.dict()[increase.ability.lower()] += increase.value
+    if chosen_subrace:
+        for increase in chosen_subrace.ability_score_increases:
+            final_stats.dict()[increase.ability.lower()] += increase.value
     npc_stats = Stats(**final_stats.dict())
 
-    # Calculate proficiencies
     armor_proficiencies = set(chosen_class.armor_proficiencies)
     weapon_proficiencies = set(chosen_class.weapon_proficiencies)
     tool_proficiencies = set(chosen_background.tool_proficiencies)
@@ -64,15 +73,31 @@ def _generate_npc_details(level: int, role: str, faction: str, is_walker: bool, 
         elif proficiency['type'] == "skill":
             skill_proficiencies.add(proficiency['name'])
 
-    # Add class skill proficiencies (randomly choose for NPC)
+    if chosen_subrace:
+        for proficiency in chosen_subrace.proficiencies:
+            if proficiency['type'] == "armor":
+                armor_proficiencies.add(proficiency['name'])
+            elif proficiency['type'] == "weapon":
+                weapon_proficiencies.add(proficiency['name'])
+            elif proficiency['type'] == "tool":
+                tool_proficiencies.add(proficiency['name'])
+            elif proficiency['type'] == "skill":
+                skill_proficiencies.add(proficiency['name'])
+
+    if chosen_class.tool_proficiency_choices:
+        chosen_tool = random.choice(chosen_class.tool_proficiency_choices.choose_one_from)
+        tool_proficiencies.add(chosen_tool)
+
     class_skill_choices_data = chosen_class.skills
     
-    # Handle generic skill choices like "Any three skills"
     actual_class_skill_choices = []
     for choice in class_skill_choices_data.choices:
-        if "Any" in choice and "skills" in choice:
-            # If it's a generic choice, pick from ALL_SKILLS
-            num_to_choose = WORD_TO_NUMBER.get(choice.split(" ")[1].lower(), 0) # e.g., "Any three skills" -> 3
+        if choice == "*":
+            possible_skills_for_class = [s for s in ALL_SKILLS.keys() if s not in skill_proficiencies]
+            num_to_choose = class_skill_choices_data.number
+            actual_class_skill_choices.extend(random.sample(possible_skills_for_class, min(num_to_choose, len(possible_skills_for_class))))
+        elif "Any" in choice and "skills" in choice:
+            num_to_choose = WORD_TO_NUMBER.get(choice.split(" ")[1].lower(), 0)
             possible_skills_for_class = [s for s in ALL_SKILLS.keys() if s not in skill_proficiencies]
             actual_class_skill_choices.extend(random.sample(possible_skills_for_class, min(num_to_choose, len(possible_skills_for_class))))
         else:
@@ -88,19 +113,16 @@ def _generate_npc_details(level: int, role: str, faction: str, is_walker: bool, 
     final_skills = [Skill(name=s, ability=ALL_SKILLS[s], proficient=True) for s in skill_proficiencies]
     final_skills.extend([Skill(name=s, ability=ALL_SKILLS[s], proficient=False) for s in ALL_SKILLS if s not in skill_proficiencies])
 
-    # Features and Traits
     features_and_traits = [SpecialAbility(name=t.name, description=t.description) for t in chosen_race.traits]
+    if chosen_subrace:
+        features_and_traits.extend([SpecialAbility(name=t.name, description=t.description) for t in chosen_subrace.traits])
     class_features = [SpecialAbility(name=f.name, description=f.description) for f in chosen_class.features if f.level <= level]
     features_and_traits.extend(class_features)
 
-    # Equipment (simplified for NPCs)
     npc_equipment = Equipment()
-    # Assign a basic weapon based on class proficiency
     if chosen_class.weapon_proficiencies:
-        # Create a generic weapon item. GameMaster AI will interpret.
         npc_equipment.main_hand = Item(name="Generic Weapon", item_type="weapon")
-    
-    # Spellcasting (simplified for NPCs)
+
     spellcasting_ability = None
     spell_save_dc = None
     spell_attack_modifier = None
@@ -108,47 +130,52 @@ def _generate_npc_details(level: int, role: str, faction: str, is_walker: bool, 
     spells_known = []
     spell_slots = {}
 
-    # This is a very basic implementation. A full implementation would use the spell slot tables.
-    if chosen_class.name in ["Wizard", "Sorcerer", "Bard", "Cleric", "Druid", "Artificer"]:
+    if chosen_class.name in ["Wizard", "Sorcerer", "Bard", "Cleric", "Druid", "Artificer", "Warlock", "Paladin", "Ranger"]:
         if chosen_class.name == "Wizard": spellcasting_ability = "intelligence"
         elif chosen_class.name == "Cleric": spellcasting_ability = "wisdom"
         elif chosen_class.name == "Sorcerer": spellcasting_ability = "charisma"
         elif chosen_class.name == "Bard": spellcasting_ability = "charisma"
         elif chosen_class.name == "Druid": spellcasting_ability = "wisdom"
         elif chosen_class.name == "Artificer": spellcasting_ability = "intelligence"
-        
-        # For simplicity, give them a few cantrips and 1st level spells
-        cantrips_known = ["Light", "Mage Hand"]
-        spells_known = ["Magic Missile", "Cure Wounds"]
-        spell_slots = {"1": 2}
+        elif chosen_class.name == "Warlock": spellcasting_ability = "charisma"
+        elif chosen_class.name == "Paladin": spellcasting_ability = "charisma"
+        elif chosen_class.name == "Ranger": spellcasting_ability = "wisdom"
+
+    proficiency_bonus = PROFICIENCY_BONUS_BY_LEVEL.get(level, 2)
 
     if spellcasting_ability:
-        # Proficiency bonus for NPC is simplified to 2 for now, should scale with level
-        proficiency_bonus = 2 
         spell_save_dc = 8 + calculate_modifier(npc_stats.dict()[spellcasting_ability]) + proficiency_bonus
         spell_attack_modifier = calculate_modifier(npc_stats.dict()[spellcasting_ability]) + proficiency_bonus
 
-    # Calculate Hit Points
+    # HP: Level 1 = hit_die + con_mod, each additional level = hit_die//2 + 1 + con_mod (average)
     con_modifier = calculate_modifier(npc_stats.constitution)
-    npc_hit_points = chosen_class.hit_die + (level - 1) * (chosen_class.hit_die // 2 + con_modifier)
-    if npc_hit_points < 1: npc_hit_points = 1 # Ensure HP is at least 1
+    npc_hit_points = chosen_class.hit_die + con_modifier
+    for _ in range(level - 1):
+        npc_hit_points += (chosen_class.hit_die // 2 + 1) + con_modifier
+    if npc_hit_points < 1:
+        npc_hit_points = 1
 
-    # Calculate Armor Class (simplified)
-    # Base AC 10 + Dex modifier for unarmored
+    # Hill Dwarf bonus
+    if chosen_race.name == "Dwarf" and chosen_subrace and chosen_subrace.name == "Hill Dwarf":
+        npc_hit_points += level
+
     npc_armor_class = 10 + calculate_modifier(npc_stats.dexterity)
-    # If proficient in light/medium armor, assume they have some basic armor
     if "Light armor" in chosen_class.armor_proficiencies or "Medium armor" in chosen_class.armor_proficiencies:
-        npc_armor_class = 12 + calculate_modifier(npc_stats.dexterity) # Assume basic light/medium armor
-    elif "Heavy armor" in chosen_class.armor_proficiencies:
-        npc_armor_class = 16 # Assume basic heavy armor
+        npc_armor_class = 12 + min(calculate_modifier(npc_stats.dexterity), 2)
+    elif "Heavy armor" in chosen_class.armor_proficiencies or "All armor" in chosen_class.armor_proficiencies:
+        npc_armor_class = 16
 
-    # Set Speed
     npc_speed = chosen_race.speed
+    if chosen_subrace and chosen_subrace.name == "Wood Elf":
+        npc_speed = 35
+
+    race_display = chosen_race.name
+    if chosen_subrace:
+        race_display = chosen_subrace.name
 
     cr, xp = get_cr_and_xp(level)
 
-    # Generate a more specific name
-    npc_name = f"{chosen_race.name} {chosen_class.name}"
+    npc_name = f"{race_display} {chosen_class.name}"
     return NPC(
         name=npc_name,
         level=level,
@@ -157,15 +184,15 @@ def _generate_npc_details(level: int, role: str, faction: str, is_walker: bool, 
         current_hit_points=npc_hit_points,
         total_hit_points=npc_hit_points,
         speed=npc_speed,
-        alignment=chosen_background.name, # Using background name as alignment for now, will fix later
+        alignment=chosen_background.name,
         challenge_rating=cr,
         xp_value=xp,
         creature_type='humanoid',
         role=role,
         faction=faction,
         is_walker=is_walker,
-        dialogue_options=[], # Dialogue will be set by specific NPC creation functions
-        race=chosen_race.name,
+        dialogue_options=[],
+        race=race_display,
         character_class=chosen_class.name,
         background=chosen_background.name,
         armor_proficiencies=list(armor_proficiencies),
@@ -182,13 +209,11 @@ def _generate_npc_details(level: int, role: str, faction: str, is_walker: bool, 
     )
 
 def create_settlement_npc(role, config):
-    """Creates a very basic NPC for a settlement, for the AI GameMaster to imagine."""
-    is_walker = random.random() < 0.02 # 2% chance
+    is_walker = random.random() < 0.02
     dialogue = [f"Just a humble {role}, trying to make a living.", "Welcome to our town."]
     if is_walker:
         dialogue = ["Have you ever noticed the seams in the sky?", "They say this world was 'generated'. What do you think that means?", "The bread is a lie."]
 
-    # Create a very basic NPC for the AI GameMaster to imagine
     return NPC(
         name=f"Generic {role}",
         level=1,
@@ -204,7 +229,6 @@ def create_settlement_npc(role, config):
     )
 
 def create_courtier_npc(kingdom_name, config):
-    """Creates a courtier NPC for a kingdom's capital."""
     npc_level = random.randint(3, 7)
     courtier = _generate_npc_details(
         level=npc_level,
@@ -213,14 +237,11 @@ def create_courtier_npc(kingdom_name, config):
         is_walker=random.random() < 0.042,
         config=config
     )
-    courtier.name = f"{courtier.race} Courtier" # Overwrite with a more specific courtier name
+    courtier.name = f"{courtier.race} Courtier"
     courtier.dialogue_options=["Long live the King!", "The court is abuzz with rumors."]
     return courtier
 
-# --- Main Population Generator ---
-
 def populate_world(config):
-    """Populates the world with kingdoms, capitals, and NPCs with hardcoded relations."""
     kingdoms = []
     
     kingdom_defs = {
@@ -230,7 +251,6 @@ def populate_world(config):
         "Blacksail Archipelago": {"alignment": "Chaotic Evil"}
     }
     
-    # Hardcoded relationship matrix reflecting a tense, post-war world
     RELATIONS = {
         "Eldoria": {"Zarthus": "Rivalry", "Silverwood": "Suspicion", "Blacksail Archipelago": "Raiding"},
         "Zarthus": {"Eldoria": "Rivalry", "Silverwood": "Contempt", "Blacksail Archipelago": "Alliance"},
@@ -239,7 +259,6 @@ def populate_world(config):
     }
     
     for name, data in kingdom_defs.items():
-        # Create the Ruler
         ruler_level = random.randint(10, 15)
         ruler = _generate_npc_details(
             level=ruler_level,
@@ -251,19 +270,16 @@ def populate_world(config):
         ruler.alignment = data["alignment"]
         ruler.dialogue_options = [f"I am the ruler of {name}.", "State your business."]
     
-        # Create the Capital City
         capital_city = Location(
             name=f"{name} City", coordinates=None, biome="Plains",
             description=f"The bustling capital of {name}.", npcs=[ruler]
         )
     
-        # Add courtiers to the capital
         num_courtiers = random.randint(2, 3)
         for _ in range(num_courtiers):
             courtier = create_courtier_npc(name, config)
             capital_city.npcs.append(courtier)
     
-        # Create the Kingdom
         kingdom = Kingdom(
             name=name, capital=capital_city.name, alignment=data["alignment"], 
             ruler=ruler, locations=[capital_city],
@@ -272,4 +288,3 @@ def populate_world(config):
         kingdoms.append(kingdom)
     
     return kingdoms
-

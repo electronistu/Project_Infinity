@@ -273,6 +273,10 @@ def apply_level_up(character_class, old_level, new_level, player_data):
         rolls.append(roll)
         total_gain += hp_gain
 
+    subrace = player_data.get('subrace', '')
+    if subrace == 'Hill Dwarf':
+        total_gain += levels_gained
+
     new_total_hp = old_total_hp + total_gain
     changes['total_hit_points'] = str(new_total_hp)
     roll_str = ", ".join(str(r) for r in rolls)

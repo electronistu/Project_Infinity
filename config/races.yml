@@ -15,9 +15,9 @@
       value: 1
   languages:
     - Common
-    - "One extra language of your choice"
   traits: []
   proficiencies: []
+  subraces: []
 
 - name: Elf
   speed: 30
@@ -31,20 +31,75 @@
     - name: Darkvision
       description: "Accustomed to twilit forests and the night sky, you have superior vision in dark and dim conditions. You can see in dim light within 60 feet of you as if it were bright light, and in darkness as if it were dim light."
     - name: Fey Ancestry
-      description: "You have advantage on saving throws against being charmed, and magic can’t put you to sleep."
+      description: "You have advantage on saving throws against being charmed, and magic can't put you to sleep."
     - name: Trance
-      description: "Elves don’t need to sleep. Instead, they meditate deeply, remaining semiconscious, for 4 hours a day."
+      description: "Elves don't need to sleep. Instead, they meditate deeply, remaining semiconscious, for 4 hours a day."
   proficiencies:
     - type: skill
       name: Perception
-    - type: weapon
-      name: Longsword
-    - type: weapon
-      name: Shortsword
-    - type: weapon
-      name: Shortbow
-    - type: weapon
-      name: Longbow
+  subraces:
+    - name: High Elf
+      ability_score_increases:
+        - ability: Intelligence
+          value: 1
+      traits:
+        - name: Elf Weapon Training
+          description: "You have proficiency with the longsword, shortsword, shortbow, and longbow."
+        - name: Cantrip
+          description: "You know one cantrip of your choice from the wizard spell list. Intelligence is your spellcasting ability for it."
+      proficiencies:
+        - type: weapon
+          name: Longsword
+        - type: weapon
+          name: Shortsword
+        - type: weapon
+          name: Shortbow
+        - type: weapon
+          name: Longbow
+      languages:
+        - "One extra language of your choice"
+    - name: Wood Elf
+      ability_score_increases:
+        - ability: Wisdom
+          value: 1
+      traits:
+        - name: Elf Weapon Training
+          description: "You have proficiency with the longsword, shortsword, shortbow, and longbow."
+        - name: Fleet of Foot
+          description: "Your base walking speed increases to 35 feet."
+        - name: Mask of the Wild
+          description: "You can attempt to hide even when you are only lightly obscured by foliage, heavy rain, falling snow, mist, or other natural phenomena."
+      proficiencies:
+        - type: weapon
+          name: Longsword
+        - type: weapon
+          name: Shortsword
+        - type: weapon
+          name: Shortbow
+        - type: weapon
+          name: Longbow
+      languages: []
+    - name: Drow
+      ability_score_increases:
+        - ability: Charisma
+          value: 1
+      traits:
+        - name: Superior Darkvision
+          description: "Your darkvision has a radius of 120 feet."
+        - name: Sunlight Sensitivity
+          description: "You have disadvantage on attack rolls and on Wisdom (Perception) checks that rely on sight when you, the target of your attack, or whatever you are trying to perceive is in direct sunlight."
+        - name: Drow Magic
+          description: "You know the dancing lights cantrip. At 3rd level, you can cast faerie fire once per day. At 5th level, you can cast darkness once per day. Charisma is your spellcasting ability for these spells."
+        - name: Drow Weapon Training
+          description: "You have proficiency with rapiers, shortswords, and hand crossbows."
+      proficiencies:
+        - type: weapon
+          name: Rapier
+        - type: weapon
+          name: Shortsword
+        - type: weapon
+          name: Hand crossbows
+      languages: []
 
 - name: Dwarf
   speed: 25
@@ -70,8 +125,33 @@
       name: Light Hammer
     - type: weapon
       name: Warhammer
-    - type: tool
-      name: "Artisan's Tools (Brewer's Supplies, Mason's Tools, or Smith's Tools)"
+  subraces:
+    - name: Hill Dwarf
+      ability_score_increases:
+        - ability: Wisdom
+          value: 1
+      traits:
+        - name: Dwarven Toughness
+          description: "Your hit point maximum increases by 1, and it increases by 1 every time you gain a level."
+      proficiencies:
+        - type: tool
+          name: "Artisan's Tools (one of your choice)"
+      languages: []
+    - name: Mountain Dwarf
+      ability_score_increases:
+        - ability: Strength
+          value: 2
+      traits:
+        - name: Dwarven Armor Training
+          description: "You have proficiency with light and medium armor."
+      proficiencies:
+        - type: armor
+          name: "Light armor"
+        - type: armor
+          name: "Medium armor"
+        - type: tool
+          name: "Artisan's Tools (one of your choice)"
+      languages: []
 
 - name: Halfling
   speed: 25
@@ -89,6 +169,25 @@
     - name: Halfling Nimbleness
       description: "You can move through the space of any creature that is of a size larger than yours."
   proficiencies: []
+  subraces:
+    - name: Lightfoot
+      ability_score_increases:
+        - ability: Charisma
+          value: 1
+      traits:
+        - name: Naturally Stealthy
+          description: "You can attempt to hide even when you are obscured only by a creature that is at least one size larger than you."
+      proficiencies: []
+      languages: []
+    - name: Stout
+      ability_score_increases:
+        - ability: Constitution
+          value: 1
+      traits:
+        - name: Stout Resilience
+          description: "You have advantage on saving throws against poison, and you have resistance against poison damage."
+      proficiencies: []
+      languages: []
 
 - name: Dragonborn
   speed: 30
@@ -102,9 +201,10 @@
     - Draconic
   traits:
     - name: Draconic Ancestry
-      description: "You choose one type of dragon (e.g., black, blue, brass, bronze, copper, gold, green, red, silver, white). This choice determines the damage type of your Breath Weapon and the type of damage resistance you gain."
+      description: "You choose one type of dragon as your ancestor. Your breath weapon and damage resistance are determined by the dragon type, as shown in the Draconic Ancestry table."
     - name: Breath Weapon
-      description: "You can use your action to exhale destructive energy."
+      description: "You can use your action to exhale destructive energy. Your Draconic Ancestry determines the size, shape, and damage type of the exhalation. When you use your breath weapon, each creature in the area must make a saving throw. The DC equals 8 + your Constitution modifier + your proficiency bonus. A creature takes 2d6 damage on a failed save, and half as much damage on a successful one. The damage increases to 3d6 at 6th level, 4d6 at 11th, and 5d6 at 16th level."
     - name: Damage Resistance
       description: "You have resistance to the damage type associated with your Draconic Ancestry."
   proficiencies: []
+  subraces: []

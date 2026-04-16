@@ -12,7 +12,10 @@
   tool_proficiencies:
     - "Thieves' Tools"
     - "Tinker's Tools"
-    - "Artisan's Tools"
+  tool_proficiency_choices:
+    choose_one_from:
+      - "Artisan's Tools (one type of your choice)"
+    number: 1
   skills:
     choices: ["Arcana", "History", "Investigation", "Medicine", "Nature", "Perception", "Sleight of Hand"]
     number: 2
@@ -35,10 +38,9 @@
     - fixed_items:
         - "Thieves' Tools"
         - "Tinker's Tools"
-    - choose_one_from:
-        - "Artisan's Tools"
     - fixed_items:
         - "Dungeoneer's Pack"
+  starting_gold_dice: "4d4"
 
 - name: Barbarian
   hit_die: 12
@@ -59,13 +61,13 @@
   features:
     - name: Rage
       level: 1
-      description: "In battle, you fight with primal ferocity."
+      description: "In battle, you fight with primal ferocity. You can rage 2 times per long rest."
     - name: Unarmored Defense
       level: 1
-      description: "While you are wearing no armor and not wielding a shield, your AC equals 10 + your Dexterity modifier + your Constitution modifier."
+      description: "While you are wearing no armor, your AC equals 10 + your Dexterity modifier + your Constitution modifier. You can use a shield and still gain this benefit."
   starting_equipment_options:
     - choose_one_from:
-        - "Orcish Greataxe"
+        - "Greataxe"
         - "Any Martial Melee Weapon"
     - choose_one_from:
         - "Two Handaxes"
@@ -73,6 +75,7 @@
     - fixed_items:
         - "Four Javelins"
         - "Explorer's Pack"
+  starting_gold_dice: "2d4"
 
 - name: Bard
   hit_die: 8
@@ -87,22 +90,25 @@
     - "Longswords"
     - "Rapiers"
     - "Shortswords"
-  tool_proficiencies:
-    - "Musical Instrument"
+  tool_proficiencies: []
+  tool_proficiency_choices:
+    choose_one_from:
+      - "Musical Instrument (three of your choice)"
+    number: 1
   skills:
-    choices: ["Any three skills"]
+    choices: ["*"]
     number: 3
   features:
     - name: Bardic Inspiration
       level: 1
-      description: "You can inspire others through stirring words or music."
+      description: "You can inspire others through stirring words or music. You can use this feature a number of times equal to your Charisma modifier (minimum of 1) per short rest."
     - name: Spellcasting
       level: 1
-      description: "You can cast spells from the bard spell list."
+      description: "You can cast spells from the bard spell list. Charisma is your spellcasting ability."
   starting_equipment_options:
     - choose_one_from:
-        - "Rusty Sword"
-        - "Steel Longsword"
+        - "Rapier"
+        - "Longsword"
         - "Any Simple Weapon"
     - choose_one_from:
         - "Diplomat's Pack"
@@ -112,7 +118,8 @@
         - "Any Musical Instrument"
     - fixed_items:
         - "Leather Tunic"
-        - "Crude Dagger"
+        - "Dagger"
+  starting_gold_dice: "3d4"
 
 - name: Cleric
   hit_die: 8
@@ -132,10 +139,10 @@
   features:
     - name: Spellcasting
       level: 1
-      description: "As a conduit for divine power, you can cast cleric spells."
+      description: "As a conduit for divine power, you can cast cleric spells. Wisdom is your spellcasting ability."
     - name: Divine Domain
       level: 1
-      description: "Choose one domain related to your deity."
+      description: "Choose one domain related to your deity. Your choice grants you features when you choose it at 1st level and again at higher levels."
     - name: Channel Divinity
       level: 2
       description: "You gain the ability to channel divine energy directly from your deity, using that energy to fuel magical effects."
@@ -144,18 +151,20 @@
         - "Mace"
         - "Warhammer"
     - choose_one_from:
-        - "Iron Chainmail"
-        - "Leather Tunic"
         - "Scale Mail"
+        - "Leather Tunic"
+        - "Chain Mail"
     - choose_one_from:
-        - "Light Crossbow, 20 Bolts"
-        - "Crude Dagger"
+        - "Light Crossbow"
+        - "20 Bolts"
+        - "Any Simple Weapon"
     - choose_one_from:
         - "Priest's Pack"
         - "Explorer's Pack"
     - fixed_items:
         - "Shield"
         - "Holy Symbol"
+  starting_gold_dice: "4d4"
 
 - name: Druid
   hit_die: 8
@@ -184,10 +193,10 @@
   features:
     - name: Druidic
       level: 1
-      description: "You know Druidic, the secret language of druids."
+      description: "You know Druidic, the secret language of druids. You can speak it and use it to leave hidden messages."
     - name: Spellcasting
       level: 1
-      description: "You can cast spells from the druid spell list."
+      description: "You can cast spells from the druid spell list. Wisdom is your spellcasting ability."
   starting_equipment_options:
     - fixed_items:
         - "Leather Tunic"
@@ -195,11 +204,12 @@
         - "Wooden Shield"
         - "Any Simple Weapon"
     - choose_one_from:
-        - "Rusty Sword"
+        - "Scimitar"
         - "Any Simple Melee Weapon"
     - fixed_items:
         - "Explorer's Pack"
         - "Druidic Focus"
+  starting_gold_dice: "2d4"
 
 - name: Fighter
   hit_die: 10
@@ -222,23 +232,37 @@
       description: "You adopt a particular style of fighting as your specialty."
     - name: Second Wind
       level: 1
-      description: "You have a limited well of stamina that you can draw on to protect yourself from harm."
+      description: "You have a limited well of stamina that you can draw on to protect yourself from harm. You can use a bonus action to regain hit points equal to 1d10 + your fighter level. You regain the use of this feature after a short or long rest."
     - name: Action Surge
       level: 2
-      description: "You can push yourself beyond your normal limits for a moment."
+      description: "You can push yourself beyond your normal limits for a moment. On your turn, you can take one additional action. You regain the use of this feature after a short or long rest."
+  fighting_styles:
+    - name: Archery
+      description: "You gain a +2 bonus to attack rolls you make with ranged weapons."
+    - name: Defense
+      description: "While you are wearing armor, you gain a +1 bonus to AC."
+    - name: Dueling
+      description: "When you are wielding a melee weapon in one hand and no other weapons, you gain a +2 bonus to damage rolls with that weapon."
+    - name: Great Weapon Fighting
+      description: "When you roll a 1 or 2 on a damage die for an attack you make with a melee weapon that you are wielding with two hands, you can reroll the die and must use the new roll."
+    - name: Protection
+      description: "When a creature you can see attacks a target other than you that is within 5 feet of you, you can use your reaction to impose disadvantage on the attack roll."
+    - name: Two-Weapon Fighting
+      description: "When you engage in two-weapon fighting, you can add your ability modifier to the damage of the second attack."
   starting_equipment_options:
     - choose_one_from:
         - "Chain Mail"
-        - "Leather Tunic, Elven Bow, 20 Arrows"
+        - "Leather Tunic, Longbow, 20 Arrows"
     - choose_one_from:
-        - "Steel Longsword, Shield"
-        - "Steel Longsword, Rusty Sword"
+        - "Longsword, Shield"
+        - "Two Handaxes"
     - choose_one_from:
         - "Light Crossbow, 20 Bolts"
         - "Two Handaxes"
     - choose_one_from:
         - "Dungeoneer's Pack"
         - "Explorer's Pack"
+  starting_gold_dice: "4d4"
 
 - name: Monk
   hit_die: 8
@@ -249,28 +273,32 @@
   weapon_proficiencies:
     - "Simple weapons"
     - "Shortswords"
-  tool_proficiencies:
-    - "Artisan's Tools"
-    - "Musical Instrument"
+  tool_proficiencies: []
+  tool_proficiency_choices:
+    choose_one_from:
+      - "Artisan's Tools (one type of your choice)"
+      - "Musical Instrument (one of your choice)"
+    number: 1
   skills:
     choices: ["Acrobatics", "Athletics", "History", "Insight", "Religion", "Stealth"]
     number: 2
   features:
     - name: Unarmored Defense
       level: 1
-      description: "Beginning at 1st level, while you are wearing no armor and not wielding a shield, your AC equals 10 + your Dexterity modifier + your Wisdom modifier."
+      description: "While you are wearing no armor and not wielding a shield, your AC equals 10 + your Dexterity modifier + your Wisdom modifier."
     - name: Martial Arts
       level: 1
-      description: "At 1st level, your practice of martial arts gives you mastery of combat styles that use unarmed strikes and monk weapons."
+      description: "Your practice of martial arts gives you mastery of combat styles that use unarmed strikes and monk weapons. You can use Dexterity instead of Strength for the attack and damage rolls of your unarmed strikes and monk weapons. You can roll a d4 in place of the normal damage of your unarmed strike or monk weapon. When you use the Attack action with an unarmed strike or a monk weapon, you can make one unarmed strike as a bonus action."
   starting_equipment_options:
     - choose_one_from:
-        - "Rusty Sword"
+        - "Shortsword"
         - "Any Simple Weapon"
     - choose_one_from:
         - "Dungeoneer's Pack"
         - "Explorer's Pack"
     - fixed_items:
         - "10 Darts"
+  starting_gold_dice: "5d4"
 
 - name: Paladin
   hit_die: 10
@@ -290,13 +318,22 @@
   features:
     - name: Divine Sense
       level: 1
-      description: "The presence of strong evil registers on your senses like a noxious odor, and powerful good rings like heavenly music in your ears."
+      description: "The presence of strong evil registers on your senses like a noxious odor, and powerful good rings like heavenly music in your ears. As an action, you can open your awareness to detect such forces."
     - name: Lay on Hands
       level: 1
-      description: "Your blessed touch can heal wounds."
+      description: "Your blessed touch can heal wounds. You have a pool of healing power that replenishes when you take a long rest. With that pool, you can restore a total number of hit points equal to your paladin level x 5."
+  fighting_styles:
+    - name: Defense
+      description: "While you are wearing armor, you gain a +1 bonus to AC."
+    - name: Dueling
+      description: "When you are wielding a melee weapon in one hand and no other weapons, you gain a +2 bonus to damage rolls with that weapon."
+    - name: Great Weapon Fighting
+      description: "When you roll a 1 or 2 on a damage die for an attack you make with a melee weapon that you are wielding with two hands, you can reroll the die and must use the new roll."
+    - name: Protection
+      description: "When a creature you can see attacks a target other than you that is within 5 feet of you, you can use your reaction to impose disadvantage on the attack roll."
   starting_equipment_options:
     - choose_one_from:
-        - "Steel Longsword, Shield"
+        - "Longsword, Shield"
         - "Two Martial Weapons"
     - choose_one_from:
         - "Five Javelins"
@@ -305,8 +342,9 @@
         - "Priest's Pack"
         - "Explorer's Pack"
     - fixed_items:
-        - "Iron Chainmail"
+        - "Chain Mail"
         - "Holy Symbol"
+  starting_gold_dice: "4d4"
 
 - name: Ranger
   hit_die: 10
@@ -327,10 +365,19 @@
   features:
     - name: Favored Enemy
       level: 1
-      description: "You choose a type of favored enemy (e.g., aberrations, beasts, humanoids of a certain race)."
+      description: "You choose a type of favored enemy. You have advantage on Wisdom (Survival) checks to track your favored enemies, as well as on Intelligence checks to recall information about them."
     - name: Natural Explorer
       level: 1
-      description: "You are an unparalleled master of navigating the natural world."
+      description: "You are an unparalleled master of navigating the natural world. You have advantage on initiative rolls and on Wisdom (Survival) checks in your favored terrain."
+  fighting_styles:
+    - name: Archery
+      description: "You gain a +2 bonus to attack rolls you make with ranged weapons."
+    - name: Defense
+      description: "While you are wearing armor, you gain a +1 bonus to AC."
+    - name: Dueling
+      description: "When you are wielding a melee weapon in one hand and no other weapons, you gain a +2 bonus to damage rolls with that weapon."
+    - name: Two-Weapon Fighting
+      description: "When you engage in two-weapon fighting, you can add your ability modifier to the damage of the second attack."
   starting_equipment_options:
     - choose_one_from:
         - "Scale Mail"
@@ -342,8 +389,9 @@
         - "Dungeoneer's Pack"
         - "Explorer's Pack"
     - fixed_items:
-        - "Elven Bow"
+        - "Longbow"
         - "20 Arrows"
+  starting_gold_dice: "4d4"
 
 - name: Rogue
   hit_die: 8
@@ -366,29 +414,30 @@
   features:
     - name: Expertise
       level: 1
-      description: "Your proficiency bonus is doubled for any ability check you make that uses either of the chosen proficiencies."
+      description: "Choose two of your skill proficiencies. Your proficiency bonus is doubled for any ability check you make that uses either of the chosen proficiencies."
     - name: Sneak Attack
       level: 1
-      description: "You know how to strike subtly and exploit a foe's distraction."
+      description: "You know how to strike subtly and exploit a foe's distraction. Once per turn, you can deal an extra 1d6 damage to one creature you hit with an attack if you have advantage on the attack roll."
     - name: Cunning Action
       level: 2
-      description: "Your quick thinking and agility allow you to move and act quickly."
+      description: "Your quick thinking and agility allow you to move and act quickly. You can take a bonus action on each of your turns to Dash, Disengage, or Hide."
   starting_equipment_options:
     - fixed_items:
         - "Leather Tunic"
     - choose_one_from:
-        - "Rusty Sword"
-        - "Steel Longsword"
+        - "Rapier"
+        - "Shortsword"
     - choose_one_from:
-        - "Elven Bow, 20 Arrows"
-        - "Crude Dagger"
+        - "Longbow, 20 Arrows"
+        - "Shortsword"
     - fixed_items:
-        - "Two Daggers"
         - "Thieves' Tools"
+        - "Dagger"
     - choose_one_from:
         - "Burglar's Pack"
         - "Dungeoneer's Pack"
         - "Explorer's Pack"
+  starting_gold_dice: "3d4"
 
 - name: Sorcerer
   hit_die: 6
@@ -409,10 +458,10 @@
   features:
     - name: Spellcasting
       level: 1
-      description: "An event in your past, or in the life of a parent or ancestor, left an indelible mark on you, infusing you with arcane magic."
+      description: "An event in your past left an indelible mark on you, infusing you with arcane magic. Charisma is your spellcasting ability."
     - name: Sorcerous Origin
       level: 1
-      description: "Choose a sorcerous origin, which describes the source of your innate magical power."
+      description: "Choose a sorcerous origin, which describes the source of your innate magical power. Your choice grants you features when you choose it at 1st level and again at higher levels."
   starting_equipment_options:
     - choose_one_from:
         - "Light Crossbow, 20 Bolts"
@@ -425,6 +474,7 @@
         - "Explorer's Pack"
     - fixed_items:
         - "Two Daggers"
+  starting_gold_dice: "3d4"
 
 - name: Warlock
   hit_die: 8
@@ -442,10 +492,10 @@
   features:
     - name: Otherworldly Patron
       level: 1
-      description: "You have struck a bargain with an otherworldly being of your choice."
+      description: "You have struck a bargain with an otherworldly being of your choice. Your choice grants you features at 1st level and again at higher levels."
     - name: Pact Magic
       level: 1
-      description: "Your arcane research and the magic bestowed on you by your patron have given you facility with spells."
+      description: "Your arcane research and the magic bestowed on you by your patron have given you facility with spells. Charisma is your spellcasting ability."
   starting_equipment_options:
     - choose_one_from:
         - "Light Crossbow, 20 Bolts"
@@ -460,6 +510,7 @@
         - "Leather Tunic"
         - "Any Simple Weapon"
         - "Two Daggers"
+  starting_gold_dice: "4d4"
 
 - name: Wizard
   hit_die: 6
@@ -480,17 +531,17 @@
   features:
     - name: Spellcasting
       level: 1
-      description: "As a student of arcane magic, you have a spellbook containing spells that show the first glimmerings of your true power."
+      description: "As a student of arcane magic, you have a spellbook containing spells that show the first glimmerings of your true power. Intelligence is your spellcasting ability."
     - name: Arcane Recovery
       level: 1
-      description: "You have learned to regain some of your magical energy by studying your spellbook."
+      description: "You have learned to regain some of your magical energy by studying your spellbook. Once per day during a short rest, you can recover expended spell slots with a combined level equal to no more than half your wizard level (rounded up)."
     - name: Arcane Tradition
       level: 2
       description: "You choose an arcane tradition, shaping your practice of magic through one of eight schools."
   starting_equipment_options:
     - choose_one_from:
         - "Quarterstaff"
-        - "Crude Dagger"
+        - "Dagger"
     - choose_one_from:
         - "Component Pouch"
         - "Arcane Focus"
@@ -499,3 +550,4 @@
         - "Explorer's Pack"
     - fixed_items:
         - "Spellbook"
+  starting_gold_dice: "4d4"

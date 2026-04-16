@@ -19,6 +19,9 @@
         - "Vestments"
         - "Common Clothes"
     - gold_pieces: 15
+  feature:
+    name: "Shelter of the Faithful"
+    description: "As an acolyte, you command the respect of those who share your faith, and you can perform the religious ceremonies of your deity. You and your adventuring companions can expect to receive free healing, care, and food at a temple, shrine, or other established presence of your faith, though you must provide any material components needed for spells. Those who share your religion will support you at a modest lifestyle."
 
 - name: Criminal
   skill_proficiencies:
@@ -37,6 +40,9 @@
         - "Crowbar"
         - "Dark Common Clothes"
     - gold_pieces: 15
+  feature:
+    name: "Criminal Contact"
+    description: "You have a reliable and trustworthy contact who acts as your liaison to a network of other criminals. You know how to get messages to and from your contact, even over great distances. You know the local messengers, corrupt caravan masters, and seedy sailors who can deliver messages for you."
 
 - name: Folk Hero
   skill_proficiencies:
@@ -60,6 +66,9 @@
         - "Iron Pot"
         - "Common Clothes"
     - gold_pieces: 10
+  feature:
+    name: "Rustic Hospitality"
+    description: "Since you come from the ranks of the common folk, you fit in among them with ease. You can find a place to hide, rest, or recuperate among other commoners, unless you have shown yourself to be a danger to them. They will shield you from the law or anyone else searching for you, though they will not risk their lives for you."
 
 - name: Sage
   skill_proficiencies:
@@ -82,6 +91,9 @@
         - "Letter from a Dead Colleague"
         - "Common Clothes"
     - gold_pieces: 10
+  feature:
+    name: "Researcher"
+    description: "When you attempt to learn or recall a piece of lore, if you do not know that information, you often know where and from whom you can obtain it. Usually, this information comes from a library, scriptorium, university, or a sage or other learned person or creature."
 
 - name: Soldier
   skill_proficiencies:
@@ -104,3 +116,6 @@
         - "Bone Dice Set"
         - "Common Clothes"
     - gold_pieces: 10
+  feature:
+    name: "Military Rank"
+    description: "You have a military rank from your career as a soldier. Soldiers loyal to your former military organization still recognize your authority and influence, and they defer to you if they are of a lower rank. You can invoke your rank to exert influence over other soldiers and requisition simple equipment or horses for temporary use. You can also usually gain access to friendly military encampments and fortresses where your rank is recognized."

@@ -2,9 +2,10 @@
   "name": "electronistu",
   "level": 1,
   "xp": 0,
-  "gold": 100,
+  "gold": 90,
   "character_class": "Wizard",
   "race": "Elf",
+  "subrace": "Wood Elf",
   "background": "Criminal",
   "alignment": "Chaotic Neutral",
   "armor_class": 13,
@@ -12,22 +13,22 @@
   "total_hit_points": 7,
   "hit_dice_count": 1,
   "hit_dice_size": 6,
-  "speed": 30,
+  "speed": 35,
   "stats": {
     "str": 8,
     "dex": 17,
     "con": 12,
     "int": 15,
-    "wis": 12,
-    "cha": 9
+    "wis": 10,
+    "cha": 12
   },
   "proficiency_bonus": 2,
   "skills": [
     "Perception",
+    "Investigation",
     "Stealth",
     "Arcana",
-    "Deception",
-    "Investigation"
+    "Deception"
   ],
   "saves": [
     "Intelligence",
@@ -35,19 +36,19 @@
   ],
   "armor_proficiencies": [],
   "weapon_proficiencies": [
-    "Longbow",
-    "Shortsword",
-    "Longsword",
-    "Quarterstaffs",
-    "Shortbow",
-    "Daggers",
     "Darts",
+    "Quarterstaffs",
+    "Shortsword",
+    "Daggers",
+    "Longsword",
+    "Longbow",
+    "Shortbow",
     "Slings",
     "Light crossbows"
   ],
   "tool_proficiencies": [
-    "One type of gaming set",
-    "Thieves' tools"
+    "Thieves' tools",
+    "One type of gaming set"
   ],
   "languages": [
     "Common",
@@ -57,8 +58,12 @@
     "Darkvision",
     "Fey Ancestry",
     "Trance",
+    "Elf Weapon Training",
+    "Fleet of Foot",
+    "Mask of the Wild",
     "Spellcasting",
-    "Arcane Recovery"
+    "Arcane Recovery",
+    "Criminal Contact"
   ],
   "inventory": [],
   "spellcasting": {

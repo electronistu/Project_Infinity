@@ -12,6 +12,13 @@ class Trait(BaseModel):
     name: str
     description: str
 
+class SubRace(BaseModel):
+    name: str
+    ability_score_increases: List[AbilityScoreIncrease] = []
+    traits: List[Trait] = []
+    proficiencies: List[dict] = []
+    languages: List[str] = []
+
 current_dir = os.path.dirname(__file__)
 project_root = os.path.join(current_dir, '..')
 config_dir = os.path.join(project_root, 'config')
@@ -23,6 +30,7 @@ class Race(BaseModel):
     traits: List[Trait]
     languages: List[str]
     proficiencies: List[dict] = []
+    subraces: List[SubRace] = []
 
 class Config(BaseModel):
     races: List[Race]
