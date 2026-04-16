@@ -197,7 +197,7 @@ def update_player_list(key: str, item: str, action: str) -> str:
     Adds or removes an item from a player list. Supports dotted notation.
     For 'add' actions, use the format 'Item Name: Description' to include a description.
     Examples:
-    - Update inventory with description: update_player_list(key='inventory', item='Dagger: A rusty iron blade', action='add')
+    - Update inventory with description: update_player_list(key='inventory', item='Dagger: A rusty iron blade (1d4 piercing, Finesse, Light, Thrown (range 20/60))', action='add')
     - Update inventory simply: update_player_list(key='inventory', item='Health Potion', action='add')
     - Remove an item by name: update_player_list(key='spellcasting.spells', item='Shield', action='remove')
     action: 'add' or 'remove'
