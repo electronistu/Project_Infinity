@@ -25,6 +25,16 @@ def render_gm_text(text):
     return "\n".join(lines)
 
 
+def _render_inventory_item(item):
+    if isinstance(item, dict):
+        name = item.get('name', str(item))
+        desc = item.get('description', '')
+        if desc:
+            return f"  [bold white]{name}[/]\n    [dim]{desc}[/]"
+        return f"  [bold white]{name}[/]"
+    return f"  [bold white]{item}[/]"
+
+
 def format_stats(db_data):
     def get(key, default=""):
         val = db_data.get(key, default)
@@ -107,19 +117,25 @@ def format_stats(db_data):
     features = get('features')
     if isinstance(features, list) and features:
         prof_lines.append(f"🌟 Features: {', '.join(str(f) for f in features)}")
-    inventory = get('inventory')
-    if isinstance(inventory, list) and inventory:
-        inv_display = ', '.join(str(i) for i in inventory)
-        prof_lines.append(f"🎒 Inventory: {inv_display}")
-    consumables = get('consumables')
-    if isinstance(consumables, dict) and consumables:
-        cons_display = ', '.join(f"{k}: {v}" for k, v in consumables.items())
-        prof_lines.append(f"🧪 Consumables: {cons_display}")
     languages = get('languages')
     if isinstance(languages, list) and languages:
         prof_lines.append(f"🗣️ Languages: {', '.join(str(l) for l in languages)}")
 
     if prof_lines:
         panels.append(Panel("\n".join(prof_lines), title="🎯 Skills & Proficiencies", border_style="yellow", expand=False))
+
+    # Inventory & Consumables panel
+    inv_lines = []
+    inventory = get('inventory')
+    if isinstance(inventory, list) and inventory:
+        for item in inventory:
+            inv_lines.append(_render_inventory_item(item))
+    consumables = get('consumables')
+    if isinstance(consumables, dict) and consumables:
+        for name, qty in consumables.items():
+            inv_lines.append(f"  🧪 [bold white]{name}[/]: {qty}")
+
+    if inv_lines:
+        panels.append(Panel("\n".join(inv_lines), title="🎒 Inventory & Consumables", border_style="cyan", expand=False))
 
     return panels

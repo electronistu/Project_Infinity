@@ -344,8 +344,8 @@ async def main():
                         ))
                         console.print("\n")
 
-                    # Sync database every 8 prompts
-                    if prompt_count > 0 and prompt_count % 8 == 0:
+                    # Sync database every 4 prompts
+                    if prompt_count > 0 and prompt_count % 4 == 0:
                         if DEBUG or VERBOSE:
                             console.print("[dim]Synchronizing database...[/dim]")
                         await chat_with_tools("{{_SYNC_DATABASE}}")
