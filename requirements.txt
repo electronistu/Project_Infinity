@@ -4,3 +4,4 @@ ollama
 rich
 mcp
 prompt_toolkit
+google-genai

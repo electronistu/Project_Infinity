@@ -17,18 +17,37 @@ This mode utilizes an external **Model Context Protocol (MCP)** server to act as
 
 **Requirements:**
 - Python 3.11+
+- Install dependencies:
+  ```bash
+  pip install -r requirements.txt
+  ```
+
+### Ollama Backend
+
 - [Ollama](https://ollama.ai/) installed and running.
 - Supported model: `glm-5.1:cloud`
 - **Note:** While other models may follow the Game Master protocol effectively, they tend to struggle with correctly awarding XP on creature/NPC kills. `glm-5.1:cloud` is currently the only model that handles this reliably.
 
 **Quick Start:**
-1. Install dependencies:
+1. Launch the game:
    ```bash
-   pip install -r requirements.txt
+   python3 play.py
+   ```
+2. Select your model and world file (`.wwf`).
+
+### Gemini Backend
+
+- A Google AI API key with access to Gemini models.
+- Supported model: `gemini-3.1-pro-preview`
+
+**Quick Start:**
+1. Set your API key:
+   ```bash
+   export GEMINI_API_KEY=your-api-key
    ```
 2. Launch the game:
    ```bash
-   python3 play.py
+   python3 play_with_gemini.py
    ```
 3. Select your model and world file (`.wwf`).
 
@@ -68,26 +87,29 @@ python3 main.py
 ```
 The Forge guides you through character creation and procedurally generates a world knowledge graph (`.wwf` file) and a corresponding character state file (`.player`) in the `output/` directory. Together, these files serve as the complete source of truth for your adventure.
 
-When you launch `play.py`, the system initializes the LLM with the `GameMaster_MCP.md` protocol as the system prompt and injects the `.wwf` file as the activation key to awaken the Game Master. Simultaneously, `play.py` initializes `dice_server.py` using the `.player` file to boot the SQLite database.
+When you launch `play.py` (Ollama) or `play_with_gemini.py` (Gemini), the system initializes the LLM with the `GameMaster_MCP.md` protocol as the system prompt and injects the `.wwf` file as the activation key to awaken the Game Master. Simultaneously, the game engine initializes `dice_server.py` using the `.player` file to boot the SQLite database.
 
 ---
 
 ## 🌟 The Game Master's Codex
 
-- **Verbose Mode:** Use the `--verbose` or `-v` flag when launching `play.py` to see detailed MCP tool calls and responses.
+- **Verbose Mode:** Use the `--verbose` or `-v` flag when launching `play.py` or `play_with_gemini.py` to see detailed MCP tool calls and responses.
 - **Developer Debug Mode:** Use the `--debug` or `-d` flag for deep inspection. This displays the raw JSON responses from the LLM—including internal reasoning and thought processes—and automatically enables Verbose Mode.
 
 ---
 
 ## 🛠 Technology Stack
 
-**Core Dependencies:**
+**Core Dependencies (shared):**
 - `mcp`: Model Context Protocol for external tool integration.
-- `ollama`: Local LLM orchestration.
 - `rich`: High-fidelity Terminal User Interface (TUI).
 - `pydantic`: Data validation and settings management.
 - `prompt_toolkit`: Interactive terminal input with line editing and slash commands.
 - `pyyaml`: Protocol and schema configuration.
+
+**Backend Dependencies:**
+- `ollama`: LLM orchestration via Ollama (Ollama backend).
+- `google-genai`: Google Gemini API client (Gemini backend).
 
 **Infrastructure:**
 - Python 3
