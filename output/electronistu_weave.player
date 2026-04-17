@@ -2,7 +2,7 @@
   "name": "electronistu",
   "level": 1,
   "xp": 0,
-  "gold": 130,
+  "gold": 95,
   "character_class": "Wizard",
   "race": "Elf",
   "subrace": "Wood Elf",
@@ -19,16 +19,16 @@
     "dex": 17,
     "con": 12,
     "int": 15,
-    "wis": 13,
-    "cha": 9
+    "wis": 10,
+    "cha": 12
   },
   "proficiency_bonus": 2,
   "skills": [
     "Arcana",
-    "Perception",
+    "Investigation",
     "Stealth",
-    "Deception",
-    "Investigation"
+    "Perception",
+    "Deception"
   ],
   "saves": [
     "Intelligence",
@@ -36,19 +36,19 @@
   ],
   "armor_proficiencies": [],
   "weapon_proficiencies": [
+    "Quarterstaffs",
+    "Slings",
     "Daggers",
-    "Darts",
-    "Longsword",
+    "Shortsword",
     "Longbow",
     "Shortbow",
-    "Quarterstaffs",
     "Light crossbows",
-    "Shortsword",
-    "Slings"
+    "Longsword",
+    "Darts"
   ],
   "tool_proficiencies": [
-    "One type of gaming set",
-    "Thieves' tools"
+    "Thieves' tools",
+    "One type of gaming set"
   ],
   "languages": [
     "Common",
@@ -65,7 +65,11 @@
     "Arcane Recovery",
     "Criminal Contact"
   ],
-  "inventory": [],
+  "inventory": [
+    "Spellbook",
+    "Crowbar",
+    "Dark Common Clothes"
+  ],
   "consumables": {},
   "spellcasting": {
     "ability": "intelligence",

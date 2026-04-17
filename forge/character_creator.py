@@ -506,6 +506,34 @@ def create_character(config: Config) -> PlayerCharacter:
             player_gold = roll_starting_gold("4d4")
             print(f"  Default starting gold: {player_gold} gp")
 
+        print("\n--- Fixed Items (always granted) ---")
+        for option_group in chosen_class.starting_equipment_options:
+            if option_group.fixed_items:
+                for item_name in option_group.fixed_items:
+                    for item in split_compound_items(item_name):
+                        if item.item_type in ("ammunition", "consumable"):
+                            cons_name, qty = parse_consumable_quantity(item.name)
+                            player_consumables[cons_name] = player_consumables.get(cons_name, 0) + qty
+                            print(f"  Added {item.name} → consumables.{cons_name}: {qty}")
+                        else:
+                            player_equipment.inventory.append(item)
+                            print(f"  Added {item.name} ({item.item_type})")
+
+        for option_group in chosen_background.starting_equipment_options:
+            if option_group.fixed_items:
+                for item_name in option_group.fixed_items:
+                    for item in split_compound_items(item_name):
+                        if item.item_type in ("ammunition", "consumable"):
+                            cons_name, qty = parse_consumable_quantity(item.name)
+                            player_consumables[cons_name] = player_consumables.get(cons_name, 0) + qty
+                            print(f"  Added {item.name} → consumables.{cons_name}: {qty}")
+                        else:
+                            player_equipment.inventory.append(item)
+                            print(f"  Added {item.name} ({item.item_type})")
+            if option_group.gold_pieces:
+                player_gold += option_group.gold_pieces
+                print(f"  Added {option_group.gold_pieces} gold pieces.")
+
     # --- Features & Traits ---
     features_and_traits = [SpecialAbility(name=t.name, description=t.description) for t in chosen_race.traits]
     if chosen_subrace:
