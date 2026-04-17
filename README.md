@@ -18,7 +18,8 @@ This mode utilizes an external **Model Context Protocol (MCP)** server to act as
 **Requirements:**
 - Python 3.11+
 - [Ollama](https://ollama.ai/) installed and running.
-- Supported models: `gemma4:31b-cloud`, `deepseek-v3.2:cloud`, `qwen3.5:397b-cloud`, `qwen3.5:cloud`, or `glm-5.1:cloud` (recommended).
+- Supported model: `glm-5.1:cloud`
+- **Note:** While other models may follow the Game Master protocol effectively, they tend to struggle with correctly awarding XP on creature/NPC kills. `glm-5.1:cloud` is currently the only model that handles this reliably.
 
 **Quick Start:**
 1. Install dependencies:
@@ -73,7 +74,6 @@ When you launch `play.py`, the system initializes the LLM with the `GameMaster_M
 
 ## 🌟 The Game Master's Codex
 
-- **Model Selection:** Larger models generally produce richer narratives and better adhere to the complex MCP protocols.
 - **Verbose Mode:** Use the `--verbose` or `-v` flag when launching `play.py` to see detailed MCP tool calls and responses.
 - **Developer Debug Mode:** Use the `--debug` or `-d` flag for deep inspection. This displays the raw JSON responses from the LLM—including internal reasoning and thought processes—and automatically enables Verbose Mode.
 

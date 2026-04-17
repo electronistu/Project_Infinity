@@ -16,18 +16,10 @@ from display import format_stats, render_gm_text
 
 # Configuration
 AVAILABLE_MODELS = [
-    "qwen3.5:cloud",
-    "qwen3.5:397b-cloud",
-    "deepseek-v3.2:cloud",
     "glm-5.1:cloud",
-    "gemma4:31b-cloud",
 ]
 MODEL_CONTEXT_LENGTHS = {
-    "qwen3.5:cloud": 262144,
-    "qwen3.5:397b-cloud": 262144,
-    "deepseek-v3.2:cloud": 163840,
-    "glm-5.1:cloud": 202752,
-    "gemma4:31b-cloud": 262144,
+    "glm-5.1:cloud": 198000,
 }
 LOCK_FILE = "GameMaster_MCP.md"
 OUTPUT_DIR = "output"
