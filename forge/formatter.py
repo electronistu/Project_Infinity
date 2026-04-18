@@ -27,6 +27,7 @@ def get_player_json(pc) -> str:
         "subrace": pc.subrace,
         "background": pc.background,
         "alignment": pc.alignment,
+        "gender": pc.gender,
         "armor_class": pc.armor_class,
         "current_hit_points": pc.current_hit_points,
         "total_hit_points": pc.total_hit_points,

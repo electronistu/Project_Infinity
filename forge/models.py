@@ -178,6 +178,7 @@ class PlayerCharacter(BaseEntity):
     race: str
     subrace: Optional[str] = None
     alignment: str
+    gender: str = "Unknown"
     xp: int = 0
     inspiration: bool = False
     proficiency_bonus: int = 2

@@ -264,6 +264,7 @@ def create_debug_character(config: Config) -> PlayerCharacter:
         character_class="Fighter",
         background="Soldier",
         alignment="Lawful Good",
+        gender="Unknown",
         stats=debug_stats,
         speed=25,
         current_hit_points=10 + con_mod + 1,
@@ -301,6 +302,15 @@ def create_character(config: Config) -> PlayerCharacter:
     print("--- D&D 5th Edition Character Forge ---")
 
     name = input("Enter your character's name: ")
+
+    while True:
+        gender = input("Enter your character's gender: ").strip()
+        if gender and len(gender) <= 15:
+            break
+        if not gender:
+            print("Input cannot be empty.")
+        else:
+            print(f"Invalid input. Must be no more than 15 characters (current: {len(gender)}).")
 
     chosen_race = select_from_list("Choose your Race", config.races)
 
@@ -698,6 +708,7 @@ def create_character(config: Config) -> PlayerCharacter:
         character_class=chosen_class.name,
         background=chosen_background.name,
         alignment=chosen_alignment,
+        gender=gender,
         stats=player_stats,
         speed=speed,
         current_hit_points=hit_points,
