@@ -39,6 +39,7 @@ This mode utilizes an external **Model Context Protocol (MCP)** server to act as
 
 - A Google AI API key with access to Gemini models.
 - Supported model: `gemini-3.1-pro-preview`
+- **Note:** This model has known issues. See [Known Issues](#known-issues) for details and workarounds.
 
 **Quick Start:**
 1. Set your API key:
@@ -95,6 +96,52 @@ When you launch `play.py` (Ollama) or `play_with_gemini.py` (Gemini), the system
 
 - **Verbose Mode:** Use the `--verbose` or `-v` flag when launching `play.py` or `play_with_gemini.py` to see detailed MCP tool calls and responses.
 - **Developer Debug Mode:** Use the `--debug` or `-d` flag for deep inspection. This displays the raw JSON responses from the LLM—including internal reasoning and thought processes—and automatically enables Verbose Mode.
+
+---
+
+## ⚠️ Known Issues
+
+### Gemini 3.1 pro-preview
+
+This preview model exhibits several bugs when used with function calling. The engine includes workarounds for each.
+
+**MALFORMED_FUNCTION_CALL Responses**
+
+The model intermittently returns malformed tool calls, causing the API to strip the entire response content. Failure rate varies significantly with temperature:
+
+| Temperature | Failure Rate |
+|-------------|-------------|
+| 0.0 | ~60% |
+| 1.0 | ~10% |
+
+*Workaround:* Default temperature is set to `1.0`. The engine auto-retries malformed responses (up to 5x at the API level, 5x at the engine level). This brings the effective failure rate to near-zero under normal conditions.
+
+Override the default with `--temperature`:
+```bash
+python3 play_with_gemini.py --temperature 0.7
+```
+
+**Thinking Leakage**
+
+The model outputs its internal reasoning as regular text (prefixed with `thinking\n...`) instead of using the SDK's structured `part.thought` attribute. This reasoning text would appear in the game narrative if unfiltered.
+
+*Workaround:* A heuristic strips `thinking\n...` or `Thinking\n...` blocks from model output before display. In `--debug` mode, stripped thinking is shown in a separate yellow panel labeled "Thinking (scrubbed from content)".
+
+**Structured Thinking Incompatibility**
+
+The Google GenAI SDK's `ThinkingConfig` enables clean separation of reasoning and content via the `part.thought` attribute. However, enabling it with `gemini-3.1-pro-preview` causes `MALFORMED_FUNCTION_CALL` at near-100% rates.
+
+*Workaround:* Structured thinking is disabled by default. The `--thinking-level` flag is preserved for future model versions and can be enabled experimentally:
+```bash
+python3 play_with_gemini.py --thinking-level MEDIUM
+```
+When enabled, debug mode displays model thinking in a yellow panel labeled "Thinking (structured)".
+
+**Thinking-Only Responses**
+
+With `--thinking-level` enabled, the model may complete its reasoning but produce no final text or tool calls (the "thinking-only" bug).
+
+*Workaround:* The engine auto-injects `"Continue"` (up to 3 attempts) to prompt the model to produce output. If all retries are exhausted, a placeholder message is shown: *"The GM pauses, deep in thought..."*
 
 ---
 

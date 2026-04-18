@@ -127,6 +127,49 @@ async def run_game(chat_fn, model, context_window, verbose=False, debug=False):
 
                     if DEBUG:
                         console.print(f"[dim]DEBUG RESPONSE: {response}[/dim]")
+                        if response.get('thinking'):
+                            console.print(Panel(
+                                response['thinking'],
+                                title="[bold yellow]DEBUG: Thinking (structured)[/bold yellow]",
+                                border_style="yellow",
+                            ))
+                        if response.get('thinking_scrubbed'):
+                            console.print(Panel(
+                                response['thinking_scrubbed'],
+                                title="[bold yellow]DEBUG: Thinking (scrubbed from content)[/bold yellow]",
+                                border_style="yellow",
+                            ))
+
+                    malformed_count = 0
+                    MAX_MALFORMED_RETRIES = 5
+                    while response.get('malformed_function_call') and malformed_count < MAX_MALFORMED_RETRIES:
+                        malformed_count += 1
+                        if DEBUG:
+                            console.print(f"[bold yellow]DEBUG: MALFORMED_FUNCTION_CALL in engine. Re-calling chat_fn... ({malformed_count}/{MAX_MALFORMED_RETRIES})[/bold yellow]")
+                        response = await chat_fn(
+                            messages=messages,
+                            tools=tools_schema,
+                            model=model,
+                            context_window=context_window,
+                        )
+                        current_context_tokens = response.get('prompt_eval_count', current_context_tokens)
+                        if DEBUG:
+                            console.print(f"[dim]DEBUG RESPONSE: {response}[/dim]")
+                            if response.get('thinking'):
+                                console.print(Panel(
+                                    response['thinking'],
+                                    title="[bold yellow]DEBUG: Thinking (structured)[/bold yellow]",
+                                    border_style="yellow",
+                                ))
+                            if response.get('thinking_scrubbed'):
+                                console.print(Panel(
+                                    response['thinking_scrubbed'],
+                                    title="[bold yellow]DEBUG: Thinking (scrubbed from content)[/bold yellow]",
+                                    border_style="yellow",
+                                ))
+
+                    if response.get('malformed_function_call') and malformed_count >= MAX_MALFORMED_RETRIES:
+                        return "The GM stumbles over their words... (malformed response)"
 
                     response_msg = response['message']
                     content = response_msg['content'] if response_msg else ""
@@ -144,6 +187,48 @@ async def run_game(chat_fn, model, context_window, verbose=False, debug=False):
                         if DEBUG:
                             console.print("[bold yellow]DEBUG: Checkpoint token detected. Pausing...[/bold yellow]")
                         return "__SYSTEM_PAUSE__"
+
+                    thinking_retries = 0
+                    MAX_THINKING_RETRIES = 3
+                    while response.get('thinking_only') and thinking_retries < MAX_THINKING_RETRIES:
+                        thinking_retries += 1
+                        if DEBUG:
+                            console.print(f"[bold yellow]DEBUG: Thinking-only response. Injecting 'Continue'... ({thinking_retries}/{MAX_THINKING_RETRIES})[/bold yellow]")
+                        messages.append({"role": "user", "content": "Continue"})
+                        response = await chat_fn(
+                            messages=messages,
+                            tools=tools_schema,
+                            model=model,
+                            context_window=context_window,
+                        )
+                        current_context_tokens = response.get('prompt_eval_count', current_context_tokens)
+                        if DEBUG:
+                            console.print(f"[dim]DEBUG RESPONSE: {response}[/dim]")
+                            if response.get('thinking'):
+                                console.print(Panel(
+                                    response['thinking'],
+                                    title="[bold yellow]DEBUG: Thinking (structured)[/bold yellow]",
+                                    border_style="yellow",
+                                ))
+                            if response.get('thinking_scrubbed'):
+                                console.print(Panel(
+                                    response['thinking_scrubbed'],
+                                    title="[bold yellow]DEBUG: Thinking (scrubbed from content)[/bold yellow]",
+                                    border_style="yellow",
+                                ))
+                        response_msg = response['message']
+                        content = response_msg['content'] if response_msg else ""
+                        messages.append({
+                            "role": "assistant",
+                            "content": content or "",
+                            "tool_calls": response_msg.get('tool_calls') or None,
+                        } if response_msg.get('tool_calls') else {
+                            "role": "assistant",
+                            "content": content or "",
+                        })
+
+                    if response.get('thinking_only') and thinking_retries >= MAX_THINKING_RETRIES:
+                        return "The GM pauses, deep in thought..."
 
                     tool_calls_list = response_msg.get('tool_calls')
                     if not tool_calls_list:
