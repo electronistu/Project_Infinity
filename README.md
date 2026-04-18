@@ -38,8 +38,8 @@ This mode utilizes an external **Model Context Protocol (MCP)** server to act as
 ### Gemini Backend
 
 - A Google AI API key with access to Gemini models.
-- Supported model: `gemini-3.1-pro-preview`
-- **Note:** This model has known issues. See [Known Issues](#known-issues) for details and workarounds.
+- Supported models: `gemini-3.1-pro-preview`, `gemini-3-flash-preview`, `gemini-2.5-pro`
+- **Note:** `gemini-3.1-pro-preview` has known issues. See [Known Issues](#known-issues) for details and workarounds.
 
 **Quick Start:**
 1. Set your API key:
