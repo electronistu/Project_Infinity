@@ -1,7 +1,7 @@
 from .models import Kingdom, Location, NPC, Stats
 import random
 from .models import CharacterClass, Background, PlayerAbility, StartingEquipmentOption, Item, Skill, SpecialAbility, Equipment, Stats
-from .character_creator import calculate_modifier, ALL_SKILLS
+from .character_creator import calculate_modifier, ALL_SKILLS, resolve_tool_proficiency
 
 WORD_TO_NUMBER = {
     "one": 1,
@@ -59,7 +59,13 @@ def _generate_npc_details(level: int, role: str, faction: str, is_walker: bool, 
 
     armor_proficiencies = set(chosen_class.armor_proficiencies)
     weapon_proficiencies = set(chosen_class.weapon_proficiencies)
-    tool_proficiencies = set(chosen_background.tool_proficiencies)
+    tool_proficiencies = set()
+    for cls_tool in chosen_class.tool_proficiencies:
+        for resolved in resolve_tool_proficiency(cls_tool, interactive=False):
+            tool_proficiencies.add(resolved)
+    for bg_tool in chosen_background.tool_proficiencies:
+        for resolved in resolve_tool_proficiency(bg_tool, interactive=False):
+            tool_proficiencies.add(resolved)
     saving_throw_proficiencies = set(chosen_class.saving_throw_proficiencies)
     skill_proficiencies = set(chosen_background.skill_proficiencies)
 
@@ -69,7 +75,8 @@ def _generate_npc_details(level: int, role: str, faction: str, is_walker: bool, 
         elif proficiency['type'] == "weapon":
             weapon_proficiencies.add(proficiency['name'])
         elif proficiency['type'] == "tool":
-            tool_proficiencies.add(proficiency['name'])
+            for resolved in resolve_tool_proficiency(proficiency['name'], interactive=False):
+                tool_proficiencies.add(resolved)
         elif proficiency['type'] == "skill":
             skill_proficiencies.add(proficiency['name'])
 
@@ -80,13 +87,15 @@ def _generate_npc_details(level: int, role: str, faction: str, is_walker: bool, 
             elif proficiency['type'] == "weapon":
                 weapon_proficiencies.add(proficiency['name'])
             elif proficiency['type'] == "tool":
-                tool_proficiencies.add(proficiency['name'])
+                for resolved in resolve_tool_proficiency(proficiency['name'], interactive=False):
+                    tool_proficiencies.add(resolved)
             elif proficiency['type'] == "skill":
                 skill_proficiencies.add(proficiency['name'])
 
     if chosen_class.tool_proficiency_choices:
         chosen_tool = random.choice(chosen_class.tool_proficiency_choices.choose_one_from)
-        tool_proficiencies.add(chosen_tool)
+        for resolved in resolve_tool_proficiency(chosen_tool, interactive=False):
+            tool_proficiencies.add(resolved)
 
     class_skill_choices_data = chosen_class.skills
     
@@ -175,9 +184,8 @@ def _generate_npc_details(level: int, role: str, faction: str, is_walker: bool, 
 
     cr, xp = get_cr_and_xp(level)
 
-    npc_name = f"{race_display} {chosen_class.name}"
     return NPC(
-        name=npc_name,
+        name="",
         level=level,
         stats=npc_stats,
         armor_class=npc_armor_class,
@@ -207,39 +215,6 @@ def _generate_npc_details(level: int, role: str, faction: str, is_walker: bool, 
         spells_known=spells_known,
         spell_slots=spell_slots
     )
-
-def create_settlement_npc(role, config):
-    is_walker = random.random() < 0.02
-    dialogue = [f"Just a humble {role}, trying to make a living.", "Welcome to our town."]
-    if is_walker:
-        dialogue = ["Have you ever noticed the seams in the sky?", "They say this world was 'generated'. What do you think that means?", "The bread is a lie."]
-
-    return NPC(
-        name=f"Generic {role}",
-        level=1,
-        stats=Stats(strength=10, dexterity=10, constitution=10, intelligence=10, wisdom=10, charisma=10),
-        alignment="Neutral",
-        challenge_rating=0.1,
-        xp_value=10,
-        creature_type='humanoid',
-        role=role,
-        faction="Civilian",
-        is_walker=is_walker,
-        dialogue_options=dialogue
-    )
-
-def create_courtier_npc(kingdom_name, config):
-    npc_level = random.randint(3, 7)
-    courtier = _generate_npc_details(
-        level=npc_level,
-        role="Courtier",
-        faction=kingdom_name,
-        is_walker=random.random() < 0.042,
-        config=config
-    )
-    courtier.name = f"{courtier.race} Courtier"
-    courtier.dialogue_options=["Long live the King!", "The court is abuzz with rumors."]
-    return courtier
 
 def populate_world(config):
     kingdoms = []
@@ -272,13 +247,8 @@ def populate_world(config):
     
         capital_city = Location(
             name=f"{name} City", coordinates=None, biome="Plains",
-            description=f"The bustling capital of {name}.", npcs=[ruler]
+            description=f"The bustling capital of {name}."
         )
-    
-        num_courtiers = random.randint(2, 3)
-        for _ in range(num_courtiers):
-            courtier = create_courtier_npc(name, config)
-            capital_city.npcs.append(courtier)
     
         kingdom = Kingdom(
             name=name, capital=capital_city.name, alignment=data["alignment"], 

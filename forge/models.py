@@ -207,7 +207,6 @@ class Guild(BaseModel):
     name: str
     leader: NPC
     right_hand: NPC
-    members: List[NPC] = []
     reports_to: Optional[str] = None
 
 class Location(BaseModel):
@@ -215,7 +214,6 @@ class Location(BaseModel):
     coordinates: Optional[Tuple[int, int]] = None
     biome: str
     description: str
-    npcs: List[NPC] = []
     guilds: List[Guild] = []
 
 class Kingdom(BaseModel):

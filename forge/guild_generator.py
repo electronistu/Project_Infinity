@@ -27,10 +27,9 @@ def create_guilds(kingdoms, config):
             all_guild_types.add(guild_type)
             leader = create_guild_member(f"{guild_type} Leader", config, [])
             right_hand = create_guild_member(f"{guild_type} Right Hand", config, [])
-            members = [create_guild_member(f"{guild_type} Member", config, []) for _ in range(random.randint(2, 4))]
             
             reports_to = "ruler" if guild_type == "Guard" else None
-            guild = Guild(name=f"{kingdom.name} {guild_type}", leader=leader, right_hand=right_hand, members=members, reports_to=reports_to)
+            guild = Guild(name=f"{kingdom.name} {guild_type}", leader=leader, right_hand=right_hand, reports_to=reports_to)
             kingdom.guilds.append(guild)
 
             if guild_type not in guild_structures:
@@ -77,6 +76,5 @@ def create_guild_member(role, config, abilities):
         is_walker=random.random() < 0.042,
         config=config
     )
-    guild_member.name = f"{guild_member.race} {guild_member.character_class}"
     guild_member.abilities_for_sale = abilities
     return guild_member

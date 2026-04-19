@@ -27,6 +27,24 @@ ALL_SAVES = {
     "Intelligence": "intelligence", "Wisdom": "wisdom", "Charisma": "charisma"
 }
 
+MUSICAL_INSTRUMENTS = [
+    "Bagpipes", "Birdpipes", "Drum", "Dulcimer", "Flute", "Glaur",
+    "Hand Drum", "Horn", "Longhorn", "Lute", "Lyre", "Pan Flute",
+    "Shawm", "Songhorn", "Tantan", "Thelarr", "Tocken", "Warhorn", "Zulkoon"
+]
+
+GAMING_SETS = [
+    "Dice Set", "Dragonchess Set", "Playing Card Set", "Three-Dragon Ante Set"
+]
+
+ARTISAN_TOOLS = [
+    "Alchemist's Supplies", "Brewer's Supplies", "Calligrapher's Supplies",
+    "Carpenter's Tools", "Cobbler's Tools", "Cook's Utensils",
+    "Glassblower's Tools", "Jeweler's Tools", "Leatherworker's Tools",
+    "Mason's Tools", "Painter's Supplies", "Potter's Tools",
+    "Smith's Tools", "Tinker's Tools", "Weaver's Tools", "Woodcarver's Tools"
+]
+
 ARMOR_DATA = {
     "Padded": {"ac": 11, "dex_cap": None, "type": "light"},
     "Leather Tunic": {"ac": 11, "dex_cap": None, "type": "light"},
@@ -79,6 +97,81 @@ STANDARD_LANGUAGES = [
     "Orc", "Abyssal", "Celestial", "Draconic", "Deep Speech", "Infernal",
     "Primordial", "Sylvan", "Undercommon"
 ]
+
+def resolve_tool_proficiency(text, interactive=True):
+    """Resolve a tool proficiency string to a list of concrete tool names.
+    
+    Handles patterns like:
+      "One type of gaming set"            → 1 gaming set
+      "Musical Instrument (three of your choice)" → 3 instruments
+      "Artisan's Tools (one type of your choice)" → 1 artisan tool
+      "Thieves' tools"                    → ["Thieves' tools"] (pass-through)
+    
+    Args:
+        text: The tool proficiency string to resolve.
+        interactive: If True, prompt the user to choose; if False, pick randomly.
+    
+    Returns:
+        A list of concrete tool names.
+    """
+    text_lower = text.lower()
+    count = 1
+    count_match = re.search(r'\((\w+)\s+of\s+your\s+choice\)', text_lower)
+    if count_match:
+        word_to_num = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5}
+        count = word_to_num.get(count_match.group(1), 1)
+
+    if "musical instrument" in text_lower:
+        pool = MUSICAL_INSTRUMENTS
+    elif "gaming set" in text_lower:
+        pool = GAMING_SETS
+    elif "artisan" in text_lower:
+        pool = ARTISAN_TOOLS
+    else:
+        return [text]
+
+    count = min(count, len(pool))
+
+    if not interactive:
+        return random.sample(pool, count)
+
+    results = []
+    available = list(pool)
+    for i in range(count):
+        if not available:
+            break
+        chosen = select_from_list(
+            f"Choose musical instrument {i+1} of {count}" if "musical instrument" in text_lower
+            else f"Choose gaming set {i+1} of {count}" if "gaming set" in text_lower
+            else f"Choose artisan's tools {i+1} of {count}",
+            available, display_key=None
+        )
+        results.append(chosen)
+        available.remove(chosen)
+    return results
+
+def resolve_equipment_choice(item_name, interactive=True):
+    """Resolve a generic equipment choice to a concrete item name.
+    
+    Handles patterns like:
+      "Artisan's Tools"                       → pick 1 artisan tool
+      "Any Musical Instrument"                 → pick 1 instrument
+    
+    Returns the original string if no resolution is needed.
+    """
+    item_lower = item_name.lower()
+    if "artisan" in item_lower and "tools" in item_lower:
+        pool = ARTISAN_TOOLS
+    elif "musical instrument" in item_lower:
+        pool = MUSICAL_INSTRUMENTS
+    else:
+        return item_name
+
+    if not interactive:
+        return random.choice(pool)
+
+    return select_from_list("Choose a specific tool/instrument", pool, display_key=None)
+
 
 def get_player_input(prompt: str, valid_options: list = None, is_numeric: bool = False, range_min: int = None, range_max: int = None):
     while True:
@@ -368,7 +461,10 @@ def create_character(config: Config) -> PlayerCharacter:
     # --- Proficiencies ---
     armor_proficiencies = set(chosen_class.armor_proficiencies)
     weapon_proficiencies = set(chosen_class.weapon_proficiencies)
-    tool_proficiencies = set(chosen_class.tool_proficiencies)
+    tool_proficiencies = set()
+    for cls_tool in chosen_class.tool_proficiencies:
+        for resolved in resolve_tool_proficiency(cls_tool, interactive=True):
+            tool_proficiencies.add(resolved)
     saving_throw_proficiencies = set(chosen_class.saving_throw_proficiencies)
     skill_proficiencies = set(chosen_background.skill_proficiencies)
 
@@ -378,7 +474,8 @@ def create_character(config: Config) -> PlayerCharacter:
         elif proficiency['type'] == "weapon":
             weapon_proficiencies.add(proficiency['name'])
         elif proficiency['type'] == "tool":
-            tool_proficiencies.add(proficiency['name'])
+            for resolved in resolve_tool_proficiency(proficiency['name'], interactive=True):
+                tool_proficiencies.add(resolved)
         elif proficiency['type'] == "skill":
             skill_proficiencies.add(proficiency['name'])
 
@@ -389,18 +486,21 @@ def create_character(config: Config) -> PlayerCharacter:
             elif proficiency['type'] == "weapon":
                 weapon_proficiencies.add(proficiency['name'])
             elif proficiency['type'] == "tool":
-                tool_proficiencies.add(proficiency['name'])
+                for resolved in resolve_tool_proficiency(proficiency['name'], interactive=True):
+                    tool_proficiencies.add(resolved)
             elif proficiency['type'] == "skill":
                 skill_proficiencies.add(proficiency['name'])
 
     for bg_tool in chosen_background.tool_proficiencies:
-        tool_proficiencies.add(bg_tool)
+        for resolved in resolve_tool_proficiency(bg_tool, interactive=True):
+            tool_proficiencies.add(resolved)
 
     if chosen_class.tool_proficiency_choices:
         print(f"\n--- Tool Proficiency Choice ---")
         print(f"As a {chosen_class.name}, choose one from: {', '.join(chosen_class.tool_proficiency_choices.choose_one_from)}")
         chosen_tool = select_from_list("Choose your tool proficiency", chosen_class.tool_proficiency_choices.choose_one_from, display_key=None)
-        tool_proficiencies.add(chosen_tool)
+        for resolved in resolve_tool_proficiency(chosen_tool, interactive=True):
+            tool_proficiencies.add(resolved)
 
     # --- Skills ---
     class_skill_choices_data = chosen_class.skills
@@ -461,6 +561,7 @@ def create_character(config: Config) -> PlayerCharacter:
             if option_group.choose_one_from:
                 chosen_item_name = select_from_list("Choose one item", option_group.choose_one_from, display_key=None)
                 if chosen_item_name:
+                    chosen_item_name = resolve_equipment_choice(chosen_item_name)
                     for item in split_compound_items(chosen_item_name):
                         if item.item_type in ("ammunition", "consumable"):
                             cons_name, qty = parse_consumable_quantity(item.name)
@@ -487,6 +588,7 @@ def create_character(config: Config) -> PlayerCharacter:
             if option_group.choose_one_from:
                 chosen_item_name = select_from_list("Choose one item", option_group.choose_one_from, display_key=None)
                 if chosen_item_name:
+                    chosen_item_name = resolve_equipment_choice(chosen_item_name)
                     for item in split_compound_items(chosen_item_name):
                         if item.item_type in ("ammunition", "consumable"):
                             cons_name, qty = parse_consumable_quantity(item.name)

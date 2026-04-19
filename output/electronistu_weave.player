@@ -20,15 +20,15 @@
     "dex": 17,
     "con": 12,
     "int": 15,
-    "wis": 12,
-    "cha": 10
+    "wis": 10,
+    "cha": 12
   },
   "proficiency_bonus": 2,
   "skills": [
     "Perception",
     "Arcana",
-    "Stealth",
     "Investigation",
+    "Stealth",
     "Deception"
   ],
   "saves": [
@@ -37,19 +37,19 @@
   ],
   "armor_proficiencies": [],
   "weapon_proficiencies": [
-    "Light crossbows",
-    "Daggers",
     "Quarterstaffs",
-    "Slings",
-    "Longbow",
-    "Shortbow",
-    "Darts",
+    "Light crossbows",
     "Shortsword",
-    "Longsword"
+    "Longbow",
+    "Longsword",
+    "Slings",
+    "Darts",
+    "Shortbow",
+    "Daggers"
   ],
   "tool_proficiencies": [
     "Thieves' tools",
-    "One type of gaming set"
+    "Dice Set"
   ],
   "languages": [
     "Common",
