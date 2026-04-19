@@ -39,7 +39,7 @@ This mode utilizes an external **Model Context Protocol (MCP)** server to act as
 
 - A Google AI API key with access to Gemini models.
 - Supported models: `gemini-3.1-pro-preview`, `gemini-3-flash-preview`, `gemini-2.5-pro`
-- **Note:** `gemini-3.1-pro-preview` has known issues. See [Known Issues](#known-issues) for details and workarounds.
+- **Note:** `gemini-3.1-pro-preview` and `gemini-3-flash-preview` have known issues. See [Known Issues](#known-issues) for details and workarounds.
 
 **Quick Start:**
 1. Set your API key:
@@ -101,31 +101,31 @@ When you launch `play.py` (Ollama) or `play_with_gemini.py` (Gemini), the system
 
 ## ⚠️ Known Issues
 
-### Gemini 3.1 pro-preview
+### Gemini 3.1 pro-preview & Gemini 3 Flash preview
 
-This preview model exhibits several bugs when used with function calling. The engine includes workarounds for each.
+These preview models exhibit bugs when used with function calling. The engine includes workarounds for each.
 
 **MALFORMED_FUNCTION_CALL Responses**
 
-The model intermittently returns malformed tool calls, causing the API to strip the entire response content. Failure rate varies significantly with temperature:
+Both models intermittently return malformed tool calls, causing the API to strip the entire response content. Failure rate varies significantly with temperature:
 
-| Temperature | Failure Rate |
-|-------------|-------------|
-| 0.0 | ~60% |
-| 1.0 | ~10% |
+| Temperature | Failure Rate (3.1 pro) | Failure Rate (3 flash) |
+|-------------|----------------------|----------------------|
+| 0.0 | ~60% | similar |
+| 1.0 | ~10% | similar |
 
-*Workaround:* Default temperature is set to `1.0`. The engine auto-retries malformed responses (up to 5x at the API level, 5x at the engine level). This brings the effective failure rate to near-zero under normal conditions.
+*Workaround:* Default temperature is set to `1.0`. On MALFORMED_FUNCTION_CALL, the engine performs a graduated retry sequence: the first retry includes a corrective message with the full tool schema; the second retry sends a stronger warning; up to 3 additional silent retries follow. This provides the model with context about its error and breaks deterministic retry loops.
 
 Override the default with `--temperature`:
 ```bash
 python3 play_with_gemini.py --temperature 0.7
 ```
 
-**Thinking Leakage**
+**Thinking Leakage** (gemini-3.1-pro-preview only)
 
-The model outputs its internal reasoning as regular text (prefixed with `thinking\n...`) instead of using the SDK's structured `part.thought` attribute. This reasoning text would appear in the game narrative if unfiltered.
+The model outputs its internal reasoning as regular text (prefixed with `thinking\n...`) instead of using the SDK's structured `part.thought` attribute. This reasoning text appears in the game narrative. `gemini-3-flash-preview` does not exhibit this behavior.
 
-*Workaround:* A heuristic strips `thinking\n...` or `Thinking\n...` blocks from model output before display. In `--debug` mode, stripped thinking is shown in a separate yellow panel labeled "Thinking (scrubbed from content)".
+*No workaround available.* A heuristic-based strip was attempted but is unreliable — the thinking block typically contains multiple paragraphs separated by `\n\n`, and there is no reliable way to detect the thinking→narrative boundary without structured `part.thought` support from the model. When `--thinking-level` is enabled and the model supports it, debug mode displays structured thinking in a separate yellow panel.
 
 **Structured Thinking Incompatibility**
 

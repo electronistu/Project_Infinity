@@ -1,7 +1,6 @@
 import os
 import sys
 import json
-import re
 import argparse
 import asyncio
 from rich.panel import Panel
@@ -66,21 +65,6 @@ def convert_tools_to_gemini(tools_schema):
     return types.Tool(function_declarations=declarations)
 
 
-def _strip_thinking_from_content(content):
-    stripped = None
-    if content and re.match(r'^[Tt]hinking\s*\n', content):
-        first_double_newline = re.search(r'\n\n', content)
-        if first_double_newline:
-            stripped = content[:first_double_newline.start()].rstrip()
-            content = content[first_double_newline.end():].lstrip('\n')
-        else:
-            single_newline_after_first = re.search(r'\n(?=.{0,10}\n)', content)
-            if single_newline_after_first:
-                stripped = content[:single_newline_after_first.start()].rstrip()
-                content = content[single_newline_after_first.end():].lstrip('\n')
-    return content, stripped
-
-
 def convert_response(response):
     if not response.candidates:
         return {
@@ -102,7 +86,6 @@ def convert_response(response):
             'prompt_eval_count': prompt_eval_count,
             'malformed_function_call': True,
             'thinking': None,
-            'thinking_scrubbed': None,
             'thinking_only': False,
             'message': {
                 'content': '',
@@ -143,10 +126,6 @@ def convert_response(response):
     content = "".join(text_parts)
     thinking_only = not text_parts and not tool_calls and bool(thinking_parts)
 
-    thinking_scrubbed = None
-    if not thinking_parts and content:
-        content, thinking_scrubbed = _strip_thinking_from_content(content)
-
     prompt_eval_count = 0
     if response.usage_metadata:
         prompt_eval_count = getattr(response.usage_metadata, 'prompt_token_count', 0) or 0
@@ -155,13 +134,35 @@ def convert_response(response):
         'prompt_eval_count': prompt_eval_count,
         'malformed_function_call': False,
         'thinking': "\n".join(thinking_parts) if thinking_parts else None,
-        'thinking_scrubbed': thinking_scrubbed,
         'thinking_only': thinking_only,
         'message': {
             'content': content,
             'tool_calls': tool_calls if tool_calls else None,
         }
     }
+
+
+def _format_tool_schemas(tools_schema):
+    lines = []
+    for tool in tools_schema:
+        fn = tool.get("function", {})
+        name = fn.get("name", "")
+        params = fn.get("parameters", {})
+        props = params.get("properties", {})
+        required = params.get("required", [])
+        args = []
+        for pname, pdef in props.items():
+            ptype = pdef.get("type", "any")
+            if pname in required:
+                args.append(f"{pname}: {ptype}")
+            else:
+                default = pdef.get("default")
+                if default is not None:
+                    args.append(f"{pname}: {ptype} [default: {repr(default)}]")
+                else:
+                    args.append(f"{pname}: {ptype} [optional]")
+        lines.append(f"- {name}({', '.join(args)})")
+    return "\n".join(lines)
 
 
 def create_gemini_chat_fn(api_key, debug=False, thinking_level=None, temperature=DEFAULT_TEMP):
@@ -221,12 +222,27 @@ def create_gemini_chat_fn(api_key, debug=False, thinking_level=None, temperature
         if system_instruction:
             config.system_instruction = system_instruction
 
-        MAX_API_RETRIES = 3
-        MAX_MALFORMED_RETRIES = 5
-        total_attempts = MAX_API_RETRIES + MAX_MALFORMED_RETRIES
-        malformed_count = 0
+        tool_schemas_str = _format_tool_schemas(tools) if tools else "No tools available."
 
-        for attempt in range(total_attempts):
+        MAX_API_RETRIES = 3
+        MALFORMED_MSG_1 = (
+            "Your previous response was rejected by the API with finish_reason: MALFORMED_FUNCTION_CALL. "
+            "This means your function call's arguments or structure did not match the tool schema. "
+            "Please verify that all parameter names, types, and required fields match the tool definitions exactly, then respond again.\n\n"
+            f"Available tools:\n{tool_schemas_str}"
+        )
+        MALFORMED_MSG_2 = (
+            "You are still sending malformed function calls. The API is rejecting them. "
+            "Stop and carefully review the tool schemas before attempting another function call.\n\n"
+            f"Available tools:\n{tool_schemas_str}"
+        )
+
+        attempt = 0
+        malformed_count = 0
+        max_attempts = MAX_API_RETRIES + 6
+
+        while attempt < max_attempts:
+            attempt += 1
             try:
                 response = await client.aio.models.generate_content(
                     model=model,
@@ -238,14 +254,31 @@ def create_gemini_chat_fn(api_key, debug=False, thinking_level=None, temperature
 
                 if converted.get('malformed_function_call'):
                     malformed_count += 1
-                    if malformed_count <= MAX_MALFORMED_RETRIES:
+                    if malformed_count == 1:
+                        msg = MALFORMED_MSG_1
+                        gemini_contents.append(types.Content(
+                            role="user",
+                            parts=[types.Part(text=msg)]
+                        ))
                         if debug:
-                            console.print(f"[bold yellow]DEBUG: MALFORMED_FUNCTION_CALL detected. Retrying... ({malformed_count}/{MAX_MALFORMED_RETRIES})[/bold yellow]")
-                        await asyncio.sleep(1)
-                        continue
-                    if debug:
-                        console.print(f"[bold red]DEBUG: MALFORMED_FUNCTION_CALL persists after {MAX_MALFORMED_RETRIES} retries.[/bold red]")
-                    return converted
+                            console.print(f"[bold yellow]DEBUG: MALFORMED_FUNCTION_CALL (attempt {attempt}). Injecting corrective message #1.[/bold yellow]")
+                    elif malformed_count == 2:
+                        msg = MALFORMED_MSG_2
+                        gemini_contents.append(types.Content(
+                            role="user",
+                            parts=[types.Part(text=msg)]
+                        ))
+                        if debug:
+                            console.print(f"[bold yellow]DEBUG: MALFORMED_FUNCTION_CALL (attempt {attempt}). Injecting corrective message #2.[/bold yellow]")
+                    elif malformed_count <= 5:
+                        if debug:
+                            console.print(f"[bold yellow]DEBUG: MALFORMED_FUNCTION_CALL (attempt {attempt}). Silent retry ({malformed_count}/5)...[/bold yellow]")
+                    else:
+                        if debug:
+                            console.print(f"[bold red]DEBUG: MALFORMED_FUNCTION_CALL persists after 6 attempts.[/bold red]")
+                        return converted
+                    await asyncio.sleep(1)
+                    continue
 
                 if response.candidates and response.candidates[0].content:
                     gemini_contents.append(response.candidates[0].content)
@@ -253,16 +286,16 @@ def create_gemini_chat_fn(api_key, debug=False, thinking_level=None, temperature
                 return converted
             except genai_errors.ClientError as e:
                 status_code = getattr(e, 'status_code', None) or getattr(e, 'code', None)
-                if status_code in (429, 500, 503) and attempt < total_attempts - 1:
+                if status_code in (429, 500, 503) and attempt < max_attempts - 1:
                     if debug:
-                        console.print(f"[bold yellow]DEBUG: Gemini API error ({status_code}). Retrying... ({attempt+1}/{total_attempts})[/bold yellow]")
+                        console.print(f"[bold yellow]DEBUG: Gemini API error ({status_code}). Retrying... ({attempt}/{max_attempts})[/bold yellow]")
                     await asyncio.sleep(2)
                     continue
                 raise e
             except genai_errors.ServerError as e:
-                if attempt < total_attempts - 1:
+                if attempt < max_attempts - 1:
                     if debug:
-                        console.print(f"[bold yellow]DEBUG: Gemini server error. Retrying... ({attempt+1}/{total_attempts})[/bold yellow]")
+                        console.print(f"[bold yellow]DEBUG: Gemini server error. Retrying... ({attempt}/{max_attempts})[/bold yellow]")
                     await asyncio.sleep(2)
                     continue
                 raise e

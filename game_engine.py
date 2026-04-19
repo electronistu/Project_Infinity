@@ -133,42 +133,8 @@ async def run_game(chat_fn, model, context_window, verbose=False, debug=False):
                                 title="[bold yellow]DEBUG: Thinking (structured)[/bold yellow]",
                                 border_style="yellow",
                             ))
-                        if response.get('thinking_scrubbed'):
-                            console.print(Panel(
-                                response['thinking_scrubbed'],
-                                title="[bold yellow]DEBUG: Thinking (scrubbed from content)[/bold yellow]",
-                                border_style="yellow",
-                            ))
 
-                    malformed_count = 0
-                    MAX_MALFORMED_RETRIES = 5
-                    while response.get('malformed_function_call') and malformed_count < MAX_MALFORMED_RETRIES:
-                        malformed_count += 1
-                        if DEBUG:
-                            console.print(f"[bold yellow]DEBUG: MALFORMED_FUNCTION_CALL in engine. Re-calling chat_fn... ({malformed_count}/{MAX_MALFORMED_RETRIES})[/bold yellow]")
-                        response = await chat_fn(
-                            messages=messages,
-                            tools=tools_schema,
-                            model=model,
-                            context_window=context_window,
-                        )
-                        current_context_tokens = response.get('prompt_eval_count', current_context_tokens)
-                        if DEBUG:
-                            console.print(f"[dim]DEBUG RESPONSE: {response}[/dim]")
-                            if response.get('thinking'):
-                                console.print(Panel(
-                                    response['thinking'],
-                                    title="[bold yellow]DEBUG: Thinking (structured)[/bold yellow]",
-                                    border_style="yellow",
-                                ))
-                            if response.get('thinking_scrubbed'):
-                                console.print(Panel(
-                                    response['thinking_scrubbed'],
-                                    title="[bold yellow]DEBUG: Thinking (scrubbed from content)[/bold yellow]",
-                                    border_style="yellow",
-                                ))
-
-                    if response.get('malformed_function_call') and malformed_count >= MAX_MALFORMED_RETRIES:
+                    if response.get('malformed_function_call'):
                         return "The GM stumbles over their words... (malformed response)"
 
                     response_msg = response['message']
@@ -208,12 +174,6 @@ async def run_game(chat_fn, model, context_window, verbose=False, debug=False):
                                 console.print(Panel(
                                     response['thinking'],
                                     title="[bold yellow]DEBUG: Thinking (structured)[/bold yellow]",
-                                    border_style="yellow",
-                                ))
-                            if response.get('thinking_scrubbed'):
-                                console.print(Panel(
-                                    response['thinking_scrubbed'],
-                                    title="[bold yellow]DEBUG: Thinking (scrubbed from content)[/bold yellow]",
                                     border_style="yellow",
                                 ))
                         response_msg = response['message']
