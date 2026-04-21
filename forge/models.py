@@ -125,6 +125,8 @@ class NPC(Creature):
     spell_attack_modifier: Optional[int] = None
     cantrips_known: List[str] = []
     spells_known: List[str] = []
+    spells_prepared: List[str] = []
+    spellbook: List[str] = []
     spell_slots: Dict[str, int] = Field(default_factory=dict)
 
 # --- Player Character Models ---
@@ -176,7 +178,6 @@ class PlayerCharacter(BaseEntity):
     character_class: str
     background: str
     race: str
-    subrace: Optional[str] = None
     alignment: str
     gender: str = "Unknown"
     xp: int = 0
@@ -199,6 +200,8 @@ class PlayerCharacter(BaseEntity):
     spell_attack_modifier: Optional[int] = None
     cantrips_known: List[str] = []
     spells_known: List[str] = []
+    spells_prepared: List[str] = []
+    spellbook: List[str] = []
     spell_slots: Dict[str, int] = Field(default_factory=dict)
 
 # --- World State Models ---

@@ -2,10 +2,9 @@
   "name": "electronistu",
   "level": 1,
   "xp": 0,
-  "gold": 85,
+  "gold": 135,
   "character_class": "Wizard",
-  "race": "Elf",
-  "subrace": "Wood Elf",
+  "race": "Wood Elf",
   "background": "Criminal",
   "alignment": "Chaotic Neutral",
   "gender": "male",
@@ -26,8 +25,8 @@
   "proficiency_bonus": 2,
   "skills": [
     "Perception",
-    "Arcana",
     "Investigation",
+    "Arcana",
     "Stealth",
     "Deception"
   ],
@@ -39,17 +38,17 @@
   "weapon_proficiencies": [
     "Quarterstaffs",
     "Light crossbows",
+    "Daggers",
     "Shortsword",
-    "Longbow",
-    "Longsword",
+    "Shortbow",
     "Slings",
     "Darts",
-    "Shortbow",
-    "Daggers"
+    "Longbow",
+    "Longsword"
   ],
   "tool_proficiencies": [
     "Thieves' tools",
-    "Dice Set"
+    "Dragonchess Set"
   ],
   "languages": [
     "Common",
@@ -81,7 +80,10 @@
       "Light",
       "Mage Hand"
     ],
-    "spells": [
+    "slots": {
+      "1": 2
+    },
+    "spellbook": [
       "Magic Missile",
       "Shield",
       "Burning Hands",
@@ -89,8 +91,10 @@
       "Detect Magic",
       "Sleep"
     ],
-    "slots": {
-      "1": 2
-    }
+    "spells_prepared": [
+      "Magic Missile",
+      "Shield",
+      "Burning Hands"
+    ]
   }
 }

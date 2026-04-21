@@ -24,7 +24,6 @@ def get_player_json(pc) -> str:
         "gold": pc.gold,
         "character_class": pc.character_class,
         "race": pc.race,
-        "subrace": pc.subrace,
         "background": pc.background,
         "alignment": pc.alignment,
         "gender": pc.gender,
@@ -54,14 +53,21 @@ def get_player_json(pc) -> str:
         "consumables": pc.consumables if pc.consumables else {},
     }
     if pc.spellcasting_ability:
-        player_data["spellcasting"] = {
+        spell_data = {
             "ability": pc.spellcasting_ability,
             "dc": pc.spell_save_dc,
             "attack_modifier": pc.spell_attack_modifier,
             "cantrips": pc.cantrips_known,
-            "spells": pc.spells_known,
             "slots": pc.spell_slots
         }
+        if pc.character_class == "Wizard":
+            spell_data["spellbook"] = pc.spellbook
+            spell_data["spells_prepared"] = pc.spells_prepared
+        elif pc.character_class in ("Cleric", "Druid", "Paladin", "Artificer"):
+            spell_data["spells_prepared"] = pc.spells_prepared
+        else:
+            spell_data["spells_known"] = pc.spells_known
+        player_data["spellcasting"] = spell_data
     return json.dumps(player_data, indent=2)
 
 def format_world_to_wwf(world_state: WorldState, output_path: str):

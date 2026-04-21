@@ -200,7 +200,7 @@ systems:
                      level, proficiency_bonus, hit_dice_count, total_hit_points (rolled hit dice + CON mod),
                      and spellcasting (slots, dc, attack_modifier). All changes are listed with old and
                      new values in the return message.
-                     The GM MUST still apply manually: new class features, new cantrips, new spells known,
+                      The GM MUST still apply manually: new class features, new cantrips, new spells known (for known casters: spells_known; for prepared casters: update spells_prepared from their full class list; for Wizards: add new spells to spellbook and update spells_prepared),
                      ability score improvements (at levels 4, 8, 12, 16, 19), and any subclass-specific
                      progression changes required by the ruleset.
                  - name: update_player_list
@@ -240,6 +240,36 @@ systems:
 
   combat:
     protocol: DND_5E_TURN_BASED
+  spellcasting:
+    protocol: DND_5E_SPELL_PREPARATION
+    constraint: |
+      SPELL ENFORCEMENT (MANDATORY): A player can ONLY cast spells from their active castable list.
+      Casting a spell NOT on this list is a PROTOCOL VIOLATION — hard-block it.
+    rules:
+      known_casters: [Bard, Sorcerer, Warlock, Ranger]
+      known_rule: |
+        Can ONLY cast from spellcasting.spells_known.
+        These spells are always ready.
+      prepared_casters: [Cleric, Druid, Paladin, Artificer]
+      prepared_rule: |
+        Can ONLY cast from spellcasting.spells_prepared.
+        The full class spell list is NOT a castable list.
+        Prepared spells change after a long rest.
+      wizard_rule: |
+        Can ONLY cast from spellcasting.spells_prepared.
+        spellcasting.spellbook is the REFERENCE pool for preparation — it is NOT a castable list.
+        A Wizard prepares spells from their spellbook after a long rest.
+    on_invalid_cast_attempt: |
+      If a player attempts to cast a spell not on their active castable list:
+      1. DO NOT roll dice or resolve the spell mechanically.
+      2. Narrate that the spell is not currently prepared/known.
+      3. List the available castable spells they COULD use instead.
+    on_long_rest_prepared_change: |
+      After a long rest, prepared casters may change their spells_prepared list:
+      - Cleric/Druid/Paladin/Artificer: Choose from their full class spell list.
+      - Wizard: Choose from spellcasting.spellbook ONLY.
+      Number of preparable spells = spellcasting ability modifier + character level.
+      Apply changes via update_player_list(key='spellcasting.spells_prepared', ...).
   progression:
     MOST_IMPORTANT_DIRECTIVE: You must reward XP for any creatures or NPCs the player kills and on quest completion.
     rewards: [xp, gold, items]

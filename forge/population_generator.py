@@ -137,6 +137,8 @@ def _generate_npc_details(level: int, role: str, faction: str, is_walker: bool, 
     spell_attack_modifier = None
     cantrips_known = []
     spells_known = []
+    spells_prepared = []
+    spellbook = []
     spell_slots = {}
 
     if chosen_class.name in ["Wizard", "Sorcerer", "Bard", "Cleric", "Druid", "Artificer", "Warlock", "Paladin", "Ranger"]:
@@ -213,6 +215,8 @@ def _generate_npc_details(level: int, role: str, faction: str, is_walker: bool, 
         spell_attack_modifier=spell_attack_modifier,
         cantrips_known=cantrips_known,
         spells_known=spells_known,
+        spells_prepared=spells_prepared,
+        spellbook=spellbook,
         spell_slots=spell_slots
     )
 

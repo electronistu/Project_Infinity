@@ -88,9 +88,15 @@ def format_stats(db_data):
         cantrips = spell_data.get('cantrips', [])
         if cantrips:
             spell_lines.append(f"✋ {', '.join(str(c) for c in cantrips)}")
-        spells = spell_data.get('spells', [])
-        if spells:
-            spell_lines.append(f"📜 {', '.join(str(s) for s in spells)}")
+        spells_known = spell_data.get('spells_known', [])
+        if spells_known:
+            spell_lines.append(f"📜 Known: {', '.join(str(s) for s in spells_known)}")
+        spells_prepared = spell_data.get('spells_prepared', [])
+        if spells_prepared:
+            spell_lines.append(f"📖 Prepared: {', '.join(str(s) for s in spells_prepared)}")
+        spellbook = spell_data.get('spellbook', [])
+        if spellbook:
+            spell_lines.append(f"📕 Spellbook: {', '.join(str(s) for s in spellbook)}")
         slots = spell_data.get('slots', {})
         if slots:
             slot_parts = [f"Lv{k}: {v}" for k, v in slots.items()]

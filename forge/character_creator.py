@@ -13,6 +13,9 @@ from typing import Optional, List, Dict
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from level_up import FULL_CASTER_SPELL_SLOTS, HALF_CASTER_SPELL_SLOTS, ARTIFICER_SPELL_SLOTS, WARLOCK_SPELL_SLOTS
 
+KNOWN_SPELL_CLASSES = {"Sorcerer", "Warlock", "Bard", "Ranger"}
+PREPARED_SPELL_CLASSES = {"Cleric", "Druid", "Artificer", "Paladin"}
+
 ALL_SKILLS = {
     "Acrobatics": "dexterity", "Animal Handling": "wisdom", "Arcana": "intelligence",
     "Athletics": "strength", "Deception": "charisma", "History": "intelligence",
@@ -352,8 +355,7 @@ def create_debug_character(config: Config) -> PlayerCharacter:
     con_mod = calculate_modifier(15)
     return PlayerCharacter(
         name="Debug Adventurer",
-        race="Dwarf",
-        subrace="Hill Dwarf",
+        race="Hill Dwarf",
         character_class="Fighter",
         background="Soldier",
         alignment="Lawful Good",
@@ -728,18 +730,24 @@ def create_character(config: Config) -> PlayerCharacter:
     spell_attack_modifier = None
     cantrips_known = []
     spells_known = []
+    spells_prepared = []
+    spellbook = []
     spell_slots = {}
 
-    if chosen_class.name in KNOWN_SPELL_CLASSES or chosen_class.name in PREPARED_SPELL_CLASSES:
+    if chosen_class.name in KNOWN_SPELL_CLASSES or chosen_class.name in PREPARED_SPELL_CLASSES or chosen_class.name == "Wizard":
         if chosen_class.name == "Wizard":
             spellcasting_ability = "intelligence"
             cantrips_known = ["Fire Bolt", "Light", "Mage Hand"]
-            spells_known = ["Magic Missile", "Shield", "Burning Hands", "Charm Person", "Detect Magic", "Sleep"]
+            spellbook = ["Magic Missile", "Shield", "Burning Hands", "Charm Person", "Detect Magic", "Sleep"]
+            num_preparable = calculate_modifier(player_stats.intelligence) + 1
+            spells_prepared = spellbook[:max(num_preparable, 1)]
             spell_slots = {str(k): v for k, v in FULL_CASTER_SPELL_SLOTS[1].items()}
         elif chosen_class.name == "Cleric":
             spellcasting_ability = "wisdom"
             cantrips_known = ["Guidance", "Sacred Flame", "Thaumaturgy"]
-            spells_known = []
+            num_preparable = calculate_modifier(player_stats.wisdom) + 1
+            cleric_spell_list = ["Bless", "Cure Wounds", "Guiding Bolt", "Healing Word", "Shield of Faith", "Sanctuary", "Command", "Create or Destroy Water", "Detect Magic", "Detect Poison and Disease", "Protection from Evil and Good", "Purify Food and Drink"]
+            spells_prepared = cleric_spell_list[:max(num_preparable, 1)]
             spell_slots = {str(k): v for k, v in FULL_CASTER_SPELL_SLOTS[1].items()}
         elif chosen_class.name == "Sorcerer":
             spellcasting_ability = "charisma"
@@ -759,17 +767,21 @@ def create_character(config: Config) -> PlayerCharacter:
         elif chosen_class.name == "Druid":
             spellcasting_ability = "wisdom"
             cantrips_known = ["Druidcraft", "Produce Flame"]
-            spells_known = []
+            num_preparable = calculate_modifier(player_stats.wisdom) + 1
+            druid_spell_list = ["Cure Wounds", "Entangle", "Faerie Fire", "Healing Word", "Thunderwave", "Animal Friendship", "Create or Destroy Water", "Detect Magic", "Detect Poison and Disease", "Goodberry", "Speak with Animals"]
+            spells_prepared = druid_spell_list[:max(num_preparable, 1)]
             spell_slots = {str(k): v for k, v in FULL_CASTER_SPELL_SLOTS[1].items()}
         elif chosen_class.name == "Artificer":
             spellcasting_ability = "intelligence"
             cantrips_known = ["Acid Splash", "Mending"]
-            spells_known = []
+            num_preparable = max(calculate_modifier(player_stats.intelligence), 1) + 1
+            artificer_spell_list = ["Cure Wounds", "Faerie Fire", "Shield", "Detect Magic", "Magic Missile", "Tasha's Caustic Brew", "Absorb Elements", "Catapult", "Grease"]
+            spells_prepared = artificer_spell_list[:max(num_preparable, 1)]
             spell_slots = {str(k): v for k, v in ARTIFICER_SPELL_SLOTS[1].items()}
         elif chosen_class.name == "Paladin":
             spellcasting_ability = "charisma"
             cantrips_known = []
-            spells_known = []
+            spells_prepared = []
             spell_slots = {}
         elif chosen_class.name == "Ranger":
             spellcasting_ability = "wisdom"
@@ -805,8 +817,7 @@ def create_character(config: Config) -> PlayerCharacter:
     print("\n--- Character Complete! ---")
     return PlayerCharacter(
         name=name,
-        race=chosen_race.name,
-        subrace=chosen_subrace.name if chosen_subrace else None,
+        race=chosen_subrace.name if chosen_subrace else chosen_race.name,
         character_class=chosen_class.name,
         background=chosen_background.name,
         alignment=chosen_alignment,
@@ -835,5 +846,7 @@ def create_character(config: Config) -> PlayerCharacter:
         spell_attack_modifier=spell_attack_modifier,
         cantrips_known=cantrips_known,
         spells_known=spells_known,
+        spells_prepared=spells_prepared,
+        spellbook=spellbook,
         spell_slots=spell_slots
     )

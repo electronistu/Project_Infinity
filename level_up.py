@@ -190,7 +190,7 @@ def compute_spell_slots(character_class, new_level, current_spellcasting=None):
                 "dc": 0,
                 "attack_modifier": 0,
                 "cantrips": [],
-                "spells": [],
+                "spells_prepared": [],
                 "slots": new_slots,
             }
         else:
@@ -273,8 +273,8 @@ def apply_level_up(character_class, old_level, new_level, player_data):
         rolls.append(roll)
         total_gain += hp_gain
 
-    subrace = player_data.get('subrace', '')
-    if subrace == 'Hill Dwarf':
+    race = player_data.get('race', '')
+    if race == 'Hill Dwarf':
         total_gain += levels_gained
 
     new_total_hp = old_total_hp + total_gain
