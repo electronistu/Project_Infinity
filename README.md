@@ -25,8 +25,7 @@ This mode utilizes an external **Model Context Protocol (MCP)** server to act as
 ### Ollama Backend
 
 - [Ollama](https://ollama.ai/) installed and running.
-- Supported model: `glm-5.1:cloud`
-- **Note:** While other models may follow the Game Master protocol effectively, they tend to struggle with correctly awarding XP on creature/NPC kills. `glm-5.1:cloud` is currently the only model that handles this reliably.
+- Supported models: `glm-5.1:cloud`, `kimi-k2.6:cloud`
 
 **Quick Start:**
 1. Launch the game:

@@ -9,9 +9,11 @@ from game_engine import run_game, console
 
 AVAILABLE_MODELS = [
     "glm-5.1:cloud",
+    "kimi-k2.6:cloud",
 ]
 MODEL_CONTEXT_LENGTHS = {
     "glm-5.1:cloud": 198000,
+    "kimi-k2.6:cloud": 250000,
 }
 TEMP = 0.0
 
