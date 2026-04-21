@@ -1,0 +1,262 @@
+# D&D 5e Weapon Table
+# category: simple | martial
+# melee: true | false
+
+- name: Club
+  category: simple
+  melee: true
+  damage: 1d4
+  damage_type: bludgeoning
+  properties: [Light]
+
+- name: Dagger
+  category: simple
+  melee: true
+  damage: 1d4
+  damage_type: piercing
+  properties: [Finesse, Light, Thrown, Range 20/60]
+
+- name: Greatclub
+  category: simple
+  melee: true
+  damage: 1d8
+  damage_type: bludgeoning
+  properties: [Two-Handed]
+
+- name: Handaxe
+  category: simple
+  melee: true
+  damage: 1d6
+  damage_type: slashing
+  properties: [Light, Thrown, Range 20/60]
+
+- name: Javelin
+  category: simple
+  melee: true
+  damage: 1d6
+  damage_type: piercing
+  properties: [Thrown, Range 30/120]
+
+- name: Light Hammer
+  category: simple
+  melee: true
+  damage: 1d4
+  damage_type: bludgeoning
+  properties: [Light, Thrown, Range 20/60]
+
+- name: Mace
+  category: simple
+  melee: true
+  damage: 1d6
+  damage_type: bludgeoning
+  properties: []
+
+- name: Quarterstaff
+  category: simple
+  melee: true
+  damage: 1d6
+  damage_type: bludgeoning
+  properties: [Versatile 1d8]
+
+- name: Sickle
+  category: simple
+  melee: true
+  damage: 1d6
+  damage_type: slashing
+  properties: [Light]
+
+- name: Spear
+  category: simple
+  melee: true
+  damage: 1d6
+  damage_type: piercing
+  properties: [Thrown, Range 20/60, Versatile 1d8]
+
+- name: Light Crossbow
+  category: simple
+  melee: false
+  damage: 1d8
+  damage_type: piercing
+  properties: [Ammunition, Range 80/320, Loading, Two-Handed]
+
+- name: Dart
+  category: simple
+  melee: false
+  damage: 1d4
+  damage_type: piercing
+  properties: [Finesse, Thrown, Range 20/60]
+
+- name: Shortbow
+  category: simple
+  melee: false
+  damage: 1d6
+  damage_type: piercing
+  properties: [Ammunition, Range 80/320, Two-Handed]
+
+- name: Sling
+  category: simple
+  melee: false
+  damage: 1d4
+  damage_type: bludgeoning
+  properties: [Ammunition, Range 30/120]
+
+- name: Battleaxe
+  category: martial
+  melee: true
+  damage: 1d8
+  damage_type: slashing
+  properties: [Versatile 1d10]
+
+- name: Flail
+  category: martial
+  melee: true
+  damage: 1d8
+  damage_type: bludgeoning
+  properties: []
+
+- name: Glaive
+  category: martial
+  melee: true
+  damage: 1d10
+  damage_type: slashing
+  properties: [Heavy, Reach, Two-Handed]
+
+- name: Greataxe
+  category: martial
+  melee: true
+  damage: 1d12
+  damage_type: slashing
+  properties: [Heavy, Two-Handed]
+
+- name: Greatsword
+  category: martial
+  melee: true
+  damage: 2d6
+  damage_type: slashing
+  properties: [Heavy, Two-Handed]
+
+- name: Halberd
+  category: martial
+  melee: true
+  damage: 1d10
+  damage_type: slashing
+  properties: [Heavy, Reach, Two-Handed]
+
+- name: Lance
+  category: martial
+  melee: true
+  damage: 1d12
+  damage_type: piercing
+  properties: [Reach, Special]
+
+- name: Longsword
+  category: martial
+  melee: true
+  damage: 1d8
+  damage_type: slashing
+  properties: [Versatile 1d10]
+
+- name: Maul
+  category: martial
+  melee: true
+  damage: 2d6
+  damage_type: bludgeoning
+  properties: [Heavy, Two-Handed]
+
+- name: Morningstar
+  category: martial
+  melee: true
+  damage: 1d8
+  damage_type: piercing
+  properties: []
+
+- name: Pike
+  category: martial
+  melee: true
+  damage: 1d10
+  damage_type: piercing
+  properties: [Heavy, Reach, Two-Handed]
+
+- name: Rapier
+  category: martial
+  melee: true
+  damage: 1d8
+  damage_type: piercing
+  properties: [Finesse]
+
+- name: Scimitar
+  category: martial
+  melee: true
+  damage: 1d6
+  damage_type: slashing
+  properties: [Finesse, Light]
+
+- name: Shortsword
+  category: martial
+  melee: true
+  damage: 1d6
+  damage_type: piercing
+  properties: [Finesse, Light]
+
+- name: Trident
+  category: martial
+  melee: true
+  damage: 1d6
+  damage_type: piercing
+  properties: [Thrown, Range 20/60, Versatile 1d8]
+
+- name: War Pick
+  category: martial
+  melee: true
+  damage: 1d8
+  damage_type: piercing
+  properties: []
+
+- name: Warhammer
+  category: martial
+  melee: true
+  damage: 1d8
+  damage_type: bludgeoning
+  properties: [Versatile 1d10]
+
+- name: Whip
+  category: martial
+  melee: true
+  damage: 1d4
+  damage_type: slashing
+  properties: [Finesse, Reach]
+
+- name: Blowgun
+  category: martial
+  melee: false
+  damage: "1"
+  damage_type: piercing
+  properties: [Ammunition, Range 25/100, Loading]
+
+- name: Hand Crossbow
+  category: martial
+  melee: false
+  damage: 1d6
+  damage_type: piercing
+  properties: [Ammunition, Light, Loading, Range 30/120]
+
+- name: Heavy Crossbow
+  category: martial
+  melee: false
+  damage: 1d10
+  damage_type: piercing
+  properties: [Ammunition, Heavy, Loading, Range 100/400, Two-Handed]
+
+- name: Longbow
+  category: martial
+  melee: false
+  damage: 1d8
+  damage_type: piercing
+  properties: [Ammunition, Heavy, Range 150/600, Two-Handed]
+
+- name: Net
+  category: martial
+  melee: false
+  damage: "0"
+  damage_type: ''
+  properties: [Special, Thrown, Range 5/15]

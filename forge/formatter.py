@@ -49,7 +49,10 @@ def get_player_json(pc) -> str:
         "tool_proficiencies": pc.tool_proficiencies,
         "languages": pc.languages,
         "features": [f.name for f in pc.features_and_traits],
-        "inventory": [item.name for item in pc.equipment.inventory if item.item_type not in ("ammunition", "consumable")],
+        "inventory": [
+            {"name": item.name, "description": item.description} if item.description else item.name
+            for item in pc.equipment.inventory if item.item_type not in ("ammunition", "consumable")
+        ],
         "consumables": pc.consumables if pc.consumables else {},
     }
     if pc.spellcasting_ability:

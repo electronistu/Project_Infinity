@@ -19,6 +19,14 @@ class SubRace(BaseModel):
     proficiencies: List[dict] = []
     languages: List[str] = []
 
+class Weapon(BaseModel):
+    name: str
+    category: str
+    melee: bool
+    damage: str
+    damage_type: str
+    properties: List[str] = []
+
 current_dir = os.path.dirname(__file__)
 project_root = os.path.join(current_dir, '..')
 config_dir = os.path.join(project_root, 'config')
@@ -38,6 +46,7 @@ class Config(BaseModel):
     backgrounds: List[Background]
     alignments: List[str]
     abilities: List[PlayerAbility]
+    weapons: List[Weapon] = []
 
 def load_config() -> Config:
     with open(os.path.join(config_dir, 'races.yml'), 'r') as f:
@@ -55,10 +64,14 @@ def load_config() -> Config:
     with open(os.path.join(config_dir, 'abilities.yml'), 'r') as f:
         abilities_data = yaml.safe_load(f)
 
+    with open(os.path.join(config_dir, 'weapons.yml'), 'r') as f:
+        weapons_data = yaml.safe_load(f)
+
     return Config(
         races=[Race(**race) for race in races_data],
         classes=[CharacterClass(**char_class) for char_class in classes_data],
         backgrounds=[Background(**bg) for bg in backgrounds_data],
         alignments=alignments_data,
-        abilities=[PlayerAbility(**ability) for ability in abilities_data]
+        abilities=[PlayerAbility(**ability) for ability in abilities_data],
+        weapons=[Weapon(**weapon) for weapon in weapons_data]
     )

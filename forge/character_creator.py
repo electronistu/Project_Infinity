@@ -2,7 +2,7 @@
 # Version 5.0 - Full D&D 5e Character Creation with Accurate Ruleset
 
 from .models import PlayerCharacter, Stats, Equipment, Skill, SpecialAbility, Item, StartingEquipmentOption, CharacterClass
-from .config_loader import Config, Race, SubRace
+from .config_loader import Config, Race, SubRace, Weapon
 import math
 import random
 import sys
@@ -67,20 +67,51 @@ ARMOR_DATA = {
 
 SHIELD_NAMES = {"Shield", "Wooden Shield"}
 
-WEAPON_NAMES = {
-    "Club", "Dagger", "Greatclub", "Handaxe", "Javelin", "Light Hammer", "Mace",
-    "Quarterstaff", "Sickle", "Spear", "Darts", "Light Crossbow", "Shortbow", "Sling",
-    "Battleaxe", "Flail", "Glaive", "Greataxe", "Greatsword", "Halberd", "Hand Crossbow",
-    "Heavy Crossbow", "Hammer", "Lance", "Longbow", "Longsword", "Maul", "Morningstar",
-    "Pike", "Rapier", "Scimitar", "Shortsword", "Trident", "War Pick", "Warhammer",
-    "Whip", "Blowgun", "Hand Crossbow", "Net",
-    "Two Handaxes", "Two Shortswords", "Two Daggers", "Four Javelins", "Five Javelins",
-    "10 Darts", "Two Simple Melee Weapons", "Any Simple Weapon", "Any Simple Melee Weapon",
-    "Any Martial Melee Weapon", "Two Martial Weapons", "Any Two Simple Weapons",
-}
+def build_weapon_data(weapons: List[Weapon]) -> dict:
+    weapon_data = {}
+    for w in weapons:
+        props_str = ", ".join(w.properties) if w.properties else ""
+        damage_str = f"{w.damage} {w.damage_type}" if w.damage_type else str(w.damage)
+        desc_parts = [damage_str]
+        if props_str:
+            desc_parts.append(props_str)
+        weapon_data[w.name] = {
+            "category": w.category,
+            "melee": w.melee,
+            "damage": str(w.damage),
+            "damage_type": w.damage_type,
+            "properties": w.properties,
+            "description": ", ".join(desc_parts),
+        }
+    return weapon_data
 
-KNOWN_SPELL_CLASSES = {"Wizard", "Sorcerer", "Warlock", "Bard"}
-PREPARED_SPELL_CLASSES = {"Cleric", "Druid", "Artificer", "Paladin", "Ranger"}
+def build_weapon_categories(weapon_data: dict) -> dict:
+    simple = [w for w, d in weapon_data.items() if d["category"] == "simple"]
+    martial = [w for w, d in weapon_data.items() if d["category"] == "martial"]
+    simple_melee = [w for w, d in weapon_data.items() if d["category"] == "simple" and d["melee"]]
+    martial_melee = [w for w, d in weapon_data.items() if d["category"] == "martial" and d["melee"]]
+    return {
+        "simple": simple,
+        "martial": martial,
+        "simple_melee": simple_melee,
+        "martial_melee": martial_melee,
+    }
+
+def make_weapon_item(name: str, weapon_data: dict) -> Item:
+    if name in weapon_data:
+        w = weapon_data[name]
+        return Item(
+            name=name,
+            item_type="weapon",
+            damage=w["damage"],
+            damage_type=w["damage_type"],
+            properties=w["properties"],
+            description=w["description"],
+        )
+    return Item(name=name, item_type="weapon")
+
+KNOWN_SPELL_CLASSES = {"Sorcerer", "Warlock", "Bard", "Ranger"}
+PREPARED_SPELL_CLASSES = {"Cleric", "Druid", "Artificer", "Paladin"}
 
 DRACONIC_ANCESTRY = {
     "Black": {"damage_type": "acid", "breath_shape": "5 by 30 ft. line", "save": "Dexterity"},
@@ -153,27 +184,67 @@ def resolve_tool_proficiency(text, interactive=True):
         available.remove(chosen)
     return results
 
-def resolve_equipment_choice(item_name, interactive=True):
+def resolve_equipment_choice(item_name, interactive=True, weapon_data=None, weapon_categories=None):
     """Resolve a generic equipment choice to a concrete item name.
     
     Handles patterns like:
-      "Artisan's Tools"                       → pick 1 artisan tool
-      "Any Musical Instrument"                 → pick 1 instrument
+      "Artisan's Tools"                       -> pick 1 artisan tool
+      "Any Musical Instrument"                 -> pick 1 instrument
+      "Any Simple Weapon"                      -> pick 1 simple weapon
+      "Any Simple Melee Weapon"                -> pick 1 simple melee weapon
+      "Any Martial Melee Weapon"               -> pick 1 martial melee weapon
+      "Any Two Simple Weapons"                 -> pick 2 simple weapons
+      "Two Simple Melee Weapons"               -> pick 2 simple melee weapons
+      "Two Martial Weapons"                    -> pick 2 martial weapons
     
-    Returns the original string if no resolution is needed.
+    Returns a list of resolved item names (may have multiple for count>1 patterns).
     """
     item_lower = item_name.lower()
+    
+    if weapon_categories:
+        pool = None
+        count = 1
+        if "two simple melee weapon" in item_lower:
+            pool = weapon_categories["simple_melee"]
+            count = 2
+        elif "two martial weapon" in item_lower:
+            pool = weapon_categories["martial_melee"]
+            count = 2
+        elif "any two simple weapon" in item_lower:
+            pool = weapon_categories["simple"]
+            count = 2
+        elif "any simple melee weapon" in item_lower:
+            pool = weapon_categories["simple_melee"]
+        elif "any martial melee weapon" in item_lower:
+            pool = weapon_categories["martial_melee"]
+        elif "any simple weapon" in item_lower:
+            pool = weapon_categories["simple"]
+        elif "any martial weapon" in item_lower:
+            pool = weapon_categories["martial"]
+        
+        if pool is not None:
+            results = []
+            available = list(pool)
+            for _ in range(min(count, len(available))):
+                if not interactive:
+                    chosen = random.choice(available)
+                else:
+                    chosen = select_from_list(f"Choose a weapon ({len(results)+1}/{count})", available, display_key=None)
+                results.append(chosen)
+                available.remove(chosen)
+            return results
+    
     if "artisan" in item_lower and "tools" in item_lower:
         pool = ARTISAN_TOOLS
     elif "musical instrument" in item_lower:
         pool = MUSICAL_INSTRUMENTS
     else:
-        return item_name
+        return [item_name]
 
     if not interactive:
-        return random.choice(pool)
+        return [random.choice(pool)]
 
-    return select_from_list("Choose a specific tool/instrument", pool, display_key=None)
+    return [select_from_list("Choose a specific tool/instrument", pool, display_key=None)]
 
 
 def get_player_input(prompt: str, valid_options: list = None, is_numeric: bool = False, range_min: int = None, range_max: int = None):
@@ -227,11 +298,13 @@ def select_from_list(prompt: str, options: list, display_key='name'):
 def calculate_modifier(stat_value: int) -> int:
     return math.floor((stat_value - 10) / 2)
 
-def classify_item(item_name: str) -> str:
+def classify_item(item_name: str, weapon_names: set = None) -> str:
     if item_name in ARMOR_DATA:
         return "armor"
     if item_name in SHIELD_NAMES:
         return "shield"
+    if weapon_names and item_name in weapon_names:
+        return "weapon"
     if any(w in item_name for w in ["Pack", "Pouch", "Clothes", "Vestments", "Robes"]):
         return "gear"
     if any(w in item_name for w in ["Symbol", "Focus", "Spellbook", "Book"]):
@@ -244,11 +317,11 @@ def classify_item(item_name: str) -> str:
                                      "Acid", "Ball Bearing", "Healing"]):
         return "consumable"
     if re.match(r'^(\d+)\s', item_name):
-        if item_name not in WEAPON_NAMES:
+        if not (weapon_names and item_name in weapon_names):
             return "consumable"
     word_num_pattern = r'^(One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten|Eleven|Twelve|Fifteen|Twenty|Fifty)\s'
     if re.match(word_num_pattern, item_name, re.IGNORECASE):
-        if item_name not in WEAPON_NAMES:
+        if not (weapon_names and item_name in weapon_names):
             return "consumable"
     return "misc"
 
@@ -267,12 +340,35 @@ def parse_consumable_quantity(item_name: str):
             return word_match.group(2).strip(), word_to_num[num_word]
     return item_name, 1
 
-def split_compound_items(item_name: str) -> List[Item]:
+def split_compound_items(item_name: str, weapon_data: dict = None) -> List[Item]:
+    word_to_num = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5}
+    weapon_names = set(weapon_data.keys()) if weapon_data else set()
     parts = [p.strip() for p in item_name.split(",")]
     items = []
     for part in parts:
-        item_type = classify_item(part)
-        items.append(Item(name=part, item_type=item_type))
+        base_name = part
+        quantity = 1
+        num_match = re.match(r'^(\d+)\s+(.*)', part)
+        word_match = re.match(r'^(One|Two|Three|Four|Five)\s+(.*)', part, re.IGNORECASE)
+        is_quantity_item = False
+        if num_match:
+            base_name = num_match.group(2).strip()
+            quantity = int(num_match.group(1))
+            is_quantity_item = True
+        elif word_match:
+            num_word = word_match.group(1).lower()
+            if num_word in word_to_num:
+                base_name = word_match.group(2).strip()
+                quantity = word_to_num[num_word]
+                is_quantity_item = True
+        if weapon_data and base_name in weapon_data and is_quantity_item:
+            for _ in range(quantity):
+                items.append(make_weapon_item(base_name, weapon_data))
+        elif weapon_data and base_name in weapon_data:
+            items.append(make_weapon_item(base_name, weapon_data))
+        else:
+            item_type = classify_item(part, weapon_names)
+            items.append(Item(name=part, item_type=item_type))
     return items
 
 def calculate_ac(stats: Stats, character_class: str, inventory: list, fighting_style: str = None) -> int:
@@ -395,6 +491,10 @@ def create_debug_character(config: Config) -> PlayerCharacter:
 
 def create_character(config: Config) -> PlayerCharacter:
     print("--- D&D 5th Edition Character Forge ---")
+
+    weapon_data = build_weapon_data(config.weapons)
+    weapon_categories = build_weapon_categories(weapon_data)
+    weapon_names = set(weapon_data.keys())
 
     name = input("Enter your character's name: ")
 
@@ -558,30 +658,30 @@ def create_character(config: Config) -> PlayerCharacter:
     print("\n--- Starting Equipment ---")
     equipment_choice_type = get_player_input("Do you want to choose starting equipment or take starting gold? (equipment/gold): ", ["equipment", "gold"])
 
+    def add_items_to_inventory(item_names_or_name, source_desc=""):
+        if isinstance(item_names_or_name, str):
+            item_names_or_name = [item_names_or_name]
+        for resolved_name in item_names_or_name:
+            for item in split_compound_items(resolved_name, weapon_data):
+                if item.item_type in ("ammunition", "consumable"):
+                    cons_name, qty = parse_consumable_quantity(item.name)
+                    player_consumables[cons_name] = player_consumables.get(cons_name, 0) + qty
+                    print(f"  Added {item.name} → consumables.{cons_name}: {qty}")
+                else:
+                    player_equipment.inventory.append(item)
+                    desc = f" ({item.description})" if item.description else f" ({item.item_type})"
+                    print(f"  Added {item.name}{desc}")
+
     if equipment_choice_type.lower() == "equipment":
         for option_group in chosen_class.starting_equipment_options:
             if option_group.choose_one_from:
                 chosen_item_name = select_from_list("Choose one item", option_group.choose_one_from, display_key=None)
                 if chosen_item_name:
-                    chosen_item_name = resolve_equipment_choice(chosen_item_name)
-                    for item in split_compound_items(chosen_item_name):
-                        if item.item_type in ("ammunition", "consumable"):
-                            cons_name, qty = parse_consumable_quantity(item.name)
-                            player_consumables[cons_name] = player_consumables.get(cons_name, 0) + qty
-                            print(f"  Added {item.name} → consumables.{cons_name}: {qty}")
-                        else:
-                            player_equipment.inventory.append(item)
-                            print(f"  Added {item.name} ({item.item_type})")
+                    resolved = resolve_equipment_choice(chosen_item_name, interactive=True, weapon_data=weapon_data, weapon_categories=weapon_categories)
+                    add_items_to_inventory(resolved)
             if option_group.fixed_items:
                 for item_name in option_group.fixed_items:
-                    for item in split_compound_items(item_name):
-                        if item.item_type in ("ammunition", "consumable"):
-                            cons_name, qty = parse_consumable_quantity(item.name)
-                            player_consumables[cons_name] = player_consumables.get(cons_name, 0) + qty
-                            print(f"  Added {item.name} → consumables.{cons_name}: {qty}")
-                        else:
-                            player_equipment.inventory.append(item)
-                            print(f"  Added {item.name} ({item.item_type})")
+                    add_items_to_inventory(item_name)
             if option_group.gold_pieces:
                 player_gold += option_group.gold_pieces
                 print(f"  Added {option_group.gold_pieces} gold pieces.")
@@ -590,25 +690,11 @@ def create_character(config: Config) -> PlayerCharacter:
             if option_group.choose_one_from:
                 chosen_item_name = select_from_list("Choose one item", option_group.choose_one_from, display_key=None)
                 if chosen_item_name:
-                    chosen_item_name = resolve_equipment_choice(chosen_item_name)
-                    for item in split_compound_items(chosen_item_name):
-                        if item.item_type in ("ammunition", "consumable"):
-                            cons_name, qty = parse_consumable_quantity(item.name)
-                            player_consumables[cons_name] = player_consumables.get(cons_name, 0) + qty
-                            print(f"  Added {item.name} → consumables.{cons_name}: {qty}")
-                        else:
-                            player_equipment.inventory.append(item)
-                            print(f"  Added {item.name} ({item.item_type})")
+                    resolved = resolve_equipment_choice(chosen_item_name, interactive=True, weapon_data=weapon_data, weapon_categories=weapon_categories)
+                    add_items_to_inventory(resolved)
             if option_group.fixed_items:
                 for item_name in option_group.fixed_items:
-                    for item in split_compound_items(item_name):
-                        if item.item_type in ("ammunition", "consumable"):
-                            cons_name, qty = parse_consumable_quantity(item.name)
-                            player_consumables[cons_name] = player_consumables.get(cons_name, 0) + qty
-                            print(f"  Added {item.name} → consumables.{cons_name}: {qty}")
-                        else:
-                            player_equipment.inventory.append(item)
-                            print(f"  Added {item.name} ({item.item_type})")
+                    add_items_to_inventory(item_name)
             if option_group.gold_pieces:
                 player_gold += option_group.gold_pieces
                 print(f"  Added {option_group.gold_pieces} gold pieces.")
@@ -624,26 +710,12 @@ def create_character(config: Config) -> PlayerCharacter:
         for option_group in chosen_class.starting_equipment_options:
             if option_group.fixed_items:
                 for item_name in option_group.fixed_items:
-                    for item in split_compound_items(item_name):
-                        if item.item_type in ("ammunition", "consumable"):
-                            cons_name, qty = parse_consumable_quantity(item.name)
-                            player_consumables[cons_name] = player_consumables.get(cons_name, 0) + qty
-                            print(f"  Added {item.name} → consumables.{cons_name}: {qty}")
-                        else:
-                            player_equipment.inventory.append(item)
-                            print(f"  Added {item.name} ({item.item_type})")
+                    add_items_to_inventory(item_name)
 
         for option_group in chosen_background.starting_equipment_options:
             if option_group.fixed_items:
                 for item_name in option_group.fixed_items:
-                    for item in split_compound_items(item_name):
-                        if item.item_type in ("ammunition", "consumable"):
-                            cons_name, qty = parse_consumable_quantity(item.name)
-                            player_consumables[cons_name] = player_consumables.get(cons_name, 0) + qty
-                            print(f"  Added {item.name} → consumables.{cons_name}: {qty}")
-                        else:
-                            player_equipment.inventory.append(item)
-                            print(f"  Added {item.name} ({item.item_type})")
+                    add_items_to_inventory(item_name)
             if option_group.gold_pieces:
                 player_gold += option_group.gold_pieces
                 print(f"  Added {option_group.gold_pieces} gold pieces.")
