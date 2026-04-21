@@ -5,3 +5,4 @@ rich
 mcp
 prompt_toolkit
 google-genai
+openai

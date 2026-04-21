@@ -35,6 +35,22 @@ This mode utilizes an external **Model Context Protocol (MCP)** server to act as
    ```
 2. Select your model and world file (`.wwf`).
 
+### OpenAI Backend
+
+- An OpenAI API key with access to GPT-5.4 models.
+- Supported models: `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.4-nano`
+
+**Quick Start:**
+1. Set your API key:
+   ```bash
+   export OPENAI_API_KEY=your-api-key
+   ```
+2. Launch the game:
+   ```bash
+   python3 play_with_gpt.py
+   ```
+3. Select your model and world file (`.wwf`).
+
 ### Gemini Backend
 
 - A Google AI API key with access to Gemini models.
@@ -88,18 +104,32 @@ python3 main.py
 ```
 The Forge guides you through character creation and procedurally generates a world knowledge graph (`.wwf` file) and a corresponding character state file (`.player`) in the `output/` directory. Together, these files serve as the complete source of truth for your adventure.
 
-When you launch `play.py` (Ollama) or `play_with_gemini.py` (Gemini), the system initializes the LLM with the `GameMaster_MCP.md` protocol as the system prompt and injects the `.wwf` file as the activation key to awaken the Game Master. Simultaneously, the game engine initializes `dice_server.py` using the `.player` file to boot the SQLite database.
+When you launch `play.py` (Ollama), `play_with_gemini.py` (Gemini), or `play_with_gpt.py` (OpenAI), the system initializes the LLM with the `GameMaster_MCP.md` protocol as the system prompt and injects the `.wwf` file as the activation key to awaken the Game Master. Simultaneously, the game engine initializes `dice_server.py` using the `.player` file to boot the SQLite database.
 
 ---
 
 ## 🌟 The Game Master's Codex
 
-- **Verbose Mode:** Use the `--verbose` or `-v` flag when launching `play.py` or `play_with_gemini.py` to see detailed MCP tool calls and responses.
+- **Verbose Mode:** Use the `--verbose` or `-v` flag when launching `play.py`, `play_with_gemini.py`, or `play_with_gpt.py` to see detailed MCP tool calls and responses.
 - **Developer Debug Mode:** Use the `--debug` or `-d` flag for deep inspection. This displays the raw JSON responses from the LLM—including internal reasoning and thought processes—and automatically enables Verbose Mode.
 
 ---
 
 ## ⚠️ Known Issues
+
+### GPT-5.4 models
+
+These models intermittently return empty responses (no content and no tool calls) when processing player actions.
+
+**Empty Responses**
+
+GPT-5.4 models occasionally produce a response with empty content and no tool calls, effectively ignoring the player's input. The player would otherwise need to manually re-enter their action.
+
+*Workaround:* The engine detects empty responses and automatically re-injects the player's last action as a new user message, prompting the model to respond. This retry is performed up to 3 times. In debug mode (`--debug`), each retry is logged as:
+```
+DEBUG: Empty response from OpenAI. Re-injecting last user action... (N/3)
+```
+If all retries are exhausted, the empty response is returned as-is.
 
 ### Gemini 3.1 pro-preview & Gemini 3 Flash preview
 
@@ -125,7 +155,7 @@ python3 play_with_gemini.py --temperature 0.7
 
 The model outputs its internal reasoning as regular text (prefixed with `thinking\n...`) instead of using the SDK's structured `part.thought` attribute. This reasoning text appears in the game narrative. `gemini-3-flash-preview` does not exhibit this behavior.
 
-*No workaround available.* A heuristic-based strip was attempted but is unreliable — the thinking block typically contains multiple paragraphs separated by `\n\n`, and there is no reliable way to detect the thinking→narrative boundary without structured `part.thought` support from the model. When `--thinking-level` is enabled and the model supports it, debug mode displays structured thinking in a separate yellow panel.
+*No workaround available.* A heuristic-based strip was attempted but is unreliable — the thinking block typically contains multiple paragraphs separated by `\n\n`, and there is no reliable way to detect the thinking→narrative boundary without structured `part.thought` support from the model.
 
 **Structured Thinking Incompatibility**
 
@@ -157,6 +187,7 @@ With `--thinking-level` enabled, the model may complete its reasoning but produc
 **Backend Dependencies:**
 - `ollama`: LLM orchestration via Ollama (Ollama backend).
 - `google-genai`: Google Gemini API client (Gemini backend).
+- `openai`: OpenAI API client (OpenAI backend).
 
 **Infrastructure:**
 - Python 3
