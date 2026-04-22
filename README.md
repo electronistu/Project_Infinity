@@ -1,194 +1,210 @@
-# Project Infinity: A Dynamic, Text-Based RPG World Engine
+# Project Infinity
 
-Project Infinity is a sophisticated, procedural world-generation engine and AI agent architecture. It transforms a general-purpose Large Language Model (LLM) into a specialized Game Master by combining a codified agent protocol with an external mechanical authority, ensuring a consistent, fair, and deep RPG experience.
+A text-based RPG where an AI acts as your Dungeon Master — with real dice rolls, real character tracking, and real D&D 5e rules. No hallucinated stats. No forgotten inventory. The AI rolls fairly, tracks your HP, and levels you up automatically.
 
 ![Project Infinity TUI](screenshot.png)
 
 ---
 
-## 🎮 How to Play: The Authoritative Experience
+## What Makes This Different?
 
-This mode utilizes an external **Model Context Protocol (MCP)** server to act as the absolute authority for game mechanics. By offloading logic to a dedicated server, it eliminates "LLM luck" and hallucinations regarding stats and dice rolls.
+Most AI RPGs let the language model make up numbers. Project Infinity doesn't. Every dice roll, every stat change, every level-up goes through an external game engine that the AI can read but not fake. The result is a Dungeon Master that actually plays by the rules.
 
-**The MCP Advantage:**
-- **Verified Dice:** All rolls are performed externally and returned to the AI.
-- **State Authority:** Player progress is tracked in a real-time SQLite database, preventing "memory drift."
-- **Fairness:** Every mechanical result is mathematically accurate and transparent.
-
-**Requirements:**
-- Python 3.11+
-- Install dependencies:
-  ```bash
-  pip install -r requirements.txt
-  ```
-
-### Ollama Backend
-
-- [Ollama](https://ollama.ai/) installed and running.
-- Supported models: `glm-5.1:cloud`, `kimi-k2.6:cloud`
-
-**Quick Start:**
-1. Launch the game:
-   ```bash
-   python3 play.py
-   ```
-2. Select your model and world file (`.wwf`).
-
-### OpenAI Backend
-
-- An OpenAI API key with access to GPT-5.4 models.
-- Supported models: `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.4-nano`
-
-**Quick Start:**
-1. Set your API key:
-   ```bash
-   export OPENAI_API_KEY=your-api-key
-   ```
-2. Launch the game:
-   ```bash
-   python3 play_with_gpt.py
-   ```
-3. Select your model and world file (`.wwf`).
-
-### Gemini Backend
-
-- A Google AI API key with access to Gemini models.
-- Supported models: `gemini-3.1-pro-preview`, `gemini-3-flash-preview`, `gemini-2.5-pro`
-- **Note:** `gemini-3.1-pro-preview` and `gemini-3-flash-preview` have known issues. See [Known Issues](#known-issues) for details and workarounds.
-
-**Quick Start:**
-1. Set your API key:
-   ```bash
-   export GEMINI_API_KEY=your-api-key
-   ```
-2. Launch the game:
-   ```bash
-   python3 play_with_gemini.py
-   ```
-3. Select your model and world file (`.wwf`).
+- **Fair Dice** — All rolls are performed by a dedicated server and verified. The AI sees the results, it doesn't generate them.
+- **Persistent Character** — Your stats, inventory, gold, and spell slots live in a real database that updates in real time. No "forgetting" that you used your last potion.
+- **D&D 5e Rules** — Leveling up, spell slot recovery, proficiency bonuses — all handled automatically by the engine.
+- **Procedural Worlds** — The World Forge creates a unique world, NPCs, guilds, and political relationships every time.
+- **In-Game Commands** — Check your stats, force a database sync, or get help without leaving the game.
 
 ---
 
-## 🔬 Technical Architecture
+## Quick Start
 
-Project Infinity ensures game consistency through these authoritative systems:
+### 1. Prerequisites
 
-### The Roll Engine
-To ensure fairness, the engine splits mechanical outcomes into two distinct layers:
-- **Complexity Checks (The d20):** Uses `perform_check` to determine binary success or failure for both players and NPCs against a Difficulty Class (DC).
-- **Magnitude & Damage (The Multi-Dice):** Uses `roll_dice` to determine the impact of actions for all participants (players and creatures), including damage, healing, and quantity.
-- **Verification:** All rolls MUST be output in a transparent formula: `{actor} {notation}: {total} ({rolls} + {mod})`.
+- **Python 3.11** or newer
+- **One AI backend** (pick one):
+  - **Ollama** — free, runs locally on your machine
+  - **OpenAI** — cloud-based, requires a paid API key
+  - **Gemini** — cloud-based, requires a paid API key
 
-### State Authority
-To solve the problem of LLM "forgetfulness," the engine implements a dynamic state-tracking system:
-- **In-Memory SQLite Engine:** Upon boot, the MCP server initializes a queryable database from the player file.
-- **Real-Time Synchronization:** The Game Master updates the player database via MCP tools immediately as changes occur in the narrative.
-- **Periodic State Synchronization:** To prevent long-term divergence, the system triggers a mandatory synchronization cycle every 4 prompts, forcing the GM to verify and reconcile the database state via a `dump_player_db` handshake.
+### 2. Install
 
-### Cognitive Load Management
-To prevent "model collapse" during high-complexity turns, the engine implements a **Phased Resolution Protocol**:
-- **Mechanical Resolution Phase:** The GM resolves all mechanical truths (rolls, state updates) via a **Linear Resolution Sequence**. The GM emits a batch of all required tool calls and must emit a pause token (`{{_NEED_AN_OTHER_PROMPT}}`) immediately after receiving the results.
-- **Sync Handshake:** The system intercepts the pause token and injects a resume signal (`{{_CONTINUE_EXECUTION}}`). This handshake ensures the GM has internally audited all mechanical results before moving to narrative.
-- **Narrative Phase:** Only after the sync handshake is complete does the GM transition to storytelling, ensuring the narrative is based on the complete, verified state.
+```bash
+git clone <repo-url>
+cd Project_Infinity
+python3 -m venv venv
+source venv/bin/activate      # Linux/macOS
+# venv\Scripts\activate       # Windows
+pip install -r requirements.txt
+```
 
----
+### 3. Choose Your AI Backend
 
-## 🛠 The World Forge
+#### Option A: Ollama (Free, Local)
 
-Use the **World Forge** to create a world tailored to your character.
+1. Install [Ollama](https://ollama.ai/) and make sure it's running.
+2. Download a supported model:
+   ```bash
+   ollama pull glm-5.1:cloud
+   ```
+   Supported models: `glm-5.1:cloud`, `kimi-k2.6:cloud`
 
-Run the forge:
+#### Option B: OpenAI (Cloud, Paid)
+
+Set your API key as an environment variable:
+```bash
+export OPENAI_API_KEY=your-api-key
+```
+Supported models: `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.4-nano`
+
+#### Option C: Gemini (Cloud, Paid)
+
+Set your API key as an environment variable:
+```bash
+export GEMINI_API_KEY=your-api-key
+```
+Supported models: `gemini-3.1-pro-preview`, `gemini-3-flash-preview`, `gemini-2.5-pro`
+
+> **Note:** The Gemini preview models have known issues. See [Known Issues](#known-issues) for details.
+
+### 4. Create Your World
+
+Before you can play, you need to create a character and generate a world. The World Forge walks you through picking a race, class, background, distributing stats, choosing equipment, and more — all following D&D 5e rules.
+
 ```bash
 python3 main.py
 ```
-The Forge guides you through character creation and procedurally generates a world knowledge graph (`.wwf` file) and a corresponding character state file (`.player`) in the `output/` directory. Together, these files serve as the complete source of truth for your adventure.
 
-When you launch `play.py` (Ollama), `play_with_gemini.py` (Gemini), or `play_with_gpt.py` (OpenAI), the system initializes the LLM with the `GameMaster_MCP.md` protocol as the system prompt and injects the `.wwf` file as the activation key to awaken the Game Master. Simultaneously, the game engine initializes `dice_server.py` using the `.player` file to boot the SQLite database.
+This generates two files in the `output/` directory:
+- `yourcharacter_weave.wwf` — the world data (kingdoms, NPCs, guilds, history)
+- `yourcharacter_weave.player` — your character's stats and inventory
+
+### 5. Play!
+
+Launch the game with the script that matches your backend:
+
+| Backend | Command |
+|---------|---------|
+| Ollama | `python3 play.py` |
+| OpenAI | `python3 play_with_gpt.py` |
+| Gemini | `python3 play_with_gemini.py` |
+
+You'll be prompted to:
+1. **Select a model** — pick from the list of supported models
+2. **Select a world file** — pick the `.wwf` file you generated in Step 4
+
+Then the Game Master awakens and your adventure begins. Type actions in plain English. The GM handles the rest.
 
 ---
 
-## 🌟 The Game Master's Codex
+## In-Game Commands
 
-- **Verbose Mode:** Use the `--verbose` or `-v` flag when launching `play.py`, `play_with_gemini.py`, or `play_with_gpt.py` to see detailed MCP tool calls and responses.
-- **Developer Debug Mode:** Use the `--debug` or `-d` flag for deep inspection. This displays the raw JSON responses from the LLM—including internal reasoning and thought processes—and automatically enables Verbose Mode.
+| Command | Description |
+|---------|-------------|
+| `/help` | Show available commands |
+| `/stats` | Display your current character stats, inventory, and spell slots |
+| `/sync` | Force a database sync to make sure the GM's memory matches your actual state |
+| `/quit` | Exit the game |
 
 ---
 
-## ⚠️ Known Issues
+## How It Works
 
-### GPT-5.4 models
+If you're curious about what's happening under the hood, here's a high-level overview.
 
-These models intermittently return empty responses (no content and no tool calls) when processing player actions.
+### Roll Engine
 
-**Empty Responses**
+All game mechanics are split into two categories:
 
-GPT-5.4 models occasionally produce a response with empty content and no tool calls, effectively ignoring the player's input. The player would otherwise need to manually re-enter their action.
+- **Success/Failure Checks** — Attack rolls, skill checks, and saving throws use a d20 system (`perform_check`). The AI cannot decide outcomes — it must call the tool and report the result.
+- **Damage & Magnitude** — Damage rolls, healing, and quantity use multi-dice notation (`roll_dice`). Again, the AI calls the tool; it doesn't make up numbers.
+- **Transparency** — Every roll is shown to you in a standard format: `Guard Attack: 17 vs DC 15 (Success) (15 + 2)`
 
-*Workaround:* The engine detects empty responses and automatically re-injects the player's last action as a new user message, prompting the model to respond. This retry is performed up to 3 times. In debug mode (`--debug`), each retry is logged as:
-```
-DEBUG: Empty response from OpenAI. Re-injecting last user action... (N/3)
-```
-If all retries are exhausted, the empty response is returned as-is.
+### State Authority
 
-### Gemini 3.1 pro-preview & Gemini 3 Flash preview
+Your character lives in an in-memory database that the AI updates through tool calls. Your HP, gold, inventory, spell slots — all of it is tracked precisely.
 
-These preview models exhibit bugs when used with function calling. The engine includes workarounds for each.
+- The AI is required to update state immediately when changes happen.
+- Every 4 prompts, the engine forces a full database sync to catch any drift.
+- You can manually force a sync at any time with `/sync`.
 
-**MALFORMED_FUNCTION_CALL Responses**
+### Phased Resolution
 
-Both models intermittently return malformed tool calls, causing the API to strip the entire response content. Failure rate varies significantly with temperature:
+To prevent the AI from "collapsing" on complex turns (trying to narrate and calculate at the same time), the engine uses a two-phase protocol:
 
-| Temperature | Failure Rate (3.1 pro) | Failure Rate (3 flash) |
-|-------------|----------------------|----------------------|
-| 0.0 | ~60% | similar |
-| 1.0 | ~10% | similar |
+1. **Mechanical Phase** — The AI resolves all dice rolls and state updates first, pausing with a sync token.
+2. **Narrative Phase** — Only after all mechanics are verified does the AI produce its story output.
 
-*Workaround:* Default temperature is set to `1.0`. On MALFORMED_FUNCTION_CALL, the engine performs a graduated retry sequence: the first retry includes a corrective message with the full tool schema; the second retry sends a stronger warning; up to 3 additional silent retries follow. This provides the model with context about its error and breaks deterministic retry loops.
+This means you always get mechanically accurate results before the narrative.
 
-Override the default with `--temperature`:
+---
+
+## Advanced Options
+
+All three play scripts accept the following flags:
+
+| Flag | Description |
+|------|-------------|
+| `--verbose`, `-v` | Show all tool calls and their results behind the scenes |
+| `--debug`, `-d` | Show raw AI responses including internal reasoning (also enables `--verbose`) |
+
+**Gemini and OpenAI only:**
+
+| Flag | Description |
+|------|-------------|
+| `--temperature` | Set sampling temperature (Gemini default: 1.0, OpenAI default: 0.0) |
+| `--thinking-level` | Enable structured AI reasoning (`LOW`, `MEDIUM`, `HIGH`). Experimental — see Known Issues. |
+
+Examples:
 ```bash
 python3 play_with_gemini.py --temperature 0.7
+python3 play_with_gpt.py --debug
+python3 play_with_gemini.py --thinking-level MEDIUM --verbose
 ```
 
-**Thinking Leakage** (gemini-3.1-pro-preview only)
+### Debug Mode
 
-The model outputs its internal reasoning as regular text (prefixed with `thinking\n...`) instead of using the SDK's structured `part.thought` attribute. This reasoning text appears in the game narrative. `gemini-3-flash-preview` does not exhibit this behavior.
+When the game is running with `--debug`, the engine logs:
 
-*No workaround available.* A heuristic-based strip was attempted but is unreliable — the thinking block typically contains multiple paragraphs separated by `\n\n`, and there is no reliable way to detect the thinking→narrative boundary without structured `part.thought` support from the model.
-
-**Structured Thinking Incompatibility**
-
-The Google GenAI SDK's `ThinkingConfig` enables clean separation of reasoning and content via the `part.thought` attribute. However, enabling it with `gemini-3.1-pro-preview` causes `MALFORMED_FUNCTION_CALL` at near-100% rates.
-
-*Workaround:* Structured thinking is disabled by default. The `--thinking-level` flag is preserved for future model versions and can be enabled experimentally:
-```bash
-python3 play_with_gemini.py --thinking-level MEDIUM
-```
-When enabled, debug mode displays model thinking in a yellow panel labeled "Thinking (structured)".
-
-**Thinking-Only Responses**
-
-With `--thinking-level` enabled, the model may complete its reasoning but produce no final text or tool calls (the "thinking-only" bug).
-
-*Workaround:* The engine auto-injects `"Continue"` (up to 3 attempts) to prompt the model to produce output. If all retries are exhausted, a placeholder message is shown: *"The GM pauses, deep in thought..."*
+- Every tool call and response (same as `--verbose`)
+- Raw JSON responses from the AI model
+- AI thinking/reasoning panels (when available)
+- Automatic retry messages for empty or malformed responses
 
 ---
 
-## 🛠 Technology Stack
+## Known Issues
 
-**Core Dependencies (shared):**
-- `mcp`: Model Context Protocol for external tool integration.
-- `rich`: High-fidelity Terminal User Interface (TUI).
-- `pydantic`: Data validation and settings management.
-- `prompt_toolkit`: Interactive terminal input with line editing and slash commands.
-- `pyyaml`: Protocol and schema configuration.
+### GPT-5.4 Models
 
-**Backend Dependencies:**
-- `ollama`: LLM orchestration via Ollama (Ollama backend).
-- `google-genai`: Google Gemini API client (Gemini backend).
-- `openai`: OpenAI API client (OpenAI backend).
+GPT-5.4 models sometimes return completely empty responses (no text, no tool calls). The engine automatically detects this and re-sends your last action as a new message, up to 3 times. If retries are exhausted, the empty response is shown as-is.
 
-**Infrastructure:**
-- Python 3
-- SQLite (In-memory engine)
-- Graph RAG architecture
+### Gemini Preview Models
+
+`gemini-3.1-pro-preview` and `gemini-3-flash-preview` have bugs with function calling:
+
+- **Malformed tool calls** — These models intermittently send broken function calls. The engine retries with corrective messages to guide the model back on track.
+- **Thinking leakage (3.1-pro only)** — The model may output its internal reasoning as visible text in the game narrative. There is currently no workaround.
+- **Thinking-only responses** — When `--thinking-level` is enabled, the model may think without producing any output. The engine auto-injects "Continue" to prompt a response.
+
+The default temperature for Gemini is set to `1.0` (instead of the usual `0.0`) because this significantly reduces malformed call rates. You can override this with `--temperature`.
+
+---
+
+## Technology Stack
+
+| Component | Technology |
+|-----------|------------|
+| Language | Python 3.11+ |
+| Game Engine | MCP (Model Context Protocol) server + SQLite |
+| Terminal UI | Rich + prompt_toolkit |
+| Data Validation | Pydantic |
+| Config | YAML |
+| AI Backends | Ollama, OpenAI, Google Gemini |
+
+---
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
