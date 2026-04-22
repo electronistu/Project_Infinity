@@ -13,7 +13,6 @@ Most AI RPGs let the language model make up numbers. Project Infinity doesn't. E
 - **Fair Dice** — All rolls are performed by a dedicated server and verified. The AI sees the results, it doesn't generate them.
 - **Persistent Character** — Your stats, inventory, gold, and spell slots live in a real database that updates in real time. No "forgetting" that you used your last potion.
 - **D&D 5e Rules** — Leveling up, spell slot recovery, proficiency bonuses — all handled automatically by the engine.
-- **Procedural Worlds** — The World Forge creates a unique world, NPCs, guilds, and political relationships every time.
 - **In-Game Commands** — Check your stats, force a database sync, or get help without leaving the game.
 
 ---
@@ -24,7 +23,7 @@ Most AI RPGs let the language model make up numbers. Project Infinity doesn't. E
 
 - **Python 3.11** or newer
 - **One AI backend** (pick one):
-  - **Ollama** — free, runs locally on your machine
+  - **Ollama** — cloud-based, free and paid
   - **OpenAI** — cloud-based, requires a paid API key
   - **Gemini** — cloud-based, requires a paid API key
 
