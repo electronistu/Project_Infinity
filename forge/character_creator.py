@@ -110,9 +110,6 @@ def make_weapon_item(name: str, weapon_data: dict) -> Item:
         )
     return Item(name=name, item_type="weapon")
 
-KNOWN_SPELL_CLASSES = {"Sorcerer", "Warlock", "Bard", "Ranger"}
-PREPARED_SPELL_CLASSES = {"Cleric", "Druid", "Artificer", "Paladin"}
-
 DRACONIC_ANCESTRY = {
     "Black": {"damage_type": "acid", "breath_shape": "5 by 30 ft. line", "save": "Dexterity"},
     "Blue": {"damage_type": "lightning", "breath_shape": "5 by 30 ft. line", "save": "Dexterity"},

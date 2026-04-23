@@ -54,7 +54,7 @@ def init_player_db(player_file_path: str) -> str:
                 flattened_data[key] = value
 
         for key, value in flattened_data.items():
-            cursor.execute("INSERT INTO player (key, value) VALUES (?, ?)", (key, str(value)))
+            cursor.execute("INSERT INTO player (key, value) VALUES (?, ?)", (key, json.dumps(value)))
 
         
         DB_CONNECTION.commit()

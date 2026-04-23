@@ -1,8 +1,8 @@
-pydantic
-pyyaml
-ollama
-rich
-mcp
-prompt_toolkit
-google-genai
-openai
+pydantic>=2.12
+PyYAML>=6.0
+ollama>=0.6
+rich>=14.0
+mcp>=1.27
+prompt_toolkit>=3.0
+google-genai>=1.73
+openai>=2.32

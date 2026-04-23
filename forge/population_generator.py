@@ -51,11 +51,13 @@ def _generate_npc_details(level: int, role: str, faction: str, is_walker: bool, 
 
     final_stats = base_stats.copy()
     for increase in chosen_race.ability_score_increases:
-        final_stats.dict()[increase.ability.lower()] += increase.value
+        attr = increase.ability.lower()
+        setattr(final_stats, attr, getattr(final_stats, attr) + increase.value)
     if chosen_subrace:
         for increase in chosen_subrace.ability_score_increases:
-            final_stats.dict()[increase.ability.lower()] += increase.value
-    npc_stats = Stats(**final_stats.dict())
+            attr = increase.ability.lower()
+            setattr(final_stats, attr, getattr(final_stats, attr) + increase.value)
+    npc_stats = Stats(**final_stats.model_dump())
 
     armor_proficiencies = set(chosen_class.armor_proficiencies)
     weapon_proficiencies = set(chosen_class.weapon_proficiencies)

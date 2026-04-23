@@ -3,6 +3,7 @@
 
 from .models import WorldState, Stats, NPC
 import json
+import os
 
 WWF_SCHEMA = """
 schemas:
@@ -84,7 +85,7 @@ def format_world_to_wwf(world_state: WorldState, output_path: str):
     pc = world_state.player_character
     
     # Save player data as JSON for MCP/SQLite
-    player_json_path = output_path.replace(".wwf", ".player")
+    player_json_path = os.path.splitext(output_path)[0] + ".player"
     with open(player_json_path, 'w') as pf:
         pf.write(get_player_json(pc))
 
