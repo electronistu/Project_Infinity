@@ -139,7 +139,7 @@ systems:
         
         magnitude_damage_rolls:
           tool: roll_dice
-          applies_to: [damage, healing, quantity]
+          applies_to: [damage, healing, quantity, initiative]
           rules:
             - mandatory_tool_usage: true
             - no_simulation: true

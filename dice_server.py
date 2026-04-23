@@ -123,6 +123,82 @@ def set_nested_value(data, path, value):
     return data
 
 
+PREPARED_CASTER_ABILITIES = {
+    "Wizard": "int",
+    "Cleric": "wis",
+    "Druid": "wis",
+    "Paladin": "cha",
+    "Artificer": "int",
+}
+
+def get_max_prepared_spells(cursor) -> int | None:
+    """
+    Returns the maximum number of spells_prepared allowed for a prepared caster,
+    or None if the character is not a prepared caster.
+    Formula: spellcasting ability modifier + character level (minimum 1).
+    """
+    cursor.execute("SELECT value FROM player WHERE key = ?", ("character_class",))
+    row = cursor.fetchone()
+    if not row:
+        return None
+
+    char_class = row[0]
+    stat_key = PREPARED_CASTER_ABILITIES.get(char_class)
+    if stat_key is None:
+        return None
+
+    cursor.execute("SELECT value FROM player WHERE key = ?", ("level",))
+    level_row = cursor.fetchone()
+    level = int(level_row[0]) if level_row else 1
+
+    cursor.execute("SELECT value FROM player WHERE key = ?", ("stats",))
+    stats_row = cursor.fetchone()
+    if not stats_row:
+        return None
+    stats = json.loads(stats_row[0])
+    stat_val = int(stats.get(stat_key, 10))
+
+    modifier = (stat_val - 10) // 2
+    return max(modifier + level, 1)
+
+
+def build_prepared_spells_feedback(cursor, action_performed: bool, item: str, action: str) -> str | None:
+    """
+    If the current operation targets spellcasting.spells_prepared on a prepared caster,
+    returns a capacity feedback string; otherwise returns None.
+    """
+    max_spells = get_max_prepared_spells(cursor)
+    if max_spells is None:
+        return None
+
+    cursor.execute("SELECT value FROM player WHERE key = ?", ("spellcasting",))
+    sc_row = cursor.fetchone()
+    if not sc_row:
+        return None
+    sc = json.loads(sc_row[0])
+    current_prepared = sc.get("spells_prepared", [])
+    current_count = len(current_prepared)
+    available = max_spells - current_count
+
+    spell_names = []
+    for s in current_prepared:
+        if isinstance(s, dict):
+            spell_names.append(s.get("name", str(s)))
+        else:
+            spell_names.append(str(s))
+
+    if action == "add" and action_performed:
+        return f" Prepared spells: {current_count}/{max_spells} ({available} slot{'s' if available != 1 else ''} remaining)."
+    elif action == "add" and not action_performed:
+        return (f" Maximum prepared spells reached: {current_count}/{max_spells} "
+                f"(spellcasting ability modifier + level = {max_spells}). "
+                f"Current spells_prepared: [{', '.join(spell_names)}]. "
+                f"Remove a spell first before adding a new one.")
+    elif action == "remove" and action_performed:
+        return f" Prepared spells: {current_count}/{max_spells} ({available} slot{'s' if available != 1 else ''} available)."
+    return None
+
+
 @mcp.tool()
 def modify_player_numeric(key: str, delta: int) -> str:
     """
@@ -216,11 +292,20 @@ def update_player_list(key: str, item: str, action: str) -> str:
     """
     Adds or removes an item from a player list. Supports dotted notation.
     For 'add' actions, use the format 'Item Name: Description' to include a description.
+
+    SPELLS_PREPARED CAPACITY ENFORCEMENT:
+    For prepared casters (Cleric, Druid, Wizard, Paladin, Artificer), the number of
+    spells_prepared is capped at: spellcasting ability modifier + character level.
+    - 'add': If the list is at capacity, the spell is REJECTED and an error is returned
+      with the current list and the maximum allowed count.
+    - 'remove': After removal, the response includes remaining capacity info.
+
     Examples:
     - Update inventory with description: update_player_list(key='inventory', item='Dagger: A rusty iron blade (1d4 piercing, Finesse, Light, Thrown (range 20/60))', action='add')
     - Update inventory simply: update_player_list(key='inventory', item='Health Potion', action='add')
     - Remove an item by name: update_player_list(key='spellcasting.spells_known', item='Shield', action='remove')
     - Remove a prepared spell: update_player_list(key='spellcasting.spells_prepared', item='Bless', action='remove')
+    - Add a prepared spell (capacity enforced): update_player_list(key='spellcasting.spells_prepared', item='Fireball', action='add')
     action: 'add' or 'remove'
     """
     global DB_CONNECTION
@@ -249,6 +334,8 @@ def update_player_list(key: str, item: str, action: str) -> str:
                 return f"Key {key} not found in database."
             current_list = json.loads(row[0]) if 'json' in row[0] or '[' in row[0] else [row[0]]
 
+        is_prepared_spells = (key == "spellcasting.spells_prepared")
+
         if action == "add":
             name = item
             desc = ""
@@ -257,12 +344,21 @@ def update_player_list(key: str, item: str, action: str) -> str:
             
             new_entry = {"name": name, "description": desc} if (desc or ":" in item) else name
             
-            # Avoid duplicates by name
             exists = any((isinstance(e, dict) and e.get("name") == name) or e == name for e in current_list)
-            if not exists:
-                current_list.append(new_entry)
+            if exists:
+                if is_prepared_spells:
+                    feedback = build_prepared_spells_feedback(cursor, True, name, "add")
+                    return f"Item {name} already exists in {key}.{feedback}" if feedback else f"Item {name} already exists in {key}."
+
+            if is_prepared_spells:
+                max_spells = get_max_prepared_spells(cursor)
+                if max_spells is not None and len(current_list) >= max_spells:
+                    feedback = build_prepared_spells_feedback(cursor, False, name, "add")
+                    return f"Cannot add '{name}' to {key}.{feedback}"
+
+            current_list.append(new_entry)
+
         elif action == "remove":
-            # Find and remove by name
             found = False
             for i, e in enumerate(current_list):
                 if (isinstance(e, dict) and e.get("name") == item) or e == item:
@@ -281,7 +377,15 @@ def update_player_list(key: str, item: str, action: str) -> str:
             cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", (key, json.dumps(current_list)))
         
         DB_CONNECTION.commit()
-        return f"Successfully performed {action} on {item} in {key}."
+
+        result_msg = f"Successfully performed {action} on {item} in {key}."
+
+        if is_prepared_spells:
+            feedback = build_prepared_spells_feedback(cursor, True, item, action)
+            if feedback:
+                result_msg += feedback
+
+        return result_msg
     except Exception as e:
         return f"Error updating list: {str(e)}"
 
