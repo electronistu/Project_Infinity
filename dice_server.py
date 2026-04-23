@@ -162,10 +162,10 @@ def get_max_prepared_spells(cursor) -> int | None:
     return max(modifier + level, 1)
 
 
-def build_prepared_spells_feedback(cursor, action_performed: bool, item: str, action: str) -> str | None:
+def build_prepared_spells_info(cursor) -> dict | None:
     """
-    If the current operation targets spellcasting.spells_prepared on a prepared caster,
-    returns a capacity feedback string; otherwise returns None.
+    Returns a dict with spells_prepared capacity info for a prepared caster,
+    or None if the character is not a prepared caster.
     """
     max_spells = get_max_prepared_spells(cursor)
     if max_spells is None:
@@ -187,20 +187,25 @@ def build_prepared_spells_feedback(cursor, action_performed: bool, item: str, ac
         else:
             spell_names.append(str(s))
 
-    if action == "add" and action_performed:
-        return f" Prepared spells: {current_count}/{max_spells} ({available} slot{'s' if available != 1 else ''} remaining)."
-    elif action == "add" and not action_performed:
-        return (f" Maximum prepared spells reached: {current_count}/{max_spells} "
-                f"(spellcasting ability modifier + level = {max_spells}). "
-                f"Current spells_prepared: [{', '.join(spell_names)}]. "
-                f"Remove a spell first before adding a new one.")
-    elif action == "remove" and action_performed:
-        return f" Prepared spells: {current_count}/{max_spells} ({available} slot{'s' if available != 1 else ''} available)."
-    return None
+    info = {
+        "current_count": current_count,
+        "max_count": max_spells,
+        "available_slots": available,
+        "formula": "spellcasting_ability_modifier + level",
+    }
+
+    if available <= 0:
+        info["at_capacity"] = True
+        info["current_spells"] = spell_names
+        info["reason"] = f"Maximum prepared spells reached ({max_spells}). Remove a spell first before adding a new one."
+    else:
+        info["at_capacity"] = False
+
+    return info
 
 
 @mcp.tool()
-def modify_player_numeric(key: str, delta: int) -> str:
+def modify_player_numeric(key: str, delta: int) -> dict:
     """
     Increments or decrements a numeric player attribute. Supports dotted notation for nested attributes and list indices.
     Examples:
@@ -211,7 +216,7 @@ def modify_player_numeric(key: str, delta: int) -> str:
     """
     global DB_CONNECTION
     if DB_CONNECTION is None:
-        return "Database not initialized."
+        return {"success": False, "error": "Database not initialized.", "key": key}
     try:
         cursor = DB_CONNECTION.cursor()
         
@@ -226,7 +231,7 @@ def modify_player_numeric(key: str, delta: int) -> str:
                     data = {}
                     auto_init_root = True
                 else:
-                    return f"Root key {root_key} not found."
+                    return {"success": False, "error": f"Root key {root_key} not found.", "key": key}
             else:
                 data = json.loads(row[0])
             
@@ -239,9 +244,10 @@ def modify_player_numeric(key: str, delta: int) -> str:
                 elif key.startswith("consumables."):
                     current_val = 0
                 else:
-                    return f"Key {key} not found in database."
+                    return {"success": False, "error": f"Key {key} not found in database.", "key": key}
             
-            new_val = int(current_val) + delta
+            current_val = int(current_val)
+            new_val = current_val + delta
             set_nested_value(data, path_in_obj, new_val)
             
             if key.startswith("consumables.") and new_val <= 0:
@@ -250,21 +256,35 @@ def modify_player_numeric(key: str, delta: int) -> str:
                     del data[consumable_name]
                     cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", (root_key, json.dumps(data)))
                     DB_CONNECTION.commit()
-                    return f"Updated {key} to 0. ITEM DEPLETED — {consumable_name} removed from consumables."
+                    return {
+                        "success": True,
+                        "key": key,
+                        "old_value": current_val,
+                        "new_value": 0,
+                        "delta": delta,
+                        "item_depleted": True,
+                        "depleted_item": consumable_name,
+                    }
             
             cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", (root_key, json.dumps(data)))
         else:
             cursor.execute("SELECT value FROM player WHERE key = ?", (key,))
             row = cursor.fetchone()
             if not row:
-                return f"Key {key} not found in database."
+                return {"success": False, "error": f"Key {key} not found in database.", "key": key}
             
             current_val = int(row[0])
             new_val = current_val + delta
             cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", (key, str(new_val)))
         
         DB_CONNECTION.commit()
-        result_msg = f"Updated {key} to {new_val}."
+        result = {
+            "success": True,
+            "key": key,
+            "old_value": current_val,
+            "new_value": new_val,
+            "delta": delta,
+        }
         if key == "xp":
             cursor.execute("SELECT value FROM player WHERE key = ?", ("level",))
             level_row = cursor.fetchone()
@@ -280,15 +300,16 @@ def modify_player_numeric(key: str, delta: int) -> str:
                     for db_key, db_value in changes.items():
                         cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", (db_key, db_value))
                     DB_CONNECTION.commit()
-                    for line in summary:
-                        result_msg += f" {line}."
-                    result_msg += f" Player has reached level {new_level}!"
-        return result_msg
+                    result["level_up"] = True
+                    result["old_level"] = current_level
+                    result["new_level"] = new_level
+                    result["level_up_changes"] = summary
+        return result
     except Exception as e:
-        return f"Error modifying numeric value: {str(e)}"
+        return {"success": False, "error": f"Error modifying numeric value: {str(e)}", "key": key}
 
 @mcp.tool()
-def update_player_list(key: str, item: str, action: str) -> str:
+def update_player_list(key: str, item: str, action: str) -> dict:
     """
     Adds or removes an item from a player list. Supports dotted notation.
     For 'add' actions, use the format 'Item Name: Description' to include a description.
@@ -310,7 +331,7 @@ def update_player_list(key: str, item: str, action: str) -> str:
     """
     global DB_CONNECTION
     if DB_CONNECTION is None:
-        return "Database not initialized."
+        return {"success": False, "error": "Database not initialized.", "key": key}
     try:
         cursor = DB_CONNECTION.cursor()
         
@@ -319,19 +340,19 @@ def update_player_list(key: str, item: str, action: str) -> str:
             cursor.execute("SELECT value FROM player WHERE key = ?", (root_key,))
             row = cursor.fetchone()
             if not row:
-                return f"Root key {root_key} not found."
+                return {"success": False, "error": f"Root key {root_key} not found.", "key": key}
             
             data = json.loads(row[0])
             path_in_obj = key[len(root_key)+1:]
             current_list = get_nested_value(data, path_in_obj)
             
             if current_list is None or not isinstance(current_list, list):
-                return f"Key {key} not found or is not a list."
+                return {"success": False, "error": f"Key {key} not found or is not a list.", "key": key}
         else:
             cursor.execute("SELECT value FROM player WHERE key = ?", (key,))
             row = cursor.fetchone()
             if not row:
-                return f"Key {key} not found in database."
+                return {"success": False, "error": f"Key {key} not found in database.", "key": key}
             current_list = json.loads(row[0]) if 'json' in row[0] or '[' in row[0] else [row[0]]
 
         is_prepared_spells = (key == "spellcasting.spells_prepared")
@@ -346,15 +367,18 @@ def update_player_list(key: str, item: str, action: str) -> str:
             
             exists = any((isinstance(e, dict) and e.get("name") == name) or e == name for e in current_list)
             if exists:
+                result = {"success": False, "error": "already_exists", "key": key, "item": name, "action": action}
                 if is_prepared_spells:
-                    feedback = build_prepared_spells_feedback(cursor, True, name, "add")
-                    return f"Item {name} already exists in {key}.{feedback}" if feedback else f"Item {name} already exists in {key}."
+                    info = build_prepared_spells_info(cursor)
+                    if info is not None:
+                        result["spells_prepared_info"] = info
+                return result
 
             if is_prepared_spells:
-                max_spells = get_max_prepared_spells(cursor)
-                if max_spells is not None and len(current_list) >= max_spells:
-                    feedback = build_prepared_spells_feedback(cursor, False, name, "add")
-                    return f"Cannot add '{name}' to {key}.{feedback}"
+                info = build_prepared_spells_info(cursor)
+                if info is not None and info.get("at_capacity"):
+                    info["reason"] = f"Cannot add '{name}'. Maximum prepared spells reached ({info['max_count']}). Remove a spell first before adding a new one."
+                    return {"success": False, "error": "spells_prepared_at_capacity", "key": key, "item": name, "action": action, "spells_prepared_info": info}
 
             current_list.append(new_entry)
 
@@ -366,9 +390,9 @@ def update_player_list(key: str, item: str, action: str) -> str:
                     found = True
                     break
             if not found:
-                return f"Item {item} not found in {key}."
+                return {"success": False, "error": "not_found", "key": key, "item": item, "action": action}
         else:
-            return "Invalid action. Use 'add' or 'remove'."
+            return {"success": False, "error": "Invalid action. Use 'add' or 'remove'.", "key": key, "action": action}
 
         if '.' in key:
             set_nested_value(data, path_in_obj, current_list)
@@ -378,16 +402,29 @@ def update_player_list(key: str, item: str, action: str) -> str:
         
         DB_CONNECTION.commit()
 
-        result_msg = f"Successfully performed {action} on {item} in {key}."
+        display_list = []
+        for e in current_list:
+            if isinstance(e, dict):
+                display_list.append(e.get("name", str(e)))
+            else:
+                display_list.append(str(e))
+
+        result = {
+            "success": True,
+            "key": key,
+            "item": item,
+            "action": action,
+            "current_list": display_list,
+        }
 
         if is_prepared_spells:
-            feedback = build_prepared_spells_feedback(cursor, True, item, action)
-            if feedback:
-                result_msg += feedback
+            info = build_prepared_spells_info(cursor)
+            if info is not None:
+                result["spells_prepared_info"] = info
 
-        return result_msg
+        return result
     except Exception as e:
-        return f"Error updating list: {str(e)}"
+        return {"success": False, "error": f"Error updating list: {str(e)}", "key": key}
 
 
 @mcp.tool()
