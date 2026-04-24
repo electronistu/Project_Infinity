@@ -154,6 +154,7 @@ systems:
             - mandatory_roll_before_narration: true
             - transparent_output: true
             - inherit_output_formats: true
+            - actor_name_must_match_performer: true
       
       state_management:
         database: sqlite_memory

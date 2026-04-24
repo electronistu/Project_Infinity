@@ -453,7 +453,7 @@ def dump_player_db() -> dict:
         return {"error": f"Error dumping database: {str(e)}"}
 
 @mcp.tool()
-def roll_dice(dice_notation: str, modifier: int = 0) -> dict:
+def roll_dice(dice_notation: str, modifier: int = 0, actor: str = "{player_name}") -> dict:
     """
     Rolls dice based on standard notation. 
     
@@ -464,7 +464,13 @@ def roll_dice(dice_notation: str, modifier: int = 0) -> dict:
     Do NOT include modifiers or operators like '+' in the notation string.
     All bonuses or penalties MUST be passed as a separate integer in the modifier parameter.
     
-    Correct: roll_dice(dice_notation='3d4', modifier=3)
+    CRITICAL: The 'actor' parameter MUST identify who is performing the action.
+    - For the player character: use their actual character name (look it up from the database).
+    - For NPCs or creatures: use their specific name (e.g., 'Senna', 'Goblin Brute', 'Guard Captain').
+    NEVER use the player's name for NPC actions, and NEVER use an NPC's name for the player's actions.
+    
+    Correct: roll_dice(actor='Senna', dice_notation='3d4', modifier=3)
+    Correct: roll_dice(actor='Goblin Brute', dice_notation='1d6', modifier=2)
     Incorrect: roll_dice(dice_notation='3d4+3', modifier=0)
     """
     try:
@@ -483,6 +489,7 @@ def roll_dice(dice_notation: str, modifier: int = 0) -> dict:
         total = sum(rolls) + modifier
         
         return {
+            "actor": actor,
             "notation": dice_notation,
             "rolls": rolls,
             "modifier": modifier,
@@ -492,7 +499,7 @@ def roll_dice(dice_notation: str, modifier: int = 0) -> dict:
         return {"error": "Invalid dice notation. Please provide integers (e.g., '2d6')."}
 
 @mcp.tool()
-def perform_check(modifier: int, dc: int, check_name: str = "Check") -> dict:
+def perform_check(modifier: int, dc: int, check_name: str = "Check", actor: str = "{player_name}") -> dict:
     """
     Performs a D&D 5E complexity check.
     
@@ -500,7 +507,13 @@ def perform_check(modifier: int, dc: int, check_name: str = "Check") -> dict:
     This is the ONLY tool for attacks, skill checks, and saving throws. 
     If the outcome is binary (Success/Failure) and depends on a Difficulty Class (DC), use this tool.
     
-    Example: To check if the player can punch a guard (Sleight of Hand), use perform_check(modifier=2, dc=12, check_name='Sleight of Hand').
+    CRITICAL: The 'actor' parameter MUST identify who is performing the action.
+    - For the player character: use their actual character name (look it up from the database).
+    - For NPCs or creatures: use their specific name (e.g., 'Senna', 'Guard Captain').
+    NEVER use the player's name for NPC actions, and NEVER use an NPC's name for the player's actions.
+    
+    Example: perform_check(actor='Senna', modifier=1, dc=13, check_name='Deception')
+    Example: perform_check(actor='Guard Captain', modifier=3, dc=15, check_name='Intimidation')
     """
     roll = random.randint(1, 20)
     total = roll + modifier
@@ -513,10 +526,9 @@ def perform_check(modifier: int, dc: int, check_name: str = "Check") -> dict:
         result = "Success"
     else:
         result = "Failure"
-       
-    # Returning a dictionary allows the AI to parse the exact variables
-    # perfectly without having to read a formatted sentence.
+   
     return {
+        "actor": actor,
         "check_name": check_name,
         "base_roll": roll,
         "modifier": modifier,
