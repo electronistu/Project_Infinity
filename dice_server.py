@@ -44,17 +44,13 @@ def init_player_db(player_file_path: str) -> str:
         # Create a simple table for player stats
         cursor.execute("CREATE TABLE player (key TEXT PRIMARY KEY, value TEXT)")
         
-        # Flatten the JSON and insert into the database
-        # We only flatten at the root level to preserve complex objects (dict/list) as JSON strings
-        flattened_data = {}
         for key, value in data.items():
             if isinstance(value, (dict, list)):
-                flattened_data[key] = json.dumps(value)
+                cursor.execute("INSERT INTO player (key, value) VALUES (?, ?)", (key, json.dumps(value)))
+            elif isinstance(value, str):
+                cursor.execute("INSERT INTO player (key, value) VALUES (?, ?)", (key, value))
             else:
-                flattened_data[key] = value
-
-        for key, value in flattened_data.items():
-            cursor.execute("INSERT INTO player (key, value) VALUES (?, ?)", (key, json.dumps(value)))
+                cursor.execute("INSERT INTO player (key, value) VALUES (?, ?)", (key, json.dumps(value)))
 
         
         DB_CONNECTION.commit()

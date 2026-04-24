@@ -252,12 +252,20 @@ async def run_game(chat_fn, model, context_window, verbose=False, debug=False):
                     return None
 
                 console.print("\n[yellow]Injecting World Data (The Key)...[/yellow]")
-                response_text = await chat_with_tools(key_content)
+                if VERBOSE:
+                    response_text = await chat_with_tools(key_content)
+                else:
+                    with console.status("[bold blue]GM is thinking...[/bold blue]"):
+                        response_text = await chat_with_tools(key_content)
 
                 while response_text == "__SYSTEM_PAUSE__":
                     if DEBUG:
                         console.print("[bold cyan]DEBUG: Injecting Resume Token ({{_CONTINUE_EXECUTION}})[/bold cyan]")
-                    response_text = await chat_with_tools("{{_CONTINUE_EXECUTION}}")
+                    if VERBOSE:
+                        response_text = await chat_with_tools("{{_CONTINUE_EXECUTION}}")
+                    else:
+                        with console.status("[bold blue]GM is thinking...[/bold blue]"):
+                            response_text = await chat_with_tools("{{_CONTINUE_EXECUTION}}")
 
                 console.print(Panel(
                     Padding(render_gm_text(response_text), (1, 1)),
@@ -301,7 +309,11 @@ async def run_game(chat_fn, model, context_window, verbose=False, debug=False):
                     while gm_response == "__SYSTEM_PAUSE__":
                         if DEBUG:
                             console.print("[bold cyan]DEBUG: Injecting Resume Token ({{_CONTINUE_EXECUTION}})[/bold cyan]")
-                        gm_response = await chat_with_tools("{{_CONTINUE_EXECUTION}}")
+                        if VERBOSE:
+                            gm_response = await chat_with_tools("{{_CONTINUE_EXECUTION}}")
+                        else:
+                            with console.status("[bold blue]GM is thinking...[/bold blue]"):
+                                gm_response = await chat_with_tools("{{_CONTINUE_EXECUTION}}")
 
                     if gm_response and gm_response != "__SYSTEM_PAUSE__":
                         clean_response = gm_response.replace("{{_NEED_AN_OTHER_PROMPT}}", "").strip()
@@ -315,9 +327,11 @@ async def run_game(chat_fn, model, context_window, verbose=False, debug=False):
                             console.print("\n")
 
                         if prompt_count > 0 and prompt_count % 4 == 0:
-                            if DEBUG or VERBOSE:
-                                console.print("[dim]Synchronizing database...[/dim]")
-                            await chat_with_tools("{{_SYNC_DATABASE}}")
+                            if VERBOSE:
+                                await chat_with_tools("{{_SYNC_DATABASE}}")
+                            else:
+                                with console.status("[bold blue]Synchronizing database...[/bold blue]"):
+                                    await chat_with_tools("{{_SYNC_DATABASE}}")
     except KeyboardInterrupt:
         console.print("\n[yellow]Game interrupted. Goodbye.[/yellow]")
     except Exception as e:
