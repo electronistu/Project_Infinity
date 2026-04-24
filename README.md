@@ -147,18 +147,16 @@ All three play scripts accept the following flags:
 |------|-------------|
 | `--verbose`, `-v` | Show all tool calls and their results behind the scenes |
 | `--debug`, `-d` | Show raw AI responses including internal reasoning (also enables `--verbose`) |
-
-**Gemini and OpenAI only:**
-
-| Flag | Description |
-|------|-------------|
-| `--temperature` | Set sampling temperature (Gemini default: 1.0, OpenAI default: 0.0) |
-| `--thinking-level` | Enable structured AI reasoning (`LOW`, `MEDIUM`, `HIGH`). Experimental — see Known Issues. |
+| `--temperature`, `-t` | Set sampling temperature (Ollama/OpenAI default: 0.0, Gemini default: 1.0) |
+| `--think` | Enable thinking/reasoning for the model as a boolean toggle (Ollama only) |
+| `--thinking-level` | Enable structured AI reasoning with effort level: `LOW`, `MEDIUM`, `HIGH`. Experimental — see Known Issues. |
 
 Examples:
 ```bash
+python3 play.py --temperature 0.6 --think
 python3 play_with_gemini.py --temperature 0.7
 python3 play_with_gpt.py --debug
+python3 play.py --thinking-level MEDIUM --verbose
 python3 play_with_gemini.py --thinking-level MEDIUM --verbose
 ```
 

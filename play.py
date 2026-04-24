@@ -15,13 +15,16 @@ MODEL_CONTEXT_LENGTHS = {
     "glm-5.1:cloud": 198000,
     "kimi-k2.6:cloud": 250000,
 }
-TEMP = 0.0
+DEFAULT_TEMP = 0.0
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Project Infinity: A Dynamic, Text-Based RPG World Engine (Ollama)")
     parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed MCP tool calls and responses")
     parser.add_argument("--debug", "-d", action="store_true", help="Show raw LLM responses and tool calls")
+    parser.add_argument("--temperature", "-t", type=float, default=DEFAULT_TEMP, help=f"Sampling temperature (default: {DEFAULT_TEMP})")
+    parser.add_argument("--think", action="store_true", help="Enable thinking/reasoning for the model (boolean toggle)")
+    parser.add_argument("--thinking-level", choices=["LOW", "MEDIUM", "HIGH"], default=None, help="Enable thinking with a specific reasoning effort level (overrides --think)")
     return parser.parse_args()
 
 
@@ -55,8 +58,14 @@ async def select_model(input_session):
         return AVAILABLE_MODELS[0]
 
 
-def create_ollama_chat_fn(debug=False):
+def create_ollama_chat_fn(debug=False, think=False, thinking_level=None, temperature=DEFAULT_TEMP):
     client = ollama.AsyncClient()
+
+    think_value = None
+    if thinking_level:
+        think_value = thinking_level.lower()
+    elif think:
+        think_value = True
 
     async def chat_fn(messages, tools, model, context_window):
         max_retries = 3
@@ -66,7 +75,8 @@ def create_ollama_chat_fn(debug=False):
                     model=model,
                     messages=messages,
                     tools=tools,
-                    options={"temperature": TEMP, "num_ctx": context_window}
+                    think=think_value,
+                    options={"temperature": temperature, "num_ctx": context_window}
                 )
                 prompt_eval_count = response.get('prompt_eval_count', 0) or 0
                 response_msg = response.get('message', {})
@@ -76,6 +86,12 @@ def create_ollama_chat_fn(debug=False):
                     content = response_msg.content
                 elif isinstance(response_msg, dict):
                     content = response_msg.get('content', "")
+
+                thinking_text = None
+                if hasattr(response_msg, 'thinking'):
+                    thinking_text = response_msg.thinking
+                elif isinstance(response_msg, dict):
+                    thinking_text = response_msg.get('thinking')
 
                 tool_calls = None
                 if hasattr(response_msg, 'tool_calls'):
@@ -119,7 +135,9 @@ def create_ollama_chat_fn(debug=False):
                     'message': {
                         'content': content,
                         'tool_calls': normalized_tool_calls,
-                    }
+                    },
+                    'thinking': thinking_text,
+                    'thinking_only': bool(thinking_text and not content and not normalized_tool_calls),
                 }
             except ollama._types.ResponseError as e:
                 if e.status_code in [500, 502, 503] and attempt < max_retries - 1:
@@ -151,7 +169,12 @@ async def main():
     if verbose:
         console.print(f"[dim]Context window: {context_window:,} tokens[/dim]")
 
-    chat_fn = create_ollama_chat_fn(debug=debug)
+    chat_fn = create_ollama_chat_fn(
+        debug=debug,
+        think=args.think,
+        thinking_level=args.thinking_level,
+        temperature=args.temperature,
+    )
 
     await run_game(chat_fn, model, context_window, verbose=verbose, debug=debug)
 
