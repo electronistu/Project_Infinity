@@ -274,3 +274,7 @@ systems:
     MOST_IMPORTANT_DIRECTIVE: You must reward XP for any creatures or NPCs the player kills and on quest completion.
     rewards: [xp, gold, items]
     on_success: [award_all, announce_all]
+    guild_abilities:
+      source: npc.abilities_for_sale
+      gate: verify_5e_prerequisites
+      action: integrate_into_player_sheet
