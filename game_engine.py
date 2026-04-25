@@ -316,7 +316,7 @@ async def run_game(chat_fn, model, context_window, verbose=False, debug=False):
                                 gm_response = await chat_with_tools("{{_CONTINUE_EXECUTION}}")
 
                     if gm_response and gm_response != "__SYSTEM_PAUSE__":
-                        clean_response = gm_response.replace("{{_NEED_AN_OTHER_PROMPT}}", "").strip()
+                        clean_response = gm_response.replace("{{_NEED_AN_OTHER_PROMPT}}", "").replace("{{_NEED_ANOTHER_PROMPT}}", "").strip()
 
                         if clean_response:
                             console.print(Panel(

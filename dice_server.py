@@ -5,10 +5,8 @@ import sqlite3
 from mcp.server.fastmcp import FastMCP
 from level_up import apply_level_up
 
-# FastMCP handles logging internally, but this guarantees stderr usage
 mcp = FastMCP("InfinityRolls", log_level="WARNING")
 
-# In-memory database connection
 DB_CONNECTION = None
 
 XP_THRESHOLDS = [
@@ -19,6 +17,12 @@ XP_THRESHOLDS = [
     (18, 305000), (19, 360000), (20, 400000),
 ]
 
+DC_GUIDE = {"easy": 10, "medium": 15, "hard": 20}
+
+KNOWN_CASTER_CLASSES = {"Bard", "Sorcerer", "Warlock", "Ranger"}
+PREPARED_CASTER_CLASSES = {"Cleric", "Druid", "Paladin", "Artificer"}
+
+
 def get_level_for_xp(xp: int) -> int:
     level = 1
     for lvl, threshold in XP_THRESHOLDS:
@@ -28,22 +32,18 @@ def get_level_for_xp(xp: int) -> int:
             break
     return level
 
+
 def init_player_db(player_file_path: str) -> str:
-    """
-    Initializes the in-memory SQLite database using the provided .player JSON file.
-    This function is NOT exposed as an MCP tool - it's called directly by play.py
-    """
     global DB_CONNECTION
     try:
         with open(player_file_path, 'r') as f:
             data = json.load(f)
-        
+
         DB_CONNECTION = sqlite3.connect(":memory:")
         cursor = DB_CONNECTION.cursor()
-        
-        # Create a simple table for player stats
+
         cursor.execute("CREATE TABLE player (key TEXT PRIMARY KEY, value TEXT)")
-        
+
         for key, value in data.items():
             if isinstance(value, (dict, list)):
                 cursor.execute("INSERT INTO player (key, value) VALUES (?, ?)", (key, json.dumps(value)))
@@ -52,14 +52,57 @@ def init_player_db(player_file_path: str) -> str:
             else:
                 cursor.execute("INSERT INTO player (key, value) VALUES (?, ?)", (key, json.dumps(value)))
 
-        
         DB_CONNECTION.commit()
         return f"Database initialized with player data from {player_file_path}."
     except Exception as e:
         return f"Failed to initialize database: {str(e)}"
 
+
+def _db_val(cursor, key, default=None):
+    cursor.execute("SELECT value FROM player WHERE key = ?", (key,))
+    row = cursor.fetchone()
+    if row is None:
+        return default
+    try:
+        return json.loads(row[0])
+    except (json.JSONDecodeError, TypeError):
+        return row[0]
+
+
+def _db_set(cursor, key, value):
+    if isinstance(value, (dict, list)):
+        cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", (key, json.dumps(value)))
+    else:
+        cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", (key, str(value)))
+
+
+def _player_name(cursor):
+    return _db_val(cursor, "name", "Player")
+
+
+def _hp_status_tag(current, total):
+    if total <= 0:
+        return "Unknown"
+    if current == 0:
+        return "Unconscious"
+    ratio = current / total
+    if ratio < 0.25:
+        return "Critical"
+    elif ratio < 0.50:
+        return "Bloodied"
+    elif ratio < 0.75:
+        return "Bloodied"
+    else:
+        return "Healthy"
+
+
+def _format_hp_status(current, total):
+    tag = _hp_status_tag(current, total)
+    pct = round((current / total) * 100) if total > 0 else 0
+    return f"HP: {current}/{total} ({tag} {pct}%)"
+
+
 def get_nested_value(data, path):
-    """Traverse a dictionary or list using a dotted path. Numeric segments are treated as list indices."""
     parts = path.split('.')
     for part in parts:
         if isinstance(data, dict):
@@ -77,8 +120,8 @@ def get_nested_value(data, path):
             return None
     return data
 
+
 def set_nested_value(data, path, value):
-    """Set a value in a dictionary or list using a dotted path. Numeric segments are treated as list indices."""
     parts = path.split('.')
     for i in range(len(parts) - 1):
         part = parts[i]
@@ -90,14 +133,12 @@ def set_nested_value(data, path, value):
                 if 0 <= idx < len(data):
                     data = data[idx]
                 else:
-                    # If index is out of bounds, we cannot easily "setdefault" 
-                    # for a list without knowing the size. Return data as is.
                     return data
             except ValueError:
                 return data
         else:
             return data
-            
+
     last_part = parts[-1]
     if isinstance(data, dict):
         data[last_part] = value
@@ -107,14 +148,9 @@ def set_nested_value(data, path, value):
             if 0 <= idx < len(data):
                 data[idx] = value
             else:
-                # If the list is too short, we append if the index is exactly len(data)
                 if idx == len(data):
                     data.append(value)
-                else:
-                    # Out of bounds
-                    pass
         except ValueError:
-            # Treat as dict key if we are unexpectedly in a list
             pass
     return data
 
@@ -127,12 +163,8 @@ PREPARED_CASTER_ABILITIES = {
     "Artificer": "int",
 }
 
+
 def get_max_prepared_spells(cursor) -> int | None:
-    """
-    Returns the maximum number of spells_prepared allowed for a prepared caster,
-    or None if the character is not a prepared caster.
-    Formula: spellcasting ability modifier + character level (minimum 1).
-    """
     cursor.execute("SELECT value FROM player WHERE key = ?", ("character_class",))
     row = cursor.fetchone()
     if not row:
@@ -159,10 +191,6 @@ def get_max_prepared_spells(cursor) -> int | None:
 
 
 def build_prepared_spells_info(cursor) -> dict | None:
-    """
-    Returns a dict with spells_prepared capacity info for a prepared caster,
-    or None if the character is not a prepared caster.
-    """
     max_spells = get_max_prepared_spells(cursor)
     if max_spells is None:
         return None
@@ -200,27 +228,132 @@ def build_prepared_spells_info(cursor) -> dict | None:
     return info
 
 
+def _validate_spell_slot(cursor, slot_key, delta):
+    if delta >= 0:
+        return None
+
+    cursor.execute("SELECT value FROM player WHERE key = ?", ("spellcasting",))
+    row = cursor.fetchone()
+    if not row:
+        return None
+
+    sc = json.loads(row[0])
+    slots = sc.get("slots", {})
+    slot_level = slot_key.split(".")[-1]
+
+    if slot_level in slots:
+        current_uses = int(slots[slot_level])
+        if current_uses <= 0:
+            available = {f"lv{k}": v for k, v in slots.items() if int(v) > 0}
+            return {
+                "error": f"No level {slot_level} spell slots remaining.",
+                "available_slots": available if available else "No spell slots available.",
+                "hint": "The character has no uses of this slot level left. They must take a long rest to recover spell slots, or cast using a higher-level slot."
+            }
+    return None
+
+
 @mcp.tool()
 def modify_player_numeric(key: str, delta: int) -> dict:
     """
-    Increments or decrements a numeric player attribute. Supports dotted notation for nested attributes and list indices.
-    Examples:
-    - For top-level stats: modify_player_numeric(key='gold', delta=-10)
-    - For nested slots (using index): modify_player_numeric(key='spellcasting.slots.1', delta=-1)
-    - For consumables (ammunition, potions, rations): modify_player_numeric(key='consumables.Bolts', delta=-1)
-    - Add consumable items: modify_player_numeric(key='consumables.Arrows', delta=20)
+    Increments or decrements a numeric player attribute. Supports dotted notation for nested attributes.
+
+    KEY RULES (enforced by this tool):
+    - current_hit_points: Automatically clamped to [0, total_hit_points]. Returns an HP status tag.
+      When HP reaches 0, the response includes "status: Unconscious" and a death_saves flag.
+    - spellcasting.slots.N: Validates the slot exists and has uses remaining before decrementing.
+      Returns an error with available slots if the slot is empty.
+    - consumables.ITEM: Auto-creates the entry at 0 if missing. At 0 quantity, the item is removed
+      and a DEPLETION message is returned. NEGATIVE values are NOT allowed — the tool clamps to 0.
+    - xp: When XP crosses a D&D 5E level threshold, ALL numeric level-up changes are applied
+      automatically: level, proficiency_bonus, hit_dice_count, total_hit_points (rolled hit dice + CON mod),
+      and spellcasting (slots, dc, attack_modifier). The response includes a full change summary.
+      You MUST still manually apply: new class features, new cantrips/spells known, ability score
+      improvements (levels 4/8/12/16/19), and subclass progression via update_player_list.
+    - IMPORTANT: You MUST award XP for any creatures the player kills and on quest completion.
+      Use key='xp' with the appropriate positive delta.
+
+    DOTTED PATH EXAMPLES:
+    - Top-level: modify_player_numeric(key='gold', delta=-10)
+    - Nested slot: modify_player_numeric(key='spellcasting.slots.1', delta=-1)
+    - Consumable: modify_player_numeric(key='consumables.Bolts', delta=-1)
+    - Add consumable: modify_player_numeric(key='consumables.Arrows', delta=20)
+
+    KEY REFERENCE (common keys):
+    current_hit_points, total_hit_points, armor_class, gold, xp, level,
+    proficiency_bonus, hit_dice_count, hit_dice_size, speed,
+    spellcasting.slots.1, spellcasting.slots.2, ... spellcasting.slots.9,
+    consumables.Bolts, consumables.Arrows, consumables.Health Potion, etc.
     """
     global DB_CONNECTION
     if DB_CONNECTION is None:
         return {"success": False, "error": "Database not initialized.", "key": key}
     try:
         cursor = DB_CONNECTION.cursor()
-        
+
+        if key == "current_hit_points":
+            current_hp = int(_db_val(cursor, "current_hit_points", 0))
+            total_hp = int(_db_val(cursor, "total_hit_points", 1))
+            new_val = current_hp + delta
+
+            clamped = False
+            original_delta = delta
+            if new_val > total_hp:
+                new_val = total_hp
+                clamped = True
+            if new_val < 0:
+                new_val = 0
+                clamped = True
+
+            _db_set(cursor, "current_hit_points", str(new_val))
+            DB_CONNECTION.commit()
+
+            result = {
+                "success": True,
+                "key": key,
+                "old_value": current_hp,
+                "new_value": new_val,
+                "delta": original_delta,
+                "hp_status": _format_hp_status(new_val, total_hp),
+            }
+            if clamped:
+                result["clamped"] = True
+                if new_val == 0 and current_hp > 0:
+                    result["status"] = "Unconscious"
+                    result["death_saves"] = True
+                    result["message"] = f"HP has reached 0. {result['hp_status']}. Begin death saves."
+                elif new_val == total_hp and delta > 0:
+                    result["message"] = f"HP restored to maximum. {result['hp_status']}."
+                else:
+                    result["message"] = f"Value was clamped. {result['hp_status']}."
+            elif new_val == 0 and current_hp > 0:
+                result["status"] = "Unconscious"
+                result["death_saves"] = True
+                result["message"] = f"HP has reached 0. {result['hp_status']}. Begin death saves."
+            elif total_hp > 0 and new_val == total_hp:
+                result["message"] = f"Fully healed. {result['hp_status']}."
+            else:
+                result["message"] = result["hp_status"]
+
+            return result
+
+        if key.startswith("spellcasting.slots."):
+            slot_validation = _validate_spell_slot(cursor, key, delta)
+            if slot_validation:
+                return {
+                    "success": False,
+                    "error": slot_validation["error"],
+                    "key": key,
+                    "delta": delta,
+                    "available_slots": slot_validation["available_slots"],
+                    "hint": slot_validation["hint"],
+                }
+
         if '.' in key:
             root_key = key.split('.')[0]
             cursor.execute("SELECT value FROM player WHERE key = ?", (root_key,))
             row = cursor.fetchone()
-            
+
             auto_init_root = False
             if not row:
                 if root_key == "consumables":
@@ -230,10 +363,10 @@ def modify_player_numeric(key: str, delta: int) -> dict:
                     return {"success": False, "error": f"Root key {root_key} not found.", "key": key}
             else:
                 data = json.loads(row[0])
-            
+
             path_in_obj = key[len(root_key)+1:]
             current_val = get_nested_value(data, path_in_obj)
-            
+
             if current_val is None:
                 if key.startswith("spellcasting.slots."):
                     current_val = 0
@@ -241,15 +374,15 @@ def modify_player_numeric(key: str, delta: int) -> dict:
                     current_val = 0
                 else:
                     return {"success": False, "error": f"Key {key} not found in database.", "key": key}
-            
+
             current_val = int(current_val)
             new_val = current_val + delta
             set_nested_value(data, path_in_obj, new_val)
-            
+
             if key.startswith("consumables.") and new_val <= 0:
                 consumable_name = path_in_obj
-                if consumable_name in data:
-                    del data[consumable_name]
+                if new_val < 0:
+                    data[consumable_name] = 0
                     cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", (root_key, json.dumps(data)))
                     DB_CONNECTION.commit()
                     return {
@@ -258,21 +391,34 @@ def modify_player_numeric(key: str, delta: int) -> dict:
                         "old_value": current_val,
                         "new_value": 0,
                         "delta": delta,
-                        "item_depleted": True,
-                        "depleted_item": consumable_name,
+                        "clamped": True,
+                        "message": f"Consumable '{consumable_name}' cannot go below 0. Set to 0.",
                     }
-            
+                del data[consumable_name]
+                cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", (root_key, json.dumps(data)))
+                DB_CONNECTION.commit()
+                return {
+                    "success": True,
+                    "key": key,
+                    "old_value": current_val,
+                    "new_value": 0,
+                    "delta": delta,
+                    "item_depleted": True,
+                    "depleted_item": consumable_name,
+                    "message": f"DEPLETED — {consumable_name} has been used up and removed from consumables.",
+                }
+
             cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", (root_key, json.dumps(data)))
         else:
             cursor.execute("SELECT value FROM player WHERE key = ?", (key,))
             row = cursor.fetchone()
             if not row:
                 return {"success": False, "error": f"Key {key} not found in database.", "key": key}
-            
+
             current_val = int(row[0])
             new_val = current_val + delta
             cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", (key, str(new_val)))
-        
+
         DB_CONNECTION.commit()
         result = {
             "success": True,
@@ -296,13 +442,28 @@ def modify_player_numeric(key: str, delta: int) -> dict:
                     for db_key, db_value in changes.items():
                         cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", (db_key, db_value))
                     DB_CONNECTION.commit()
+
+                    total_hp = int(changes.get('total_hit_points', new_val))
+
                     result["level_up"] = True
                     result["old_level"] = current_level
                     result["new_level"] = new_level
                     result["level_up_changes"] = summary
+                    result["level_up_summary"] = f"LEVEL UP! Level {current_level} → {new_level}. " + "; ".join(summary)
+                    result["hp_status"] = _format_hp_status(
+                        int(changes.get('total_hit_points', total_hp)),
+                        int(changes.get('total_hit_points', total_hp))
+                    )
+                    result["message"] = (
+                        f"LEVEL UP! Level {current_level} → {new_level}. "
+                        f"Changes: {', '.join(summary)}. "
+                        f"You MUST still apply manually: class features, cantrips/spells, "
+                        f"ability score improvements (at levels 4/8/12/16/19), and subclass features."
+                    )
         return result
     except Exception as e:
         return {"success": False, "error": f"Error modifying numeric value: {str(e)}", "key": key}
+
 
 @mcp.tool()
 def update_player_list(key: str, item: str, action: str) -> dict:
@@ -310,19 +471,25 @@ def update_player_list(key: str, item: str, action: str) -> dict:
     Adds or removes an item from a player list. Supports dotted notation.
     For 'add' actions, use the format 'Item Name: Description' to include a description.
 
-    SPELLS_PREPARED CAPACITY ENFORCEMENT:
-    For prepared casters (Cleric, Druid, Wizard, Paladin, Artificer), the number of
-    spells_prepared is capped at: spellcasting ability modifier + character level.
-    - 'add': If the list is at capacity, the spell is REJECTED and an error is returned
-      with the current list and the maximum allowed count.
-    - 'remove': After removal, the response includes remaining capacity info.
+    SPELL CASTING RULES (enforced by this tool):
+    - Known casters (Bard, Sorcerer, Warlock, Ranger): Add/remove spells via 'spellcasting.spells_known'.
+    - Prepared casters (Cleric, Druid, Paladin, Artificer): Add/remove via 'spellcasting.spells_prepared'.
+      Capacity is enforced: max = spellcasting_ability_modifier + character_level.
+      At capacity, the tool rejects the add and returns the current spell list.
+    - Wizards: Add to 'spellcasting.spellbook' for the reference pool, then update 'spellcasting.spells_prepared'
+      separately for active casting. Only spells in spells_prepared can be cast.
+    - If a player tries to cast a spell not on their castable list, DO NOT resolve it mechanically.
+      Narrate that the spell is not known/prepared and list available castable spells.
 
-    Examples:
-    - Update inventory with description: update_player_list(key='inventory', item='Dagger: A rusty iron blade (1d4 piercing, Finesse, Light, Thrown (range 20/60))', action='add')
-    - Update inventory simply: update_player_list(key='inventory', item='Health Potion', action='add')
-    - Remove an item by name: update_player_list(key='spellcasting.spells_known', item='Shield', action='remove')
-    - Remove a prepared spell: update_player_list(key='spellcasting.spells_prepared', item='Bless', action='remove')
-    - Add a prepared spell (capacity enforced): update_player_list(key='spellcasting.spells_prepared', item='Fireball', action='add')
+    CONSUMABLES: NEVER use this tool for consumable quantity changes.
+    Use modify_player_numeric with key='consumables.ITEM' instead.
+
+    EXAMPLES:
+    - Inventory with description: update_player_list(key='inventory', item='Dagger: A rusty blade (1d4 piercing)', action='add')
+    - Inventory simple: update_player_list(key='inventory', item='Health Potion', action='add')
+    - Remove item: update_player_list(key='spellcasting.spells_known', item='Shield', action='remove')
+    - Add prepared spell: update_player_list(key='spellcasting.spells_prepared', item='Fireball', action='add')
+
     action: 'add' or 'remove'
     """
     global DB_CONNECTION
@@ -330,18 +497,18 @@ def update_player_list(key: str, item: str, action: str) -> dict:
         return {"success": False, "error": "Database not initialized.", "key": key}
     try:
         cursor = DB_CONNECTION.cursor()
-        
+
         if '.' in key:
             root_key = key.split('.')[0]
             cursor.execute("SELECT value FROM player WHERE key = ?", (root_key,))
             row = cursor.fetchone()
             if not row:
                 return {"success": False, "error": f"Root key {root_key} not found.", "key": key}
-            
+
             data = json.loads(row[0])
             path_in_obj = key[len(root_key)+1:]
             current_list = get_nested_value(data, path_in_obj)
-            
+
             if current_list is None or not isinstance(current_list, list):
                 return {"success": False, "error": f"Key {key} not found or is not a list.", "key": key}
         else:
@@ -358,9 +525,9 @@ def update_player_list(key: str, item: str, action: str) -> dict:
             desc = ""
             if ":" in item:
                 name, desc = [p.strip() for p in item.split(":", 1)]
-            
+
             new_entry = {"name": name, "description": desc} if (desc or ":" in item) else name
-            
+
             exists = any((isinstance(e, dict) and e.get("name") == name) or e == name for e in current_list)
             if exists:
                 result = {"success": False, "error": "already_exists", "key": key, "item": name, "action": action}
@@ -395,7 +562,7 @@ def update_player_list(key: str, item: str, action: str) -> dict:
             cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", (root_key, json.dumps(data)))
         else:
             cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", (key, json.dumps(current_list)))
-        
+
         DB_CONNECTION.commit()
 
         display_list = []
@@ -426,98 +593,117 @@ def update_player_list(key: str, item: str, action: str) -> dict:
 @mcp.tool()
 def dump_player_db() -> dict:
     """
-    Returns a full dump of the current in-memory player database as a dictionary.
+    Returns a full dump of the current in-memory player database.
+    Use this tool to refresh your understanding of the player's stats, inventory, spell slots, and condition.
     """
     global DB_CONNECTION
     if DB_CONNECTION is None:
         return {"error": "Database not initialized."}
-    
+
     try:
         cursor = DB_CONNECTION.cursor()
         cursor.execute("SELECT * FROM player")
         rows = cursor.fetchall()
-        
+
         if not rows:
             return {}
-            
+
         result = {}
         for key, value in rows:
             try:
-                # Attempt to parse JSON strings back into python objects
                 result[key] = json.loads(value)
             except (json.JSONDecodeError, TypeError):
                 result[key] = value
-                
+
         return result
     except Exception as e:
         return {"error": f"Error dumping database: {str(e)}"}
 
+
 @mcp.tool()
 def roll_dice(dice_notation: str, modifier: int = 0, actor: str = "{player_name}") -> dict:
     """
-    Rolls dice based on standard notation. 
-    
-    DECISION GUIDE: Use this tool ONLY for "How much X?" scenarios (e.g., damage, healing, loot quantity, or random results).
-    CRITICAL: Do NOT use this tool for complexity checks, attacks, or any action where you need to determine success or failure. For those, use 'perform_check'.
-    
-    IMPORTANT: dice_notation must ONLY contain the dice (e.g., '3d4'). 
-    Do NOT include modifiers or operators like '+' in the notation string.
-    All bonuses or penalties MUST be passed as a separate integer in the modifier parameter.
-    
-    CRITICAL: The 'actor' parameter MUST identify who is performing the action.
-    - For the player character: use their actual character name (look it up from the database).
-    - For NPCs or creatures: use their specific name (e.g., 'Senna', 'Goblin Brute', 'Guard Captain').
-    NEVER use the player's name for NPC actions, and NEVER use an NPC's name for the player's actions.
-    
+    Rolls dice based on standard notation.
+
+    DECISION GUIDE: Use this tool ONLY for "How much X?" scenarios — damage, healing, loot quantity,
+    initiative, or any situation where you need a random magnitude. Do NOT use this for success/failure
+    checks; use 'perform_check' instead.
+
+    RULES:
+    - dice_notation must ONLY contain the dice (e.g., '3d4'). Do NOT include modifiers like '+3' in the string.
+    - All bonuses or penalties MUST go in the modifier parameter.
+    - The actor parameter MUST identify who is rolling: use the player's character name for the player,
+      and the NPC/creature's name for NPCs (e.g., 'Goblin Brute', 'Guard Captain').
+    - NEVER use the player's name for NPC actions, and NEVER use an NPC's name for the player's actions.
+
     Correct: roll_dice(actor='Senna', dice_notation='3d4', modifier=3)
     Correct: roll_dice(actor='Goblin Brute', dice_notation='1d6', modifier=2)
     Incorrect: roll_dice(dice_notation='3d4+3', modifier=0)
+
+    The response includes a 'narrative_format' field with a pre-formatted string suitable for direct
+    inclusion in your narrative output. Use this format when disclosing roll results to the player.
     """
     try:
-        # Parse notation like '2d6'
         parts = dice_notation.lower().split('d')
         if len(parts) != 2:
             return {"error": "Invalid dice notation. Use format 'XdY' (e.g., '2d6')."}
-        
+
         num_dice = int(parts[0]) if parts[0] else 1
         die_size = int(parts[1])
-        
+
         if num_dice <= 0 or die_size <= 0:
             return {"error": "Number of dice and die size must be positive integers."}
 
         rolls = [random.randint(1, die_size) for _ in range(num_dice)]
         total = sum(rolls) + modifier
-        
+
+        rolls_str = " + ".join(str(r) for r in rolls)
+        if modifier != 0:
+            narrative = f"{actor} {dice_notation}: {total} ({rolls_str} + {modifier})"
+        else:
+            narrative = f"{actor} {dice_notation}: {total} ({rolls_str})"
+
         return {
             "actor": actor,
             "notation": dice_notation,
             "rolls": rolls,
             "modifier": modifier,
-            "total": total
+            "total": total,
+            "narrative_format": narrative,
         }
     except ValueError:
         return {"error": "Invalid dice notation. Please provide integers (e.g., '2d6')."}
 
+
 @mcp.tool()
 def perform_check(modifier: int, dc: int, check_name: str = "Check", actor: str = "{player_name}") -> dict:
     """
-    Performs a D&D 5E complexity check.
-    
-    DECISION GUIDE: Use this tool for any "Can I do X?" or "Does Y happen?" scenarios. 
-    This is the ONLY tool for attacks, skill checks, and saving throws. 
-    If the outcome is binary (Success/Failure) and depends on a Difficulty Class (DC), use this tool.
-    
-    CRITICAL: The 'actor' parameter MUST identify who is performing the action.
-    - For the player character: use their actual character name (look it up from the database).
-    - For NPCs or creatures: use their specific name (e.g., 'Senna', 'Guard Captain').
-    NEVER use the player's name for NPC actions, and NEVER use an NPC's name for the player's actions.
-    
-    Example: perform_check(actor='Senna', modifier=1, dc=13, check_name='Deception')
-    Example: perform_check(actor='Guard Captain', modifier=3, dc=15, check_name='Intimidation')
+    Performs a D&D 5E difficulty check (d20 roll + modifier vs DC).
+
+    DECISION GUIDE: Use this for ANY "Can I do X?" or "Does Y happen?" scenario — attacks, skill checks,
+    saving throws, ability checks, any binary success/failure determination. This is the ONLY tool for
+    determining success or failure.
+
+    RULES:
+    - The actor parameter MUST identify who is performing the action: use the player's character name
+      for the player, and the NPC/creature's name for NPCs (e.g., 'Senna', 'Guard Captain').
+    - NEVER use the player's name for NPC actions, and NEVER use an NPC's name for the player's actions.
+    - Natural 20 = Critical Success (always succeeds). Natural 1 = Critical Failure (always fails).
+
+    DC REFERENCE: Easy=10, Medium=15, Hard=20
+
+    The response includes a 'narrative_format' field with a pre-formatted string suitable for direct
+    inclusion in your narrative output. Use this format when disclosing check results to the player.
+    Every check result MUST appear in your narrative using this exact format.
+
+    Examples:
+    - perform_check(actor='Thorin', modifier=5, dc=15, check_name='Athletics')
+    - perform_check(actor='Guard Captain', modifier=2, dc=13, check_name='Perception')
+    - perform_check(actor='Senna', modifier=1, dc=13, check_name='Deception')
     """
     roll = random.randint(1, 20)
     total = roll + modifier
-   
+
     if roll == 20:
         result = "Critical Success"
     elif roll == 1:
@@ -526,22 +712,27 @@ def perform_check(modifier: int, dc: int, check_name: str = "Check", actor: str 
         result = "Success"
     else:
         result = "Failure"
-   
-    return {
+
+    narrative = f"{actor} {check_name}: {total} vs DC {dc} ({result}) ({roll} + {modifier})"
+
+    response = {
         "actor": actor,
         "check_name": check_name,
         "base_roll": roll,
         "modifier": modifier,
         "total": total,
         "dc_to_beat": dc,
-        "outcome": result
+        "outcome": result,
+        "narrative_format": narrative,
     }
+
+    return response
+
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         player_file = sys.argv[1]
         init_status = init_player_db(player_file)
-        # Log the status to stderr because stdout is reserved for MCP
         print(f"Server DB Init: {init_status}", file=sys.stderr)
-    
+
     mcp.run(transport="stdio")
