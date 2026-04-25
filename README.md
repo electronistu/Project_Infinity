@@ -4,6 +4,10 @@ A text-based RPG where an AI acts as your Dungeon Master — with real dice roll
 
 ![Project Infinity TUI](screenshot.png)
 
+*Running on GPT-5.5 Pro:*
+
+![Project Infinity TUI — GPT-5.5 Pro session](screenshot2.png)
+
 ---
 
 ## What Makes This Different?
