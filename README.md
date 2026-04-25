@@ -40,7 +40,7 @@ pip install -r requirements.txt
 
 ### 3. Choose Your AI Backend
 
-#### Option A: Ollama (Free, Local)
+#### Option A: Ollama (Free and Paid)
 
 1. Install [Ollama](https://ollama.ai/) and make sure it's running.
 2. Download a supported model:
@@ -55,7 +55,7 @@ Set your API key as an environment variable:
 ```bash
 export OPENAI_API_KEY=your-api-key
 ```
-Supported models: `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.4-nano`
+Supported models: `gpt-5.5-pro`, `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.4-nano`
 
 #### Option C: Gemini (Cloud, Paid)
 
@@ -147,15 +147,19 @@ All three play scripts accept the following flags:
 |------|-------------|
 | `--verbose`, `-v` | Show all tool calls and their results behind the scenes |
 | `--debug`, `-d` | Show raw AI responses including internal reasoning (also enables `--verbose`) |
-| `--temperature`, `-t` | Set sampling temperature (Ollama/OpenAI default: 0.0, Gemini default: 1.0) |
+| `--temperature`, `-t` | Set sampling temperature (Ollama/OpenAI default: 0.0, Gemini default: 1.0). Ignored for GPT-5.5 models (temperature is deprecated). |
 | `--think` | Enable thinking/reasoning for the model as a boolean toggle (Ollama only) |
-| `--thinking-level` | Enable structured AI reasoning with effort level: `LOW`, `MEDIUM`, `HIGH`. Experimental — see Known Issues. |
+| `--thinking-level` | Enable structured AI reasoning with effort level: `LOW`, `MEDIUM`, `HIGH`, `XHIGH`. `XHIGH` is exclusive to Pro/Enterprise-tier models. See Known Issues. |
+| `--verbosity` | Control output verbosity for GPT-5.5 models: `low`, `medium`, `high` (default: `medium`). Ignored by other backends. |
+| `--max-output-tokens` | Maximum output tokens for GPT-5.5 models (default: 16384). Includes thinking tokens. Ignored by other backends. |
 
 Examples:
 ```bash
 python3 play.py --temperature 0.6 --think
 python3 play_with_gemini.py --temperature 0.7
 python3 play_with_gpt.py --debug
+python3 play_with_gpt.py --thinking-level HIGH --verbosity low
+python3 play_with_gpt.py --thinking-level XHIGH --max-output-tokens 32000
 python3 play.py --thinking-level MEDIUM --verbose
 python3 play_with_gemini.py --thinking-level MEDIUM --verbose
 ```
@@ -173,7 +177,13 @@ When the game is running with `--debug`, the engine logs:
 
 ## Known Issues
 
-### GPT-5.4 Models
+### GPT-5.5 Models (Responses API)
+
+GPT-5.5 models consume "thinking tokens" from the total `--max-output-tokens` budget. If this is set too low, the model may run out of space before finishing its reasoning, leading to truncated responses. Increase `--max-output-tokens` if you see incomplete output.
+
+Temperature is deprecated for GPT-5.5 models (internally locked to 1.0). Use `--thinking-level` and `--verbosity` to control behavior instead.
+
+### GPT-5.4 Models (Legacy)
 
 GPT-5.4 models sometimes return completely empty responses (no text, no tool calls). The engine automatically detects this and re-sends your last action as a new message, up to 3 times. If retries are exhausted, the empty response is shown as-is.
 

@@ -335,5 +335,7 @@ async def run_game(chat_fn, model, context_window, verbose=False, debug=False):
     except KeyboardInterrupt:
         console.print("\n[yellow]Game interrupted. Goodbye.[/yellow]")
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         console.print(f"\n[bold red]Fatal error: {e}[/bold red]")
         console.print("[dim]The game session has ended unexpectedly.[/dim]")
