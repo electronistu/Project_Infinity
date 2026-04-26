@@ -360,7 +360,9 @@ def modify_player_numeric(key: str, delta: int) -> dict:
                     data = {}
                     auto_init_root = True
                 else:
-                    return {"success": False, "error": f"Root key {root_key} not found.", "key": key}
+                    cursor.execute("SELECT key FROM player")
+                    available = [r[0] for r in cursor.fetchall()]
+                    return {"success": False, "error": f"Root key '{root_key}' not found.", "available_keys": available, "key": key}
             else:
                 data = json.loads(row[0])
 
@@ -373,7 +375,7 @@ def modify_player_numeric(key: str, delta: int) -> dict:
                 elif key.startswith("consumables."):
                     current_val = 0
                 else:
-                    return {"success": False, "error": f"Key {key} not found in database.", "key": key}
+                    return {"success": False, "error": f"Key '{key}' not found in database.", "available_nested_keys": list(data.keys()), "key": key}
 
             current_val = int(current_val)
             new_val = current_val + delta
@@ -413,7 +415,9 @@ def modify_player_numeric(key: str, delta: int) -> dict:
             cursor.execute("SELECT value FROM player WHERE key = ?", (key,))
             row = cursor.fetchone()
             if not row:
-                return {"success": False, "error": f"Key {key} not found in database.", "key": key}
+                cursor.execute("SELECT key FROM player")
+                available = [r[0] for r in cursor.fetchall()]
+                return {"success": False, "error": f"Key '{key}' not found in database.", "available_keys": available, "key": key}
 
             current_val = int(row[0])
             new_val = current_val + delta
@@ -427,6 +431,12 @@ def modify_player_numeric(key: str, delta: int) -> dict:
             "new_value": new_val,
             "delta": delta,
         }
+        if key.startswith("spellcasting.slots."):
+            cursor.execute("SELECT value FROM player WHERE key = ?", ("spellcasting",))
+            sc_row = cursor.fetchone()
+            if sc_row:
+                sc_data = json.loads(sc_row[0])
+                result["remaining_slots"] = {f"lv{k}": v for k, v in sc_data.get("slots", {}).items()}
         if key == "xp":
             cursor.execute("SELECT value FROM player WHERE key = ?", ("level",))
             level_row = cursor.fetchone()
@@ -468,27 +478,32 @@ def modify_player_numeric(key: str, delta: int) -> dict:
 @mcp.tool()
 def update_player_list(key: str, item: str, action: str) -> dict:
     """
-    Adds or removes an item from a player list. Supports dotted notation.
-    For 'add' actions, use the format 'Item Name: Description' to include a description.
+    Adds or removes an item from a player list.
 
     SPELL CASTING RULES (enforced by this tool):
-    - Known casters (Bard, Sorcerer, Warlock, Ranger): Add/remove spells via 'spellcasting.spells_known'.
-    - Prepared casters (Cleric, Druid, Paladin, Artificer): Add/remove via 'spellcasting.spells_prepared'.
-      Capacity is enforced: max = spellcasting_ability_modifier + character_level.
+    - Known casters (Bard, Sorcerer, Warlock, Ranger): use 'spellcasting.spells_known'.
+    - Prepared casters (Cleric, Druid, Paladin, Artificer): use 'spellcasting.spells_prepared'.
+      Capacity enforced: max = spellcasting_ability_modifier + character_level.
       At capacity, the tool rejects the add and returns the current spell list.
-    - Wizards: Add to 'spellcasting.spellbook' for the reference pool, then update 'spellcasting.spells_prepared'
-      separately for active casting. Only spells in spells_prepared can be cast.
+    - Wizards: add to 'spellcasting.spellbook' for the reference pool, then prepare via 'spellcasting.spells_prepared'.
     - If a player tries to cast a spell not on their castable list, DO NOT resolve it mechanically.
       Narrate that the spell is not known/prepared and list available castable spells.
 
     CONSUMABLES: NEVER use this tool for consumable quantity changes.
     Use modify_player_numeric with key='consumables.ITEM' instead.
 
+    VALID KEYS:
+    inventory, spellcasting.spells_known, spellcasting.spells_prepared,
+    spellcasting.spellbook, spellcasting.cantrips, skills, features,
+    languages, saves, armor_proficiencies, weapon_proficiencies, tool_proficiencies
+
+    FORMAT: 'Item Name: Description' (description optional)
+
     EXAMPLES:
-    - Inventory with description: update_player_list(key='inventory', item='Dagger: A rusty blade (1d4 piercing)', action='add')
-    - Inventory simple: update_player_list(key='inventory', item='Health Potion', action='add')
-    - Remove item: update_player_list(key='spellcasting.spells_known', item='Shield', action='remove')
-    - Add prepared spell: update_player_list(key='spellcasting.spells_prepared', item='Fireball', action='add')
+    - update_player_list(key='inventory', item='Dagger: A rusty blade (1d4 piercing)', action='add')
+    - update_player_list(key='inventory', item='Health Potion', action='add')
+    - update_player_list(key='spellcasting.spells_known', item='Shield', action='remove')
+    - update_player_list(key='spellcasting.spells_prepared', item='Fireball', action='add')
 
     action: 'add' or 'remove'
     """
@@ -503,19 +518,23 @@ def update_player_list(key: str, item: str, action: str) -> dict:
             cursor.execute("SELECT value FROM player WHERE key = ?", (root_key,))
             row = cursor.fetchone()
             if not row:
-                return {"success": False, "error": f"Root key {root_key} not found.", "key": key}
+                cursor.execute("SELECT key FROM player")
+                available = [r[0] for r in cursor.fetchall()]
+                return {"success": False, "error": f"Root key '{root_key}' not found.", "available_keys": available, "key": key}
 
             data = json.loads(row[0])
             path_in_obj = key[len(root_key)+1:]
             current_list = get_nested_value(data, path_in_obj)
 
             if current_list is None or not isinstance(current_list, list):
-                return {"success": False, "error": f"Key {key} not found or is not a list.", "key": key}
+                return {"success": False, "error": f"Key '{key}' not found or is not a list.", "available_nested_keys": list(data.keys()), "key": key}
         else:
             cursor.execute("SELECT value FROM player WHERE key = ?", (key,))
             row = cursor.fetchone()
             if not row:
-                return {"success": False, "error": f"Key {key} not found in database.", "key": key}
+                cursor.execute("SELECT key FROM player")
+                available = [r[0] for r in cursor.fetchall()]
+                return {"success": False, "error": f"Key '{key}' not found in database.", "available_keys": available, "key": key}
             current_list = json.loads(row[0]) if 'json' in row[0] or '[' in row[0] else [row[0]]
 
         is_prepared_spells = (key == "spellcasting.spells_prepared")
@@ -644,6 +663,9 @@ def roll_dice(dice_notation: str, modifier: int = 0, actor: str = "{player_name}
     inclusion in your narrative output. Use this format when disclosing roll results to the player.
     """
     try:
+        if actor == "{player_name}" and DB_CONNECTION is not None:
+            actor = _db_val(DB_CONNECTION.cursor(), "name", "Player")
+
         parts = dice_notation.lower().split('d')
         if len(parts) != 2:
             return {"error": "Invalid dice notation. Use format 'XdY' (e.g., '2d6')."}
@@ -701,6 +723,9 @@ def perform_check(modifier: int, dc: int, check_name: str = "Check", actor: str 
     - perform_check(actor='Guard Captain', modifier=2, dc=13, check_name='Perception')
     - perform_check(actor='Senna', modifier=1, dc=13, check_name='Deception')
     """
+    if actor == "{player_name}" and DB_CONNECTION is not None:
+        actor = _db_val(DB_CONNECTION.cursor(), "name", "Player")
+
     roll = random.randint(1, 20)
     total = roll + modifier
 
