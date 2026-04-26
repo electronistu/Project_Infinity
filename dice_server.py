@@ -498,7 +498,7 @@ def update_player_list(key: str, item: str, action: str) -> dict:
     FORMAT: 'Item Name: Description' (description optional)
 
     EXAMPLES:
-    - update_player_list(key='inventory', item='Dagger: A rusty blade (1d4 piercing)', action='add')
+    - update_player_list(key='inventory', item='Dagger: A rusty blade (1d4 piercing, Finesse, Light, Thrown (range 20/60))', action='add')
     - update_player_list(key='inventory', item='Health Potion', action='add')
     - update_player_list(key='spellcasting.spells_known', item='Shield', action='remove')
     - update_player_list(key='spellcasting.spells_prepared', item='Fireball', action='add')
