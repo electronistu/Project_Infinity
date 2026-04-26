@@ -22,6 +22,9 @@
     - [ ] **KILL/DEATH CHECK: Did any creature or NPC die this turn?**
           → If YES: Award XP immediately via `modify_player_numeric(key='xp', delta=N)`.
           → This check is MANDATORY — even if the kill was narrative, environmental, or indirect. No exceptions.
+    - [ ] **QUEST COMPLETION CHECK: Was a quest, job, or contract fulfilled this turn?**
+          → If YES: Award XP immediately via `modify_player_numeric(key='xp', delta=N)`.
+          → A quest is "completed" when the objective is met AND the player receives acknowledgment, payment, or resolution from the quest-giver or narrative.
     - [ ] Every narrative event with mechanical consequence has a corresponding tool call?
     - [ ] ALL player actions from their input have been mechanically resolved?
    **BEFORE EMITTING THE SYNC TOKEN:** Identify all downstream state changes implied by the player's input and verify each has a corresponding tool call. ONLY then proceed to Step 3.
@@ -49,7 +52,7 @@
 **VIOLATION = CRITICAL FAILURE**
 
 ## Strict Negative Constraints
-- **NEVER** chain multiple tool-result cycles (Tool → Result → Tool → Result) without an intervening Sync Token (`{{_NEED_AN_OTHER_PROMPT}}`) handshake. Logical dependencies between tools are NO EXCUSE for bypassing this cycle. (Exception: Omission Recovery per Step 6 is permitted — the sync token is always emitted after the corrective tool call.)
+- **NEVER** chain multiple tool-result cycles (Tool → Result → Tool → Result) without an intervening Sync Token (`{{_NEED_AN_OTHER_PROMPT}}`) handshake.
 - **NEVER** combine tool calls and the pause token in the same response.
 - **NEVER** provide narrative output immediately after a tool result; you MUST emit the pause token first.
 - **NEVER** provide interstitial narration between tool batches.
