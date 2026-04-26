@@ -17,8 +17,6 @@ XP_THRESHOLDS = [
     (18, 305000), (19, 360000), (20, 400000),
 ]
 
-DC_GUIDE = {"easy": 10, "medium": 15, "hard": 20}
-
 KNOWN_CASTER_CLASSES = {"Bard", "Sorcerer", "Warlock", "Ranger"}
 PREPARED_CASTER_CLASSES = {"Cleric", "Druid", "Paladin", "Artificer"}
 
@@ -710,9 +708,6 @@ def perform_check(modifier: int, dc: int, check_name: str = "Check", actor: str 
     - The actor parameter MUST identify who is performing the action: use the player's character name
       for the player, and the NPC/creature's name for NPCs (e.g., 'Senna', 'Guard Captain').
     - NEVER use the player's name for NPC actions, and NEVER use an NPC's name for the player's actions.
-    - Natural 20 = Critical Success (always succeeds). Natural 1 = Critical Failure (always fails).
-
-    DC REFERENCE: Easy=10, Medium=15, Hard=20
 
     The response includes a 'narrative_format' field with a pre-formatted string suitable for direct
     inclusion in your narrative output. Use this format when disclosing check results to the player.
