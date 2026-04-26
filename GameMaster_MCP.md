@@ -131,7 +131,7 @@ systems:
         - action: reconcile_state
           method: "Use modify_player_numeric / update_player_list for any missed updates"
         - action: emit_completion
-          token: "{{_NEED_ANOTHER_PROMPT}}"
+          token: "{{_NEED_AN_OTHER_PROMPT}}"
       post_sync_behavior: |
         After emitting the sync token, DO NOT generate narrative.
         The sync is mechanical verification only.
