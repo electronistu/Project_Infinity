@@ -929,6 +929,8 @@ def resolve_attack(
     extra_damage_modifier: int = 0,
     is_npc_attack: bool = False,
     is_npc_vs_npc: bool = False,
+    advantage: bool = False,
+    force_crit: bool = False,
 ) -> dict:
     """
     Resolves a complete D&D 5E attack in one call: attack roll, damage roll,
@@ -952,6 +954,13 @@ def resolve_attack(
     works — if target_current_hp is provided and damage reduces the target to 0 or below,
     the response includes target_killed=True. Do NOT set both is_npc_attack and
     is_npc_vs_npc to True.
+
+    ADVANTAGE / FORCED CRIT (D&D 5e RAW):
+    - advantage=True: Rolls two d20s and uses the higher result (advantage).
+    - force_crit=True: Any successful hit (not a natural 1) is treated as a Critical
+      Success. Use this for unconscious targets within 5 feet, paralyzed targets, etc.
+      Natural 1 is still a Critical Failure. Natural 20 is still a natural crit.
+    - Both can be combined (e.g. advantage + force_crit for an unconscious target).
 
     KILL DETECTION: If target_current_hp is provided and damage reduces the target
     to 0 or below, the response includes target_killed=True.
@@ -1001,24 +1010,43 @@ def resolve_attack(
         if actor == "{player_name}" and DB_CONNECTION is not None:
             actor = _db_val(cursor, "name", "Player")
 
-        d20 = random.randint(1, 20)
+        if advantage:
+            d20_1 = random.randint(1, 20)
+            d20_2 = random.randint(1, 20)
+            d20 = max(d20_1, d20_2)
+            die_label = f"{min(d20_1, d20_2)} / {max(d20_1, d20_2)} → "
+        else:
+            d20 = random.randint(1, 20)
+            die_label = ""
+
         total_attack = d20 + attack_modifier
 
         is_natural_1 = (d20 == 1)
         is_natural_20 = (d20 == 20)
+        is_forced_crit = False
 
         if is_natural_1:
             outcome = "Critical Failure"
+            is_crit = False
         elif is_natural_20:
             outcome = "Critical Success"
+            is_crit = True
         elif total_attack >= target_ac:
-            outcome = "Success"
+            if force_crit:
+                outcome = "Critical Success"
+                is_crit = True
+                is_forced_crit = True
+            else:
+                outcome = "Success"
+                is_crit = False
         else:
             outcome = "Failure"
+            is_crit = False
 
+        adv_label = " (Advantage)" if advantage else ""
         narrative_parts = []
         narrative_parts.append(
-            f"{actor} Attack: {total_attack} vs AC {target_ac} ({outcome}) ({d20} + {attack_modifier})"
+            f"{actor} Attack{adv_label}: {die_label}{total_attack} vs AC {target_ac} ({outcome}) ({d20} + {attack_modifier})"
         )
 
         result = {
@@ -1030,8 +1058,15 @@ def resolve_attack(
             "total_attack": total_attack,
             "target_ac": target_ac,
             "outcome": outcome,
-            "is_crit": is_natural_20,
+            "is_crit": is_crit,
+            "is_natural_20": is_natural_20,
+            "advantage": advantage,
+            "force_crit": force_crit,
         }
+        if advantage:
+            result["advantage_rolls"] = [d20_1, d20_2]
+        if is_forced_crit:
+            result["forced_crit"] = True
 
         if outcome in ("Failure", "Critical Failure"):
             result["damage_total"] = 0
@@ -1194,6 +1229,8 @@ def resolve_magic_attack(
     ritual: bool = False,
     is_npc_vs_npc: bool = False,
     caster_level: int | None = None,
+    advantage: bool = False,
+    force_crit: bool = False,
 ) -> dict:
     """
     Resolves a complete D&D 5E spell attack in one call. Supports attack roll spells,
@@ -1229,8 +1266,17 @@ def resolve_magic_attack(
       On fail: full damage. On success: half damage (if save_half=true) or no damage.
     - "automatic": Always hits. Just roll damage. No attack roll or save needed.
 
+    ADVANTAGE / FORCED CRIT (D&D 5e RAW):
+    - advantage=True: Rolls two d20s for attack_roll spells and uses the higher result.
+    - force_crit=True: Any successful hit (not a natural 1) on an attack_roll spell is
+      treated as a Critical Success. Use for unconscious targets within 5 feet, etc.
+      Natural 1 is still a Critical Failure. Natural 20 is still a natural crit.
+    - These only apply to "attack_roll" spells. They are silently ignored for
+      "saving_throw" and "automatic" spells.
+
     CRITICAL HITS: Only apply to "attack_roll" type spells. On a natural 20, the base
     damage dice are doubled. Extra damage dice (from spell properties) are NOT doubled.
+    A forced_crit functions identically to a natural 20 for damage purposes.
 
     CANTRIP SCALING: Cantrips (level 0) scale automatically based on character level:
       Levels 1-4: base dice
@@ -1312,6 +1358,12 @@ def resolve_magic_attack(
                          spell_attack_modifier=6, target_ac=14,
                          target_name='Town Guard', target_current_hp=20,
                          is_npc_vs_npc=True, caster_level=11)
+
+    # Player casts Inflict Wounds on unconscious target (automatic crit within 5 feet)
+    resolve_magic_attack(spell_name='Inflict Wounds', actor='Electronistu',
+                         spell_attack_modifier=4, target_ac=10,
+                         target_name='Sleeping Guard', target_current_hp=6,
+                         challenge_rating=0, advantage=True, force_crit=True)
     """
     global DB_CONNECTION
     spells_db = _load_spells()
@@ -1343,6 +1395,10 @@ def resolve_magic_attack(
         sp_damage_on_miss = spell.get("damage_on_miss", None)
         sp_extra_damage_dice = spell.get("extra_damage_dice", None)
         sp_extra_damage_type = spell.get("extra_damage_type", None)
+        sp_hp_pool = spell.get("hp_pool", False)
+        sp_condition = spell.get("condition", None)
+        sp_condition_duration = spell.get("condition_duration", None)
+        sp_requires_concentration = spell.get("requires_concentration", False)
     else:
         if attack_type is None or damage_dice is None:
             available = sorted(spells_db.keys()) if spells_db else []
@@ -1374,6 +1430,10 @@ def resolve_magic_attack(
         sp_damage_on_miss = None
         sp_extra_damage_dice = None
         sp_extra_damage_type = None
+        sp_hp_pool = False
+        sp_condition = None
+        sp_condition_duration = None
+        sp_requires_concentration = False
 
     # ── SPELL SLOT MANAGEMENT ──
     is_cantrip = (sp_level == 0)
@@ -1536,10 +1596,18 @@ def resolve_magic_attack(
 
     # ── ATTACK ROLL ──
     if sp_attack_type == "attack_roll":
-        d20 = random.randint(1, 20)
+        if advantage:
+            d20_1 = random.randint(1, 20)
+            d20_2 = random.randint(1, 20)
+            d20 = max(d20_1, d20_2)
+            die_label = f"{min(d20_1, d20_2)} / {max(d20_1, d20_2)} → "
+        else:
+            d20 = random.randint(1, 20)
+            die_label = ""
         total_attack = d20 + spell_attack_modifier
         is_natural_1 = d20 == 1
         is_natural_20 = d20 == 20
+        is_forced_crit = False
 
         if is_natural_1:
             outcome = "Critical Failure"
@@ -1548,14 +1616,20 @@ def resolve_magic_attack(
             outcome = "Critical Success"
             is_crit = True
         elif total_attack >= target_ac:
-            outcome = "Success"
-            is_crit = False
+            if force_crit:
+                outcome = "Critical Success"
+                is_crit = True
+                is_forced_crit = True
+            else:
+                outcome = "Success"
+                is_crit = False
         else:
             outcome = "Failure"
             is_crit = False
 
+        adv_label = " (Advantage)" if advantage else ""
         narrative_parts.append(
-            f"{actor} {spell_name} Attack: {total_attack} vs AC {target_ac} ({outcome}) ({d20} + {spell_attack_modifier})"
+            f"{actor} {spell_name} Attack{adv_label}: {die_label}{total_attack} vs AC {target_ac} ({outcome}) ({d20} + {spell_attack_modifier})"
         )
 
         result["attack_roll"] = d20
@@ -1564,6 +1638,11 @@ def resolve_magic_attack(
         result["target_ac"] = target_ac
         result["outcome"] = outcome
         result["is_crit"] = is_crit
+        result["is_natural_20"] = is_natural_20
+        if advantage:
+            result["advantage_rolls"] = [d20_1, d20_2]
+        if is_forced_crit:
+            result["forced_crit"] = True
 
         if outcome in ("Failure", "Critical Failure"):
             if sp_damage_on_miss:
@@ -1625,6 +1704,14 @@ def resolve_magic_attack(
         result["save_type"] = sp_save_type
         result["save_half"] = sp_save_half
 
+        if sp_condition and save_outcome in ("Failure", "Critical Failure"):
+            result["condition"] = sp_condition
+            if sp_condition_duration:
+                result["condition_duration"] = sp_condition_duration
+            if sp_requires_concentration:
+                result["requires_concentration"] = True
+            narrative_parts.append(f"Condition: {sp_condition} ({sp_condition_duration})")
+
     # ── AUTOMATIC ──
     elif sp_attack_type == "automatic":
         outcome = "Hit"
@@ -1632,6 +1719,16 @@ def resolve_magic_attack(
         narrative_parts.append(f"{actor} {spell_name}: Automatic hit")
     else:
         return {"success": False, "error": f"Unknown attack_type '{sp_attack_type}'. Use 'attack_roll', 'saving_throw', or 'automatic'."}
+
+    # ── CONDITION APPLICATION (automatic / attack_roll hit) ──
+    if sp_attack_type in ("automatic", "attack_roll") and outcome in ("Hit", "Success", "Critical Success"):
+        if sp_condition:
+            result["condition"] = sp_condition
+            if sp_condition_duration:
+                result["condition_duration"] = sp_condition_duration
+            if sp_requires_concentration:
+                result["requires_concentration"] = True
+            narrative_parts.append(f"Condition: {sp_condition} ({sp_condition_duration})")
 
     # ── INSTANT KILL SPELLS ──
     if sp_instant_kill:
@@ -1706,6 +1803,36 @@ def resolve_magic_attack(
         result["damage_type"] = sp_damage_type
         if hp_result:
             result["hp_change"] = hp_result
+        result["narrative_format"] = "\n".join(narrative_parts)
+        return result
+
+    # ── HP POOL (Sleep, Color Spray) ──
+    if sp_hp_pool and not sp_healing:
+        pool_die_size, pool_rolls, pool_raw = _parse_and_roll_dice(final_dice)
+        if pool_die_size is None:
+            return {"success": False, "error": f"Invalid damage_dice notation for HP pool: '{final_dice}'."}
+        hp_pool_total = pool_raw + final_mod
+
+        pool_rolls_str = " + ".join(str(r) for r in pool_rolls)
+        pool_narrative = f"{actor} {spell_name} HP Pool: {hp_pool_total}"
+        if final_mod != 0:
+            pool_narrative += f" ({pool_rolls_str} + {final_mod})"
+        else:
+            pool_narrative += f" ({pool_rolls_str})"
+        narrative_parts.append(pool_narrative)
+
+        result["hp_pool"] = True
+        result["hp_pool_total"] = hp_pool_total
+        result["hp_pool_rolls"] = pool_rolls
+        result["damage_total"] = 0
+        result["target_killed"] = None
+        if sp_condition:
+            result["condition"] = sp_condition
+            if sp_condition_duration:
+                result["condition_duration"] = sp_condition_duration
+            if sp_requires_concentration:
+                result["requires_concentration"] = True
+            narrative_parts.append(f"Condition: {sp_condition} ({sp_condition_duration})")
         result["narrative_format"] = "\n".join(narrative_parts)
         return result
 
