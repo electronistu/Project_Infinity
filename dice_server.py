@@ -2,8 +2,15 @@ import random
 import sys
 import json
 import sqlite3
+import os
+import re
 from mcp.server.fastmcp import FastMCP
 from level_up import apply_level_up
+
+try:
+    import yaml
+except ImportError:
+    yaml = None
 
 mcp = FastMCP("InfinityRolls", log_level="WARNING")
 
@@ -19,6 +26,142 @@ XP_THRESHOLDS = [
 
 KNOWN_CASTER_CLASSES = {"Bard", "Sorcerer", "Warlock", "Ranger"}
 PREPARED_CASTER_CLASSES = {"Cleric", "Druid", "Paladin", "Artificer"}
+
+CR_XP_TABLE = {
+    0: 10, 0.125: 25, 0.25: 50, 0.5: 100,
+    1: 200, 2: 450, 3: 700, 4: 1100,
+    5: 1800, 6: 2300, 7: 2900, 8: 3900,
+    9: 5000, 10: 5900, 11: 7200, 12: 8400,
+    13: 10000, 14: 11500, 15: 13000, 16: 15000,
+    17: 18000, 18: 20000, 19: 22000, 20: 25000,
+    21: 33000, 22: 41000, 23: 50000, 24: 62000,
+    25: 75000, 26: 90000, 27: 105000, 28: 120000,
+    29: 135000, 30: 155000,
+}
+
+
+_SPELLS_DB = None
+
+
+def _load_spells() -> dict:
+    global _SPELLS_DB
+    if _SPELLS_DB is not None:
+        return _SPELLS_DB
+    if yaml is None:
+        _SPELLS_DB = {}
+        return _SPELLS_DB
+    config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "spells.yml")
+    if not os.path.exists(config_path):
+        _SPELLS_DB = {}
+        return _SPELLS_DB
+    with open(config_path, "r") as f:
+        spells_list = yaml.safe_load(f)
+    if spells_list is None:
+        _SPELLS_DB = {}
+    else:
+        _SPELLS_DB = {}
+        for s in spells_list:
+            _SPELLS_DB[s["name"].lower()] = s
+    return _SPELLS_DB
+
+
+def _parse_higher_levels(hl_str: str) -> tuple | None:
+    if not hl_str or not hl_str.startswith("+"):
+        return None
+    dice_match = re.match(r"\+(\d+)d(\d+)(?:\+(\d+))?", hl_str)
+    if dice_match:
+        num = int(dice_match.group(1))
+        size = int(dice_match.group(2))
+        flat = int(dice_match.group(3)) if dice_match.group(3) else 0
+        return ("dice", num, size, flat)
+    flat_match = re.match(r"\+(\d+)", hl_str)
+    if flat_match:
+        return ("flat", int(flat_match.group(1)), 0, 0)
+    return None
+
+
+def _compute_spell_damage(spell: dict, character_level: int, slot_level: int | None) -> tuple:
+    base_dice_str = spell.get("damage_dice", "0d0")
+    base_mod = spell.get("damage_modifier", 0)
+    native_level = spell.get("level", 0)
+
+    is_cantrip = native_level == 0
+    cantrip_scales = spell.get("cantrip_scaling", False)
+    scale_dice_str = spell.get("cantrip_scale_dice", None)
+
+    dice_str = base_dice_str
+    modifier = base_mod
+
+    if is_cantrip and cantrip_scales and scale_dice_str:
+        if character_level >= 17:
+            extra = 3
+        elif character_level >= 11:
+            extra = 2
+        elif character_level >= 5:
+            extra = 1
+        else:
+            extra = 0
+        if extra > 0:
+            dice_str = _multiply_dice_notation(base_dice_str, extra + 1)
+    elif slot_level is not None and slot_level > native_level and not is_cantrip:
+        hl_str = spell.get("higher_levels", None)
+        if hl_str:
+            levels_above = slot_level - native_level
+            parsed = _parse_higher_levels(hl_str)
+            if parsed:
+                kind, num, size, flat = parsed
+                if kind == "dice":
+                    extra_dice_str = f"{num * levels_above}d{size}"
+                    dice_str = _combine_dice(base_dice_str, extra_dice_str)
+                    modifier += flat * levels_above
+                elif kind == "flat":
+                    dice_str = base_dice_str
+                    modifier += num * levels_above
+
+    extra_dice_str = spell.get("extra_damage_dice", None)
+    if extra_dice_str and slot_level is not None and slot_level > native_level and not is_cantrip:
+        ehl_str = spell.get("extra_higher_levels", None)
+        if ehl_str:
+            levels_above = slot_level - native_level
+            eparsed = _parse_higher_levels(ehl_str)
+            if eparsed:
+                ekind, enum, esize, eflat = eparsed
+                if ekind == "dice":
+                    extra_dice_str = _combine_dice(extra_dice_str, f"{enum * levels_above}d{esize}")
+
+    return dice_str, modifier, extra_dice_str
+
+
+def _multiply_dice_notation(dice_str: str, multiplier: int) -> str:
+    if multiplier <= 1:
+        return dice_str
+    parts = dice_str.lower().split("d")
+    if len(parts) != 2:
+        return dice_str
+    try:
+        num = int(parts[0]) if parts[0] else 1
+        size = int(parts[1])
+        return f"{num * multiplier}d{size}"
+    except (ValueError, TypeError):
+        return dice_str
+
+
+def _combine_dice(d1: str, d2: str) -> str:
+    if not d2:
+        return d1
+    p1 = d1.lower().split("d")
+    p2 = d2.lower().split("d")
+    if len(p1) == 2 and len(p2) == 2:
+        try:
+            n1 = int(p1[0]) if p1[0] else 1
+            s1 = int(p1[1])
+            n2 = int(p2[0]) if p2[0] else 1
+            s2 = int(p2[1])
+            if s1 == s2:
+                return f"{n1 + n2}d{s1}"
+        except (ValueError, TypeError):
+            pass
+    return f"{d1}+{d2}"
 
 
 def get_level_for_xp(xp: int) -> int:
@@ -98,6 +241,68 @@ def _format_hp_status(current, total):
     tag = _hp_status_tag(current, total)
     pct = round((current / total) * 100) if total > 0 else 0
     return f"HP: {current}/{total} ({tag} {pct}%)"
+
+
+def _parse_and_roll_dice(dice_notation):
+    try:
+        parts = dice_notation.lower().split('d')
+        if len(parts) != 2:
+            return None, [], 0
+        num_dice = int(parts[0]) if parts[0] else 1
+        die_size = int(parts[1])
+        if num_dice <= 0 or die_size <= 0:
+            return None, [], 0
+        rolls = [random.randint(1, die_size) for _ in range(num_dice)]
+        return die_size, rolls, sum(rolls)
+    except (ValueError, TypeError):
+        return None, [], 0
+
+
+def _apply_hp_change(cursor, delta):
+    current_hp = int(_db_val(cursor, "current_hit_points", 0))
+    total_hp = int(_db_val(cursor, "total_hit_points", 1))
+    new_val = current_hp + delta
+
+    clamped = False
+    original_delta = delta
+    if new_val > total_hp:
+        new_val = total_hp
+        clamped = True
+    if new_val < 0:
+        new_val = 0
+        clamped = True
+
+    _db_set(cursor, "current_hit_points", str(new_val))
+    DB_CONNECTION.commit()
+
+    result = {
+        "success": True,
+        "key": "current_hit_points",
+        "old_value": current_hp,
+        "new_value": new_val,
+        "delta": original_delta,
+        "hp_status": _format_hp_status(new_val, total_hp),
+    }
+    if clamped:
+        result["clamped"] = True
+        if new_val == 0 and current_hp > 0:
+            result["status"] = "Unconscious"
+            result["death_saves"] = True
+            result["message"] = f"HP has reached 0. {result['hp_status']}. Begin death saves."
+        elif new_val == total_hp and delta > 0:
+            result["message"] = f"HP restored to maximum. {result['hp_status']}."
+        else:
+            result["message"] = f"Value was clamped. {result['hp_status']}."
+    elif new_val == 0 and current_hp > 0:
+        result["status"] = "Unconscious"
+        result["death_saves"] = True
+        result["message"] = f"HP has reached 0. {result['hp_status']}. Begin death saves."
+    elif total_hp > 0 and new_val == total_hp:
+        result["message"] = f"Fully healed. {result['hp_status']}."
+    else:
+        result["message"] = result["hp_status"]
+
+    return result
 
 
 def get_nested_value(data, path):
@@ -290,50 +495,7 @@ def modify_player_numeric(key: str, delta: int) -> dict:
         cursor = DB_CONNECTION.cursor()
 
         if key == "current_hit_points":
-            current_hp = int(_db_val(cursor, "current_hit_points", 0))
-            total_hp = int(_db_val(cursor, "total_hit_points", 1))
-            new_val = current_hp + delta
-
-            clamped = False
-            original_delta = delta
-            if new_val > total_hp:
-                new_val = total_hp
-                clamped = True
-            if new_val < 0:
-                new_val = 0
-                clamped = True
-
-            _db_set(cursor, "current_hit_points", str(new_val))
-            DB_CONNECTION.commit()
-
-            result = {
-                "success": True,
-                "key": key,
-                "old_value": current_hp,
-                "new_value": new_val,
-                "delta": original_delta,
-                "hp_status": _format_hp_status(new_val, total_hp),
-            }
-            if clamped:
-                result["clamped"] = True
-                if new_val == 0 and current_hp > 0:
-                    result["status"] = "Unconscious"
-                    result["death_saves"] = True
-                    result["message"] = f"HP has reached 0. {result['hp_status']}. Begin death saves."
-                elif new_val == total_hp and delta > 0:
-                    result["message"] = f"HP restored to maximum. {result['hp_status']}."
-                else:
-                    result["message"] = f"Value was clamped. {result['hp_status']}."
-            elif new_val == 0 and current_hp > 0:
-                result["status"] = "Unconscious"
-                result["death_saves"] = True
-                result["message"] = f"HP has reached 0. {result['hp_status']}. Begin death saves."
-            elif total_hp > 0 and new_val == total_hp:
-                result["message"] = f"Fully healed. {result['hp_status']}."
-            else:
-                result["message"] = result["hp_status"]
-
-            return result
+            return _apply_hp_change(cursor, delta)
 
         if key.startswith("spellcasting.slots."):
             slot_validation = _validate_spell_slot(cursor, key, delta)
@@ -700,9 +862,10 @@ def perform_check(modifier: int, dc: int, check_name: str = "Check", actor: str 
     """
     Performs a D&D 5E difficulty check (d20 roll + modifier vs DC).
 
-    DECISION GUIDE: Use this for ANY "Can I do X?" or "Does Y happen?" scenario — attacks, skill checks,
-    saving throws, ability checks, any binary success/failure determination. This is the ONLY tool for
-    determining success or failure.
+    DECISION GUIDE: For weapon/unarmed attacks, use 'resolve_attack' instead — it handles attack rolls,
+    damage, crits, HP application, kill detection, and XP award in a single call.
+    Use perform_check for skill checks, saving throws, and any other binary success/failure roll
+    that is NOT an attack.
 
     RULES:
     - The actor parameter MUST identify who is performing the action: use the player's character name
@@ -747,6 +910,954 @@ def perform_check(modifier: int, dc: int, check_name: str = "Check", actor: str 
     }
 
     return response
+
+
+@mcp.tool()
+def resolve_attack(
+    actor: str,
+    attack_modifier: int,
+    target_ac: int,
+    damage_dice: str,
+    damage_modifier: int = 0,
+    target_name: str = "",
+    target_current_hp: int | None = None,
+    challenge_rating: float | None = None,
+    extra_damage_dice: str = "",
+    extra_damage_modifier: int = 0,
+    is_npc_attack: bool = False,
+    is_npc_vs_npc: bool = False,
+) -> dict:
+    """
+    Resolves a complete D&D 5E attack in one call: attack roll, damage roll,
+    HP application (NPC attacks on the player), kill detection, and XP award.
+
+    Use this for ALL weapon and unarmed attacks — player vs NPC, NPC vs player,
+    and NPC vs NPC. Do NOT use this for spell attacks; use resolve_magic_attack
+    for spells instead.
+
+    CRITICAL HITS: On a natural 20, the primary damage dice are doubled automatically.
+    Extra damage dice are NOT doubled (representing elemental/sneak-attack bonus damage
+    that doesn't crit). If you want all dice doubled, put everything in damage_dice.
+
+    NPC ATTACKING PLAYER: Set is_npc_attack=True. The tool applies damage to the
+    player's HP automatically and returns the updated HP status. target_ac should be
+    the player's current AC.
+
+    NPC VS NPC: Set is_npc_vs_npc=True when one NPC attacks another NPC (e.g. a town
+    guard attacking a goblin). No player HP is modified, no XP is auto-awarded to the
+    player, and the GM must decide if any XP should be awarded. Kill detection still
+    works — if target_current_hp is provided and damage reduces the target to 0 or below,
+    the response includes target_killed=True. Do NOT set both is_npc_attack and
+    is_npc_vs_npc to True.
+
+    KILL DETECTION: If target_current_hp is provided and damage reduces the target
+    to 0 or below, the response includes target_killed=True.
+
+    XP AWARD: If challenge_rating is provided and the target is killed, XP is
+    automatically awarded to the player using the D&D 5E CR/XP table. This only
+    happens when is_npc_vs_npc=False — NPC-vs-NPC kills do NOT auto-award XP to the
+    player. The GM may choose to award XP manually via modify_player_numeric(key='xp')
+    if appropriate.
+
+    CR TABLE (for reference):
+      CR 0=10, 1/8=25, 1/4=50, 1/2=100, 1=200, 2=450, 3=700, 4=1100,
+      5=1800, 6=2300, 7=2900, 8=3900, 9=5000, 10=5900, 11=7200, 12=8400,
+      13=10000, 14=11500, 15=13000, 16=15000, 17=18000, 18=20000, 19=22000,
+      20=25000
+
+    EXAMPLES:
+    # Player attacks goblin with longsword
+    resolve_attack(actor='Electronistu', attack_modifier=4, target_ac=13,
+                   damage_dice='1d8', damage_modifier=2, target_name='Goblin',
+                   target_current_hp=12, challenge_rating=0.5)
+
+    # Goblin attacks player
+    resolve_attack(actor='Goblin', attack_modifier=4, target_ac=13,
+                   damage_dice='1d6', damage_modifier=2, target_name='Electronistu',
+                   is_npc_attack=True)
+
+    # Player attacks with a Flaming Dagger (1d4+3 piercing + 1d6 fire)
+    resolve_attack(actor='Electronistu', attack_modifier=5, target_ac=15,
+                   damage_dice='1d4', damage_modifier=3,
+                   extra_damage_dice='1d6', extra_damage_modifier=0,
+                   target_name='Orc Brute', target_current_hp=25,
+                   challenge_rating=0.5)
+
+    # Town guard attacks a goblin (NPC vs NPC, no XP for player)
+    resolve_attack(actor='Town Guard', attack_modifier=4, target_ac=13,
+                   damage_dice='1d8', damage_modifier=2, target_name='Goblin',
+                   target_current_hp=12, is_npc_vs_npc=True)
+    """
+    global DB_CONNECTION
+    if DB_CONNECTION is None:
+        return {"success": False, "error": "Database not initialized."}
+
+    try:
+        cursor = DB_CONNECTION.cursor()
+
+        if actor == "{player_name}" and DB_CONNECTION is not None:
+            actor = _db_val(cursor, "name", "Player")
+
+        d20 = random.randint(1, 20)
+        total_attack = d20 + attack_modifier
+
+        is_natural_1 = (d20 == 1)
+        is_natural_20 = (d20 == 20)
+
+        if is_natural_1:
+            outcome = "Critical Failure"
+        elif is_natural_20:
+            outcome = "Critical Success"
+        elif total_attack >= target_ac:
+            outcome = "Success"
+        else:
+            outcome = "Failure"
+
+        narrative_parts = []
+        narrative_parts.append(
+            f"{actor} Attack: {total_attack} vs AC {target_ac} ({outcome}) ({d20} + {attack_modifier})"
+        )
+
+        result = {
+            "success": True,
+            "actor": actor,
+            "target_name": target_name,
+            "attack_roll": d20,
+            "attack_modifier": attack_modifier,
+            "total_attack": total_attack,
+            "target_ac": target_ac,
+            "outcome": outcome,
+            "is_crit": is_natural_20,
+        }
+
+        if outcome in ("Failure", "Critical Failure"):
+            result["damage_total"] = 0
+            result["target_killed"] = None
+            if is_npc_vs_npc:
+                result["npc_vs_npc"] = True
+            result["narrative_format"] = narrative_parts[0]
+            return result
+
+        primary_die_size, primary_rolls, primary_sum = _parse_and_roll_dice(damage_dice)
+        if primary_die_size is None:
+            return {"success": False, "error": f"Invalid damage_dice notation: '{damage_dice}'. Use format 'XdY' (e.g., '2d6')."}
+
+        if outcome == "Critical Success":
+            crit_rolls = [random.randint(1, primary_die_size) for _ in range(len(primary_rolls))]
+            primary_damage = sum(primary_rolls) + sum(crit_rolls) + damage_modifier
+            crit_rolls_str = " + ".join(str(r) for r in crit_rolls)
+            if damage_modifier != 0:
+                narrative_parts.append(
+                    f"{actor} Damage: {primary_damage} ({' + '.join(str(r) for r in primary_rolls)} + {crit_rolls_str} + {damage_modifier}) [CRIT]"
+                )
+            else:
+                narrative_parts.append(
+                    f"{actor} Damage: {primary_damage} ({' + '.join(str(r) for r in primary_rolls)} + {crit_rolls_str}) [CRIT]"
+                )
+            result["crit_damage_rolls"] = crit_rolls
+        else:
+            primary_damage = sum(primary_rolls) + damage_modifier
+            if damage_modifier != 0:
+                narrative_parts.append(
+                    f"{actor} Damage: {primary_damage} ({' + '.join(str(r) for r in primary_rolls)} + {damage_modifier})"
+                )
+            else:
+                narrative_parts.append(
+                    f"{actor} Damage: {primary_damage} ({' + '.join(str(r) for r in primary_rolls)})"
+                )
+
+        extra_damage = 0
+        extra_rolls = []
+        extra_crit_rolls = []
+        if extra_damage_dice:
+            extra_die_size, extra_base_rolls, extra_base_sum = _parse_and_roll_dice(extra_damage_dice)
+            if extra_die_size is None:
+                return {"success": False, "error": f"Invalid extra_damage_dice notation: '{extra_damage_dice}'. Use format 'XdY' (e.g., '1d6')."}
+            extra_rolls = extra_base_rolls
+            if outcome == "Critical Success":
+                extra_crit_rolls = [random.randint(1, extra_die_size) for _ in range(len(extra_base_rolls))]
+                extra_damage = sum(extra_base_rolls) + sum(extra_crit_rolls) + extra_damage_modifier
+                extra_crit_str = " + ".join(str(r) for r in extra_crit_rolls)
+                if extra_damage_modifier != 0:
+                    narrative_parts.append(
+                        f"{actor} Extra Damage: {extra_damage} ({' + '.join(str(r) for r in extra_base_rolls)} + {extra_crit_str} + {extra_damage_modifier})"
+                    )
+                else:
+                    narrative_parts.append(
+                        f"{actor} Extra Damage: {extra_damage} ({' + '.join(str(r) for r in extra_base_rolls)} + {extra_crit_str})"
+                    )
+            else:
+                extra_damage = sum(extra_base_rolls) + extra_damage_modifier
+                if extra_damage_modifier != 0:
+                    narrative_parts.append(
+                        f"{actor} Extra Damage: {extra_damage} ({' + '.join(str(r) for r in extra_base_rolls)} + {extra_damage_modifier})"
+                    )
+                else:
+                    narrative_parts.append(
+                        f"{actor} Extra Damage: {extra_damage} ({' + '.join(str(r) for r in extra_base_rolls)})"
+                    )
+
+        total_damage = primary_damage + extra_damage
+
+        result["damage_total"] = total_damage
+        result["primary_damage"] = primary_damage
+        result["primary_damage_rolls"] = primary_rolls
+        result["damage_modifier"] = damage_modifier
+        result["primary_die_size"] = primary_die_size
+        if extra_damage_dice:
+            result["extra_damage"] = extra_damage
+            result["extra_damage_rolls"] = extra_rolls
+            result["extra_damage_modifier"] = extra_damage_modifier
+            if extra_crit_rolls:
+                result["extra_crit_rolls"] = extra_crit_rolls
+
+        if is_npc_attack and total_damage > 0:
+            hp_result = _apply_hp_change(cursor, -total_damage)
+            result["hp_change"] = hp_result
+            target_remaining = hp_result["new_value"]
+        elif is_npc_vs_npc:
+            result["npc_vs_npc"] = True
+            if target_current_hp is not None and total_damage > 0:
+                target_remaining = target_current_hp - total_damage
+                result["target_remaining_hp"] = target_remaining
+
+                if target_remaining <= 0:
+                    result["target_killed"] = True
+                    if target_name:
+                        narrative_parts.append(f"{target_name} HP: 0 (KILLED)")
+                else:
+                    result["target_killed"] = False
+                    if target_name:
+                        narrative_parts.append(f"{target_name} HP: {target_remaining}/{target_current_hp}")
+            else:
+                result["target_killed"] = None
+        elif not is_npc_attack and not is_npc_vs_npc and target_current_hp is not None:
+            target_remaining = target_current_hp - total_damage
+            result["target_remaining_hp"] = target_remaining
+
+            if target_remaining <= 0:
+                result["target_killed"] = True
+                if target_name:
+                    narrative_parts.append(f"{target_name} HP: 0 (KILLED)")
+            else:
+                result["target_killed"] = False
+                if target_name:
+                    narrative_parts.append(f"{target_name} HP: {target_remaining}/{target_current_hp}")
+
+            if result.get("target_killed") and challenge_rating is not None:
+                xp_awarded = CR_XP_TABLE.get(challenge_rating, CR_XP_TABLE.get(int(challenge_rating), 0))
+                if xp_awarded > 0:
+                    xp_result = modify_player_numeric(key="xp", delta=xp_awarded)
+                    result["xp_awarded"] = xp_awarded
+                    result["challenge_rating"] = challenge_rating
+                    result["xp_result"] = xp_result
+                    narrative_parts.append(f"XP Awarded: {xp_awarded}")
+                    if xp_result.get("level_up"):
+                        narrative_parts.append(xp_result["level_up_summary"])
+        else:
+            result["target_killed"] = None
+
+        result["narrative_format"] = "\n".join(narrative_parts)
+
+        return result
+
+    except Exception as e:
+        return {"success": False, "error": f"Error resolving attack: {str(e)}"}
+
+
+def _ordinal(n: int) -> str:
+    if 11 <= n <= 13:
+        return f"{n}th"
+    if n % 10 == 1:
+        return f"{n}st"
+    if n % 10 == 2:
+        return f"{n}nd"
+    if n % 10 == 3:
+        return f"{n}rd"
+    return f"{n}th"
+
+
+@mcp.tool()
+def resolve_magic_attack(
+    spell_name: str,
+    actor: str = "{player_name}",
+    spell_attack_modifier: int = 0,
+    spell_save_dc: int = 0,
+    target_ac: int | None = None,
+    target_name: str = "",
+    target_current_hp: int | None = None,
+    challenge_rating: float | None = None,
+    target_save_modifier: int = 0,
+    player_save_modifier: int | None = None,
+    slot_level: int | None = None,
+    is_npc_attack: bool = False,
+    attack_type: str | None = None,
+    save_type: str | None = None,
+    save_half: bool = True,
+    damage_dice: str | None = None,
+    damage_modifier: int = 0,
+    damage_type: str | None = None,
+    cantrip_scaling: bool = False,
+    higher_levels: str | None = None,
+    healing: bool = False,
+    aoe: bool = False,
+    ritual: bool = False,
+    is_npc_vs_npc: bool = False,
+    caster_level: int | None = None,
+) -> dict:
+    """
+    Resolves a complete D&D 5E spell attack in one call. Supports attack roll spells,
+    saving throw spells, and automatic-hit spells. Lookups spell properties from the
+    spells config, or uses custom override params if the spell is not found.
+
+    SPELL LOOKUP: The function first checks the spell database (config/spells.yml).
+    If found, all spell properties (attack_type, damage_dice, save_type, etc.) come from
+    the database. If NOT found, you MUST provide at minimum attack_type and damage_dice
+    as custom override parameters.
+
+    SPELL SLOT MANAGEMENT (AUTOMATIC):
+    - Cantrips (level 0): No spell slot consumed. Always castable.
+    - Leveled spells (level 1+): A spell slot of the appropriate level is consumed
+      automatically from the player's spellcasting profile. If the player has no slots
+      remaining at that level, the function returns an error with available slots —
+      NO dice are rolled, NO damage is dealt, NO spell effect is applied.
+    - The effective slot level is determined by:
+      1. The slot_level parameter, if provided (for upcasting, e.g. Fireball in a 5th-level slot).
+      2. The spell's native level from the database, if slot_level is not provided.
+      3. For custom spells not in the database: slot_level MUST be provided for leveled spells,
+         or the function returns an error.
+    - If slot_level is higher than the spell's native level, the spell is upcast and damage
+      scales automatically (per the spell's higher_levels field in spells.yml).
+    - ritual=True: Casts the spell as a ritual. No spell slot is consumed. Only valid for spells
+      with the Ritual tag in D&D 5E. The GM is responsible for ensuring the spell can be cast
+      as a ritual.
+    - NPC attacks (is_npc_attack=True or is_npc_vs_npc=True): No spell slot is deducted.
+
+    ATTACK TYPES:
+    - "attack_roll": d20 + spell_attack_modifier vs target_ac. Natural 20 = crit (double base dice).
+    - "saving_throw": Target rolls d20 + save_modifier vs spell_save_dc.
+      On fail: full damage. On success: half damage (if save_half=true) or no damage.
+    - "automatic": Always hits. Just roll damage. No attack roll or save needed.
+
+    CRITICAL HITS: Only apply to "attack_roll" type spells. On a natural 20, the base
+    damage dice are doubled. Extra damage dice (from spell properties) are NOT doubled.
+
+    CANTRIP SCALING: Cantrips (level 0) scale automatically based on character level:
+      Levels 1-4: base dice
+      Levels 5-10: base dice x2
+      Levels 11-16: base dice x3
+      Levels 17+: base dice x4
+    For NPC-vs-NPC combat, provide caster_level to control cantrip scaling. Without it,
+    cantrips use base damage (no scaling).
+
+    HEALING SPELLS: Set healing=true. Damage dice heal the target instead of dealing damage.
+    For player healing (is_npc_attack=False, target is ally), positive values restore HP.
+    Healing spells still consume a spell slot.
+
+    NPC ATTACKING PLAYER: Set is_npc_attack=True. Damage is applied to the player's HP
+    automatically for damaging spells. For saving throws, use player_save_modifier.
+    No spell slot is consumed for NPC attacks.
+
+    NPC VS NPC: Set is_npc_vs_npc=True when one NPC casts a spell on another NPC
+    (e.g. an enemy mage casting Fireball at a guard). No player HP is modified, no spell
+    slot is consumed, no XP is auto-awarded. For cantrip scaling, provide caster_level
+    to control the NPC caster's effective level. Do NOT set both is_npc_attack and
+    is_npc_vs_npc to True.
+
+    KILL DETECTION: If target_current_hp is provided and damage reduces the target to 0
+    or below, the response includes target_killed=True.
+
+    XP AWARD: If challenge_rating is provided and the target is killed, XP is automatically
+    awarded to the player. This only happens for player attacks (is_npc_attack=False,
+    is_npc_vs_npc=False). NPC-vs-NPC kills do NOT auto-award XP to the player.
+
+    EXAMPLES:
+    # Player casts Fireball (level 3 spell) - slot consumed automatically
+    resolve_magic_attack(spell_name='Fireball', actor='Electronistu',
+                         spell_save_dc=15,
+                         target_name='Goblin Shaman', target_current_hp=24,
+                         challenge_rating=1)
+
+    # Player upcasts Fireball using a 5th-level slot (8d6 damage) - 5th-level slot consumed
+    resolve_magic_attack(spell_name='Fireball', actor='Electronistu',
+                         spell_save_dc=15,
+                         target_name='Ogre', target_current_hp=60,
+                         challenge_rating=2, slot_level=5)
+
+    # Player casts Fire Bolt (cantrip, no slot consumed)
+    resolve_magic_attack(spell_name='Fire Bolt', actor='Electronistu',
+                         spell_attack_modifier=6, target_ac=14,
+                         target_name='Orc', target_current_hp=18,
+                         challenge_rating=0.5)
+
+    # Player casts Detect Magic as a ritual (no slot consumed)
+    resolve_magic_attack(spell_name='Detect Magic', actor='Electronistu',
+                         attack_type='saving_throw', save_type='wis',
+                         spell_save_dc=13, ritual=True)
+
+    # Player casts a custom homebrew spell not in the database
+    resolve_magic_attack(spell_name='Void Blast', actor='Electronistu',
+                         spell_attack_modifier=7, target_ac=16,
+                         attack_type='attack_roll',
+                         damage_dice='3d10', damage_type='force',
+                         target_name='Shadow Wraith', target_current_hp=40,
+                         challenge_rating=4, slot_level=3)
+
+    # NPC casts Magic Missile at the player (no slot consumed)
+    resolve_magic_attack(spell_name='Magic Missile', actor='Evil Wizard',
+                         is_npc_attack=True,
+                         attack_type='automatic',
+                         damage_dice='3d4', damage_modifier=3,
+                         damage_type='force',
+                         target_name='Electronistu')
+
+    # NPC mage casts Fireball at a guard (NPC vs NPC, no slot consumed, no XP)
+    resolve_magic_attack(spell_name='Fireball', actor='Dark Wizard',
+                         spell_save_dc=15, target_save_modifier=2,
+                         target_name='Town Guard', target_current_hp=30,
+                         is_npc_vs_npc=True, caster_level=7)
+
+    # NPC casts a cantrip at another NPC (cantrip scaling with caster_level)
+    resolve_magic_attack(spell_name='Fire Bolt', actor='Dark Wizard',
+                         spell_attack_modifier=6, target_ac=14,
+                         target_name='Town Guard', target_current_hp=20,
+                         is_npc_vs_npc=True, caster_level=11)
+    """
+    global DB_CONNECTION
+    spells_db = _load_spells()
+
+    if actor == "{player_name}" and DB_CONNECTION is not None:
+        cursor = DB_CONNECTION.cursor()
+        actor = _db_val(cursor, "name", "Player")
+    else:
+        cursor = DB_CONNECTION.cursor() if DB_CONNECTION is not None else None
+
+    spell_key = spell_name.lower().strip()
+    spell = spells_db.get(spell_key)
+
+    if spell:
+        sp_attack_type = spell.get("attack_type", "attack_roll")
+        sp_damage_dice = spell.get("damage_dice", "0d0")
+        sp_damage_modifier = spell.get("damage_modifier", 0)
+        sp_damage_type = spell.get("damage_type", "")
+        sp_save_type = spell.get("save_type", None)
+        sp_save_half = spell.get("save_half", True)
+        sp_healing = spell.get("healing", False)
+        sp_aoe = spell.get("aoe", False)
+        sp_cantrip_scaling = spell.get("cantrip_scaling", False)
+        sp_higher_levels = spell.get("higher_levels", None)
+        sp_level = spell.get("level", 0)
+        sp_no_damage = spell.get("no_damage", False)
+        sp_instant_kill = spell.get("instant_kill", False)
+        sp_instant_kill_threshold = spell.get("instant_kill_hp_threshold", 0)
+        sp_damage_on_miss = spell.get("damage_on_miss", None)
+        sp_extra_damage_dice = spell.get("extra_damage_dice", None)
+        sp_extra_damage_type = spell.get("extra_damage_type", None)
+    else:
+        if attack_type is None or damage_dice is None:
+            available = sorted(spells_db.keys()) if spells_db else []
+            return {
+                "success": False,
+                "error": f"Spell '{spell_name}' not found in spells database.",
+                "hint": "Provide attack_type and damage_dice to cast a custom spell, or use one of the known spells.",
+                "available_spells": available,
+                "custom_params_required": ["attack_type", "damage_dice"],
+                "custom_params_optional": [
+                    "save_type", "save_half", "damage_modifier", "damage_type",
+                    "cantrip_scaling", "higher_levels", "healing", "aoe",
+                ],
+            }
+        sp_attack_type = attack_type.lower().strip()
+        sp_damage_dice = damage_dice
+        sp_damage_modifier = damage_modifier
+        sp_damage_type = damage_type or ""
+        sp_save_type = save_type
+        sp_save_half = save_half
+        sp_healing = healing
+        sp_aoe = aoe
+        sp_cantrip_scaling = cantrip_scaling
+        sp_higher_levels = higher_levels
+        sp_level = slot_level if slot_level is not None else 0
+        sp_no_damage = False
+        sp_instant_kill = False
+        sp_instant_kill_threshold = 0
+        sp_damage_on_miss = None
+        sp_extra_damage_dice = None
+        sp_extra_damage_type = None
+
+    # ── SPELL SLOT MANAGEMENT ──
+    is_cantrip = (sp_level == 0)
+    slot_consumed = None
+    slot_level_used = None
+    slot_narrative = None
+
+    if not is_npc_attack and not is_npc_vs_npc and not is_cantrip and not ritual and DB_CONNECTION is not None:
+        if slot_level is not None:
+            effective_slot = slot_level
+        elif spell:
+            effective_slot = sp_level
+        else:
+            return {
+                "success": False,
+                "error": f"Cannot determine spell slot level for custom spell '{spell_name}'. Provide slot_level parameter.",
+                "spell_name": spell_name,
+                "hint": f"For custom spells, specify which slot level to use (e.g. slot_level=3 for a 3rd-level slot).",
+            }
+
+        if slot_level is not None and slot_level < sp_level:
+            return {
+                "success": False,
+                "error": f"Cannot cast {spell_name} (level {sp_level}) in a {slot_level}{_ordinal(slot_level).replace(str(slot_level), '')}-level slot. Slot level must be >= spell level ({sp_level}).",
+                "spell_name": spell_name,
+                "spell_level": sp_level,
+                "slot_level_provided": slot_level,
+                "hint": f"Upcasting requires a slot of level {sp_level} or higher. Use slot_level={sp_level} or above.",
+            }
+
+        slot_key = f"spellcasting.slots.{effective_slot}"
+        validation = _validate_spell_slot(cursor, slot_key, -1)
+
+        if validation:
+            cursor.execute("SELECT value FROM player WHERE key = ?", ("spellcasting",))
+            sc_row = cursor.fetchone()
+            available_slots = {}
+            if sc_row:
+                sc_data = json.loads(sc_row[0])
+                for k, v in sc_data.get("slots", {}).items():
+                    if int(v) > 0:
+                        available_slots[f"lv{k}"] = v
+            return {
+                "success": False,
+                "error": f"No level {effective_slot} spell slots remaining to cast {spell_name}.",
+                "spell_name": spell_name,
+                "slot_level_needed": effective_slot,
+                "available_slots": available_slots if available_slots else "No spell slots available.",
+                "hint": "Take a long rest to recover spell slots, or cast using a higher-level slot by providing slot_level.",
+            }
+
+        cursor.execute("SELECT value FROM player WHERE key = ?", ("spellcasting",))
+        sc_check = cursor.fetchone()
+        if sc_check:
+            sc_data_check = json.loads(sc_check[0])
+            str_effective_slot = str(effective_slot)
+            if str_effective_slot not in sc_data_check.get("slots", {}):
+                cursor.execute("SELECT key FROM player")
+                return {
+                    "success": False,
+                    "error": f"Player has no level {effective_slot} spell slots. Maximum available slot level may be insufficient for this spell.",
+                    "spell_name": spell_name,
+                    "slot_level_needed": effective_slot,
+                    "available_slots": {f"lv{k}": v for k, v in sc_data_check.get("slots", {}).items() if int(v) > 0} if sc_data_check.get("slots") else "No spell slots.",
+                    "hint": f"This character does not have level {effective_slot} spell slots available.",
+                }
+
+    # ── PARAMETER VALIDATION (before consuming the slot) ──
+    if sp_attack_type == "attack_roll" and target_ac is None:
+        return {"success": False, "error": f"Spell '{spell_name}' requires an attack roll. You must provide target_ac."}
+    if sp_attack_type == "saving_throw" and spell_save_dc <= 0:
+        return {"success": False, "error": f"Spell '{spell_name}' requires a saving throw. You must provide spell_save_dc."}
+
+    # ── CONSUME SPELL SLOT ──
+    slot_result_data = None
+    if not is_npc_attack and not is_npc_vs_npc and not is_cantrip and not ritual and DB_CONNECTION is not None:
+        slot_result_data = modify_player_numeric(key=slot_key, delta=-1)
+        slot_level_used = effective_slot
+        slot_consumed = True
+        if slot_result_data.get("success"):
+            new_remaining = slot_result_data.get("new_value", "?")
+            slot_narrative = f"Slot Used: {_ordinal(effective_slot)}-level ({new_remaining} remaining)"
+        else:
+            slot_narrative = f"Slot Used: {_ordinal(effective_slot)}-level"
+
+    elif not is_npc_attack and not is_npc_vs_npc and is_cantrip:
+        slot_consumed = "cantrip"
+        slot_narrative = "Cantrip — no slot used"
+    elif not is_npc_attack and not is_npc_vs_npc and ritual:
+        slot_consumed = "ritual"
+        slot_narrative = "Ritual Cast — no slot consumed"
+    elif is_npc_attack or is_npc_vs_npc:
+        slot_consumed = "npc"
+
+    if is_npc_attack:
+        character_level = 1
+    elif is_npc_vs_npc:
+        character_level = caster_level if caster_level is not None else 1
+    elif cursor:
+        character_level = int(_db_val(cursor, "level", 1))
+    else:
+        character_level = 1
+
+    computed_slot = slot_level if slot_level is not None else (sp_level if not sp_cantrip_scaling else 0)
+    final_dice, final_mod, final_extra_dice = _compute_spell_damage(
+        spell if spell else {
+            "damage_dice": sp_damage_dice,
+            "damage_modifier": sp_damage_modifier,
+            "level": sp_level,
+            "cantrip_scaling": sp_cantrip_scaling,
+            "cantrip_scale_dice": None,
+            "higher_levels": sp_higher_levels,
+            "extra_damage_dice": sp_extra_damage_dice,
+            "extra_damage_type": sp_extra_damage_type,
+            "extra_higher_levels": None,
+        },
+        character_level,
+        computed_slot if not sp_cantrip_scaling else None,
+    )
+
+    if sp_cantrip_scaling:
+        if character_level >= 17:
+            scale_count = 4
+        elif character_level >= 11:
+            scale_count = 3
+        elif character_level >= 5:
+            scale_count = 2
+        else:
+            scale_count = 1
+        scale_dice_str = spell.get("cantrip_scale_dice", None) if spell else None
+        if scale_dice_str and scale_count > 1:
+            base_parts = sp_damage_dice.lower().split("d")
+            try:
+                base_num = int(base_parts[0]) if base_parts[0] else 1
+                die_size = int(base_parts[1])
+                final_dice = f"{base_num * scale_count}d{die_size}"
+            except (ValueError, TypeError):
+                final_dice = sp_damage_dice
+        elif scale_count == 1:
+            final_dice = sp_damage_dice
+            final_mod = sp_damage_modifier
+
+    narrative_parts = []
+    if slot_narrative:
+        narrative_parts.append(slot_narrative)
+    result = {
+        "success": True,
+        "actor": actor,
+        "spell_name": spell_name,
+        "target_name": target_name,
+        "attack_type": sp_attack_type,
+        "slot_consumed": slot_consumed,
+    }
+    if slot_level_used is not None:
+        result["slot_level_used"] = slot_level_used
+    if slot_result_data is not None:
+        result["slot_result"] = slot_result_data
+
+    is_crit = False
+
+    # ── ATTACK ROLL ──
+    if sp_attack_type == "attack_roll":
+        d20 = random.randint(1, 20)
+        total_attack = d20 + spell_attack_modifier
+        is_natural_1 = d20 == 1
+        is_natural_20 = d20 == 20
+
+        if is_natural_1:
+            outcome = "Critical Failure"
+            is_crit = False
+        elif is_natural_20:
+            outcome = "Critical Success"
+            is_crit = True
+        elif total_attack >= target_ac:
+            outcome = "Success"
+            is_crit = False
+        else:
+            outcome = "Failure"
+            is_crit = False
+
+        narrative_parts.append(
+            f"{actor} {spell_name} Attack: {total_attack} vs AC {target_ac} ({outcome}) ({d20} + {spell_attack_modifier})"
+        )
+
+        result["attack_roll"] = d20
+        result["attack_modifier"] = spell_attack_modifier
+        result["total_attack"] = total_attack
+        result["target_ac"] = target_ac
+        result["outcome"] = outcome
+        result["is_crit"] = is_crit
+
+        if outcome in ("Failure", "Critical Failure"):
+            if sp_damage_on_miss:
+                miss_dice_str, _, _ = _parse_and_roll_dice(sp_damage_on_miss)
+                if miss_dice_str is not None:
+                    miss_die_size, miss_rolls, miss_sum = _parse_and_roll_dice(sp_damage_on_miss)
+                    miss_damage = miss_sum + final_mod
+                    narrative_parts.append(
+                        f"{actor} {spell_name} Miss Damage: {miss_damage} ({' + '.join(str(r) for r in miss_rolls)})"
+                    )
+                    result["miss_damage"] = miss_damage
+                    result["miss_damage_rolls"] = miss_rolls
+            result["damage_total"] = 0
+            result["target_killed"] = None
+            result["narrative_format"] = "\n".join(narrative_parts)
+            return result
+
+    # ── SAVING THROW ──
+    elif sp_attack_type == "saving_throw":
+        d20 = random.randint(1, 20)
+
+        d20 = random.randint(1, 20)
+
+        if is_npc_attack and player_save_modifier is not None:
+            save_mod = player_save_modifier
+            saver_name = target_name if target_name else "Player"
+        elif is_npc_attack:
+            save_mod = 0
+            saver_name = target_name if target_name else "Player"
+        else:
+            save_mod = target_save_modifier
+            saver_name = target_name if target_name else "Target"
+
+        total_save = d20 + save_mod
+        is_natural_1 = d20 == 1
+        is_natural_20 = d20 == 20
+
+        if is_natural_1:
+            save_outcome = "Critical Failure"
+            damage_multiplier = 1.0
+        elif is_natural_20:
+            save_outcome = "Critical Success"
+            damage_multiplier = 0.0 if not sp_save_half else 0.0
+        elif total_save >= spell_save_dc:
+            save_outcome = "Success"
+            damage_multiplier = 0.5 if sp_save_half else 0.0
+        else:
+            save_outcome = "Failure"
+            damage_multiplier = 1.0
+
+        save_label = sp_save_type.upper() if sp_save_type else "SAVE"
+        narrative_parts.append(
+            f"{saver_name} {save_label} Save: {total_save} vs DC {spell_save_dc} ({save_outcome}) ({d20} + {save_mod})"
+        )
+
+        result["save_roll"] = d20
+        result["save_modifier"] = save_mod
+        result["total_save"] = total_save
+        result["spell_save_dc"] = spell_save_dc
+        result["save_outcome"] = save_outcome
+        result["save_type"] = sp_save_type
+        result["save_half"] = sp_save_half
+
+    # ── AUTOMATIC ──
+    elif sp_attack_type == "automatic":
+        outcome = "Hit"
+        damage_multiplier = 1.0
+        narrative_parts.append(f"{actor} {spell_name}: Automatic hit")
+    else:
+        return {"success": False, "error": f"Unknown attack_type '{sp_attack_type}'. Use 'attack_roll', 'saving_throw', or 'automatic'."}
+
+    # ── INSTANT KILL SPELLS ──
+    if sp_instant_kill:
+        if sp_attack_type == "saving_throw" and damage_multiplier > 0:
+            result["instant_kill"] = True
+            narrative_parts.append(f"{target_name} is slain instantly by {spell_name}!")
+            result["damage_total"] = 0
+            result["target_killed"] = True
+            if challenge_rating is not None and target_name and not is_npc_attack:
+                xp_awarded = CR_XP_TABLE.get(challenge_rating, CR_XP_TABLE.get(int(challenge_rating), 0))
+                if xp_awarded > 0 and cursor:
+                    xp_result = modify_player_numeric(key="xp", delta=xp_awarded)
+                    result["xp_awarded"] = xp_awarded
+                    result["challenge_rating"] = challenge_rating
+                    result["xp_result"] = xp_result
+                    narrative_parts.append(f"XP Awarded: {xp_awarded}")
+            result["narrative_format"] = "\n".join(narrative_parts)
+            return result
+        elif sp_attack_type == "automatic":
+            if target_current_hp is not None and target_current_hp <= sp_instant_kill_threshold:
+                result["instant_kill"] = True
+                narrative_parts.append(f"{target_name} has {target_current_hp} HP (threshold: {sp_instant_kill_threshold}) — slain by {spell_name}!")
+                result["damage_total"] = 0
+                result["target_killed"] = True
+            elif target_current_hp is not None:
+                result["instant_kill"] = False
+                result["damage_total"] = 0
+                result["target_killed"] = False
+                narrative_parts.append(
+                    f"{target_name} has {target_current_hp} HP (threshold: {sp_instant_kill_threshold}) — {spell_name} fails!"
+                )
+            else:
+                result["instant_kill_possible"] = True
+                result["instant_kill_threshold"] = sp_instant_kill_threshold
+                result["damage_total"] = 0
+                result["target_killed"] = None
+            result["narrative_format"] = "\n".join(narrative_parts)
+            return result
+
+    # ── NO DAMAGE SPELLS ──
+    if sp_no_damage:
+        result["damage_total"] = 0
+        result["target_killed"] = None
+        result["narrative_format"] = "\n".join(narrative_parts)
+        return result
+
+    # ── DAMAGE / HEALING CALCULATION ──
+    if final_dice in ("0d0", "0", ""):
+        total_damage = sp_damage_modifier + final_mod
+        result["damage_total"] = total_damage
+        result["target_killed"] = None
+        result["narrative_format"] = "\n".join(narrative_parts)
+        return result
+
+    if sp_healing and not is_npc_attack and sp_attack_type == "automatic":
+        heal_die_size, heal_rolls, heal_raw = _parse_and_roll_dice(final_dice)
+        if heal_die_size is None:
+            return {"success": False, "error": f"Invalid damage_dice notation: '{final_dice}'. Use format 'XdY' (e.g., '2d6')."}
+        total_healing = heal_raw + final_mod
+
+        heal_rolls_str = " + ".join(str(r) for r in heal_rolls)
+        heal_narrative = f"{actor} {spell_name} Healing: {total_healing}"
+        if final_mod != 0:
+            heal_narrative += f" ({heal_rolls_str} + {final_mod})"
+        else:
+            heal_narrative += f" ({heal_rolls_str})"
+        narrative_parts.append(heal_narrative)
+
+        hp_result = _apply_hp_change(cursor, total_healing) if cursor else None
+        result["healing_total"] = total_healing
+        result["healing_rolls"] = heal_rolls
+        result["damage_type"] = sp_damage_type
+        if hp_result:
+            result["hp_change"] = hp_result
+        result["narrative_format"] = "\n".join(narrative_parts)
+        return result
+
+    # ── ROLL DAMAGE ──
+    primary_die_size, primary_rolls, primary_sum = _parse_and_roll_dice(final_dice)
+    if primary_die_size is None:
+        return {"success": False, "error": f"Invalid damage_dice notation: '{final_dice}'. Use format 'XdY' (e.g., '2d6')."}
+
+    if is_crit:
+        crit_rolls = [random.randint(1, primary_die_size) for _ in range(len(primary_rolls))]
+        primary_damage = sum(primary_rolls) + sum(crit_rolls) + final_mod
+        crit_rolls_str = " + ".join(str(r) for r in crit_rolls)
+        base_str = " + ".join(str(r) for r in primary_rolls)
+        if final_mod != 0:
+            narrative_parts.append(
+                f"{actor} {spell_name} Damage: {primary_damage} ({base_str} + {crit_rolls_str} + {final_mod}) [CRIT]"
+            )
+        else:
+            narrative_parts.append(
+                f"{actor} {spell_name} Damage: {primary_damage} ({base_str} + {crit_rolls_str}) [CRIT]"
+            )
+        result["crit_damage_rolls"] = crit_rolls
+    else:
+        primary_damage = sum(primary_rolls) + final_mod
+        base_str = " + ".join(str(r) for r in primary_rolls)
+        if final_mod != 0:
+            narrative_parts.append(f"{actor} {spell_name} Damage: {primary_damage} ({base_str} + {final_mod})")
+        else:
+            narrative_parts.append(f"{actor} {spell_name} Damage: {primary_damage} ({base_str})")
+
+    result["primary_damage"] = primary_damage
+    result["primary_damage_rolls"] = primary_rolls
+    result["damage_modifier"] = final_mod
+    result["primary_die_size"] = primary_die_size
+
+    extra_damage = 0
+    extra_rolls = []
+    extra_crit_rolls = []
+    if final_extra_dice:
+        extra_die_size, extra_base_rolls, extra_base_sum = _parse_and_roll_dice(final_extra_dice)
+        if extra_die_size is None:
+            return {"success": False, "error": f"Invalid extra_damage_dice notation: '{final_extra_dice}'."}
+        extra_rolls = extra_base_rolls
+        if is_crit:
+            extra_crit_rolls = [random.randint(1, extra_die_size) for _ in range(len(extra_base_rolls))]
+            extra_damage = sum(extra_base_rolls) + sum(extra_crit_rolls)
+            extra_base_str = " + ".join(str(r) for r in extra_base_rolls)
+            extra_crit_str = " + ".join(str(r) for r in extra_crit_rolls)
+            narrative_parts.append(
+                f"{actor} {spell_name} Extra {sp_extra_damage_type.title() if sp_extra_damage_type else ''} Damage: {extra_damage} ({extra_base_str} + {extra_crit_str}) [CRIT]"
+            )
+            result["extra_crit_rolls"] = extra_crit_rolls
+        else:
+            extra_damage = sum(extra_base_rolls)
+            extra_base_str = " + ".join(str(r) for r in extra_base_rolls)
+            ext_type_label = sp_extra_damage_type.title() if sp_extra_damage_type else "Extra"
+            narrative_parts.append(
+                f"{actor} {spell_name} {ext_type_label} Damage: {extra_damage} ({extra_base_str})"
+            )
+        result["extra_damage"] = extra_damage
+        result["extra_damage_rolls"] = extra_rolls
+        result["extra_damage_type"] = sp_extra_damage_type
+
+    total_damage = primary_damage + extra_damage
+
+    # ── APPLY SAVE HALF / NO DAMAGE ──
+    if sp_attack_type == "saving_throw" and damage_multiplier < 1.0:
+        if damage_multiplier == 0.0:
+            total_damage = 0
+            narrative_parts.append(f"{saver_name} saved — no damage.")
+        else:
+            total_damage = max(1, total_damage // 2)
+            narrative_parts.append(f"{saver_name} saved — half damage: {total_damage}")
+
+    result["damage_total"] = total_damage
+    result["damage_type"] = sp_damage_type
+
+    # ── APPLY HP CHANGES ──
+    if is_npc_attack and total_damage > 0 and not sp_healing:
+        hp_result = _apply_hp_change(cursor, -total_damage)
+        result["hp_change"] = hp_result
+        target_remaining = hp_result["new_value"]
+    elif is_npc_attack and sp_healing:
+        hp_result = _apply_hp_change(cursor, total_damage)
+        result["hp_change"] = hp_result
+        target_remaining = hp_result["new_value"]
+    elif is_npc_vs_npc and total_damage > 0 and not sp_healing:
+        if target_current_hp is not None:
+            target_remaining = target_current_hp - total_damage
+            result["target_remaining_hp"] = target_remaining
+
+            if target_remaining <= 0:
+                result["target_killed"] = True
+                if target_name:
+                    narrative_parts.append(f"{target_name} HP: 0 (KILLED)")
+            else:
+                result["target_killed"] = False
+                if target_name:
+                    narrative_parts.append(f"{target_name} HP: {target_remaining}/{target_current_hp}")
+        else:
+            result["target_killed"] = None
+        result["npc_vs_npc"] = True
+    elif is_npc_vs_npc and sp_healing:
+        result["npc_vs_npc"] = True
+        result["target_killed"] = None
+    elif not is_npc_attack and not is_npc_vs_npc and target_current_hp is not None and not sp_healing:
+        target_remaining = target_current_hp - total_damage
+        result["target_remaining_hp"] = target_remaining
+
+        if target_remaining <= 0:
+            result["target_killed"] = True
+            if target_name:
+                narrative_parts.append(f"{target_name} HP: 0 (KILLED)")
+        else:
+            result["target_killed"] = False
+            if target_name:
+                narrative_parts.append(f"{target_name} HP: {target_remaining}/{target_current_hp}")
+
+        if result.get("target_killed") and challenge_rating is not None:
+            xp_awarded = CR_XP_TABLE.get(challenge_rating, CR_XP_TABLE.get(int(challenge_rating), 0))
+            if xp_awarded > 0 and cursor:
+                xp_result = modify_player_numeric(key="xp", delta=xp_awarded)
+                result["xp_awarded"] = xp_awarded
+                result["challenge_rating"] = challenge_rating
+                result["xp_result"] = xp_result
+                narrative_parts.append(f"XP Awarded: {xp_awarded}")
+                if xp_result.get("level_up"):
+                    narrative_parts.append(xp_result["level_up_summary"])
+    elif not is_npc_attack and not is_npc_vs_npc and sp_healing:
+        hp_result = _apply_hp_change(cursor, total_damage) if cursor else None
+        if hp_result:
+            result["hp_change"] = hp_result
+            narrative_parts.append(f"Healed {target_name}: {hp_result['hp_status']}")
+    else:
+        result["target_killed"] = None
+        if is_npc_vs_npc:
+            result["npc_vs_npc"] = True
+
+    result["narrative_format"] = "\n".join(narrative_parts)
+    return result
 
 
 if __name__ == "__main__":

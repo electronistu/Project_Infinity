@@ -8,11 +8,9 @@ from prompt_toolkit.formatted_text import HTML
 from game_engine import run_game, console
 
 AVAILABLE_MODELS = [
-    "glm-5.1:cloud",
     "kimi-k2.6:cloud",
 ]
 MODEL_CONTEXT_LENGTHS = {
-    "glm-5.1:cloud": 198000,
     "kimi-k2.6:cloud": 250000,
 }
 DEFAULT_TEMP = 0.0

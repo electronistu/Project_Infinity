@@ -2,17 +2,9 @@
 
 A text-based RPG where an AI acts as your Dungeon Master — with real dice rolls, real character tracking, and real D&D 5e rules. No hallucinated stats. No forgotten inventory. The AI rolls fairly, tracks your HP, and levels you up automatically.
 
-*Running on glm-5.1:*
+*Running on gemini-2.5-pro:*
 
-![Project Infinity TUI](screenshot.png)
-
-*Running on GPT-5.5 Pro:*
-
-![Project Infinity TUI — GPT-5.5 Pro session](screenshot2.png)
-
-*Running on gemini-3-flash-preview:*
-
-![Project Infinity TUI — gemini-3-flash-preview](screenshot3.png)
+![Project Infinity TUI — gemini-2.5-pro](screenshot.png)
 ---
 
 ## What Makes This Different?
@@ -22,6 +14,7 @@ Most AI RPGs let the language model make up numbers. Project Infinity doesn't. E
 - **Fair Dice** — All rolls are performed by a dedicated server and verified. The AI sees the results, it doesn't generate them.
 - **Persistent Character** — Your stats, inventory, gold, and spell slots live in a real database that updates in real time. No "forgetting" that you used your last potion.
 - **D&D 5e Rules** — Leveling up, spell slot recovery, proficiency bonuses — all handled automatically by the engine.
+- **Combat Resolution** — Weapon attacks, spell attacks, saving throws, cantrip scaling, upcasting, spell slot consumption, crits, kill detection, and XP awards are all resolved mechanically in a single tool call. The AI cannot fudge damage or forget to deduct a slot.
 - **In-Game Commands** — Check your stats, force a database sync, or get help without leaving the game.
 
 ---
@@ -54,9 +47,9 @@ pip install -r requirements.txt
 1. Install [Ollama](https://ollama.ai/) and make sure it's running.
 2. Download a supported model:
    ```bash
-   ollama pull glm-5.1:cloud
+   ollama pull kimi-k2.6:cloud
    ```
-   Supported models: `glm-5.1:cloud`, `kimi-k2.6:cloud`
+   Supported models: `kimi-k2.6:cloud`
 
 #### Option B: OpenAI (Cloud, Paid)
 
@@ -123,11 +116,13 @@ If you're curious about what's happening under the hood, here's a high-level ove
 
 ### Roll Engine
 
-All game mechanics are split into two categories:
+All game mechanics are resolved through dedicated tools that the AI must call — it cannot decide outcomes or make up numbers:
 
-- **Success/Failure Checks** — Attack rolls, skill checks, and saving throws use a d20 system (`perform_check`). The AI cannot decide outcomes — it must call the tool and report the result.
-- **Damage & Magnitude** — Damage rolls, healing, and quantity use multi-dice notation (`roll_dice`). Again, the AI calls the tool; it doesn't make up numbers.
-- **Transparency** — Every roll is shown to you in a standard format: `Guard Attack: 17 vs DC 15 (Success) (15 + 2)`
+- **Success/Failure Checks** — Skill checks, saving throws, and other binary rolls use a d20 system (`perform_check`).
+- **Weapon/Unarmed Attacks** — `resolve_attack` handles the full attack sequence: roll vs AC, damage, crits, HP application, kill detection, and XP award in one call. Works for player-vs-NPC, NPC-vs-player, and NPC-vs-NPC.
+- **Spell Attacks** — `resolve_magic_attack` handles all spell resolution: attack rolls, saving throws, automatic hits, cantrip scaling, upcasting, spell slot consumption, healing, kill detection, and XP award. Spells are looked up from `config/spells.yml`; custom spells can be cast with override parameters.
+- **Damage & Magnitude** — Generic damage, healing, and quantity use multi-dice notation (`roll_dice`).
+- **Transparency** — Every roll is shown in a standard format: `Guard Attack: 17 vs DC 15 (Success) (15 + 2)` or `TestHero Fireball: 28 vs DEX Save DC 15 (Failure) (3 + 2 + 6 + 5 + 5 + 7)`
 
 ### State Authority
 
