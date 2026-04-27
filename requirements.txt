@@ -6,3 +6,4 @@ mcp>=1.27
 prompt_toolkit>=3.0
 google-genai>=1.73
 openai>=2.32
+anthropic>=0.97.0

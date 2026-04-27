@@ -28,6 +28,7 @@ Most AI RPGs let the language model make up numbers. Project Infinity doesn't. E
   - **Ollama** — cloud-based, free and paid
   - **OpenAI** — cloud-based, requires a paid API key
   - **Gemini** — cloud-based, requires a paid API key
+  - **Claude** — cloud-based, requires a paid API key
 
 ### 2. Install
 
@@ -42,30 +43,12 @@ pip install -r requirements.txt
 
 ### 3. Choose Your AI Backend
 
-#### Option A: Ollama (Free and Paid)
-
-1. Install [Ollama](https://ollama.ai/) and make sure it's running.
-2. Download a supported model:
-   ```bash
-   ollama pull kimi-k2.6:cloud
-   ```
-   Supported models: `kimi-k2.6:cloud`
-
-#### Option B: OpenAI (Cloud, Paid)
-
-Set your API key as an environment variable:
-```bash
-export OPENAI_API_KEY=your-api-key
-```
-Supported models: `gpt-5.5-pro`, `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.4-nano`
-
-#### Option C: Gemini (Cloud, Paid)
-
-Set your API key as an environment variable:
-```bash
-export GEMINI_API_KEY=your-api-key
-```
-Supported models: `gemini-3.1-pro-preview`, `gemini-3-flash-preview`, `gemini-2.5-pro`
+| Backend | Requirements | Supported Models | Play Command |
+|---------|-------------|------------------|--------------|
+| **Ollama** | Install [Ollama](https://ollama.ai/), pull your model | `kimi-k2.6:cloud` | `python3 play.py` |
+| **OpenAI** | `export OPENAI_API_KEY=your-api-key` | `gpt-5.5-pro`, `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.4-nano` | `python3 play_with_gpt.py` |
+| **Gemini** | `export GEMINI_API_KEY=your-api-key` | `gemini-3.1-pro-preview`, `gemini-3-flash-preview`, `gemini-2.5-pro` | `python3 play_with_gemini.py` |
+| **Claude** | `export ANTHROPIC_API_KEY=your-api-key` | `claude-opus-4-7`, `claude-opus-4-6` | `python3 play_with_claude.py` |
 
 > **Note:** The Gemini preview models have known issues. See [Known Issues](#known-issues) for details.
 
@@ -90,6 +73,7 @@ Launch the game with the script that matches your backend:
 | Ollama | `python3 play.py` |
 | OpenAI | `python3 play_with_gpt.py` |
 | Gemini | `python3 play_with_gemini.py` |
+| Claude | `python3 play_with_claude.py` |
 
 You'll be prompted to:
 1. **Select a model** — pick from the list of supported models
@@ -114,20 +98,43 @@ Then the Game Master awakens and your adventure begins. Type actions in plain En
 
 If you're curious about what's happening under the hood, here's a high-level overview.
 
-### Roll Engine
+### MCP Tool Server
 
-All game mechanics are resolved through dedicated tools that the AI must call — it cannot decide outcomes or make up numbers:
+The game engine runs as a local **MCP (Model Context Protocol)** server with an in-memory SQLite database initialized from your `.player` file at startup. The AI cannot invent rolls, stats, or outcomes — every mechanical action is a verified tool call that returns a `narrative_format` string the GM must include verbatim.
 
-- **Success/Failure Checks** — Skill checks, saving throws, and other binary rolls use a d20 system (`perform_check`).
-- **Weapon/Unarmed Attacks** — `resolve_attack` handles the full attack sequence: roll vs AC, damage, crits, HP application, kill detection, and XP award in one call. Works for player-vs-NPC, NPC-vs-player, and NPC-vs-NPC.
-- **Spell Attacks** — `resolve_magic_attack` handles all spell resolution: attack rolls, saving throws, automatic hits, cantrip scaling, upcasting, spell slot consumption, healing, kill detection, and XP award. Spells are looked up from `config/spells.yml`; custom spells can be cast with override parameters.
-- **Damage & Magnitude** — Generic damage, healing, and quantity use multi-dice notation (`roll_dice`).
-- **Transparency** — Every roll is shown in a standard format: `Guard Attack: 17 vs DC 15 (Success) (15 + 2)` or `TestHero Fireball: 28 vs DEX Save DC 15 (Failure) (3 + 2 + 6 + 5 + 5 + 7)`
+### Checks & Generic Rolls
+
+- **Skill Checks & Saves** — `perform_check` rolls `d20 + modifier` vs DC with native Critical Success/Failure on natural 20/1. Every result is formatted for direct inclusion in the narrative.
+- **Damage, Healing & Quantity** — `roll_dice` supports any standard notation (e.g. `3d6+2`). The AI must use this for all random magnitudes; it cannot make up damage numbers.
+
+### Weapon & Unarmed Combat
+
+`resolve_attack` handles the **full attack sequence** in a single call:
+- Attack roll vs AC. Supports **Advantage** (roll twice, take higher) and **forced crits** (unconscious targets within 5 feet).
+- Critical hits double **primary** damage dice but not extra damage dice (e.g. elemental riders).
+- Automatic HP application, kill detection, and XP award using the D&D 5e CR/XP table.
+- Works for player-vs-NPC, NPC-vs-player, and NPC-vs-NPC.
+
+### Spell Combat
+
+`resolve_magic_attack` resolves **all spell resolution** in one call:
+- **Spell Database** — Properties are looked up from `config/spells.yml`. Custom spells can be cast with override parameters.
+- **Automatic Spell Slot Management** — Validates slot availability before rolling; consumes the slot automatically. Rejects under-level slots or empty slots with a clear error.
+- **Cantrip Scaling** — Automatically scales base dice at levels 5, 11, and 17.
+- **Upcasting** — Damage and healing scale automatically when a spell is cast in a higher-level slot (per the spell's `higher_levels` field).
+- **Attack Types** — Supports `attack_roll` (vs AC), `saving_throw` (half damage on save if `save_half`), and `automatic` (always hits).
+- **Healing & HP Pools** — Healing spells restore HP. HP pool spells (e.g. *Sleep*, *Color Spray*) roll a total HP pool against the target's HP.
+- **Conditions & Concentration** — Applies conditions with duration and concentration flags. Supports instant-kill spells (Power Word-style HP threshold checks).
+- **Kill Detection & XP** — Identical to weapon attacks: NPC deaths award XP automatically.
 
 ### State Authority
 
-Your character lives in an in-memory database that the AI updates through tool calls. Your HP, gold, inventory, spell slots — all of it is tracked precisely.
+Your character lives in an in-memory SQLite database that the AI updates through tool calls. Your HP, gold, inventory, spell slots — all of it is tracked precisely.
 
+- **Numeric State** — `modify_player_numeric` handles everything from gold to XP. Crossing a level threshold triggers **automatic level-up** (HP, proficiency bonus, hit dice, spell slots, DC, attack modifier). The AI must manually apply class features, new spells, ASIs, and subclass features.
+- **List State** — `update_player_list` manages inventory, known/prepared spells (capacity enforced for prepared casters), features, skills, proficiencies, and languages.
+- **HP Clamping** — HP is bounded to `[0, max_HP]`. Hitting 0 returns an "Unconscious" status tag, triggers death saves, and clamps all damage to 0.
+- **HP Status Tags** — Every HP change returns a structured status: Healthy, Wounded, Bloodied, Critical, or Unconscious.
 - The AI is required to update state immediately when changes happen.
 - Every 4 prompts, the engine forces a full database sync to catch any drift.
 - You can manually force a sync at any time with `/sync`.
@@ -141,27 +148,36 @@ To prevent the AI from "collapsing" on complex turns (trying to narrate and calc
 
 This means you always get mechanically accurate results before the narrative.
 
+### Transparency
+
+Every roll is shown in a standard format:
+```
+Guard Attack: 17 vs AC 15 (Success) (15 + 2)
+TestHero Fireball: 28 vs DEX Save DC 15 (Failure) (3 + 2 + 6 + 5 + 5 + 7)
+```
+
 ---
 
 ## Advanced Options
 
-All three play scripts accept the following flags:
+All play scripts accept the following flags:
 
 | Flag | Description |
 |------|-------------|
 | `--verbose`, `-v` | Show all tool calls and their results behind the scenes |
 | `--debug`, `-d` | Show raw AI responses including internal reasoning (also enables `--verbose`) |
-| `--temperature`, `-t` | Set sampling temperature (Ollama/OpenAI default: 0.0, Gemini default: 1.0). Ignored for GPT-5.5 models (temperature is deprecated). |
+| `--temperature`, `-t` | Set sampling temperature (Ollama/OpenAI/Claude default: 0.0, Gemini default: 1.0). Ignored for GPT-5.5 and Claude Opus 4.7 models (temperature is deprecated). |
 | `--think` | Enable thinking/reasoning for the model as a boolean toggle (Ollama only) |
 | `--thinking-level` | Enable structured AI reasoning with effort level: `LOW`, `MEDIUM`, `HIGH`, `XHIGH`. `XHIGH` is exclusive to Pro/Enterprise-tier models. See Known Issues. |
 | `--verbosity` | Control output verbosity for GPT-5.5 models: `low`, `medium`, `high` (default: `medium`). Ignored by other backends. |
-| `--max-output-tokens` | Maximum output tokens for GPT-5.5 models (default: 16384). Includes thinking tokens. Ignored by other backends. |
+| `--max-output-tokens` | Maximum output tokens for GPT-5.5 and Claude models (default: 16384). Includes thinking tokens. Ignored by other backends. |
 
 Examples:
 ```bash
 python3 play.py --temperature 0.6 --think
 python3 play_with_gemini.py --temperature 0.7
 python3 play_with_gpt.py --debug
+python3 play_with_claude.py --thinking-level MEDIUM
 python3 play_with_gpt.py --thinking-level HIGH --verbosity low
 python3 play_with_gpt.py --thinking-level XHIGH --max-output-tokens 32000
 python3 play.py --thinking-level MEDIUM --verbose
@@ -212,7 +228,7 @@ The default temperature for Gemini is set to `1.0` (instead of the usual `0.0`) 
 | Terminal UI | Rich + prompt_toolkit |
 | Data Validation | Pydantic |
 | Config | YAML |
-| AI Backends | Ollama, OpenAI, Google Gemini |
+| AI Backends | Ollama, OpenAI, Google Gemini, Anthropic Claude |
 
 ---
 
