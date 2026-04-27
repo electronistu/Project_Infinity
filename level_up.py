@@ -203,7 +203,7 @@ def compute_spell_slots(character_class, new_level, current_spellcasting=None):
         if slot_level in old_slots:
             merged_slots[slot_level] = old_slots[slot_level]
         else:
-            merged_slots[slot_level] = 0
+            merged_slots[slot_level] = new_slots[slot_level]
     result["slots"] = merged_slots
     return result
 
@@ -279,6 +279,9 @@ def apply_level_up(character_class, old_level, new_level, player_data):
 
     new_total_hp = old_total_hp + total_gain
     changes['total_hit_points'] = str(new_total_hp)
+    old_current_hp = int(player_data.get('current_hit_points', old_total_hp))
+    new_current_hp = old_current_hp + total_gain
+    changes['current_hit_points'] = str(new_current_hp)
     roll_str = ", ".join(str(r) for r in rolls)
     if levels_gained == 1:
         summary.append(f"total_hit_points: {old_total_hp} -> {new_total_hp} (rolled {rolls[0]} on d{hit_dice_size} + {con_mod} CON)")

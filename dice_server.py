@@ -232,7 +232,7 @@ def _hp_status_tag(current, total):
     elif ratio < 0.50:
         return "Bloodied"
     elif ratio < 0.75:
-        return "Bloodied"
+        return "Wounded"
     else:
         return "Healthy"
 
@@ -695,7 +695,10 @@ def update_player_list(key: str, item: str, action: str) -> dict:
                 cursor.execute("SELECT key FROM player")
                 available = [r[0] for r in cursor.fetchall()]
                 return {"success": False, "error": f"Key '{key}' not found in database.", "available_keys": available, "key": key}
-            current_list = json.loads(row[0]) if 'json' in row[0] or '[' in row[0] else [row[0]]
+            try:
+                current_list = json.loads(row[0])
+            except (json.JSONDecodeError, TypeError):
+                current_list = [row[0]]
 
         is_prepared_spells = (key == "spellcasting.spells_prepared")
 
@@ -1074,28 +1077,26 @@ def resolve_attack(
             if extra_die_size is None:
                 return {"success": False, "error": f"Invalid extra_damage_dice notation: '{extra_damage_dice}'. Use format 'XdY' (e.g., '1d6')."}
             extra_rolls = extra_base_rolls
-            if outcome == "Critical Success":
-                extra_crit_rolls = [random.randint(1, extra_die_size) for _ in range(len(extra_base_rolls))]
-                extra_damage = sum(extra_base_rolls) + sum(extra_crit_rolls) + extra_damage_modifier
-                extra_crit_str = " + ".join(str(r) for r in extra_crit_rolls)
-                if extra_damage_modifier != 0:
-                    narrative_parts.append(
-                        f"{actor} Extra Damage: {extra_damage} ({' + '.join(str(r) for r in extra_base_rolls)} + {extra_crit_str} + {extra_damage_modifier})"
-                    )
-                else:
-                    narrative_parts.append(
-                        f"{actor} Extra Damage: {extra_damage} ({' + '.join(str(r) for r in extra_base_rolls)} + {extra_crit_str})"
-                    )
+        if outcome == "Critical Success":
+            extra_damage = sum(extra_base_rolls) + extra_damage_modifier
+            if extra_damage_modifier != 0:
+                narrative_parts.append(
+                    f"{actor} Extra Damage: {extra_damage} ({' + '.join(str(r) for r in extra_base_rolls)} + {extra_damage_modifier}) [NO CRIT]"
+                )
             else:
-                extra_damage = sum(extra_base_rolls) + extra_damage_modifier
-                if extra_damage_modifier != 0:
-                    narrative_parts.append(
-                        f"{actor} Extra Damage: {extra_damage} ({' + '.join(str(r) for r in extra_base_rolls)} + {extra_damage_modifier})"
-                    )
-                else:
-                    narrative_parts.append(
-                        f"{actor} Extra Damage: {extra_damage} ({' + '.join(str(r) for r in extra_base_rolls)})"
-                    )
+                narrative_parts.append(
+                    f"{actor} Extra Damage: {extra_damage} ({' + '.join(str(r) for r in extra_base_rolls)}) [NO CRIT]"
+                )
+        else:
+            extra_damage = sum(extra_base_rolls) + extra_damage_modifier
+            if extra_damage_modifier != 0:
+                narrative_parts.append(
+                    f"{actor} Extra Damage: {extra_damage} ({' + '.join(str(r) for r in extra_base_rolls)} + {extra_damage_modifier})"
+                )
+            else:
+                narrative_parts.append(
+                    f"{actor} Extra Damage: {extra_damage} ({' + '.join(str(r) for r in extra_base_rolls)})"
+                )
 
         total_damage = primary_damage + extra_damage
 
@@ -1595,8 +1596,6 @@ def resolve_magic_attack(
     elif sp_attack_type == "saving_throw":
         d20 = random.randint(1, 20)
 
-        d20 = random.randint(1, 20)
-
         if is_npc_attack and player_save_modifier is not None:
             save_mod = player_save_modifier
             saver_name = target_name if target_name else "Player"
@@ -1647,7 +1646,7 @@ def resolve_magic_attack(
 
     # ── INSTANT KILL SPELLS ──
     if sp_instant_kill:
-        if sp_attack_type == "saving_throw" and damage_multiplier > 0:
+        if sp_attack_type == "saving_throw" and damage_multiplier == 1.0:
             result["instant_kill"] = True
             narrative_parts.append(f"{target_name} is slain instantly by {spell_name}!")
             result["damage_total"] = 0
@@ -1761,22 +1760,12 @@ def resolve_magic_attack(
         if extra_die_size is None:
             return {"success": False, "error": f"Invalid extra_damage_dice notation: '{final_extra_dice}'."}
         extra_rolls = extra_base_rolls
-        if is_crit:
-            extra_crit_rolls = [random.randint(1, extra_die_size) for _ in range(len(extra_base_rolls))]
-            extra_damage = sum(extra_base_rolls) + sum(extra_crit_rolls)
-            extra_base_str = " + ".join(str(r) for r in extra_base_rolls)
-            extra_crit_str = " + ".join(str(r) for r in extra_crit_rolls)
-            narrative_parts.append(
-                f"{actor} {spell_name} Extra {sp_extra_damage_type.title() if sp_extra_damage_type else ''} Damage: {extra_damage} ({extra_base_str} + {extra_crit_str}) [CRIT]"
-            )
-            result["extra_crit_rolls"] = extra_crit_rolls
-        else:
-            extra_damage = sum(extra_base_rolls)
-            extra_base_str = " + ".join(str(r) for r in extra_base_rolls)
-            ext_type_label = sp_extra_damage_type.title() if sp_extra_damage_type else "Extra"
-            narrative_parts.append(
-                f"{actor} {spell_name} {ext_type_label} Damage: {extra_damage} ({extra_base_str})"
-            )
+        extra_damage = sum(extra_base_rolls)
+        extra_base_str = " + ".join(str(r) for r in extra_base_rolls)
+        ext_type_label = sp_extra_damage_type.title() if sp_extra_damage_type else "Extra"
+        narrative_parts.append(
+            f"{actor} {spell_name} {ext_type_label} Damage: {extra_damage} ({extra_base_str})"
+        )
         result["extra_damage"] = extra_damage
         result["extra_damage_rolls"] = extra_rolls
         result["extra_damage_type"] = sp_extra_damage_type
@@ -1804,6 +1793,7 @@ def resolve_magic_attack(
         hp_result = _apply_hp_change(cursor, total_damage)
         result["hp_change"] = hp_result
         target_remaining = hp_result["new_value"]
+        narrative_parts.append(f"Healed {target_name or 'Player'}: {hp_result['hp_status']}")
     elif is_npc_vs_npc and total_damage > 0 and not sp_healing:
         if target_current_hp is not None:
             target_remaining = target_current_hp - total_damage
@@ -1823,6 +1813,7 @@ def resolve_magic_attack(
     elif is_npc_vs_npc and sp_healing:
         result["npc_vs_npc"] = True
         result["target_killed"] = None
+        narrative_parts.append(f"{actor} heals {target_name or 'target'} for {total_damage} HP.")
     elif not is_npc_attack and not is_npc_vs_npc and target_current_hp is not None and not sp_healing:
         target_remaining = target_current_hp - total_damage
         result["target_remaining_hp"] = target_remaining

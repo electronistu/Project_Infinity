@@ -150,11 +150,6 @@ async def run_game(chat_fn, model, context_window, verbose=False, debug=False):
                             "content": content or "",
                         })
 
-                        if any(token in (content or "") for token in ["{{_NEED_AN_OTHER_PROMPT}}", "{{_NEED_ANOTHER_PROMPT}}"]):
-                            if DEBUG:
-                                console.print("[bold yellow]DEBUG: Checkpoint token detected. Pausing...[/bold yellow]")
-                            return "__SYSTEM_PAUSE__"
-
                         thinking_retries = 0
                         MAX_THINKING_RETRIES = 3
                         while response.get('thinking_only') and thinking_retries < MAX_THINKING_RETRIES:
@@ -192,26 +187,34 @@ async def run_game(chat_fn, model, context_window, verbose=False, debug=False):
                             return "The GM pauses, deep in thought..."
 
                         tool_calls_list = response_msg.get('tool_calls')
-                        if not tool_calls_list:
-                            return content
+                        if tool_calls_list:
+                            for tool_call in tool_calls_list:
+                                tool_name = tool_call['function']['name']
+                                tool_args = tool_call['function']['arguments']
 
-                        for tool_call in tool_calls_list:
-                            tool_name = tool_call['function']['name']
-                            tool_args = tool_call['function']['arguments']
+                                if VERBOSE:
+                                    console.print(f"[dim]🔧 Tool: {tool_name}({tool_args})[/dim]")
 
-                            if VERBOSE:
-                                console.print(f"[dim]🔧 Tool: {tool_name}({tool_args})[/dim]")
+                                result = await session.call_tool(tool_name, arguments=tool_args)
 
-                            result = await session.call_tool(tool_name, arguments=tool_args)
+                                if VERBOSE:
+                                    console.print(f"[dim]   → {result.content}[/dim]")
 
-                            if VERBOSE:
-                                console.print(f"[dim]   → {result.content}[/dim]")
+                                messages.append({
+                                    "role": "tool",
+                                    "content": "\n".join(block.text for block in result.content if hasattr(block, "text")),
+                                    "name": tool_name
+                                })
+                            if DEBUG:
+                                console.print("[bold yellow]DEBUG: Tool calls executed alongside sync token. Ignoring token and continuing loop.[/bold yellow]")
+                            continue
 
-                            messages.append({
-                                "role": "tool",
-                                "content": "\n".join(block.text for block in result.content if hasattr(block, "text")),
-                                "name": tool_name
-                            })
+                        if any(token in (content or "") for token in ["{{_NEED_AN_OTHER_PROMPT}}", "{{_NEED_ANOTHER_PROMPT}}"]):
+                            if DEBUG:
+                                console.print("[bold yellow]DEBUG: Checkpoint token detected. Pausing...[/bold yellow]")
+                            return "__SYSTEM_PAUSE__"
+
+                        return content
 
                 async def handle_slash_command(cmd):
                     cmd = cmd.strip().lower()

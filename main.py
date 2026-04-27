@@ -39,6 +39,7 @@ def main():
     )
 
     output_dir = "output"
+    os.makedirs(output_dir, exist_ok=True)
     output_filename = f"{player_character.name.lower().replace(' ', '_')}_weave.wwf"
     output_path = os.path.abspath(os.path.join(output_dir, output_filename))
     format_world_to_wwf(world_state, output_path)

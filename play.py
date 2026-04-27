@@ -159,11 +159,14 @@ async def main():
 
     context_window = MODEL_CONTEXT_LENGTHS.get(model)
     if context_window is None:
-        model_info = ollama.show(model)
-        context_window = next(
-            (v for k, v in model_info.get('model_info', {}).items() if k.endswith('.context_length')),
-            4096
-        )
+        try:
+            model_info = ollama.show(model)
+            context_window = next(
+                (v for k, v in model_info.get('model_info', {}).items() if k.endswith('.context_length')),
+                4096
+            )
+        except Exception:
+            context_window = 4096
     if verbose:
         console.print(f"[dim]Context window: {context_window:,} tokens[/dim]")
 
