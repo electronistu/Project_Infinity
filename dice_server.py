@@ -1071,32 +1071,27 @@ def resolve_attack(
 
         extra_damage = 0
         extra_rolls = []
-        extra_crit_rolls = []
         if extra_damage_dice:
             extra_die_size, extra_base_rolls, extra_base_sum = _parse_and_roll_dice(extra_damage_dice)
             if extra_die_size is None:
                 return {"success": False, "error": f"Invalid extra_damage_dice notation: '{extra_damage_dice}'. Use format 'XdY' (e.g., '1d6')."}
             extra_rolls = extra_base_rolls
-        if outcome == "Critical Success":
+
+            # Bug 2 fix: extra dice are NOT doubled on crit
             extra_damage = sum(extra_base_rolls) + extra_damage_modifier
+            crit_tag = " [NO CRIT]" if outcome == "Critical Success" else ""
             if extra_damage_modifier != 0:
                 narrative_parts.append(
-                    f"{actor} Extra Damage: {extra_damage} ({' + '.join(str(r) for r in extra_base_rolls)} + {extra_damage_modifier}) [NO CRIT]"
+                    f"{actor} Extra Damage: {extra_damage} ({' + '.join(str(r) for r in extra_base_rolls)} + {extra_damage_modifier}){crit_tag}"
                 )
             else:
                 narrative_parts.append(
-                    f"{actor} Extra Damage: {extra_damage} ({' + '.join(str(r) for r in extra_base_rolls)}) [NO CRIT]"
+                    f"{actor} Extra Damage: {extra_damage} ({' + '.join(str(r) for r in extra_base_rolls)}){crit_tag}"
                 )
-        else:
-            extra_damage = sum(extra_base_rolls) + extra_damage_modifier
-            if extra_damage_modifier != 0:
-                narrative_parts.append(
-                    f"{actor} Extra Damage: {extra_damage} ({' + '.join(str(r) for r in extra_base_rolls)} + {extra_damage_modifier})"
-                )
-            else:
-                narrative_parts.append(
-                    f"{actor} Extra Damage: {extra_damage} ({' + '.join(str(r) for r in extra_base_rolls)})"
-                )
+
+            result["extra_damage"] = extra_damage
+            result["extra_damage_rolls"] = extra_rolls
+            result["extra_damage_modifier"] = extra_damage_modifier
 
         total_damage = primary_damage + extra_damage
 
@@ -1105,12 +1100,6 @@ def resolve_attack(
         result["primary_damage_rolls"] = primary_rolls
         result["damage_modifier"] = damage_modifier
         result["primary_die_size"] = primary_die_size
-        if extra_damage_dice:
-            result["extra_damage"] = extra_damage
-            result["extra_damage_rolls"] = extra_rolls
-            result["extra_damage_modifier"] = extra_damage_modifier
-            if extra_crit_rolls:
-                result["extra_crit_rolls"] = extra_crit_rolls
 
         if is_npc_attack and total_damage > 0:
             hp_result = _apply_hp_change(cursor, -total_damage)
