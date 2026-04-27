@@ -9,9 +9,13 @@ from game_engine import run_game, console
 
 AVAILABLE_MODELS = [
     "kimi-k2.6:cloud",
+    "deepseek-v4-flash:cloud",
+    "deepseek-v4-pro:cloud",
 ]
 MODEL_CONTEXT_LENGTHS = {
     "kimi-k2.6:cloud": 250000,
+    "deepseek-v4-flash:cloud": 1000000,
+    "deepseek-v4-pro:cloud": 1000000,
 }
 DEFAULT_TEMP = 0.0
 
