@@ -1,4 +1,1179 @@
+# D&D 5e Combat Spells (SRD)
+#
+# attack_type values:
+#   attack_roll  — d20 + spell_attack_modifier vs target AC. Crits double base dice.
+#   saving_throw — target rolls save vs caster's spell_save_dc. Half/no damage on success.
+#   automatic    — always hits, no roll to land. Just roll damage.
+#
+# cantrip_scaling: if true, damage dice scale at character levels 5, 11, 17.
+#   Example: Fire Bolt does 1d10 at levels 1-4, 2d10 at 5-10, 3d10 at 11-16, 4d10 at 17+.
+#
+# higher_levels: damage scaling per slot level above native. Format: "+XdY" or "+XdY+Z".
+#   Example: Fireball is 6d6 at level 3, "+1d6" means 7d6 at level 4, 8d6 at level 5, etc.
+#
+# save_half: true = half damage on successful save; false = no damage on successful save.
 
+# ============================================================
+# CANTRIPS (Level 0)
+# ============================================================
+
+- name: Acid Splash
+  level: 0
+  school: conjuration
+  attack_type: saving_throw
+  save_type: dex
+  save_half: false
+  damage_dice: 1d6
+  damage_modifier: 0
+  damage_type: acid
+  cantrip_scaling: true
+  cantrip_scale_dice: 1d6
+  description: You hurl a bubble of acid. Each creature in a 5-foot radius must make a Dexterity save or take acid damage.
+
+- name: Chill Touch
+  level: 0
+  school: necromancy
+  attack_type: attack_roll
+  damage_dice: 1d8
+  damage_modifier: 0
+  damage_type: necrotic
+  cantrip_scaling: true
+  cantrip_scale_dice: 1d8
+  description: You create a ghostly hand that reaches toward a creature within range. On a hit, the target cannot regain hit points until the start of your next turn.
+
+- name: Eldritch Blast
+  level: 0
+  school: evocation
+  attack_type: attack_roll
+  damage_dice: 1d10
+  damage_modifier: 0
+  damage_type: force
+  cantrip_scaling: true
+  cantrip_scale_dice: 1d10
+  description: A beam of crackling energy streaks toward a creature within range. Each beam is a separate attack roll.
+
+- name: Fire Bolt
+  level: 0
+  school: evocation
+  attack_type: attack_roll
+  damage_dice: 1d10
+  damage_modifier: 0
+  damage_type: fire
+  cantrip_scaling: true
+  cantrip_scale_dice: 1d10
+  description: You hurl a mote of fire at a creature or object within range.
+
+- name: Frostbite
+  level: 0
+  school: evocation
+  attack_type: saving_throw
+  save_type: con
+  save_half: false
+  damage_dice: 1d6
+  damage_modifier: 0
+  damage_type: cold
+  cantrip_scaling: true
+  cantrip_scale_dice: 1d6
+  description: You cause numbing frost to form on a creature within range. On a failed save, the target also has disadvantage on its next weapon attack roll.
+
+- name: Infestation
+  level: 0
+  school: conjuration
+  attack_type: saving_throw
+  save_type: con
+  save_half: false
+  damage_dice: 1d6
+  damage_modifier: 0
+  damage_type: poison
+  cantrip_scaling: true
+  cantrip_scale_dice: 1d6
+  description: You cause a cloud of mites, fleas, and other parasites to appear momentarily on one creature. The target must move in a random direction on a failed save.
+
+- name: Lightning Lure
+  level: 0
+  school: evocation
+  attack_type: saving_throw
+  save_type: str
+  save_half: false
+  damage_dice: 1d8
+  damage_modifier: 0
+  damage_type: lightning
+  cantrip_scaling: true
+  cantrip_scale_dice: 1d8
+  description: You create a lash of lightning energy that pulls a creature toward you. On a failed save, the target is pulled up to 10 feet.
+
+- name: Magic Stone
+  level: 0
+  school: transmutation
+  attack_type: attack_roll
+  damage_dice: 1d6
+  damage_modifier: 0
+  damage_type: bludgeoning
+  cantrip_scaling: false
+  description: You touch one to three pebbles, imbuing them with magic. They become magic weapons with a range of 60 feet.
+
+- name: Mind Sliver
+  level: 0
+  school: enchantment
+  attack_type: saving_throw
+  save_type: int
+  save_half: false
+  damage_dice: 1d4
+  damage_modifier: 0
+  damage_type: psychic
+  cantrip_scaling: true
+  cantrip_scale_dice: 1d4
+  description: You drive a disorienting spike of psychic energy into the mind of a creature. On a failed save, the target has disadvantage on its next saving throw before the end of your next turn.
+
+- name: Poison Spray
+  level: 0
+  school: conjuration
+  attack_type: saving_throw
+  save_type: con
+  save_half: false
+  damage_dice: 1d12
+  damage_modifier: 0
+  damage_type: poison
+  cantrip_scaling: true
+  cantrip_scale_dice: 1d12
+  description: You extend your hand toward a creature you can see and a noxious cloud of poison gas billows from your palm.
+
+- name: Primal Savagery
+  level: 0
+  school: transmutation
+  attack_type: attack_roll
+  damage_dice: 1d10
+  damage_modifier: 0
+  damage_type: acid
+  cantrip_scaling: true
+  cantrip_scale_dice: 1d10
+  description: You channel primal magic to cause your teeth or fingernails to sharpen, then strike a creature with a melee spell attack.
+
+- name: Produce Flame
+  level: 0
+  school: conjuration
+  attack_type: attack_roll
+  damage_dice: 1d8
+  damage_modifier: 0
+  damage_type: fire
+  cantrip_scaling: true
+  cantrip_scale_dice: 1d8
+  description: A flickering flame appears in your hand. You can hurl it at a creature within range as a ranged spell attack.
+
+- name: Ray of Frost
+  level: 0
+  school: evocation
+  attack_type: attack_roll
+  damage_dice: 1d8
+  damage_modifier: 0
+  damage_type: cold
+  cantrip_scaling: true
+  cantrip_scale_dice: 1d8
+  description: A frigid beam of blue-white light streaks toward a creature. On a hit, the target's speed is reduced by 10 feet until the start of your next turn.
+
+- name: Sacred Flame
+  level: 0
+  school: evocation
+  attack_type: saving_throw
+  save_type: dex
+  save_half: false
+  damage_dice: 1d8
+  damage_modifier: 0
+  damage_type: radiant
+  cantrip_scaling: true
+  cantrip_scale_dice: 1d8
+  description: Flame-like radiance descends on a creature that you can see within range. The target must succeed on a Dexterity saving throw.
+
+- name: Sapping Sting
+  level: 0
+  school: necromancy
+  attack_type: saving_throw
+  save_type: con
+  save_half: false
+  damage_dice: 1d8
+  damage_modifier: 0
+  damage_type: necrotic
+  cantrip_scaling: true
+  cantrip_scale_dice: 1d8
+  description: You sap a creature's vitality. On a failed save, the target is knocked prone.
+
+- name: Shocking Grasp
+  level: 0
+  school: evocation
+  attack_type: attack_roll
+  damage_dice: 1d8
+  damage_modifier: 0
+  damage_type: lightning
+  cantrip_scaling: true
+  cantrip_scale_dice: 1d8
+  description: Lightning springs from your hand to deliver a shock to a creature you try to touch. Advantage on the attack if the target is wearing armor made of metal.
+
+- name: Sword Burst
+  level: 0
+  school: conjuration
+  attack_type: saving_throw
+  save_type: str
+  save_half: false
+  damage_dice: 1d6
+  damage_modifier: 0
+  damage_type: slashing
+  cantrip_scaling: true
+  cantrip_scale_dice: 1d6
+  description: You create a momentary circle of spectral blades that sweeps around you. Each creature within range must succeed on a Strength saving throw.
+
+- name: Thorn Whip
+  level: 0
+  school: transmutation
+  attack_type: attack_roll
+  damage_dice: 1d6
+  damage_modifier: 0
+  damage_type: piercing
+  cantrip_scaling: true
+  cantrip_scale_dice: 1d6
+  description: You create a long, vine-like whip that lashes out at a creature within range. On a hit, you pull the target up to 10 feet closer to you.
+
+- name: Thunderclap
+  level: 0
+  school: evocation
+  attack_type: saving_throw
+  save_type: con
+  save_half: false
+  damage_dice: 1d6
+  damage_modifier: 0
+  damage_type: thunder
+  cantrip_scaling: true
+  cantrip_scale_dice: 1d6
+  description: You create a burst of thunderous sound. Each creature within range must make a Constitution saving throw.
+
+- name: Toll the Dead
+  level: 0
+  school: necromancy
+  attack_type: saving_throw
+  save_type: wis
+  save_half: false
+  damage_dice: 1d8
+  damage_modifier: 0
+  damage_type: necrotic
+  cantrip_scaling: true
+  cantrip_scale_dice: 1d8
+  toll_the_dead_special: true
+  description: You point at a creature, sounding a dolorous bell. If the target is already missing hit points, it uses a d12 instead of a d8.
+
+- name: Vicious Mockery
+  level: 0
+  school: enchantment
+  attack_type: saving_throw
+  save_type: wis
+  save_half: false
+  damage_dice: 1d4
+  damage_modifier: 0
+  damage_type: psychic
+  cantrip_scaling: true
+  cantrip_scale_dice: 1d4
+  description: You unleash a string of insults at a creature. On a failed save, it has disadvantage on its next attack roll.
+
+- name: Word of Radiance
+  level: 0
+  school: evocation
+  attack_type: saving_throw
+  save_type: con
+  save_half: false
+  damage_dice: 1d6
+  damage_modifier: 0
+  damage_type: radiant
+  cantrip_scaling: true
+  cantrip_scale_dice: 1d6
+  description: You utter a divine word, and burning radiance erupts from you. Each creature of your choice within range must succeed on a Constitution saving throw.
+
+# ============================================================
+# LEVEL 1 SPELLS
+# ============================================================
+
+- name: Burning Hands
+  level: 1
+  school: evocation
+  attack_type: saving_throw
+  save_type: dex
+  save_half: true
+  damage_dice: 3d6
+  damage_modifier: 0
+  damage_type: fire
+  aoe: true
+  higher_levels: "+1d6"
+  description: As you hold your hands with thumbs touching and fingers spread, a thin sheet of flames shoots forth from your outstretched fingertips.
+
+- name: Catapault
+  level: 1
+  school: transmutation
+  attack_type: saving_throw
+  save_type: dex
+  save_half: false
+  damage_dice: 1d8
+  damage_modifier: 0
+  damage_type: bludgeoning
+  higher_levels: "+1d8"
+  description: You choose one object weighing 1 to 5 pounds within range that isn't being worn or carried. The object then flies in a straight line up to 90 feet in a direction you choose before falling to the ground.
+
+- name: Chaos Bolt
+  level: 1
+  school: evocation
+  attack_type: attack_roll
+  damage_dice: 2d8
+  damage_modifier: 0
+  damage_type: random
+  higher_levels: "+1d8"
+  description: You hurl an undulating, warbling mass of chaotic energy at one creature. Roll a d8 to determine the damage type.
+
+- name: Chromatic Orb
+  level: 1
+  school: evocation
+  attack_type: attack_roll
+  damage_dice: 3d8
+  damage_modifier: 0
+  damage_type: acid
+  higher_levels: "+1d8"
+  description: "You hurl a 4-inch-diameter sphere of energy at one creature. You choose the damage type: acid, cold, fire, lightning, or thunder."
+
+- name: Cure Wounds
+  level: 1
+  school: evocation
+  attack_type: automatic
+  damage_dice: 1d8
+  damage_modifier: 0
+  damage_type: healing
+  healing: true
+  higher_levels: "+1d8"
+  description: A creature you touch regains hit points equal to 1d8 + your spellcasting ability modifier. This spell has no effect on undead or constructs.
+
+- name: Healing Word
+  level: 1
+  school: evocation
+  attack_type: automatic
+  damage_dice: 1d4
+  damage_modifier: 0
+  damage_type: healing
+  healing: true
+  higher_levels: "+1d4"
+  description: A creature of your choice within range regains hit points equal to 1d4 + your spellcasting ability modifier. This spell has no effect on undead or constructs.
+
+- name: Dissonant Whispers
+  level: 1
+  school: enchantment
+  attack_type: saving_throw
+  save_type: wis
+  save_half: true
+  damage_dice: 3d6
+  damage_modifier: 0
+  damage_type: psychic
+  higher_levels: "+1d6"
+  description: You whisper a discordant melody that only the target can hear, wracking it with terrible pain.
+
+- name: Earth Tremor
+  level: 1
+  school: evocation
+  attack_type: saving_throw
+  save_type: str
+  save_half: false
+  damage_dice: 1d6
+  damage_modifier: 0
+  damage_type: bludgeoning
+  higher_levels: "+1d6"
+  description: You cause a tremor in the ground within range. Each creature other than you in that area must make a Strength saving throw.
+
+- name: Ensnaring Strike
+  level: 1
+  school: conjuration
+  attack_type: saving_throw
+  save_type: str
+  save_half: false
+  damage_dice: 1d6
+  damage_modifier: 0
+  damage_type: piercing
+  is_supplementary: true
+  description: The next time you hit a creature with a weapon attack before the spell ends, the target must succeed on a Strength saving throw or be restrained.
+
+- name: Guiding Bolt
+  level: 1
+  school: evocation
+  attack_type: attack_roll
+  damage_dice: 4d6
+  damage_modifier: 0
+  damage_type: radiant
+  higher_levels: "+1d6"
+  description: A flash of light streaks toward a creature of your choice within range. On a hit, the next attack roll made against the target has advantage.
+
+- name: Hellish Rebuke
+  level: 1
+  school: evocation
+  attack_type: saving_throw
+  save_type: dex
+  save_half: true
+  damage_dice: 2d10
+  damage_modifier: 0
+  damage_type: fire
+  higher_levels: "+1d10"
+  description: You point your finger and the creature that damaged you is momentarily surrounded by hellish flames.
+
+- name: Ice Knife
+  level: 1
+  school: conjuration
+  attack_type: attack_roll
+  damage_dice: 1d10
+  damage_modifier: 0
+  damage_type: piercing
+  higher_levels: "+1d10"
+  description: You create a shard of ice and fling it at one creature within range. On a hit, the target takes 1d10 piercing damage. Hit or miss, the shard explodes. Creatures within 5 feet of the point of impact must make a Dexterity save, taking 2d6 cold damage on a failed save.
+
+- name: Inflict Wounds
+  level: 1
+  school: necromancy
+  attack_type: attack_roll
+  damage_dice: 3d10
+  damage_modifier: 0
+  damage_type: necrotic
+  higher_levels: "+1d10"
+  description: You make a melee spell attack against a creature you can reach. On a hit, the target takes necrotic damage.
+
+- name: Magic Missile
+  level: 1
+  school: evocation
+  attack_type: automatic
+  damage_dice: 3d4
+  damage_modifier: 3
+  damage_type: force
+  higher_levels: "+1d4+1"
+  description: You create three glowing darts of magical force. Each dart deals 1d4+1 force damage. The darts all strike simultaneously.
+
+- name: Ray of Sickness
+  level: 1
+  school: evocation
+  attack_type: attack_roll
+  damage_dice: 2d8
+  damage_modifier: 0
+  damage_type: poison
+  higher_levels: "+1d8"
+  description: A ray of sickening greenish energy lashes out toward a creature within range. On a hit, the target is poisoned until the end of your next turn.
+
+- name: Searing Smite
+  level: 1
+  school: evocation
+  attack_type: saving_throw
+  save_type: con
+  save_half: false
+  damage_dice: 1d6
+  damage_modifier: 0
+  damage_type: fire
+  is_supplementary: true
+  higher_levels: "+1d6"
+  description: The next time you hit a creature with a melee weapon attack during the spell's duration, your weapon flares with white-hot fire. The target takes an extra 1d6 fire damage and is ignited.
+
+- name: Snare
+  level: 1
+  school: conjuration
+  attack_type: saving_throw
+  save_type: dex
+  save_half: false
+  damage_dice: 1d6
+  damage_modifier: 0
+  damage_type: piercing
+  description: As you cast this spell, you use a rope to create a trap. A creature that steps on it must succeed on a Dexterity saving throw or be restrained.
+
+- name: Thunderous Smite
+  level: 1
+  school: evocation
+  attack_type: saving_throw
+  save_type: str
+  save_half: false
+  damage_dice: 2d6
+  damage_modifier: 0
+  damage_type: thunder
+  is_supplementary: true
+  description: The next time you hit a creature with a melee weapon attack during the spell's duration, your weapon rings with thunder and the attack deals an extra 2d6 thunder damage. The target must succeed on a Strength saving throw or be pushed 10 feet away.
+
+- name: Thunderwave
+  level: 1
+  school: evocation
+  attack_type: saving_throw
+  save_type: con
+  save_half: true
+  damage_dice: 2d8
+  damage_modifier: 0
+  damage_type: thunder
+  aoe: true
+  higher_levels: "+1d8"
+  description: A wave of thunderous force sweeps out from you. Each creature in a 15-foot cube must make a Constitution saving throw.
+
+- name: Witch Bolt
+  level: 1
+  school: evocation
+  attack_type: attack_roll
+  damage_dice: 1d12
+  damage_modifier: 0
+  damage_type: lightning
+  higher_levels: "+1d12"
+  description: A beam of crackling, blue energy lances out toward a creature within range.
+
+- name: Wrathful Smite
+  level: 1
+  school: evocation
+  attack_type: saving_throw
+  save_type: wis
+  save_half: false
+  damage_dice: 1d6
+  damage_modifier: 0
+  damage_type: psychic
+  is_supplementary: true
+  description: The next time you hit a creature with a melee weapon attack during the spell's duration, your attack deals an extra 1d6 psychic damage.
+
+# ============================================================
+# LEVEL 2 SPELLS
+# ============================================================
+
+- name: Acid Arrow
+  level: 2
+  school: evocation
+  attack_type: attack_roll
+  damage_dice: 4d4
+  damage_modifier: 0
+  damage_type: acid
+  damage_on_miss: 2d4
+  higher_levels: "+2d4"
+  description: A shimmering green arrow streaks toward a target within range and bursts in a spray of acid. On a miss, the target still takes half damage.
+
+- name: Blindness/Deafness
+  level: 2
+  school: necromancy
+  attack_type: saving_throw
+  save_type: con
+  save_half: false
+  damage_dice: 0d0
+  damage_modifier: 0
+  damage_type: ""
+  no_damage: true
+  description: You can blind or deafen a foe. The target must make a Constitution saving throw. On a failure, it is blinded or deafened.
+
+- name: Moonbeam
+  level: 2
+  school: evocation
+  attack_type: saving_throw
+  save_type: con
+  save_half: true
+  damage_dice: 2d10
+  damage_modifier: 0
+  damage_type: radiant
+  aoe: true
+  higher_levels: "+1d10"
+  description: A silvery beam of pale light shines down in a 5-foot-radius, 40-foot-high cylinder. Each creature in the area must make a Constitution saving throw.
+
+- name: Phantasmal Force
+  level: 2
+  school: illusion
+  attack_type: saving_throw
+  save_type: int
+  save_half: false
+  damage_dice: 1d6
+  damage_modifier: 0
+  damage_type: psychic
+  description: You craft an illusion that takes root in the mind of a creature within range. The target must make an Intelligence saving throw or take psychic damage.
+
+- name: Scorching Ray
+  level: 2
+  school: evocation
+  attack_type: attack_roll
+  damage_dice: 2d6
+  damage_modifier: 0
+  damage_type: fire
+  higher_levels: "+2d6"
+  multi_hit: true
+  description: You create three rays of fire and may hurl them at one or more targets. Each ray requires a separate attack roll.
+
+- name: Shatter
+  level: 2
+  school: evocation
+  attack_type: saving_throw
+  save_type: con
+  save_half: true
+  damage_dice: 3d8
+  damage_modifier: 0
+  damage_type: thunder
+  aoe: true
+  higher_levels: "+1d8"
+  description: A sudden loud ringing noise, painfully intense, erupts from a point of your choice within range. Each creature must make a Constitution saving throw.
+
+- name: Spiritual Weapon
+  level: 2
+  school: evocation
+  attack_type: attack_roll
+  damage_dice: 1d8
+  damage_modifier: 0
+  damage_type: force
+  higher_levels: "+1d8"
+  description: You create a floating, spectral weapon within range that attacks creatures you designate. On a hit, the target takes force damage equal to 1d8 + your spellcasting ability modifier.
+
+# ============================================================
+# LEVEL 3 SPELLS
+# ============================================================
+
+- name: Aura of Vitality
+  level: 3
+  school: evocation
+  attack_type: automatic
+  damage_dice: 2d6
+  damage_modifier: 0
+  damage_type: healing
+  healing: true
+  description: Healing energy radiates from you in an aura with a 30-foot radius. Until the spell ends, the aura moves with you. On each of your turns, you can use a bonus action to heal one creature.
+
+- name: Blinding Smite
+  level: 3
+  school: evocation
+  attack_type: saving_throw
+  save_type: con
+  save_half: false
+  damage_dice: 3d8
+  damage_modifier: 0
+  damage_type: radiant
+  is_supplementary: true
+  description: The next time you hit a creature with a melee weapon attack during this spell's duration, your weapon flares with bright light, dealing an extra 3d8 radiant damage. The target must make a Constitution saving throw or be blinded.
+
+- name: Call Lightning
+  level: 3
+  school: evocation
+  attack_type: saving_throw
+  save_type: dex
+  save_half: true
+  damage_dice: 3d10
+  damage_modifier: 0
+  damage_type: lightning
+  higher_levels: "+1d10"
+  description: A storm cloud appears in the shape of a cylinder 10 feet tall with a 60-foot radius. On each of your turns, you can call down a bolt of lightning.
+
+- name: Conjure Barrage
+  level: 3
+  school: conjuration
+  attack_type: saving_throw
+  save_type: dex
+  save_half: true
+  damage_dice: 3d8
+  damage_modifier: 0
+  damage_type: piercing
+  aoe: true
+  description: You throw a nonmagical weapon or fire a piece of nonmagical ammunition into the air to create a cone of identical weapons. Each creature in the area must make a Dexterity saving throw.
+
+- name: Crusader's Mantle
+  level: 3
+  school: evocation
+  attack_type: automatic
+  damage_dice: 1d4
+  damage_modifier: 0
+  damage_type: radiant
+  aoe: true
+  description: Holy power radiates from you. Each friendly creature within 30 feet of you gains a +1d4 bonus to weapon damage rolls.
+
+- name: Fireball
+  level: 3
+  school: evocation
+  attack_type: saving_throw
+  save_type: dex
+  save_half: true
+  damage_dice: 6d6
+  damage_modifier: 0
+  damage_type: fire
+  aoe: true
+  higher_levels: "+1d6"
+  description: A bright streak flashes from your pointing finger to a point you choose and then blossoms with a low roar into an explosion of flame.
+
+- name: Flame Arrow
+  level: 3
+  school: transmutation
+  attack_type: attack_roll
+  damage_dice: 1d6
+  damage_modifier: 0
+  damage_type: fire
+  is_supplementary: true
+  higher_levels: "+1d6"
+  description: You touch a quiver containing arrows or bolts. When a target is hit by a ranged weapon attack using a piece of ammunition drawn from the quiver, the target takes an extra 1d6 fire damage.
+
+- name: Glyph of Warding
+  level: 3
+  school: abjuration
+  attack_type: saving_throw
+  save_type: dex
+  save_half: true
+  damage_dice: 5d8
+  damage_modifier: 0
+  damage_type: acid
+  higher_levels: "+1d8"
+  description: When you inscribe a glyph that triggers on a creature, it can explode in a 20-foot radius. The damage type can be acid, cold, fire, lightning, or thunder.
+
+- name: Lightning Bolt
+  level: 3
+  school: evocation
+  attack_type: saving_throw
+  save_type: dex
+  save_half: true
+  damage_dice: 6d6
+  damage_modifier: 0
+  damage_type: lightning
+  aoe: true
+  higher_levels: "+1d6"
+  description: A stroke of lightning forming a line 100 feet long and 5 feet wide blasts out from you. Each creature in the line must make a Dexterity saving throw.
+
+- name: Melf's Minute Meteors
+  level: 3
+  school: evocation
+  attack_type: attack_roll
+  damage_dice: 2d6
+  damage_modifier: 0
+  damage_type: fire
+  higher_levels: "+1d6"
+  multi_hit: true
+  description: Six tiny meteors appear in your orbit. As a bonus action, you can expend one or two meteors, sending them streaking toward a target within range.
+
+- name: Spirit Guardians
+  level: 3
+  school: conjuration
+  attack_type: saving_throw
+  save_type: wis
+  save_half: true
+  damage_dice: 3d8
+  damage_modifier: 0
+  damage_type: radiant
+  aoe: true
+  description: You call forth spirits to protect you. They flit around you and each creature that starts its turn within 10 feet of you must make a Wisdom saving throw. Damage can be radiant or necrotic.
+
+- name: Vampiric Touch
+  level: 3
+  school: necromancy
+  attack_type: attack_roll
+  damage_dice: 3d6
+  damage_modifier: 0
+  damage_type: necrotic
+  higher_levels: "+1d6"
+  description: The touch of your shadow-wrapped hand can siphon life force from others. On a hit, you regain hit points equal to half the damage dealt.
+
+# ============================================================
+# LEVEL 4 SPELLS
+# ============================================================
+
+- name: Blight
+  level: 4
+  school: necromancy
+  attack_type: saving_throw
+  save_type: con
+  save_half: true
+  damage_dice: 8d8
+  damage_modifier: 0
+  damage_type: necrotic
+  higher_levels: "+1d8"
+  description: Necromantic energy washes over a creature. The target must make a Constitution saving throw. Non-plant creatures take half damage on a successful save. Plant creatures have disadvantage.
+
+- name: Fire Shield
+  level: 4
+  school: evocation
+  attack_type: saving_throw
+  save_type: dex
+  save_half: false
+  damage_dice: 2d8
+  damage_modifier: 0
+  damage_type: fire
+  damage_type_alt: cold
+  description: Thin and wispy flames swirl around you. Any creature that hits you with a melee attack within 5 feet takes fire damage (or cold if you choose the chill shield). The shield lasts 10 minutes.
+
+- name: Gravity Sinkhole
+  level: 4
+  school: transmutation
+  attack_type: saving_throw
+  save_type: str
+  save_half: true
+  damage_dice: 5d10
+  damage_modifier: 0
+  damage_type: bludgeoning
+  aoe: true
+  higher_levels: "+1d10"
+  description: A 20-foot-radius sphere of crushing gravity appears. Each creature in the area must make a Strength saving throw.
+
+- name: Ice Storm
+  level: 4
+  school: evocation
+  attack_type: saving_throw
+  save_type: dex
+  save_half: true
+  damage_dice: 2d8
+  damage_modifier: 0
+  damage_type: bludgeoning
+  extra_damage_dice: 4d6
+  extra_damage_type: cold
+  aoe: true
+  higher_levels: "+1d8"
+  extra_higher_levels: "+1d6"
+  description: A hail of rock-hard ice pounds to the ground in a 20-foot-radius, 40-foot-high cylinder. Creatures take bludgeoning and cold damage.
+
+- name: Phantasmal Killer
+  level: 4
+  school: illusion
+  attack_type: saving_throw
+  save_type: wis
+  save_half: true
+  damage_dice: 4d10
+  damage_modifier: 0
+  damage_type: psychic
+  higher_levels: "+1d10"
+  description: You tap into the nightmares of a creature you can see. It must make a Wisdom saving throw. On a fail, it takes psychic damage and is frightened.
+
+- name: Staggering Smite
+  level: 4
+  school: evocation
+  attack_type: saving_throw
+  save_type: con
+  save_half: false
+  damage_dice: 4d6
+  damage_modifier: 0
+  damage_type: psychic
+  is_supplementary: true
+  description: The next time you hit a creature with a melee weapon attack during this spell's duration, the attack deals an extra 4d6 psychic damage, and the target must make a Constitution saving throw.
+
+- name: Vitriolic Sphere
+  level: 4
+  school: evocation
+  attack_type: saving_throw
+  save_type: dex
+  save_half: true
+  damage_dice: 10d4
+  damage_modifier: 0
+  damage_type: acid
+  aoe: true
+  higher_levels: "+2d4"
+  description: You point at a location and a 20-foot-radius sphere of acid appears. Each creature must make a Dexterity saving throw.
+
+- name: Wall of Fire
+  level: 4
+  school: evocation
+  attack_type: saving_throw
+  save_type: dex
+  save_half: true
+  damage_dice: 5d8
+  damage_modifier: 0
+  damage_type: fire
+  aoe: true
+  higher_levels: "+1d8"
+  description: You create a wall of fire on a solid surface. Each creature within 10 feet of the wall takes fire damage. Creatures on the other side of the wall take half damage.
+
+# ============================================================
+# LEVEL 5 SPELLS
+# ============================================================
+
+- name: Bigby's Hand
+  level: 5
+  school: evocation
+  attack_type: attack_roll
+  damage_dice: 4d8
+  damage_modifier: 0
+  damage_type: bludgeoning
+  higher_levels: "+1d8"
+  description: You create a Large hand of shimmering, translucent force. The clenched fist can be directed at one target, dealing bludgeoning damage on a hit.
+
+- name: Cloudkill
+  level: 5
+  school: conjuration
+  attack_type: saving_throw
+  save_type: con
+  save_half: true
+  damage_dice: 8d8
+  damage_modifier: 0
+  damage_type: poison
+  aoe: true
+  higher_levels: "+2d8"
+  description: You create a 20-foot-radius sphere of poisonous, yellowish fog. Each creature in the area must make a Constitution saving throw.
+
+- name: Cone of Cold
+  level: 5
+  school: evocation
+  attack_type: saving_throw
+  save_type: con
+  save_half: true
+  damage_dice: 8d8
+  damage_modifier: 0
+  damage_type: cold
+  aoe: true
+  higher_levels: "+1d8"
+  description: A blast of cold air erupts from your hands. Each creature in a 60-foot cone must make a Constitution saving throw.
+
+- name: Destructive Wave
+  level: 5
+  school: evocation
+  attack_type: saving_throw
+  save_type: con
+  save_half: true
+  damage_dice: 5d6
+  damage_modifier: 0
+  damage_type: thunder
+  extra_damage_dice: 5d6
+  extra_damage_type: radiant
+  aoe: true
+  description: You strike the ground, creating a burst of divine energy. Each creature within 30 feet must make a Constitution saving throw. You choose radiant or necrotic for the extra damage.
+
+- name: Flame Strike
+  level: 5
+  school: evocation
+  attack_type: saving_throw
+  save_type: dex
+  save_half: true
+  damage_dice: 4d6
+  damage_modifier: 0
+  damage_type: fire
+  extra_damage_dice: 4d8
+  extra_damage_type: radiant
+  aoe: true
+  higher_levels: "+1d6"
+  extra_higher_levels: "+1d8"
+  description: A vertical column of divine fire roars down from above. Each creature in a 10-foot-radius, 40-foot-high cylinder must make a Dexterity saving throw.
+
+- name: Insect Plague
+  level: 5
+  school: conjuration
+  attack_type: saving_throw
+  save_type: con
+  save_half: true
+  damage_dice: 4d10
+  damage_modifier: 0
+  damage_type: piercing
+  aoe: true
+  higher_levels: "+1d10"
+  description: Swarming, biting locusts fill a 20-foot-radius sphere. Each creature must make a Constitution saving throw.
+
+- name: Mass Cure Wounds
+  level: 5
+  school: conjuration
+  attack_type: automatic
+  damage_dice: 3d8
+  damage_modifier: 0
+  damage_type: healing
+  healing: true
+  higher_levels: "+1d8"
+  description: A wave of healing energy washes out from a point of your choice. Up to six creatures regain hit points equal to 3d8 + your spellcasting ability modifier.
+
+# ============================================================
+# LEVEL 6 SPELLS
+# ============================================================
+
+- name: Chain Lightning
+  level: 6
+  school: evocation
+  attack_type: attack_roll
+  damage_dice: 10d6
+  damage_modifier: 0
+  damage_type: lightning
+  higher_levels: "+1d6"
+  description: A bolt of lightning streaks toward a target. On a hit, the target takes lightning damage, and lightning arcs to additional targets.
+
+- name: Circle of Death
+  level: 6
+  school: necromancy
+  attack_type: saving_throw
+  save_type: con
+  save_half: true
+  damage_dice: 8d6
+  damage_modifier: 0
+  damage_type: necrotic
+  aoe: true
+  higher_levels: "+2d6"
+  description: A sphere of negative energy radiates from a point. Each creature within a 60-foot-radius sphere must make a Constitution saving throw.
+
+- name: Disintegrate
+  level: 6
+  school: transmutation
+  attack_type: saving_throw
+  save_type: dex
+  save_half: false
+  damage_dice: 10d6
+  damage_modifier: 40
+  damage_type: force
+  higher_levels: "+3d6"
+  description: A thin green ray springs from your pointing finger. The target must make a Dexterity saving throw. If the target is reduced to 0 hit points by this spell, it is disintegrated.
+
+- name: Harm
+  level: 6
+  school: necromancy
+  attack_type: saving_throw
+  save_type: con
+  save_half: false
+  damage_dice: 14d6
+  damage_modifier: 0
+  damage_type: necrotic
+  higher_levels: "+1d6"
+  description: You unleash a virulent disease on a creature. The target must make a Constitution saving throw, taking necrotic damage on a failed save and having disadvantage on attack rolls and ability checks.
+
+- name: Heal
+  level: 6
+  school: evocation
+  attack_type: automatic
+  damage_dice: 70
+  damage_modifier: 0
+  damage_type: healing
+  healing: true
+  flat_healing: true
+  higher_levels: "+10"
+  description: A flush of vitality surges through a creature, restoring 70 hit points. This spell also ends blindness, deafness, and any diseases affecting the target.
+
+- name: Sunbeam
+  level: 6
+  school: evocation
+  attack_type: saving_throw
+  save_type: con
+  save_half: true
+  damage_dice: 6d8
+  damage_modifier: 0
+  damage_type: radiant
+  aoe: true
+  higher_levels: "+1d8"
+  description: A beam of brilliant light flashes out from your hand in a 60-foot line. Each creature in the line must make a Constitution saving throw. Undead have disadvantage.
+
+# ============================================================
+# LEVEL 7 SPELLS
+# ============================================================
+
+- name: Delayed Blast Fireball
+  level: 7
+  school: evocation
+  attack_type: saving_throw
+  save_type: dex
+  save_half: true
+  damage_dice: 7d6
+  damage_modifier: 0
+  damage_type: fire
+  aoe: true
+  higher_levels: "+1d6"
+  description: A beam of yellow light flashes from your pointing finger, creating a bead of fire. When the spell ends, the bead explodes. Base damage increases by 1d6 per round it's active.
+
+- name: Finger of Death
+  level: 7
+  school: necromancy
+  attack_type: saving_throw
+  save_type: con
+  save_half: true
+  damage_dice: 7d8
+  damage_modifier: 30
+  damage_type: necrotic
+  higher_levels: "+1d8"
+  description: You send negative energy coursing through a creature. The target must make a Constitution saving throw. A humanoid killed by this spell rises as a zombie under your control.
+
+- name: Fire Storm
+  level: 7
+  school: evocation
+  attack_type: saving_throw
+  save_type: dex
+  save_half: true
+  damage_dice: 7d10
+  damage_modifier: 0
+  damage_type: fire
+  aoe: true
+  higher_levels: "+1d10"
+  description: A storm made up of sheets of roaring flame appears. Each creature in the area must make a Dexterity saving throw.
+
+- name: Plane Shift
+  level: 7
+  school: conjuration
+  attack_type: saving_throw
+  save_type: cha
+  save_half: false
+  damage_dice: 0d0
+  damage_modifier: 0
+  damage_type: ""
+  no_damage: true
+  description: You and up to eight willing creatures, or one creature you can see within range, are transported to a different plane. A unwilling creature must make a Charisma saving throw to resist.
+
+- name: Regenerate
+  level: 7
+  school: evocation
+  attack_type: automatic
+  damage_dice: 4d8
+  damage_modifier: 0
+  damage_type: healing
+  healing: true
+  description: You touch a creature and stimulate its natural healing ability. The target regains 4d8 + your spellcasting ability modifier hit points and regrows severed body parts.
+
+# ============================================================
+# LEVEL 8 SPELLS
+# ============================================================
+
+- name: Earthquake
+  level: 8
+  school: evocation
+  attack_type: saving_throw
+  save_type: dex
+  save_half: true
+  damage_dice: 5d6
+  damage_modifier: 0
+  damage_type: bludgeoning
+  aoe: true
+  description: You create a seismic disturbance. Each creature on the ground in the area must make a Dexterity saving throw.
+
+- name: Sunburst
+  level: 8
+  school: evocation
+  attack_type: saving_throw
+  save_type: con
+  save_half: true
+  damage_dice: 12d6
+  damage_modifier: 0
+  damage_type: radiant
+  aoe: true
+  higher_levels: "+2d6"
+  description: Brilliant sunlight flashes in a 60-foot radius centered on a point. Each creature in the light must make a Constitution saving throw. On a failed save, a creature is blinded.
+
+- name: Tsunami
+  level: 8
+  school: conjuration
+  attack_type: saving_throw
+  save_type: str
+  save_half: true
+  damage_dice: 6d10
+  damage_modifier: 0
+  damage_type: bludgeoning
+  aoe: true
+  description: A wall of water springs into existence at a point you choose. Each creature in the area must make a Strength saving throw.
+
+# ============================================================
+# LEVEL 9 SPELLS
+# ============================================================
+
+- name: Meteor Swarm
+  level: 9
+  school: evocation
+  attack_type: saving_throw
+  save_type: dex
+  save_half: true
+  damage_dice: 20d6
+  damage_modifier: 0
+  damage_type: fire
+  extra_damage_dice: 20d6
+  extra_damage_type: bludgeoning
+  aoe: true
+  description: Blazing orbs of fire plummet to the ground at four different points. Each creature in a 40-foot-radius sphere must make a Dexterity saving throw, taking fire and bludgeoning damage.
+
+- name: Power Word Kill
+  level: 9
+  school: enchantment
+  attack_type: automatic
+  damage_dice: 0d0
+  damage_modifier: 0
+  damage_type: ""
+  no_damage: true
+  instant_kill: true
+  instant_kill_hp_threshold: 100
+  description: You utter a word of power that can compel one creature you can see within range to die instantly. If the creature has 100 hit points or fewer, it dies.
+
+- name: Time Ravage
+  level: 9
+  school: chronomancy
+  attack_type: saving_throw
+  save_type: con
+  save_half: true
+  damage_dice: 10d12
+  damage_modifier: 0
+  damage_type: necrotic
+  description: You accelerate time around a creature, causing it to age rapidly. The target must make a Constitution saving throw.
 
 # ============================================================
 # CONDITION & UTILITY SPELLS
