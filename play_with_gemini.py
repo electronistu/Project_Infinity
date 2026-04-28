@@ -189,7 +189,21 @@ def create_gemini_chat_fn(api_key, debug=False, thinking_level=None, temperature
                 ))
 
             elif role == "assistant":
-                pass
+                tool_calls_raw = msg.get("tool_calls")
+                content_text = msg.get("content", "")
+                parts = []
+                if content_text:
+                    parts.append(types.Part(text=content_text))
+                if tool_calls_raw:
+                    for tc in tool_calls_raw:
+                        fn = tc.get("function", {})
+                        args = fn.get("arguments", {})
+                        parts.append(types.Part(function_call=types.FunctionCall(
+                            name=fn.get("name", ""),
+                            args=args if isinstance(args, dict) else {},
+                        )))
+                if parts:
+                    gemini_contents.append(types.Content(role="model", parts=parts))
 
             elif role == "tool":
                 tool_name = msg.get("name", "")
@@ -207,6 +221,10 @@ def create_gemini_chat_fn(api_key, debug=False, thinking_level=None, temperature
                 ))
 
         last_processed = len(messages)
+
+        MAX_GEMINI_ENTRIES = 600
+        if len(gemini_contents) > MAX_GEMINI_ENTRIES:
+            gemini_contents = gemini_contents[:12] + gemini_contents[-(MAX_GEMINI_ENTRIES - 12):]
 
         gemini_tool = convert_tools_to_gemini(tools) if tools else None
 

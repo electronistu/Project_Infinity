@@ -766,11 +766,9 @@ def create_character(config: Config) -> PlayerCharacter:
     if chosen_class.name == "Druid" and "Druidic" not in languages:
         languages.append("Druidic")
 
-    language_choice_count = 0
-    for lang in languages:
-        if "choice" in lang.lower():
-            language_choice_count += 1
-            languages.remove(lang)
+    choice_langs = [lang for lang in languages if "choice" in lang.lower()]
+    language_choice_count = len(choice_langs)
+    languages = [lang for lang in languages if "choice" not in lang.lower()]
 
     for bg_lang in ([chosen_background.languages] if chosen_background.languages else []):
         if bg_lang and "choice" in bg_lang.lower():

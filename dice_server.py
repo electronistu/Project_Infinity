@@ -194,6 +194,11 @@ def init_player_db(player_file_path: str) -> str:
                 cursor.execute("INSERT INTO player (key, value) VALUES (?, ?)", (key, json.dumps(value)))
 
         DB_CONNECTION.commit()
+
+        cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", ("active_effects", "[]"))
+        cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", ("_active_buff_data", "{}"))
+        DB_CONNECTION.commit()
+
         return f"Database initialized with player data from {player_file_path}."
     except Exception as e:
         return f"Failed to initialize database: {str(e)}"
@@ -655,7 +660,8 @@ def update_player_list(key: str, item: str, action: str) -> dict:
     VALID KEYS:
     inventory, spellcasting.spells_known, spellcasting.spells_prepared,
     spellcasting.spellbook, spellcasting.cantrips, skills, features,
-    languages, saves, armor_proficiencies, weapon_proficiencies, tool_proficiencies
+    languages, saves, armor_proficiencies, weapon_proficiencies, tool_proficiencies,
+    active_effects
 
     FORMAT: 'Item Name: Description' (description optional)
 
@@ -736,6 +742,29 @@ def update_player_list(key: str, item: str, action: str) -> dict:
                     break
             if not found:
                 return {"success": False, "error": "not_found", "key": key, "item": item, "action": action}
+
+            if key == "active_effects":
+                buff_data_raw = _db_val(cursor, "_active_buff_data", {})
+                if isinstance(buff_data_raw, str):
+                    buff_data_raw = json.loads(buff_data_raw)
+                if item in buff_data_raw:
+                    entries = buff_data_raw[item]
+                    reverted = {}
+                    for entry in entries:
+                        modify_player_numeric(key=entry["field"], delta=-entry["delta"])
+                        reverted[entry["field"]] = {"delta": -entry["delta"]}
+                    del buff_data_raw[item]
+                    _db_set(cursor, "_active_buff_data", buff_data_raw)
+                    DB_CONNECTION.commit()
+                    result_early = {
+                        "success": True,
+                        "key": key,
+                        "item": item,
+                        "action": action,
+                        "current_list": [e.get("name", str(e)) if isinstance(e, dict) else str(e) for e in current_list],
+                        "reverted": reverted,
+                    }
+                    return result_early
         else:
             return {"success": False, "error": "Invalid action. Use 'add' or 'remove'.", "key": key, "action": action}
 
@@ -1170,7 +1199,7 @@ def resolve_attack(
                     narrative_parts.append(f"{target_name} HP: {target_remaining}/{target_current_hp}")
 
             if result.get("target_killed") and challenge_rating is not None:
-                xp_awarded = CR_XP_TABLE.get(challenge_rating, CR_XP_TABLE.get(int(challenge_rating), 0))
+                xp_awarded = CR_XP_TABLE.get(challenge_rating, 0)
                 if xp_awarded > 0:
                     xp_result = modify_player_numeric(key="xp", delta=xp_awarded)
                     result["xp_awarded"] = xp_awarded
@@ -1200,6 +1229,148 @@ def _ordinal(n: int) -> str:
     if n % 10 == 3:
         return f"{n}rd"
     return f"{n}th"
+
+
+def _apply_active_buff(cursor, spell_name, field, delta):
+    buff_data_raw = _db_val(cursor, "_active_buff_data", {})
+    if isinstance(buff_data_raw, str):
+        buff_data_raw = json.loads(buff_data_raw)
+
+    if spell_name in buff_data_raw:
+        return {
+            "error": "already_active",
+            "spell_name": spell_name,
+            "hint": (
+                f"{spell_name} is already active. Remove it first via "
+                f"update_player_list(key='active_effects', item='{spell_name}', action='remove') "
+                "before recasting."
+            )
+        }
+
+    old_val = int(_db_val(cursor, field, 0))
+    num_result = modify_player_numeric(key=field, delta=delta)
+
+    if field not in buff_data_raw.get(spell_name, []):
+        if spell_name not in buff_data_raw:
+            buff_data_raw[spell_name] = []
+        buff_data_raw[spell_name].append({"field": field, "delta": delta})
+
+    _db_set(cursor, "_active_buff_data", buff_data_raw)
+
+    effects_list = _db_val(cursor, "active_effects", [])
+    if isinstance(effects_list, str):
+        effects_list = json.loads(effects_list)
+    if spell_name not in effects_list:
+        effects_list.append(spell_name)
+    _db_set(cursor, "active_effects", effects_list)
+
+    DB_CONNECTION.commit()
+
+    return {
+        "field": field,
+        "type": "delta",
+        "delta": delta,
+        "old": old_val,
+        "new": num_result.get("new_value", old_val + delta),
+    }
+
+
+def _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc):
+    buffs_applied = {}
+    active_names = None
+
+    if sp_buffs and DB_CONNECTION is not None and not is_npc:
+        cursor = DB_CONNECTION.cursor()
+        stats_dict = _db_val(cursor, "stats", {})
+        if isinstance(stats_dict, str):
+            stats_dict = json.loads(stats_dict)
+
+        for field, value in sp_buffs.items():
+            applied = None
+
+            if isinstance(value, str) and value.startswith("+"):
+                try:
+                    delta = int(value[1:].strip())
+                    if field == "armor_class":
+                        applied = _apply_active_buff(cursor, result.get("spell_name", ""), field, delta)
+                    elif field == "speed":
+                        applied = _apply_active_buff(cursor, result.get("spell_name", ""), field, delta)
+                except ValueError:
+                    pass
+
+            elif isinstance(value, str) and "+" in value and any(mod in value.upper() for mod in ["DEX", "STR", "CON", "INT", "WIS", "CHA"]):
+                if field == "armor_class":
+                    for stat_name, key in [("DEX", "dex"), ("STR", "str"), ("CON", "con"),
+                                            ("INT", "int"), ("WIS", "wis"), ("CHA", "cha")]:
+                        if stat_name in value.upper():
+                            parts = value.upper().split("+")
+                            base = int(parts[0].strip())
+                            stat_mod = (int(stats_dict.get(key, 10)) - 10) // 2
+                            target_ac = base + stat_mod
+                            current_ac = int(_db_val(cursor, "armor_class", 10))
+                            delta = target_ac - current_ac
+                            if delta != 0:
+                                applied = _apply_active_buff(
+                                    cursor, result.get("spell_name", ""), field, delta)
+
+            if applied:
+                if "error" in applied:
+                    buffs_applied["error"] = applied
+                else:
+                    buffs_applied[field] = applied
+            elif field not in buffs_applied and "error" not in buffs_applied:
+                pass
+
+        buff_data_raw = _db_val(cursor, "_active_buff_data", {})
+        if isinstance(buff_data_raw, str):
+            buff_data_raw = json.loads(buff_data_raw)
+        active_names = list(buff_data_raw.keys())
+
+        if active_names:
+            result["active_effects"] = active_names
+
+    if sp_duration and sp_duration != "Instantaneous":
+        result["duration"] = sp_duration
+        if sp_buffs:
+            result["buffs"] = sp_buffs
+        conc_tag = " (Requires Concentration)" if sp_requires_concentration else ""
+
+        if buffs_applied and "error" not in buffs_applied:
+            applied_parts = []
+            for field, info in buffs_applied.items():
+                if isinstance(info, dict) and "old" in info:
+                    applied_parts.append(f"{field} ({info['old']} -> {info['new']})")
+            applied_str = ", ".join(applied_parts) if applied_parts else ""
+            revert_str = ""
+            if active_names:
+                revert_str = (
+                    "Remove via: update_player_list(key='active_effects', item='"
+                    + "', item='".join(active_names)
+                    + "', action='remove') when the duration expires. "
+                )
+            result["duration_reminder"] = (
+                f"[GM REMINDER: Duration = {sp_duration}{conc_tag}. "
+                f"Applied: {applied_str}. "
+                f"{revert_str}"
+                f"The GM must inform the player of both the buff application "
+                f"and its expiration in narration.]"
+            )
+        elif buffs_applied and "error" in buffs_applied:
+            err = buffs_applied["error"]
+            result["duration_reminder"] = (
+                f"[GM REMINDER: {err.get('hint', err.get('error', ''))}]"
+            )
+        else:
+            result["duration_reminder"] = (
+                f"[GM REMINDER: Duration = {sp_duration}{conc_tag}. "
+                "The GM must manually remove this effect from the player sheet via "
+                "tool calls and inform the player when the duration expires in narration.]"
+            )
+
+    if buffs_applied:
+        result["buffs_applied"] = buffs_applied
+    result["narrative_format"] = "\n".join(narrative_parts)
+    return result
 
 
 @mcp.tool()
@@ -1399,14 +1570,14 @@ def resolve_magic_attack(
         sp_condition = spell.get("condition", None)
         sp_condition_duration = spell.get("condition_duration", None)
         sp_requires_concentration = spell.get("requires_concentration", False)
+        sp_duration = spell.get("duration", "Instantaneous")
+        sp_buffs = spell.get("buffs", None)
     else:
         if attack_type is None or damage_dice is None:
-            available = sorted(spells_db.keys()) if spells_db else []
             return {
                 "success": False,
                 "error": f"Spell '{spell_name}' not found in spells database.",
                 "hint": "Provide attack_type and damage_dice to cast a custom spell, or use one of the known spells.",
-                "available_spells": available,
                 "custom_params_required": ["attack_type", "damage_dice"],
                 "custom_params_optional": [
                     "save_type", "save_half", "damage_modifier", "damage_type",
@@ -1434,6 +1605,25 @@ def resolve_magic_attack(
         sp_condition = None
         sp_condition_duration = None
         sp_requires_concentration = False
+        sp_duration = "Instantaneous"
+        sp_buffs = None
+
+    # ── DUPLICATE ACTIVE EFFECT CHECK ──
+    if sp_buffs and DB_CONNECTION is not None:
+        buff_data_raw = _db_val(cursor, "_active_buff_data", {})
+        if isinstance(buff_data_raw, str):
+            buff_data_raw = json.loads(buff_data_raw)
+        lookup_entries = {k.lower(): k for k in buff_data_raw}
+        if spell_key in lookup_entries:
+            return {
+                "success": False,
+                "error": f"{spell_name} is already active.",
+                "spell_name": spell_name,
+                "hint": (
+                    f"Remove it first via update_player_list(key='active_effects', "
+                    f"item='{lookup_entries[spell_key]}', action='remove') before recasting."
+                ),
+            }
 
     # ── SPELL SLOT MANAGEMENT ──
     is_cantrip = (sp_level == 0)
@@ -1554,27 +1744,7 @@ def resolve_magic_attack(
         computed_slot if not sp_cantrip_scaling else None,
     )
 
-    if sp_cantrip_scaling:
-        if character_level >= 17:
-            scale_count = 4
-        elif character_level >= 11:
-            scale_count = 3
-        elif character_level >= 5:
-            scale_count = 2
-        else:
-            scale_count = 1
-        scale_dice_str = spell.get("cantrip_scale_dice", None) if spell else None
-        if scale_dice_str and scale_count > 1:
-            base_parts = sp_damage_dice.lower().split("d")
-            try:
-                base_num = int(base_parts[0]) if base_parts[0] else 1
-                die_size = int(base_parts[1])
-                final_dice = f"{base_num * scale_count}d{die_size}"
-            except (ValueError, TypeError):
-                final_dice = sp_damage_dice
-        elif scale_count == 1:
-            final_dice = sp_damage_dice
-            final_mod = sp_damage_modifier
+
 
     narrative_parts = []
     if slot_narrative:
@@ -1593,6 +1763,7 @@ def resolve_magic_attack(
         result["slot_result"] = slot_result_data
 
     is_crit = False
+    damage_multiplier = 1.0
 
     # ── ATTACK ROLL ──
     if sp_attack_type == "attack_roll":
@@ -1655,133 +1826,22 @@ def resolve_magic_attack(
                     )
                     result["miss_damage"] = miss_damage
                     result["miss_damage_rolls"] = miss_rolls
-            result["damage_total"] = 0
-            result["target_killed"] = None
-            result["narrative_format"] = "\n".join(narrative_parts)
-            return result
-
-    # ── SAVING THROW ──
-    elif sp_attack_type == "saving_throw":
-        d20 = random.randint(1, 20)
-
-        if is_npc_attack and player_save_modifier is not None:
-            save_mod = player_save_modifier
-            saver_name = target_name if target_name else "Player"
-        elif is_npc_attack:
-            save_mod = 0
-            saver_name = target_name if target_name else "Player"
-        else:
-            save_mod = target_save_modifier
-            saver_name = target_name if target_name else "Target"
-
-        total_save = d20 + save_mod
-        is_natural_1 = d20 == 1
-        is_natural_20 = d20 == 20
-
-        if is_natural_1:
-            save_outcome = "Critical Failure"
-            damage_multiplier = 1.0
-        elif is_natural_20:
-            save_outcome = "Critical Success"
-            damage_multiplier = 0.0 if not sp_save_half else 0.0
-        elif total_save >= spell_save_dc:
-            save_outcome = "Success"
-            damage_multiplier = 0.5 if sp_save_half else 0.0
-        else:
-            save_outcome = "Failure"
-            damage_multiplier = 1.0
-
-        save_label = sp_save_type.upper() if sp_save_type else "SAVE"
-        narrative_parts.append(
-            f"{saver_name} {save_label} Save: {total_save} vs DC {spell_save_dc} ({save_outcome}) ({d20} + {save_mod})"
-        )
-
-        result["save_roll"] = d20
-        result["save_modifier"] = save_mod
-        result["total_save"] = total_save
-        result["spell_save_dc"] = spell_save_dc
-        result["save_outcome"] = save_outcome
-        result["save_type"] = sp_save_type
-        result["save_half"] = sp_save_half
-
-        if sp_condition and save_outcome in ("Failure", "Critical Failure"):
-            result["condition"] = sp_condition
-            if sp_condition_duration:
-                result["condition_duration"] = sp_condition_duration
-            if sp_requires_concentration:
-                result["requires_concentration"] = True
-            narrative_parts.append(f"Condition: {sp_condition} ({sp_condition_duration})")
-
-    # ── AUTOMATIC ──
-    elif sp_attack_type == "automatic":
-        outcome = "Hit"
-        damage_multiplier = 1.0
-        narrative_parts.append(f"{actor} {spell_name}: Automatic hit")
-    else:
-        return {"success": False, "error": f"Unknown attack_type '{sp_attack_type}'. Use 'attack_roll', 'saving_throw', or 'automatic'."}
-
-    # ── CONDITION APPLICATION (automatic / attack_roll hit) ──
-    if sp_attack_type in ("automatic", "attack_roll") and outcome in ("Hit", "Success", "Critical Success"):
-        if sp_condition:
-            result["condition"] = sp_condition
-            if sp_condition_duration:
-                result["condition_duration"] = sp_condition_duration
-            if sp_requires_concentration:
-                result["requires_concentration"] = True
-            narrative_parts.append(f"Condition: {sp_condition} ({sp_condition_duration})")
-
-    # ── INSTANT KILL SPELLS ──
-    if sp_instant_kill:
-        if sp_attack_type == "saving_throw" and damage_multiplier == 1.0:
-            result["instant_kill"] = True
-            narrative_parts.append(f"{target_name} is slain instantly by {spell_name}!")
-            result["damage_total"] = 0
-            result["target_killed"] = True
-            if challenge_rating is not None and target_name and not is_npc_attack:
-                xp_awarded = CR_XP_TABLE.get(challenge_rating, CR_XP_TABLE.get(int(challenge_rating), 0))
-                if xp_awarded > 0 and cursor:
-                    xp_result = modify_player_numeric(key="xp", delta=xp_awarded)
-                    result["xp_awarded"] = xp_awarded
-                    result["challenge_rating"] = challenge_rating
-                    result["xp_result"] = xp_result
-                    narrative_parts.append(f"XP Awarded: {xp_awarded}")
-            result["narrative_format"] = "\n".join(narrative_parts)
-            return result
-        elif sp_attack_type == "automatic":
-            if target_current_hp is not None and target_current_hp <= sp_instant_kill_threshold:
-                result["instant_kill"] = True
-                narrative_parts.append(f"{target_name} has {target_current_hp} HP (threshold: {sp_instant_kill_threshold}) — slain by {spell_name}!")
-                result["damage_total"] = 0
-                result["target_killed"] = True
-            elif target_current_hp is not None:
-                result["instant_kill"] = False
-                result["damage_total"] = 0
-                result["target_killed"] = False
-                narrative_parts.append(
-                    f"{target_name} has {target_current_hp} HP (threshold: {sp_instant_kill_threshold}) — {spell_name} fails!"
-                )
-            else:
-                result["instant_kill_possible"] = True
-                result["instant_kill_threshold"] = sp_instant_kill_threshold
-                result["damage_total"] = 0
-                result["target_killed"] = None
-            result["narrative_format"] = "\n".join(narrative_parts)
-            return result
+        result["damage_total"] = 0
+        result["target_killed"] = None
+        return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc)
 
     # ── NO DAMAGE SPELLS ──
     if sp_no_damage:
         result["damage_total"] = 0
         result["target_killed"] = None
-        result["narrative_format"] = "\n".join(narrative_parts)
-        return result
+        return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc)
 
     # ── DAMAGE / HEALING CALCULATION ──
     if final_dice in ("0d0", "0", ""):
         total_damage = sp_damage_modifier + final_mod
         result["damage_total"] = total_damage
         result["target_killed"] = None
-        result["narrative_format"] = "\n".join(narrative_parts)
-        return result
+        return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc)
 
     if sp_healing and not is_npc_attack and sp_attack_type == "automatic":
         heal_die_size, heal_rolls, heal_raw = _parse_and_roll_dice(final_dice)
@@ -1803,8 +1863,7 @@ def resolve_magic_attack(
         result["damage_type"] = sp_damage_type
         if hp_result:
             result["hp_change"] = hp_result
-        result["narrative_format"] = "\n".join(narrative_parts)
-        return result
+        return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc)
 
     # ── HP POOL (Sleep, Color Spray) ──
     if sp_hp_pool and not sp_healing:
@@ -1833,8 +1892,7 @@ def resolve_magic_attack(
             if sp_requires_concentration:
                 result["requires_concentration"] = True
             narrative_parts.append(f"Condition: {sp_condition} ({sp_condition_duration})")
-        result["narrative_format"] = "\n".join(narrative_parts)
-        return result
+        return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc)
 
     # ── ROLL DAMAGE ──
     primary_die_size, primary_rolls, primary_sum = _parse_and_roll_dice(final_dice)
@@ -1944,7 +2002,7 @@ def resolve_magic_attack(
                 narrative_parts.append(f"{target_name} HP: {target_remaining}/{target_current_hp}")
 
         if result.get("target_killed") and challenge_rating is not None:
-            xp_awarded = CR_XP_TABLE.get(challenge_rating, CR_XP_TABLE.get(int(challenge_rating), 0))
+            xp_awarded = CR_XP_TABLE.get(challenge_rating, 0)
             if xp_awarded > 0 and cursor:
                 xp_result = modify_player_numeric(key="xp", delta=xp_awarded)
                 result["xp_awarded"] = xp_awarded
@@ -1963,8 +2021,7 @@ def resolve_magic_attack(
         if is_npc_vs_npc:
             result["npc_vs_npc"] = True
 
-    result["narrative_format"] = "\n".join(narrative_parts)
-    return result
+    return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc)
 
 
 if __name__ == "__main__":

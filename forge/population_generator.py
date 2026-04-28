@@ -132,7 +132,7 @@ def _generate_npc_details(level: int, role: str, faction: str, is_walker: bool, 
 
     npc_equipment = Equipment()
     if chosen_class.weapon_proficiencies:
-        npc_equipment.main_hand = Item(name="Generic Weapon", item_type="weapon")
+        npc_equipment.inventory.append(Item(name="Generic Weapon", item_type="weapon"))
 
     spellcasting_ability = None
     spell_save_dc = None

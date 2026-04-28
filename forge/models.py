@@ -45,15 +45,6 @@ class FightingStyleChoice(BaseModel):
     description: str
 
 class Equipment(BaseModel):
-    head: Optional[Item] = None
-    chest: Optional[Item] = None
-    arms: Optional[Item] = None
-    legs: Optional[Item] = None
-    ring1: Optional[Item] = None
-    ring2: Optional[Item] = None
-    neck: Optional[Item] = None
-    main_hand: Optional[Item] = None
-    off_hand: Optional[Item] = None
     inventory: List[Item] = []
 
 # --- Action & Ability Models ---
