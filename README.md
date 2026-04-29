@@ -117,7 +117,7 @@ The game engine runs as a local **MCP (Model Context Protocol)** server with an 
 
 ### Spell Combat
 
-`resolve_magic_attack` resolves **all spell resolution** in one call:
+`resolve_magic` resolves **all spell resolution** in one call:
 - **Spell Database** — Properties are looked up from `config/spells.yml`. Custom spells can be cast with override parameters.
 - **Automatic Spell Slot Management** — Validates slot availability before rolling; consumes the slot automatically. Rejects under-level slots or empty slots with a clear error.
 - **Cantrip Scaling** — Automatically scales base dice at levels 5, 11, and 17.

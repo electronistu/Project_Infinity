@@ -966,7 +966,7 @@ def resolve_attack(
     HP application (NPC attacks on the player), kill detection, and XP award.
 
     Use this for ALL weapon and unarmed attacks — player vs NPC, NPC vs player,
-    and NPC vs NPC. Do NOT use this for spell attacks; use resolve_magic_attack
+    and NPC vs NPC. Do NOT use this for spell attacks; use resolve_magic
     for spells instead.
 
     CRITICAL HITS: On a natural 20, the primary damage dice are doubled automatically.
@@ -1008,17 +1008,17 @@ def resolve_attack(
 
     EXAMPLES:
     # Player attacks goblin with longsword
-    resolve_attack(actor='Electronistu', attack_modifier=4, target_ac=13,
+    resolve_attack(actor='{player_name}', attack_modifier=4, target_ac=13,
                    damage_dice='1d8', damage_modifier=2, target_name='Goblin',
                    target_current_hp=12, challenge_rating=0.5)
 
     # Goblin attacks player
     resolve_attack(actor='Goblin', attack_modifier=4, target_ac=13,
-                   damage_dice='1d6', damage_modifier=2, target_name='Electronistu',
+                   damage_dice='1d6', damage_modifier=2, target_name='{player_name}',
                    is_npc_attack=True)
 
     # Player attacks with a Flaming Dagger (1d4+3 piercing + 1d6 fire)
-    resolve_attack(actor='Electronistu', attack_modifier=5, target_ac=15,
+    resolve_attack(actor='{player_name}', attack_modifier=5, target_ac=15,
                    damage_dice='1d4', damage_modifier=3,
                    extra_damage_dice='1d6', extra_damage_modifier=0,
                    target_name='Orc Brute', target_current_hp=25,
@@ -1374,7 +1374,7 @@ def _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_re
 
 
 @mcp.tool()
-def resolve_magic_attack(
+def resolve_magic(
     spell_name: str,
     actor: str = "{player_name}",
     spell_attack_modifier: int = 0,
@@ -1480,61 +1480,61 @@ def resolve_magic_attack(
 
     EXAMPLES:
     # Player casts Fireball (level 3 spell) - slot consumed automatically
-    resolve_magic_attack(spell_name='Fireball', actor='Electronistu',
+    resolve_magic(spell_name='Fireball', actor='{player_name}',
                          spell_save_dc=15,
                          target_name='Goblin Shaman', target_current_hp=24,
                          challenge_rating=1)
 
     # Player upcasts Fireball using a 5th-level slot (8d6 damage) - 5th-level slot consumed
-    resolve_magic_attack(spell_name='Fireball', actor='Electronistu',
+    resolve_magic(spell_name='Fireball', actor='{player_name}',
                          spell_save_dc=15,
                          target_name='Ogre', target_current_hp=60,
                          challenge_rating=2, slot_level=5)
 
     # Player casts Fire Bolt (cantrip, no slot consumed)
-    resolve_magic_attack(spell_name='Fire Bolt', actor='Electronistu',
-                         spell_attack_modifier=6, target_ac=14,
-                         target_name='Orc', target_current_hp=18,
-                         challenge_rating=0.5)
+    resolve_magic(spell_name='Fire Bolt', actor='{player_name}',
+                   spell_attack_modifier=6, target_ac=14,
+                   target_name='Orc', target_current_hp=18,
+                   challenge_rating=0.5)
 
     # Player casts Detect Magic as a ritual (no slot consumed)
-    resolve_magic_attack(spell_name='Detect Magic', actor='Electronistu',
-                         attack_type='saving_throw', save_type='wis',
-                         spell_save_dc=13, ritual=True)
+    resolve_magic(spell_name='Detect Magic', actor='{player_name}',
+                   attack_type='saving_throw', save_type='wis',
+                   spell_save_dc=13, ritual=True)
 
     # Player casts a custom homebrew spell not in the database
-    resolve_magic_attack(spell_name='Void Blast', actor='Electronistu',
-                         spell_attack_modifier=7, target_ac=16,
-                         attack_type='attack_roll',
-                         damage_dice='3d10', damage_type='force',
-                         target_name='Shadow Wraith', target_current_hp=40,
-                         challenge_rating=4, slot_level=3)
+    resolve_magic(spell_name='Void Blast', actor='{player_name}',
+                   spell_attack_modifier=7, target_ac=16,
+                   attack_type='attack_roll',
+                   damage_dice='3d10', damage_type='force',
+                   target_name='Shadow Wraith', target_current_hp=40,
+                   challenge_rating=4, slot_level=3)
 
     # NPC casts Magic Missile at the player (no slot consumed)
-    resolve_magic_attack(spell_name='Magic Missile', actor='Evil Wizard',
+    resolve_magic(spell_name='Magic Missile', actor='Evil Wizard',
                          is_npc_attack=True,
                          attack_type='automatic',
                          damage_dice='3d4', damage_modifier=3,
                          damage_type='force',
-                         target_name='Electronistu')
+                         target_name='{player_name}')
 
     # NPC mage casts Fireball at a guard (NPC vs NPC, no slot consumed, no XP)
-    resolve_magic_attack(spell_name='Fireball', actor='Dark Wizard',
+    resolve_magic(spell_name='Fireball', actor='Dark Wizard',
                          spell_save_dc=15, target_save_modifier=2,
                          target_name='Town Guard', target_current_hp=30,
                          is_npc_vs_npc=True, caster_level=7)
 
     # NPC casts a cantrip at another NPC (cantrip scaling with caster_level)
-    resolve_magic_attack(spell_name='Fire Bolt', actor='Dark Wizard',
+    resolve_magic(spell_name='Fire Bolt', actor='Dark Wizard',
                          spell_attack_modifier=6, target_ac=14,
                          target_name='Town Guard', target_current_hp=20,
                          is_npc_vs_npc=True, caster_level=11)
 
     # Player casts Inflict Wounds on unconscious target (automatic crit within 5 feet)
-    resolve_magic_attack(spell_name='Inflict Wounds', actor='Electronistu',
-                         spell_attack_modifier=4, target_ac=10,
-                         target_name='Sleeping Guard', target_current_hp=6,
-                         challenge_rating=0, advantage=True, force_crit=True)
+    resolve_magic(spell_name='Inflict Wounds', actor='{player_name}',
+                   spell_attack_modifier=4, target_ac=10,
+                   target_name='Sleeping Guard', target_current_hp=6,
+                   challenge_rating=0, advantage=True, force_crit=True)
     """
     global DB_CONNECTION
     spells_db = _load_spells()
