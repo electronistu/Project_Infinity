@@ -278,7 +278,6 @@ async def run_game(chat_fn, model, context_window, verbose=False, debug=False):
 
                 console.print("\n[bold cyan]--- Game Started. Type /help for commands. ---[/bold cyan]\n")
 
-                prompt_count = 0
                 while True:
                     if VERBOSE or DEBUG:
                         console.print(f"[dim]Context: {current_context_tokens:,} / {context_window:,} tokens[/dim]")
@@ -295,7 +294,6 @@ async def run_game(chat_fn, model, context_window, verbose=False, debug=False):
                             break
                         continue
 
-                    prompt_count += 1
                     try:
                         if VERBOSE:
                             gm_response = await chat_with_tools(user_input)
@@ -329,12 +327,7 @@ async def run_game(chat_fn, model, context_window, verbose=False, debug=False):
                             ))
                             console.print("\n")
 
-                        if prompt_count > 0 and prompt_count % 4 == 0:
-                            if VERBOSE:
-                                await chat_with_tools("{{_SYNC_DATABASE}}")
-                            else:
-                                with console.status("[bold blue]Synchronizing database...[/bold blue]"):
-                                    await chat_with_tools("{{_SYNC_DATABASE}}")
+
     except KeyboardInterrupt:
         console.print("\n[yellow]Game interrupted. Goodbye.[/yellow]")
     except Exception as e:

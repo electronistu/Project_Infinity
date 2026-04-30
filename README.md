@@ -136,8 +136,7 @@ Your character lives in an in-memory SQLite database that the AI updates through
 - **HP Clamping** — HP is bounded to `[0, max_HP]`. Hitting 0 returns an "Unconscious" status tag, triggers death saves, and clamps all damage to 0.
 - **HP Status Tags** — Every HP change returns a structured status: Healthy, Wounded, Bloodied, Critical, or Unconscious.
 - The AI is required to update state immediately when changes happen.
-- Every 4 prompts, the engine forces a full database sync to catch any drift.
-- You can manually force a sync at any time with `/sync`.
+- You can force a full database sync at any time with `/sync`.
 
 ### Phased Resolution
 

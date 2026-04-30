@@ -1275,7 +1275,7 @@ def _apply_active_buff(cursor, spell_name, field, delta):
     }
 
 
-def _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc):
+def _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc, is_npc_vs_npc=False):
     buffs_applied = {}
     active_names = None
 
@@ -1361,11 +1361,12 @@ def _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_re
                 f"[GM REMINDER: {err.get('hint', err.get('error', ''))}]"
             )
         else:
-            result["duration_reminder"] = (
-                f"[GM REMINDER: Duration = {sp_duration}{conc_tag}. "
-                "The GM must manually remove this effect from the player sheet via "
-                "tool calls and inform the player when the duration expires in narration.]"
-            )
+            if is_npc and not is_npc_vs_npc:
+                result["duration_reminder"] = (
+                    f"[GM REMINDER: Duration = {sp_duration}{conc_tag}. "
+                    "The GM must manually remove this effect from the player sheet via "
+                    "tool calls and inform the player when the duration expires in narration.]"
+                )
 
     if buffs_applied:
         result["buffs_applied"] = buffs_applied
@@ -1387,6 +1388,7 @@ def resolve_magic(
     player_save_modifier: int | None = None,
     slot_level: int | None = None,
     is_npc_attack: bool = False,
+    is_scroll: bool = False,
     attack_type: str | None = None,
     save_type: str | None = None,
     save_half: bool = True,
@@ -1429,6 +1431,11 @@ def resolve_magic(
     - ritual=True: Casts the spell as a ritual. No spell slot is consumed. Only valid for spells
       with the Ritual tag in D&D 5E. The GM is responsible for ensuring the spell can be cast
       as a ritual.
+    - is_scroll=True: Casts the spell from a scroll. Never consumes a spell slot — the scroll
+      provides the magic. For scrolls of a level the player CANNOT cast (no slot of that level),
+      resolves a scroll ability check (d20 + spellcasting modifier vs DC 10 + spell level)
+      per D&D 5e (DMG p.200). On failure, the scroll is wasted. On success, the spell resolves.
+      Cantrips always pass. The GM must remove the scroll from inventory after use.
     - NPC attacks (is_npc_attack=True or is_npc_vs_npc=True): No spell slot is deducted.
 
     ATTACK TYPES:
@@ -1630,8 +1637,9 @@ def resolve_magic(
     slot_consumed = None
     slot_level_used = None
     slot_narrative = None
+    scroll_check_info = None
 
-    if not is_npc_attack and not is_npc_vs_npc and not is_cantrip and not ritual and DB_CONNECTION is not None:
+    if not is_npc_attack and not is_npc_vs_npc and not is_cantrip and not ritual and not is_scroll and DB_CONNECTION is not None:
         if slot_level is not None:
             effective_slot = slot_level
         elif spell:
@@ -1699,7 +1707,7 @@ def resolve_magic(
 
     # ── CONSUME SPELL SLOT ──
     slot_result_data = None
-    if not is_npc_attack and not is_npc_vs_npc and not is_cantrip and not ritual and DB_CONNECTION is not None:
+    if not is_npc_attack and not is_npc_vs_npc and not is_cantrip and not ritual and not is_scroll and DB_CONNECTION is not None:
         slot_result_data = modify_player_numeric(key=slot_key, delta=-1)
         slot_level_used = effective_slot
         slot_consumed = True
@@ -1709,12 +1717,48 @@ def resolve_magic(
         else:
             slot_narrative = f"Slot Used: {_ordinal(effective_slot)}-level"
 
-    elif not is_npc_attack and not is_npc_vs_npc and is_cantrip:
+    elif not is_npc_attack and not is_npc_vs_npc and is_cantrip and not is_scroll:
         slot_consumed = "cantrip"
         slot_narrative = "Cantrip — no slot used"
     elif not is_npc_attack and not is_npc_vs_npc and ritual:
         slot_consumed = "ritual"
         slot_narrative = "Ritual Cast — no slot consumed"
+    elif not is_npc_attack and not is_npc_vs_npc and is_scroll:
+        slot_consumed = "scroll"
+        slot_narrative = "Scroll Cast — no slot consumed"
+        effective_slot = slot_level if slot_level is not None else sp_level
+        if not is_cantrip and effective_slot > 0 and cursor:
+            sc_row = cursor.execute(
+                "SELECT value FROM player WHERE key = ?", ("spellcasting",)
+            ).fetchone()
+            if sc_row:
+                sc_data = json.loads(sc_row[0])
+                if str(effective_slot) not in sc_data.get("slots", {}):
+                    ability_name = sc_data.get("ability", "intelligence").lower()
+                    stat_key = {"intelligence": "int", "wisdom": "wis", "charisma": "cha"}.get(ability_name, "int")
+                    stats_dict = _db_val(cursor, "stats", {})
+                    if isinstance(stats_dict, str):
+                        stats_dict = json.loads(stats_dict)
+                    ability_mod = (int(stats_dict.get(stat_key, 10)) - 10) // 2
+                    dc = 10 + effective_slot
+                    scroll_d20 = random.randint(1, 20)
+                    scroll_total = scroll_d20 + ability_mod
+                    if scroll_total < dc:
+                        return {
+                            "success": False,
+                            "error": f"Scroll ability check failed for {spell_name}. "
+                                     f"Check: {scroll_total} vs DC {dc} ({scroll_d20} + {ability_mod}). "
+                                     "The scroll's magic fizzles and is wasted.",
+                            "spell_name": spell_name,
+                            "scroll_level": effective_slot,
+                            "scroll_check": {"d20": scroll_d20, "ability_modifier": ability_mod,
+                                             "total": scroll_total, "dc": dc, "passed": False},
+                            "hint": "The scroll is consumed but the spell does not take effect. Remove it from inventory."
+                        }
+                    else:
+                        slot_narrative += f" (Ability Check: {scroll_total} vs DC {dc} — passed)"
+                        scroll_check_info = {"d20": scroll_d20, "ability_modifier": ability_mod,
+                                             "total": scroll_total, "dc": dc, "passed": True}
     elif is_npc_attack or is_npc_vs_npc:
         slot_consumed = "npc"
 
@@ -1759,6 +1803,8 @@ def resolve_magic(
     }
     if slot_level_used is not None:
         result["slot_level_used"] = slot_level_used
+    if scroll_check_info:
+        result["scroll_check"] = scroll_check_info
     if slot_result_data is not None:
         result["slot_result"] = slot_result_data
 
@@ -1828,20 +1874,20 @@ def resolve_magic(
                     result["miss_damage_rolls"] = miss_rolls
         result["damage_total"] = 0
         result["target_killed"] = None
-        return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc)
+        return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc, is_npc_vs_npc)
 
     # ── NO DAMAGE SPELLS ──
     if sp_no_damage:
         result["damage_total"] = 0
         result["target_killed"] = None
-        return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc)
+        return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc, is_npc_vs_npc)
 
     # ── DAMAGE / HEALING CALCULATION ──
     if final_dice in ("0d0", "0", ""):
         total_damage = sp_damage_modifier + final_mod
         result["damage_total"] = total_damage
         result["target_killed"] = None
-        return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc)
+        return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc, is_npc_vs_npc)
 
     if sp_healing and not is_npc_attack and sp_attack_type == "automatic":
         heal_die_size, heal_rolls, heal_raw = _parse_and_roll_dice(final_dice)
@@ -1863,7 +1909,7 @@ def resolve_magic(
         result["damage_type"] = sp_damage_type
         if hp_result:
             result["hp_change"] = hp_result
-        return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc)
+        return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc, is_npc_vs_npc)
 
     # ── HP POOL (Sleep, Color Spray) ──
     if sp_hp_pool and not sp_healing:
@@ -1892,7 +1938,7 @@ def resolve_magic(
             if sp_requires_concentration:
                 result["requires_concentration"] = True
             narrative_parts.append(f"Condition: {sp_condition} ({sp_condition_duration})")
-        return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc)
+        return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc, is_npc_vs_npc)
 
     # ── ROLL DAMAGE ──
     primary_die_size, primary_rolls, primary_sum = _parse_and_roll_dice(final_dice)
@@ -2021,7 +2067,7 @@ def resolve_magic(
         if is_npc_vs_npc:
             result["npc_vs_npc"] = True
 
-    return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc)
+    return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc, is_npc_vs_npc)
 
 
 if __name__ == "__main__":
