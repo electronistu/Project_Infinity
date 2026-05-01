@@ -1863,18 +1863,17 @@ def resolve_magic(
 
         if outcome in ("Failure", "Critical Failure"):
             if sp_damage_on_miss:
-                miss_dice_str, _, _ = _parse_and_roll_dice(sp_damage_on_miss)
-                if miss_dice_str is not None:
-                    miss_die_size, miss_rolls, miss_sum = _parse_and_roll_dice(sp_damage_on_miss)
+                miss_die_size, miss_rolls, miss_sum = _parse_and_roll_dice(sp_damage_on_miss)
+                if miss_die_size is not None:
                     miss_damage = miss_sum + final_mod
                     narrative_parts.append(
                         f"{actor} {spell_name} Miss Damage: {miss_damage} ({' + '.join(str(r) for r in miss_rolls)})"
                     )
                     result["miss_damage"] = miss_damage
                     result["miss_damage_rolls"] = miss_rolls
-        result["damage_total"] = 0
-        result["target_killed"] = None
-        return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc, is_npc_vs_npc)
+            result["damage_total"] = result.get("miss_damage", 0)
+            result["target_killed"] = None
+            return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc, is_npc_vs_npc)
 
     # ── NO DAMAGE SPELLS ──
     if sp_no_damage:
