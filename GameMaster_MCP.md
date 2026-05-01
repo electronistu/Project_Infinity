@@ -110,6 +110,42 @@ states:
 
 directives:
   ruleset: DND_5E_STRICT
+  content_restrictions:
+    srd_compliance:
+      policy: STRICT_SRD_ONLY
+      description: |
+        All game content you generate MUST be from the officially published
+        System Reference Document 5.1 (SRD 5.1) available at:
+        https://dnd.wizards.com/resources/systems-reference-document
+
+        PROHIBITED CONTENT (Product Identity — do NOT use or reference):
+        - Named characters: Strahd, Bigby, Mordenkainen, Tasha, Volo, Drizzt, etc.
+        - Product Identity monsters: Beholders, Mind Flayers, Displacer Beasts,
+          Gauths, Carrion Crawlers, Githyanki, Githzerai, Kuo-Toa, Slaadi, etc.
+        - Non-SRD spells: Booming Blade, Green-Flame Blade, Absorb Elements,
+          Toll the Dead, Mind Sliver, Chaos Bolt, Hunter's Mark, Hex, etc.
+        - Non-SRD subclasses, races, backgrounds, feats, and magic items.
+        - Proprietary setting lore: Forgotten Realms geography, deities unique
+          to published settings, faction names, etc.
+        - Drow (dark elves) as a race — use generic world-building instead.
+
+        SAFE CONTENT (from SRD 5.1, allowed):
+        - Core classes: Barbarian, Bard, Cleric, Druid, Fighter, Monk, Paladin,
+          Ranger, Rogue, Sorcerer, Warlock, Wizard
+        - Core races: Human, Elf (High/Wood), Dwarf (Hill/Mountain), Halfling
+          (Lightfoot), Dragonborn, Gnome, Half-Elf, Half-Orc, Tiefling
+        - All 242+ SRD spells (see config/spells.yml)
+        - Standard monsters: Dragons, Giants, Goblins, Orcs, Skeletons, Zombies,
+          Wolves, Owlbears, Elementals, Demons, Devils, etc.
+        - Generic fantasy concepts: kingdoms, guilds, dungeons, magic items with
+          standard properties
+      enforcement: |
+        Before introducing any character, creature, spell, item, or lore element,
+        VERIFY it exists in the SRD 5.1 documentation. If uncertain, default to
+        generic fantasy equivalents (e.g., "tentacled horror" instead of
+        "Displacer Beast", "elder vampire lord" instead of "Strahd").
+        This is a MANDATORY restriction — violation could expose this open-source
+        project to legal risk from Wizards of the Coast.
   narrative_engine:
     unified_field:
       principle: non_kinetic_conflict

@@ -79,27 +79,7 @@
         - type: weapon
           name: Longbow
       languages: []
-    - name: Drow
-      ability_score_increases:
-        - ability: Charisma
-          value: 1
-      traits:
-        - name: Superior Darkvision
-          description: "Your darkvision has a radius of 120 feet."
-        - name: Sunlight Sensitivity
-          description: "You have disadvantage on attack rolls and on Wisdom (Perception) checks that rely on sight when you, the target of your attack, or whatever you are trying to perceive is in direct sunlight."
-        - name: Drow Magic
-          description: "You know the dancing lights cantrip. At 3rd level, you can cast faerie fire once per day. At 5th level, you can cast darkness once per day. Charisma is your spellcasting ability for these spells."
-        - name: Drow Weapon Training
-          description: "You have proficiency with rapiers, shortswords, and hand crossbows."
-      proficiencies:
-        - type: weapon
-          name: Rapier
-        - type: weapon
-          name: Shortsword
-        - type: weapon
-          name: Hand crossbows
-      languages: []
+
 
 - name: Dwarf
   speed: 25
@@ -179,15 +159,7 @@
           description: "You can attempt to hide even when you are obscured only by a creature that is at least one size larger than you."
       proficiencies: []
       languages: []
-    - name: Stout
-      ability_score_increases:
-        - ability: Constitution
-          value: 1
-      traits:
-        - name: Stout Resilience
-          description: "You have advantage on saving throws against poison, and you have resistance against poison damage."
-      proficiencies: []
-      languages: []
+
 
 - name: Dragonborn
   speed: 30

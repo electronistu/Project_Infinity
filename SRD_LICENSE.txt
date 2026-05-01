@@ -1,0 +1,28 @@
+D&D 5e System Reference Document 5.1 (SRD 5.1) — License Information
+
+This work includes material taken from the System Reference Document 5.1 ("SRD 5.1")
+by Wizards of the Coast LLC, available at:
+
+  https://dnd.wizards.com/resources/systems-reference-document
+
+The SRD 5.1 is licensed under the Creative Commons Attribution 4.0 International
+License available at:
+
+  https://creativecommons.org/licenses/by/4.0/legalcode
+
+In accordance with the CC-BY-4.0 license, the following attribution is provided:
+
+  "This work includes material taken from the System Reference Document 5.1
+  ("SRD 5.1") by Wizards of the Coast LLC, available at
+  https://dnd.wizards.com/resources/systems-reference-document. The SRD 5.1
+  is licensed under the Creative Commons Attribution 4.0 International License
+  available at https://creativecommons.org/licenses/by/4.0/legalcode."
+
+All D&D 5e rules content in this project — including but not limited to spell
+descriptions, class features, racial traits, background features, weapon stats,
+and monster/creature game statistics — is covered by this SRD license, NOT by
+the MIT license that covers the original source code.
+
+This project is not affiliated with, endorsed, sponsored, or specifically approved
+by Wizards of the Coast LLC. Dungeons & Dragons and D&D are trademarks of Wizards
+of the Coast LLC in the USA and other countries.

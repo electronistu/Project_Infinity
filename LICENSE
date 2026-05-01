@@ -19,3 +19,14 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+PLEASE NOTE: This MIT license applies ONLY to the original source code of this
+project (the game engine, TUI, MCP server, dice server, world forge, and
+associated Python source files). It does NOT apply to content derived from the
+Dungeons & Dragons System Reference Document 5.1 (SRD 5.1), which includes
+spell descriptions, class features, racial traits, background features, weapon
+statistics, and other D&D rules data found in the config/ and forge/ directories.
+That content is used under the Creative Commons Attribution 4.0 International
+License (CC-BY-4.0) as published by Wizards of the Coast LLC. See SRD_LICENSE.txt
+for details.

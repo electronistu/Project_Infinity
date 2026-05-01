@@ -231,6 +231,46 @@ The default temperature for Gemini is set to `1.0` (instead of the usual `0.0`) 
 
 ---
 
+## Licensing & Legal
+
+This project has a **dual-license structure** to comply with copyright law and Wizards of the Coast's intellectual property rights.
+
+### Source Code — MIT License
+
+All **original source code** in this project (the game engine, TUI, MCP server, dice server, world forge, and all `.py` source files) is licensed under the [MIT License](LICENSE). See `LICENSE` for the full terms.
+
+### D&D 5e Rules Content — CC-BY-4.0 (via SRD 5.1)
+
+All **embedded D&D 5e rules data** — including spell descriptions, class features, racial traits, background features, weapon statistics, and game mechanics found in `config/` files — is derived from the **System Reference Document 5.1 (SRD 5.1)**, published by Wizards of the Coast LLC under the **Creative Commons Attribution 4.0 International License (CC-BY-4.0)**.
+
+This content is **NOT covered by the MIT license**. It is used under a separate open license that permits public use with proper attribution. See `SRD_LICENSE.txt` for the full attribution text and additional details.
+
+### Required SRD Attribution
+
+> "This work includes material taken from the System Reference Document 5.1 ("SRD 5.1") by Wizards of the Coast LLC, available at https://dnd.wizards.com/resources/systems-reference-document. The SRD 5.1 is licensed under the Creative Commons Attribution 4.0 International License available at https://creativecommons.org/licenses/by/4.0/legalcode."
+
+### What Is NOT Included
+
+To maintain legal compliance, this project has been audited to exclude all **non-SRD content** from its distributed files. Specifically:
+
+- **Product Identity** (Beholders, Mind Flayers, Displacer Beasts, Carrion Crawlers, Githyanki, Githzerai, Kuo-Toa, Slaadi, etc.)
+- **Named Characters** (Strahd, Bigby, Mordenkainen, Tasha, Drizzt, etc.)
+- **Non-SRD Spells** (Booming Blade, Green-Flame Blade, Absorb Elements, Toll the Dead, Hunter's Mark, Hex, Chaos Bolt, etc.)
+- **Non-SRD Races/Subraces** (Drow, Stout Halfling, etc.)
+- **Non-SRD Classes** (Artificer)
+- **Proprietary Setting Lore** (Forgotten Realms geography, unique deities, faction names)
+
+### AI-Generated Content at Runtime
+
+The AI Game Master operates on general-purpose models that may have been trained on the broader D&D corpus. Despite prompt-level restrictions instructing the GM to adhere strictly to SRD content, **the project cannot guarantee that AI-generated narrative will never reference non-SRD material at runtime**. This is a known limitation of AI-powered applications and is explicitly disclosed.
+
+### Not Affiliated with Wizards of the Coast
+
+This project is **not affiliated with, endorsed by, sponsored by, or connected to Wizards of the Coast LLC** in any way. Dungeons & Dragons and D&D are trademarks of Wizards of the Coast LLC in the USA and other countries.
+
+---
+
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+- **Original source code**: [MIT License](LICENSE)
+- **D&D 5e rules data (config files)**: [Creative Commons Attribution 4.0 International](SRD_LICENSE.txt), via the [D&D SRD 5.1](https://dnd.wizards.com/resources/systems-reference-document)
