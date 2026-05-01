@@ -1,6 +1,6 @@
 # Project Infinity
 
-A text-based RPG where an AI acts as your Dungeon Master — with real dice rolls, real character tracking, and real D&D 5e rules. No hallucinated stats. No forgotten inventory. The AI rolls fairly, tracks your HP, and levels you up automatically.
+A text-based RPG where an AI acts as your Dungeon Master — with real dice rolls, real character tracking, and real D&D 5e rules (based on the SRD 5.1). No hallucinated stats. No forgotten inventory. The AI rolls fairly, tracks your HP, and levels you up automatically.
 
 *Running on gemini-2.5-pro:*
 
@@ -13,7 +13,7 @@ Most AI RPGs let the language model make up numbers. Project Infinity doesn't. E
 
 - **Fair Dice** — All rolls are performed by a dedicated server and verified. The AI sees the results, it doesn't generate them.
 - **Persistent Character** — Your stats, inventory, gold, and spell slots live in a real database that updates in real time. No "forgetting" that you used your last potion.
-- **D&D 5e Rules** — Leveling up, spell slot recovery, proficiency bonuses — all handled automatically by the engine.
+- **SRD 5.1 Rules** — Leveling up, spell slot recovery, proficiency bonuses — all handled automatically by the engine.
 - **Combat Resolution** — Weapon attacks, spell attacks, saving throws, cantrip scaling, upcasting, spell slot consumption, crits, kill detection, and XP awards are all resolved mechanically in a single tool call. The AI cannot fudge damage or forget to deduct a slot.
 - **In-Game Commands** — Check your stats, force a database sync, or get help without leaving the game.
 
@@ -54,7 +54,7 @@ pip install -r requirements.txt
 
 ### 4. Create Your World
 
-Before you can play, you need to create a character and generate a world. The World Forge walks you through picking a race, class, background, distributing stats, choosing equipment, and more — all following D&D 5e rules.
+Before you can play, you need to create a character and generate a world. The World Forge walks you through picking a race, class, background, distributing stats, choosing equipment, and more — all following SRD 5.1 rules.
 
 ```bash
 python3 main.py
@@ -112,7 +112,7 @@ The game engine runs as a local **MCP (Model Context Protocol)** server with an 
 `resolve_attack` handles the **full attack sequence** in a single call:
 - Attack roll vs AC. Supports **Advantage** (roll twice, take higher) and **forced crits** (unconscious targets within 5 feet).
 - Critical hits double **primary** damage dice but not extra damage dice (e.g. elemental riders).
-- Automatic HP application, kill detection, and XP award using the D&D 5e CR/XP table.
+- Automatic HP application, kill detection, and XP award using the 5e CR/XP table.
 - Works for player-vs-NPC, NPC-vs-player, and NPC-vs-NPC.
 
 ### Spell Combat
