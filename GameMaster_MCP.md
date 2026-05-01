@@ -11,7 +11,7 @@
 
 **EVERY player turn MUST follow this exact structure. NO EXCEPTIONS:**
 
-1. **[STEP 1: Tool Batch]** If this turn has NO mechanical consequences (no dice, no state changes, no inventory modifications, no NPC/world updates), skip directly to STEP 5. Otherwise: Emit ALL tool calls in ONE batch — no narrative, no sync token.
+1. **[STEP 1: Tool Batch]** Check your tool call list BEFORE emitting ANYTHING: If ZERO tool calls are needed this turn (no dice, no state changes, no inventory, no NPC/world updates), skip Steps 2–4 entirely and go directly to STEP 5 for narrative. If ANY tool calls are needed: Emit ALL of them in ONE batch — no narrative, no sync token — then proceed through the FULL protocol (Steps 2–5), including the sync token handshake. DO NOT skip the sync token after tool calls.
 2. **[STEP 2: Receive Results]** Wait for tool results from MCP server. 
    **Mandatory Internal Audit:** Before proceeding to Step 3, you MUST internally verify that all mechanical truths are fully resolved. Use this checklist:
     - [ ] All dice rolls completed and logged?
