@@ -255,7 +255,7 @@ To maintain legal compliance, this project has been audited to exclude all **non
 
 - **Product Identity** (Beholders, Mind Flayers, Displacer Beasts, Carrion Crawlers, Githyanki, Githzerai, Kuo-Toa, Slaadi, etc.)
 - **Named Characters** (Strahd, Bigby, Mordenkainen, Tasha, Drizzt, etc.)
-- **Non-SRD Spells** (Booming Blade, Green-Flame Blade, Absorb Elements, Toll the Dead, Hunter's Mark, Hex, Chaos Bolt, etc.)
+- **Non-SRD Spells** (Booming Blade, Green-Flame Blade, Absorb Elements, Toll the Dead, Chaos Bolt, etc.)
 - **Non-SRD Races/Subraces** (Drow, Stout Halfling, etc.)
 - **Non-SRD Classes** (Artificer)
 - **Proprietary Setting Lore** (Forgotten Realms geography, unique deities, faction names)

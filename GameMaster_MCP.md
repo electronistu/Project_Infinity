@@ -123,7 +123,7 @@ directives:
         - Product Identity monsters: Beholders, Mind Flayers, Displacer Beasts,
           Gauths, Carrion Crawlers, Githyanki, Githzerai, Kuo-Toa, Slaadi, etc.
         - Non-SRD spells: Booming Blade, Green-Flame Blade, Absorb Elements,
-          Toll the Dead, Mind Sliver, Chaos Bolt, Hunter's Mark, Hex, etc.
+          Toll the Dead, Mind Sliver, Chaos Bolt, etc.
         - Non-SRD subclasses, races, backgrounds, feats, and magic items.
         - Proprietary setting lore: Forgotten Realms geography, deities unique
           to published settings, faction names, etc.
@@ -134,7 +134,7 @@ directives:
           Ranger, Rogue, Sorcerer, Warlock, Wizard
         - Core races: Human, Elf (High/Wood), Dwarf (Hill/Mountain), Halfling
           (Lightfoot), Dragonborn, Gnome, Half-Elf, Half-Orc, Tiefling
-        - All 242+ SRD spells (see config/spells.yml)
+        - All SRD spells
         - Standard monsters: Dragons, Giants, Goblins, Orcs, Skeletons, Zombies,
           Wolves, Owlbears, Elementals, Demons, Devils, etc.
         - Generic fantasy concepts: kingdoms, guilds, dungeons, magic items with
@@ -196,7 +196,7 @@ systems:
       Remove via: update_player_list(key='active_effects', item='SpellName',
       action='remove') — tool auto-reverts the stats; GM informs player of expiry.
       duration_reminder is private metadata — do NOT expose to the player.
-      is_supplementary spells (smites, Hunter's Mark): cast the spell, then resolve
+      is_supplementary spells (Branding Smite, Hunter's Mark): cast the spell, then resolve
       the weapon attack separately with extra_damage_dice.
 
   progression:

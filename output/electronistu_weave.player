@@ -2,12 +2,12 @@
   "name": "Electronistu",
   "level": 1,
   "xp": 0,
-  "gold": 115,
+  "gold": 75,
   "character_class": "Wizard",
   "race": "Wood Elf",
   "background": "Criminal",
   "alignment": "Chaotic Neutral",
-  "gender": "male",
+  "gender": "Male",
   "armor_class": 13,
   "current_hit_points": 7,
   "total_hit_points": 7,
@@ -19,16 +19,16 @@
     "dex": 17,
     "con": 12,
     "int": 15,
-    "wis": 11,
-    "cha": 11
+    "wis": 10,
+    "cha": 12
   },
   "proficiency_bonus": 2,
   "skills": [
-    "Investigation",
-    "Perception",
-    "Deception",
+    "Stealth",
     "Arcana",
-    "Stealth"
+    "Deception",
+    "Investigation",
+    "Perception"
   ],
   "saves": [
     "Intelligence",
@@ -36,19 +36,19 @@
   ],
   "armor_proficiencies": [],
   "weapon_proficiencies": [
-    "Slings",
     "Darts",
-    "Shortsword",
-    "Longsword",
-    "Daggers",
-    "Longbow",
-    "Shortbow",
+    "Light crossbows",
     "Quarterstaffs",
-    "Light crossbows"
+    "Slings",
+    "Longsword",
+    "Shortsword",
+    "Daggers",
+    "Shortbow",
+    "Longbow"
   ],
   "tool_proficiencies": [
-    "Dice Set",
-    "Thieves' tools"
+    "Thieves' tools",
+    "Dice Set"
   ],
   "languages": [
     "Common",
@@ -76,25 +76,25 @@
     "dc": 12,
     "attack_modifier": 4,
     "cantrips": [
-      "Fire Bolt",
-      "Light",
-      "Mage Hand"
+      "Minor Illusion",
+      "Mage Hand",
+      "True Strike"
     ],
     "slots": {
       "1": 2
     },
     "spellbook": [
+      "Identify",
+      "Sleep",
       "Magic Missile",
-      "Shield",
-      "Burning Hands",
       "Charm Person",
       "Detect Magic",
-      "Sleep"
+      "Disguise Self"
     ],
     "spells_prepared": [
+      "Disguise Self",
       "Magic Missile",
-      "Shield",
-      "Burning Hands"
+      "Sleep"
     ]
   }
 }

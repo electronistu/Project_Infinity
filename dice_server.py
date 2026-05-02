@@ -25,7 +25,7 @@ XP_THRESHOLDS = [
 ]
 
 KNOWN_CASTER_CLASSES = {"Bard", "Sorcerer", "Warlock", "Ranger"}
-PREPARED_CASTER_CLASSES = {"Cleric", "Druid", "Paladin", "Artificer"}
+PREPARED_CASTER_CLASSES = {"Cleric", "Druid", "Paladin"}
 
 CR_XP_TABLE = {
     0: 10, 0.125: 25, 0.25: 50, 0.5: 100,
@@ -368,7 +368,6 @@ PREPARED_CASTER_ABILITIES = {
     "Cleric": "wis",
     "Druid": "wis",
     "Paladin": "cha",
-    "Artificer": "int",
 }
 
 

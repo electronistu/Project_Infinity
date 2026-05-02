@@ -1,5 +1,5 @@
 # forge/character_creator.py
-# Version 5.0 - Full D&D 5e Character Creation with Accurate Ruleset
+# Version 6.0 - Modern TUI Character Creation with Interactive Spell Selection
 
 from .models import PlayerCharacter, Stats, Equipment, Skill, SpecialAbility, Item, StartingEquipmentOption, CharacterClass
 from .config_loader import Config, Race, SubRace, Weapon
@@ -11,10 +11,15 @@ import re
 from typing import Optional, List, Dict
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from level_up import FULL_CASTER_SPELL_SLOTS, HALF_CASTER_SPELL_SLOTS, ARTIFICER_SPELL_SLOTS, WARLOCK_SPELL_SLOTS
+from level_up import FULL_CASTER_SPELL_SLOTS, HALF_CASTER_SPELL_SLOTS, WARLOCK_SPELL_SLOTS
+from . import tui
+from .class_spells import (
+    get_available_cantrips, get_available_level1_spells,
+    CANTRIP_COUNTS, KNOWN_SPELL_COUNTS, PREPARED_SPELL_COUNTS_BASE,
+)
 
 KNOWN_SPELL_CLASSES = {"Sorcerer", "Warlock", "Bard", "Ranger"}
-PREPARED_SPELL_CLASSES = {"Cleric", "Druid", "Artificer", "Paladin"}
+PREPARED_SPELL_CLASSES = {"Cleric", "Druid", "Paladin"}
 
 ALL_SKILLS = {
     "Acrobatics": "dexterity", "Animal Handling": "wisdom", "Arcana": "intelligence",
@@ -244,53 +249,20 @@ def resolve_equipment_choice(item_name, interactive=True, weapon_data=None, weap
     return [select_from_list("Choose a specific tool/instrument", pool, display_key=None)]
 
 
-def get_player_input(prompt: str, valid_options: list = None, is_numeric: bool = False, range_min: int = None, range_max: int = None):
-    while True:
-        user_input = input(prompt).strip()
-        
-        if is_numeric:
-            if user_input.isdigit():
-                val = int(user_input)
-                if range_min is not None and val < range_min:
-                    print(f"Invalid input. Minimum value is {range_min}.")
-                    continue
-                if range_max is not None and val > range_max:
-                    print(f"Invalid input. Maximum value is {range_max}.")
-                    continue
-                return val
-            else:
-                print("Invalid input. Please enter a number.")
-        elif valid_options:
-            for opt in valid_options:
-                if user_input.lower() == str(opt).lower():
-                    return opt
-            print(f"Invalid choice. Please select from: {', '.join(map(str, valid_options))}")
-        else:
-            if not user_input:
-                print("Input cannot be empty.")
-                continue
-            return user_input
-
 def select_from_list(prompt: str, options: list, display_key='name'):
     if not options:
         return None
 
-    print(f"\n--- {prompt} ---")
-    for i, option in enumerate(options):
-        if display_key is None:
-            print(f"{i + 1}. {option}")
-        else:
-            print(f"{i + 1}. {getattr(option, display_key) if hasattr(option, display_key) else option}")
-    
-    noun = prompt.replace("Choose your ", "").lower()
-    
-    choice_index = get_player_input(
-        f"Select a {noun}: ", 
-        is_numeric=True, 
-        range_min=1, 
-        range_max=len(options)
-    ) - 1
-    return options[choice_index]
+    if display_key is None:
+        display_fn = None
+    else:
+        display_fn = lambda opt: getattr(opt, display_key) if hasattr(opt, display_key) else str(opt)
+
+    return tui.select_single(prompt, options, display_fn=display_fn)
+
+
+def select_multiple(prompt: str, options: list, count: int = 1, default_selected: list = None):
+    return tui.select_multiple(prompt, options, min_choices=count, max_choices=count, default_checked=default_selected)
 
 def calculate_modifier(stat_value: int) -> int:
     return math.floor((stat_value - 10) / 2)
@@ -420,25 +392,6 @@ def roll_starting_gold(dice_notation: str) -> int:
     print(f"  Rolled {dice_notation}: [{', '.join(str(r) for r in rolls)}] x 10 = {total} gp")
     return total
 
-def prompt_language_choice(prompt_text: str, already_known: List[str], number: int) -> List[str]:
-    available = [lang for lang in STANDARD_LANGUAGES if lang not in already_known]
-    if not available:
-        print("No additional languages available to choose.")
-        return []
-    
-    chosen = []
-    for i in range(number):
-        if not available:
-            break
-        print(f"\n--- {prompt_text} ({i+1} of {number}) ---")
-        for j, lang in enumerate(available):
-            print(f"{j + 1}. {lang}")
-        idx = get_player_input(f"Choose a language: ", is_numeric=True, range_min=1, range_max=len(available)) - 1
-        chosen.append(available[idx])
-        available.pop(idx)
-    return chosen
-
-
 def create_debug_character(config: Config) -> PlayerCharacter:
     print("--- Character Creation (DEBUG MODE) ---")
     debug_stats = Stats(strength=16, dexterity=14, constitution=15, intelligence=10, wisdom=12, charisma=8)
@@ -487,22 +440,30 @@ def create_debug_character(config: Config) -> PlayerCharacter:
 
 
 def create_character(config: Config) -> PlayerCharacter:
-    print("--- D&D 5th Edition Character Forge ---")
+    import yaml, os as _os
+    from rich.console import Console
+    console = Console()
+
+    console.print("[bold #e94560]═══ D&D 5th Edition Character Forge ═══[/]")
 
     weapon_data = build_weapon_data(config.weapons)
     weapon_categories = build_weapon_categories(weapon_data)
     weapon_names = set(weapon_data.keys())
 
-    name = input("Enter your character's name: ")
+    with open(_os.path.join(_os.path.dirname(__file__), '..', 'config', 'spells.yml'), 'r') as f:
+        all_spells = yaml.safe_load(f)
+    spell_names = {s['name'] for s in all_spells}
+
+    name = tui.input_dialog_val("Enter your character's name:", default="Adventurer") or "Adventurer"
 
     while True:
-        gender = input("Enter your character's gender: ").strip()
+        gender = tui.input_dialog_val("Enter your character's gender:", default="Unknown", max_length=15)
         if gender and len(gender) <= 15:
             break
         if not gender:
-            print("Input cannot be empty.")
+            console.print("[red]Input cannot be empty.[/]")
         else:
-            print(f"Invalid input. Must be no more than 15 characters (current: {len(gender)}).")
+            console.print(f"[red]Must be no more than 15 characters (current: {len(gender)}).[/]")
 
     chosen_race = select_from_list("Choose your Race", config.races)
 
@@ -513,8 +474,7 @@ def create_character(config: Config) -> PlayerCharacter:
     chosen_class = select_from_list("Choose your Class", config.classes)
     chosen_background = select_from_list("Choose your Background", config.backgrounds)
 
-    # --- Point-Buy for Stats ---
-    print("\n--- Distribute Your Stat Points (Point-Buy System) ---")
+    console.print("\n[bold #e94560]--- Distribute Your Stat Points (Point-Buy System) ---[/]")
     base_stats = {"strength": 8, "dexterity": 8, "constitution": 8, "intelligence": 8, "wisdom": 8, "charisma": 8}
     points_spent = 0
     point_costs = {9: 1, 10: 2, 11: 3, 12: 4, 13: 5, 14: 7, 15: 9}
@@ -522,20 +482,24 @@ def create_character(config: Config) -> PlayerCharacter:
     for stat in base_stats:
         while True:
             points_remaining = 27 - points_spent
-            print(f"\nPoints remaining: {points_remaining}")
-            value = get_player_input(f"Set {stat.upper()} (8-15): ", is_numeric=True, range_min=8, range_max=15)
-            
-            current_stat_cost = point_costs.get(base_stats[stat], 0)
-            new_stat_cost = point_costs.get(value, 0)
-            potential_points_spent = points_spent - current_stat_cost + new_stat_cost
+            current_default = str(base_stats[stat])
+            result = tui.input_number(
+                f"Set {stat.upper()} (8-15)\n(Points remaining: {points_remaining})",
+                min_val=8, max_val=15, default=current_default
+            )
+            if result is None:
+                result = base_stats[stat]
 
+            current_stat_cost = point_costs.get(base_stats[stat], 0)
+            new_stat_cost = point_costs.get(result, 0)
+            potential_points_spent = points_spent - current_stat_cost + new_stat_cost
             if potential_points_spent <= 27:
-                base_stats[stat] = value
+                base_stats[stat] = result
                 points_spent = potential_points_spent
                 break
             else:
-                print(f"Not enough points! This change would cost {new_stat_cost} points, but you only have {points_remaining} left (after accounting for the {current_stat_cost} you'd get back).")
-    
+                console.print(f"[red]Not enough points! Setting {stat.upper()} to {result} costs {new_stat_cost} points, but you only have {points_remaining} left (after getting back {current_stat_cost} from your previous {base_stats[stat]}).[/]")
+
     final_stats = base_stats.copy()
     for increase in chosen_race.ability_score_increases:
         final_stats[increase.ability.lower()] += increase.value
@@ -546,18 +510,19 @@ def create_character(config: Config) -> PlayerCharacter:
 
     chosen_alignment = select_from_list("Choose your Alignment", config.alignments)
 
-    # --- Dragonborn Draconic Ancestry ---
     draconic_ancestry = None
     if chosen_race.name == "Dragonborn":
         dragon_types = list(DRACONIC_ANCESTRY.keys())
-        print("\n--- Choose Your Draconic Ancestry ---")
-        for i, dt in enumerate(dragon_types):
-            info = DRACONIC_ANCESTRY[dt]
-            print(f"{i + 1}. {dt} ({info['damage_type']}, {info['breath_shape']}, {info['save']} save)")
-        ancestry_idx = get_player_input("Select ancestry: ", is_numeric=True, range_min=1, range_max=len(dragon_types)) - 1
-        draconic_ancestry = dragon_types[ancestry_idx]
+        ancestry_labels = [
+            f"{dt} ({DRACONIC_ANCESTRY[dt]['damage_type']}, {DRACONIC_ANCESTRY[dt]['breath_shape']}, {DRACONIC_ANCESTRY[dt]['save']} save)"
+            for dt in dragon_types
+        ]
+        ancestry_display = dict(zip(dragon_types, ancestry_labels))
+        draconic_ancestry = tui.select_single(
+            "Choose Your Draconic Ancestry", dragon_types,
+            display_fn=lambda x: ancestry_display.get(x, x)
+        )
 
-    # --- Proficiencies ---
     armor_proficiencies = set(chosen_class.armor_proficiencies)
     weapon_proficiencies = set(chosen_class.weapon_proficiencies)
     tool_proficiencies = set()
@@ -595,65 +560,60 @@ def create_character(config: Config) -> PlayerCharacter:
             tool_proficiencies.add(resolved)
 
     if chosen_class.tool_proficiency_choices:
-        print(f"\n--- Tool Proficiency Choice ---")
-        print(f"As a {chosen_class.name}, choose one from: {', '.join(chosen_class.tool_proficiency_choices.choose_one_from)}")
-        chosen_tool = select_from_list("Choose your tool proficiency", chosen_class.tool_proficiency_choices.choose_one_from, display_key=None)
+        console.print(f"\n[bold #e94560]--- Tool Proficiency Choice ---[/]")
+        console.print(f"[dim]As a {chosen_class.name}, choose one from: {', '.join(chosen_class.tool_proficiency_choices.choose_one_from)}[/]")
+        chosen_tool = select_from_list("Choose your tool proficiency",
+                                        chosen_class.tool_proficiency_choices.choose_one_from, display_key=None)
         for resolved in resolve_tool_proficiency(chosen_tool, interactive=True):
             tool_proficiencies.add(resolved)
 
-    # --- Skills ---
-    class_skill_choices_data = chosen_class.skills
-    print(f"\n--- Your background gives you proficiency in: {', '.join(skill_proficiencies)} ---")
+    console.print(f"\n[#c0caf5]Your background gives you proficiency in: [bold]{', '.join(skill_proficiencies)}[/][/]")
 
-    skill_choices_list = class_skill_choices_data.choices
-    is_any_skill = False
+    class_skill_choices_data = chosen_class.skills
     num_skill_choices = class_skill_choices_data.number
+    skill_choices_list = class_skill_choices_data.choices
 
     if len(skill_choices_list) == 1 and skill_choices_list[0] == "*":
-        is_any_skill = True
         available_choices = [s for s in ALL_SKILLS.keys() if s not in skill_proficiencies]
-        print(f"--- As a {chosen_class.name}, you can choose {num_skill_choices} skills from any ---")
     else:
         available_choices = [s for s in skill_choices_list if s not in skill_proficiencies]
-        print(f"--- As a {chosen_class.name}, you can choose {num_skill_choices} more skills ---")
 
-    for i in range(num_skill_choices):
-        if not available_choices:
-            break
-        chosen_skill = select_from_list(f"Select skill {i+1}", available_choices, display_key=None)
-        skill_name = chosen_skill.name if hasattr(chosen_skill, 'name') else chosen_skill
-        skill_proficiencies.add(skill_name)
-        available_choices.remove(chosen_skill)
+    chosen_skills = select_multiple(
+        f"As a {chosen_class.name}, choose {num_skill_choices} skill proficiencies "
+        f"({', '.join(skill_proficiencies)} already from background)",
+        available_choices, count=num_skill_choices
+    )
+    for s in chosen_skills:
+        skill_proficiencies.add(s)
 
     final_skills = [Skill(name=s, ability=ALL_SKILLS[s], proficient=True) for s in skill_proficiencies]
     final_skills.extend([Skill(name=s, ability=ALL_SKILLS[s], proficient=False) for s in ALL_SKILLS if s not in skill_proficiencies])
 
-    # --- Saving Throws ---
     final_saves = [
         Skill(name=s, ability=ALL_SAVES[s], proficient=(s in saving_throw_proficiencies))
         for s in ALL_SAVES
     ]
 
-    # --- Fighting Style ---
     fighting_style = None
     if chosen_class.fighting_styles:
-        print(f"\n--- Fighting Style ---")
-        for i, fs in enumerate(chosen_class.fighting_styles):
-            print(f"{i + 1}. {fs.name}: {fs.description}")
-        fs_idx = get_player_input(
-            f"Choose a fighting style (1-{len(chosen_class.fighting_styles)}): ",
-            is_numeric=True, range_min=1, range_max=len(chosen_class.fighting_styles)
-        ) - 1
-        fighting_style = chosen_class.fighting_styles[fs_idx]
-        print(f"  Selected: {fighting_style.name}")
+        fs = tui.select_single(
+            "Choose a Fighting Style",
+            chosen_class.fighting_styles,
+            display_fn=lambda f: f"{f.name}: {f.description}"
+        )
+        fighting_style = fs
+        console.print(f"  [green]Selected: {fighting_style.name}[/]")
 
-    # --- Equipment ---
     player_equipment = Equipment()
     player_gold = 0
     player_consumables = {}
 
-    print("\n--- Starting Equipment ---")
-    equipment_choice_type = get_player_input("Do you want to choose starting equipment or take starting gold? (equipment/gold): ", ["equipment", "gold"])
+    console.print("\n[bold #e94560]--- Starting Equipment ---[/]")
+    eq_choice = tui.select_single(
+        "Starting equipment or gold?", ["equipment", "gold"],
+        title="Equipment Choice"
+    )
+    equipment_choice_type = str(eq_choice) if eq_choice else "equipment"
 
     def add_items_to_inventory(item_names_or_name, source_desc=""):
         if isinstance(item_names_or_name, str):
@@ -663,11 +623,11 @@ def create_character(config: Config) -> PlayerCharacter:
                 if item.item_type in ("ammunition", "consumable"):
                     cons_name, qty = parse_consumable_quantity(item.name)
                     player_consumables[cons_name] = player_consumables.get(cons_name, 0) + qty
-                    print(f"  Added {item.name} → consumables.{cons_name}: {qty}")
+                    console.print(f"  [green]+[/] {item.name} → consumables.{cons_name}: {qty}")
                 else:
                     player_equipment.inventory.append(item)
                     desc = f" ({item.description})" if item.description else f" ({item.item_type})"
-                    print(f"  Added {item.name}{desc}")
+                    console.print(f"  [green]+[/] {item.name}{desc}")
 
     if equipment_choice_type.lower() == "equipment":
         for option_group in chosen_class.starting_equipment_options:
@@ -681,11 +641,11 @@ def create_character(config: Config) -> PlayerCharacter:
                     add_items_to_inventory(item_name)
             if option_group.gold_pieces:
                 player_gold += option_group.gold_pieces
-                print(f"  Added {option_group.gold_pieces} gold pieces.")
+                console.print(f"  [green]+[/] {option_group.gold_pieces} gold pieces.")
 
         for option_group in chosen_background.starting_equipment_options:
             if option_group.choose_one_from:
-                chosen_item_name = select_from_list("Choose one item", option_group.choose_one_from, display_key=None)
+                chosen_item_name = select_from_list("Choose one item (background)", option_group.choose_one_from, display_key=None)
                 if chosen_item_name:
                     resolved = resolve_equipment_choice(chosen_item_name, interactive=True, weapon_data=weapon_data, weapon_categories=weapon_categories)
                     add_items_to_inventory(resolved)
@@ -694,30 +654,28 @@ def create_character(config: Config) -> PlayerCharacter:
                     add_items_to_inventory(item_name)
             if option_group.gold_pieces:
                 player_gold += option_group.gold_pieces
-                print(f"  Added {option_group.gold_pieces} gold pieces.")
+                console.print(f"  [green]+[/] {option_group.gold_pieces} gold pieces.")
     else:
         if chosen_class.starting_gold_dice:
-            print(f"\n--- Rolling Starting Gold ({chosen_class.starting_gold_dice} x 10) ---")
+            console.print(f"\n[bold #e94560]--- Rolling Starting Gold ({chosen_class.starting_gold_dice} x 10) ---[/]")
             player_gold = roll_starting_gold(chosen_class.starting_gold_dice)
         else:
             player_gold = roll_starting_gold("4d4")
-            print(f"  Default starting gold: {player_gold} gp")
+            console.print(f"  Default starting gold: [yellow]{player_gold} gp[/]")
 
-        print("\n--- Fixed Items (always granted) ---")
+        console.print("\n[dim]--- Fixed Items (always granted) ---[/]")
         for option_group in chosen_class.starting_equipment_options:
             if option_group.fixed_items:
                 for item_name in option_group.fixed_items:
                     add_items_to_inventory(item_name)
-
         for option_group in chosen_background.starting_equipment_options:
             if option_group.fixed_items:
                 for item_name in option_group.fixed_items:
                     add_items_to_inventory(item_name)
             if option_group.gold_pieces:
                 player_gold += option_group.gold_pieces
-                print(f"  Added {option_group.gold_pieces} gold pieces.")
+                console.print(f"  [green]+[/] {option_group.gold_pieces} gold pieces.")
 
-    # --- Features & Traits ---
     features_and_traits = [SpecialAbility(name=t.name, description=t.description) for t in chosen_race.traits]
     if chosen_subrace:
         features_and_traits.extend([SpecialAbility(name=t.name, description=t.description) for t in chosen_subrace.traits])
@@ -735,34 +693,24 @@ def create_character(config: Config) -> PlayerCharacter:
 
     if fighting_style:
         features_and_traits.append(SpecialAbility(name=f"Fighting Style: {fighting_style.name}", description=fighting_style.description))
-
     if chosen_background.feature:
         features_and_traits.append(SpecialAbility(name=chosen_background.feature.name, description=chosen_background.feature.description))
 
-    # --- Rogue Expertise ---
     expertise_skills = []
     if chosen_class.name == "Rogue":
         proficient_skill_names = [s for s in skill_proficiencies]
-        print(f"\n--- Rogue Expertise ---")
-        print("Choose 2 skills you are proficient in to gain expertise (double proficiency bonus).")
-        available_expertise = list(proficient_skill_names)
-        for i in range(2):
-            if not available_expertise:
-                break
-            print(f"\nAvailable skills for expertise: {', '.join(available_expertise)}")
-            chosen_exp = get_player_input(f"Select skill {i+1} for expertise: ", valid_options=available_expertise)
-            expertise_skills.append(chosen_exp)
-            available_expertise.remove(chosen_exp)
-        print(f"  Expertise chosen: {', '.join(expertise_skills)}")
+        expertise_skills = select_multiple(
+            "Choose 2 skills for Expertise (double proficiency bonus)",
+            proficient_skill_names, count=2
+        )
+        console.print(f"  [green]Expertise chosen: {', '.join(expertise_skills)}[/]")
 
     # --- Languages ---
     languages = list(chosen_race.languages)
-
     if chosen_subrace:
         for lang in chosen_subrace.languages:
             if lang and lang not in languages:
                 languages.append(lang)
-
     if chosen_class.name == "Druid" and "Druidic" not in languages:
         languages.append("Druidic")
 
@@ -783,15 +731,18 @@ def create_character(config: Config) -> PlayerCharacter:
             languages.append(bg_lang)
 
     if language_choice_count > 0:
-        new_langs = prompt_language_choice("Choose additional languages", languages, language_choice_count)
+        available_langs = [l for l in STANDARD_LANGUAGES if l not in languages]
+        new_langs = select_multiple(
+            f"Choose {language_choice_count} additional language(s)",
+            available_langs, count=language_choice_count
+        )
         languages.extend(new_langs)
 
     languages = [l for l in languages if l and "choice" not in l.lower()]
 
-    # --- Proficiency Bonus ---
     proficiency_bonus = 2
 
-    # --- Spellcasting ---
+    # --- Interactive Spellcasting ---
     spellcasting_ability = None
     spell_save_dc = None
     spell_attack_modifier = None
@@ -801,87 +752,97 @@ def create_character(config: Config) -> PlayerCharacter:
     spellbook = []
     spell_slots = {}
 
-    if chosen_class.name in KNOWN_SPELL_CLASSES or chosen_class.name in PREPARED_SPELL_CLASSES or chosen_class.name == "Wizard":
-        if chosen_class.name == "Wizard":
-            spellcasting_ability = "intelligence"
-            cantrips_known = ["Fire Bolt", "Light", "Mage Hand"]
-            spellbook = ["Magic Missile", "Shield", "Burning Hands", "Charm Person", "Detect Magic", "Sleep"]
-            num_preparable = calculate_modifier(player_stats.intelligence) + 1
-            spells_prepared = spellbook[:max(num_preparable, 1)]
-            spell_slots = {str(k): v for k, v in FULL_CASTER_SPELL_SLOTS[1].items()}
-        elif chosen_class.name == "Cleric":
+    caster_types = set(list(KNOWN_SPELL_CLASSES) + list(PREPARED_SPELL_CLASSES) + ["Wizard"])
+    if chosen_class.name in caster_types:
+        cls = chosen_class.name
+
+        has_spellcasting = True
+        if cls == "Paladin":
+            spellcasting_ability = "charisma"
+            has_spellcasting = False
+        elif cls == "Ranger":
             spellcasting_ability = "wisdom"
-            cantrips_known = ["Guidance", "Sacred Flame", "Thaumaturgy"]
-            num_preparable = calculate_modifier(player_stats.wisdom) + 1
-            cleric_spell_list = ["Bless", "Cure Wounds", "Guiding Bolt", "Healing Word", "Shield of Faith", "Sanctuary", "Command", "Create or Destroy Water", "Detect Magic", "Detect Poison and Disease", "Protection from Evil and Good", "Purify Food and Drink"]
-            spells_prepared = cleric_spell_list[:max(num_preparable, 1)]
-            spell_slots = {str(k): v for k, v in FULL_CASTER_SPELL_SLOTS[1].items()}
-        elif chosen_class.name == "Sorcerer":
-            spellcasting_ability = "charisma"
-            cantrips_known = ["Chill Touch", "Light", "Message", "Prestidigitation"]
-            spells_known = ["Burning Hands", "Magic Missile"]
-            spell_slots = {str(k): v for k, v in FULL_CASTER_SPELL_SLOTS[1].items()}
-        elif chosen_class.name == "Warlock":
-            spellcasting_ability = "charisma"
-            cantrips_known = ["Eldritch Blast", "Chill Touch"]
-            spells_known = ["Hex", "Armor of Agathys"]
-            spell_slots = {str(k): v for k, v in WARLOCK_SPELL_SLOTS[1].items()}
-        elif chosen_class.name == "Bard":
-            spellcasting_ability = "charisma"
-            cantrips_known = ["Light", "Vicious Mockery"]
-            spells_known = ["Charm Person", "Cure Wounds", "Healing Word", "Tasha's Hideous Laughter"]
-            spell_slots = {str(k): v for k, v in FULL_CASTER_SPELL_SLOTS[1].items()}
-        elif chosen_class.name == "Druid":
-            spellcasting_ability = "wisdom"
-            cantrips_known = ["Druidcraft", "Produce Flame"]
-            num_preparable = calculate_modifier(player_stats.wisdom) + 1
-            druid_spell_list = ["Cure Wounds", "Entangle", "Faerie Fire", "Healing Word", "Thunderwave", "Animal Friendship", "Create or Destroy Water", "Detect Magic", "Detect Poison and Disease", "Goodberry", "Speak with Animals"]
-            spells_prepared = druid_spell_list[:max(num_preparable, 1)]
-            spell_slots = {str(k): v for k, v in FULL_CASTER_SPELL_SLOTS[1].items()}
-        elif chosen_class.name == "Artificer":
-            spellcasting_ability = "intelligence"
-            cantrips_known = ["Acid Splash", "Mending"]
-            num_preparable = max(calculate_modifier(player_stats.intelligence), 1) + 1
-            artificer_spell_list = ["Cure Wounds", "Faerie Fire", "Shield", "Detect Magic", "Magic Missile", "Tasha's Caustic Brew", "Absorb Elements", "Catapult", "Grease"]
-            spells_prepared = artificer_spell_list[:max(num_preparable, 1)]
-            spell_slots = {str(k): v for k, v in ARTIFICER_SPELL_SLOTS[1].items()}
-        elif chosen_class.name == "Paladin":
-            spellcasting_ability = "charisma"
-            cantrips_known = []
-            spells_prepared = []
-            spell_slots = {}
-        elif chosen_class.name == "Ranger":
-            spellcasting_ability = "wisdom"
-            cantrips_known = []
-            spells_known = []
-            spell_slots = {}
+            has_spellcasting = False
+
+        if has_spellcasting:
+            if cls == "Wizard":
+                spellcasting_ability = "intelligence"
+            elif cls == "Cleric":
+                spellcasting_ability = "wisdom"
+            elif cls == "Sorcerer":
+                spellcasting_ability = "charisma"
+            elif cls == "Warlock":
+                spellcasting_ability = "charisma"
+            elif cls == "Bard":
+                spellcasting_ability = "charisma"
+            elif cls == "Druid":
+                spellcasting_ability = "wisdom"
+
+            available_cantrips = get_available_cantrips(cls, spell_names)
+            cantrip_count = CANTRIP_COUNTS.get(cls, 0)
+            if cantrip_count > 0 and available_cantrips:
+                cantrips_known = select_multiple(
+                    f"Choose {cantrip_count} cantrip(s) for your {cls}",
+                    available_cantrips, count=cantrip_count
+                )
+
+            available_l1 = get_available_level1_spells(cls, spell_names)
+
+            if cls in KNOWN_SPELL_CLASSES:
+                known_count = KNOWN_SPELL_COUNTS.get(cls, 0)
+                if known_count > 0 and available_l1:
+                    spells_known = select_multiple(
+                        f"Choose {known_count} level 1 spell(s) known for your {cls}",
+                        available_l1, count=known_count
+                    )
+            elif cls in PREPARED_SPELL_CLASSES or cls == "Wizard":
+                ability_mod = calculate_modifier(player_stats.dict().get(spellcasting_ability, 10))
+                base_count = PREPARED_SPELL_COUNTS_BASE.get(cls, 0)
+                prepare_count = ability_mod + base_count
+                prepare_count = max(prepare_count, 1)
+
+                if cls == "Wizard":
+                    spellbook = select_multiple(
+                        f"Choose 6 spells for your spellbook",
+                        available_l1, count=6
+                    )
+                    spells_prepared = select_multiple(
+                        f"Prepare {prepare_count} spell(s) from your spellbook (INT mod + level = {prepare_count})",
+                        spellbook, count=prepare_count
+                    )
+                else:
+                    spells_prepared = select_multiple(
+                        f"Prepare {prepare_count} spell(s) for your {cls} "
+                        f"({spellcasting_ability.upper()} mod + level = {prepare_count})",
+                        available_l1, count=prepare_count
+                    )
+
+            if cls == "Warlock":
+                spell_slots = {str(k): v for k, v in WARLOCK_SPELL_SLOTS[1].items()}
+            elif cls in ("Bard", "Sorcerer", "Wizard", "Cleric", "Druid"):
+                spell_slots = {str(k): v for k, v in FULL_CASTER_SPELL_SLOTS[1].items()}
 
     if spellcasting_ability:
         spell_save_dc = 8 + calculate_modifier(player_stats.dict()[spellcasting_ability]) + proficiency_bonus
         spell_attack_modifier = calculate_modifier(player_stats.dict()[spellcasting_ability]) + proficiency_bonus
 
-    # --- AC ---
     fs_name = fighting_style.name if fighting_style else None
     if fs_name == "Defense":
         armor_class = calculate_ac(player_stats, chosen_class.name, player_equipment.inventory, fighting_style="Defense")
     else:
         armor_class = calculate_ac(player_stats, chosen_class.name, player_equipment.inventory)
 
-    # --- HP ---
     con_mod = calculate_modifier(player_stats.constitution)
     hit_points = chosen_class.hit_die + con_mod
-
     if chosen_race.name == "Dwarf" and chosen_subrace and chosen_subrace.name == "Hill Dwarf":
         hit_points += 1
-
     total_hit_points = hit_points
 
-    # --- Speed ---
     speed = chosen_race.speed
     if chosen_subrace and chosen_subrace.name == "Wood Elf":
         speed = 35
 
-    print("\n--- Character Complete! ---")
+    console.print("\n[bold #e94560]═══ Character Complete! ═══[/]")
     return PlayerCharacter(
         name=name,
         race=chosen_subrace.name if chosen_subrace else chosen_race.name,

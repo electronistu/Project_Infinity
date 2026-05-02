@@ -67,7 +67,7 @@ def get_player_json(pc) -> str:
         if pc.character_class == "Wizard":
             spell_data["spellbook"] = pc.spellbook
             spell_data["spells_prepared"] = pc.spells_prepared
-        elif pc.character_class in ("Cleric", "Druid", "Paladin", "Artificer"):
+        elif pc.character_class in ("Cleric", "Druid", "Paladin"):
             spell_data["spells_prepared"] = pc.spells_prepared
         else:
             spell_data["spells_known"] = pc.spells_known

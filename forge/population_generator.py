@@ -143,13 +143,13 @@ def _generate_npc_details(level: int, role: str, faction: str, is_walker: bool, 
     spellbook = []
     spell_slots = {}
 
-    if chosen_class.name in ["Wizard", "Sorcerer", "Bard", "Cleric", "Druid", "Artificer", "Warlock", "Paladin", "Ranger"]:
+    if chosen_class.name in ["Wizard", "Sorcerer", "Bard", "Cleric", "Druid", "Warlock", "Paladin", "Ranger"]:
         if chosen_class.name == "Wizard": spellcasting_ability = "intelligence"
         elif chosen_class.name == "Cleric": spellcasting_ability = "wisdom"
         elif chosen_class.name == "Sorcerer": spellcasting_ability = "charisma"
         elif chosen_class.name == "Bard": spellcasting_ability = "charisma"
         elif chosen_class.name == "Druid": spellcasting_ability = "wisdom"
-        elif chosen_class.name == "Artificer": spellcasting_ability = "intelligence"
+        elif chosen_class.name == "Warlock": spellcasting_ability = "charisma"
         elif chosen_class.name == "Warlock": spellcasting_ability = "charisma"
         elif chosen_class.name == "Paladin": spellcasting_ability = "charisma"
         elif chosen_class.name == "Ranger": spellcasting_ability = "wisdom"

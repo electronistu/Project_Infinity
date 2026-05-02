@@ -51,28 +51,6 @@ HALF_CASTER_SPELL_SLOTS = {
     20: {1: 4, 2: 3, 3: 3, 4: 3, 5: 2},
 }
 
-ARTIFICER_SPELL_SLOTS = {
-    1: {1: 2},
-    2: {1: 2},
-    3: {1: 3},
-    4: {1: 3},
-    5: {1: 4, 2: 2},
-    6: {1: 4, 2: 2},
-    7: {1: 4, 2: 3},
-    8: {1: 4, 2: 3},
-    9: {1: 4, 2: 3, 3: 2},
-    10: {1: 4, 2: 3, 3: 2},
-    11: {1: 4, 2: 3, 3: 3},
-    12: {1: 4, 2: 3, 3: 3},
-    13: {1: 4, 2: 3, 3: 3, 4: 1},
-    14: {1: 4, 2: 3, 3: 3, 4: 1},
-    15: {1: 4, 2: 3, 3: 3, 4: 2},
-    16: {1: 4, 2: 3, 3: 3, 4: 2},
-    17: {1: 4, 2: 3, 3: 3, 4: 3},
-    18: {1: 4, 2: 3, 3: 3, 4: 3},
-    19: {1: 4, 2: 3, 3: 3, 4: 3, 5: 1},
-    20: {1: 4, 2: 3, 3: 3, 4: 3, 5: 2},
-}
 
 WARLOCK_SPELL_SLOTS = {
     1:  {1: 1},
@@ -105,7 +83,7 @@ CASTER_TYPE_MAP = {
     "Druid": "full",
     "Paladin": "half",
     "Ranger": "half",
-    "Artificer": "artificer",
+
     "Warlock": "warlock",
 }
 
@@ -129,7 +107,6 @@ PROFICIENCY_BONUS_TABLE = {
 }
 
 CLASS_HIT_DICE = {
-    "Artificer": 8,
     "Barbarian": 12,
     "Bard": 8,
     "Cleric": 8,
@@ -147,7 +124,7 @@ CLASS_HIT_DICE = {
 SLOT_TABLES = {
     "full": FULL_CASTER_SPELL_SLOTS,
     "half": HALF_CASTER_SPELL_SLOTS,
-    "artificer": ARTIFICER_SPELL_SLOTS,
+
     "warlock": WARLOCK_SPELL_SLOTS,
 }
 
