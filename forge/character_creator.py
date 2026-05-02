@@ -454,51 +454,69 @@ def create_character(config: Config) -> PlayerCharacter:
         all_spells = yaml.safe_load(f)
     spell_names = {s['name'] for s in all_spells}
 
-    name = tui.input_dialog_val("Enter your character's name:", default="Adventurer") or "Adventurer"
-
-    while True:
-        gender = tui.input_dialog_val("Enter your character's gender:", default="Unknown", max_length=15)
-        if gender and len(gender) <= 15:
-            break
-        if not gender:
-            console.print("[red]Input cannot be empty.[/]")
-        else:
-            console.print(f"[red]Must be no more than 15 characters (current: {len(gender)}).[/]")
+    name = tui.input_dialog_val("Enter your character's name:", default="Adventurer")
+    gender = tui.input_dialog_val("Enter your character's gender:", default="Unknown", max_length=15)
 
     chosen_race = select_from_list("Choose your Race", config.races)
+    if not chosen_race:
+        console.print("[red]No races available. Aborting.[/]")
+        sys.exit(1)
 
     chosen_subrace = None
     if chosen_race.subraces:
         chosen_subrace = select_from_list("Choose your Subrace", chosen_race.subraces)
 
     chosen_class = select_from_list("Choose your Class", config.classes)
+    if not chosen_class:
+        console.print("[red]No classes available. Aborting.[/]")
+        sys.exit(1)
+
     chosen_background = select_from_list("Choose your Background", config.backgrounds)
+    if not chosen_background:
+        console.print("[red]No backgrounds available. Aborting.[/]")
+        sys.exit(1)
 
     console.print("\n[bold #e94560]--- Distribute Your Stat Points (Point-Buy System) ---[/]")
     base_stats = {"strength": 8, "dexterity": 8, "constitution": 8, "intelligence": 8, "wisdom": 8, "charisma": 8}
     points_spent = 0
     point_costs = {9: 1, 10: 2, 11: 3, 12: 4, 13: 5, 14: 7, 15: 9}
 
-    for stat in base_stats:
-        while True:
-            points_remaining = 27 - points_spent
-            current_default = str(base_stats[stat])
-            result = tui.input_number(
-                f"Set {stat.upper()} (8-15)\n(Points remaining: {points_remaining})",
-                min_val=8, max_val=15, default=current_default
-            )
-            if result is None:
-                result = base_stats[stat]
+    point_costs = {8: 0, 9: 1, 10: 2, 11: 3, 12: 4, 13: 5, 14: 7, 15: 9}
 
-            current_stat_cost = point_costs.get(base_stats[stat], 0)
-            new_stat_cost = point_costs.get(result, 0)
-            potential_points_spent = points_spent - current_stat_cost + new_stat_cost
-            if potential_points_spent <= 27:
-                base_stats[stat] = result
-                points_spent = potential_points_spent
-                break
-            else:
-                console.print(f"[red]Not enough points! Setting {stat.upper()} to {result} costs {new_stat_cost} points, but you only have {points_remaining} left (after getting back {current_stat_cost} from your previous {base_stats[stat]}).[/]")
+    while True:
+        base_stats = {"strength": 8, "dexterity": 8, "constitution": 8, "intelligence": 8, "wisdom": 8, "charisma": 8}
+        points_spent = 0
+
+        for stat in ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"]:
+            while True:
+                points_remaining = 27 - points_spent
+                current_default = str(base_stats[stat])
+                result = tui.input_number(
+                    f"Set {stat.upper()} (8-15)\n(Points remaining: {points_remaining})",
+                    min_val=8, max_val=15, default=current_default
+                )
+
+                current_stat_cost = point_costs.get(base_stats[stat], 0)
+                new_stat_cost = point_costs.get(result, 0)
+                potential_points_spent = points_spent - current_stat_cost + new_stat_cost
+                if potential_points_spent <= 27:
+                    base_stats[stat] = result
+                    points_spent = potential_points_spent
+                    break
+                else:
+                    tui.show_message(
+                        f"Not enough points! Setting {stat.upper()} to {result} costs "
+                        f"{new_stat_cost} points, but you only have {points_remaining} left "
+                        f"(after getting back {current_stat_cost} from your previous {base_stats[stat]})."
+                    )
+
+        if points_spent < 27:
+            tui.show_message(
+                f"You have {27 - points_spent} unspent points. All 27 must be spent.\n\n"
+                f"Point distribution will restart."
+            )
+            continue
+        break
 
     final_stats = base_stats.copy()
     for increase in chosen_race.ability_score_increases:

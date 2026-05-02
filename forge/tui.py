@@ -1,10 +1,13 @@
 # forge/tui.py
 # prompt_toolkit-based selection dialogs for the World Forge
 
-from prompt_toolkit.shortcuts import radiolist_dialog, checkboxlist_dialog, input_dialog
+import sys
+
+from prompt_toolkit.shortcuts import radiolist_dialog, checkboxlist_dialog, input_dialog, message_dialog
 from prompt_toolkit.styles import Style
 from prompt_toolkit.validation import Validator, ValidationError
 from typing import List, Optional, Any, Callable
+
 
 FORGE_STYLE = Style.from_dict({
     'dialog':             'bg:#1a1a2e',
@@ -25,9 +28,11 @@ FORGE_STYLE = Style.from_dict({
     'frame.label':        'bg:#16213e #e94560 bold',
 })
 
+NAV_HINT = "(Enter to confirm, Tab to switch, Exit to quit)"
+
 
 def select_single(prompt: str, options: List[Any], title: str = "World Forge",
-                   display_fn: Optional[Callable[[Any], str]] = None) -> Optional[Any]:
+                   display_fn: Optional[Callable[[Any], str]] = None) -> Any:
     if not options:
         return None
 
@@ -36,12 +41,17 @@ def select_single(prompt: str, options: List[Any], title: str = "World Forge",
         label = str(opt) if display_fn is None else display_fn(opt)
         values.append((opt, label))
 
-    return radiolist_dialog(
+    result = radiolist_dialog(
         title=title,
-        text=prompt,
+        text=f"{prompt}\n{NAV_HINT}",
         values=values,
+        ok_text="Select",
+        cancel_text="Exit",
         style=FORGE_STYLE,
     ).run()
+    if result is None:
+        sys.exit(0)
+    return result
 
 
 def select_multiple(prompt: str, options: List[Any], title: str = "World Forge",
@@ -53,33 +63,42 @@ def select_multiple(prompt: str, options: List[Any], title: str = "World Forge",
 
     values = []
     default_set = set(default_checked) if default_checked else set()
-    default_values_list = list(default_set)
     for opt in options:
         label = str(opt) if display_fn is None else display_fn(opt)
         values.append((opt, label))
 
-    current_defaults = list(default_values_list)
+    current_defaults = list(default_set)
+    fallback = current_defaults
 
     if min_choices == 0 and max_choices is None:
         result = checkboxlist_dialog(
-            title=title, text=prompt, values=values, default_values=current_defaults,
+            title=title,
+            text=f"{prompt}\n{NAV_HINT}",
+            values=values, default_values=current_defaults,
+            ok_text="Confirm",
+            cancel_text="Exit",
             style=FORGE_STYLE,
         ).run()
-        return list(result) if result else []
+        if result is None:
+            sys.exit(0)
+        return list(result)
 
     min_msg = f"must select at least {min_choices}" if min_choices > 0 else ""
     max_msg = f"at most {max_choices}" if max_choices is not None else ""
     count_hint = " and ".join(filter(None, [min_msg, max_msg]))
 
     while True:
-        full_prompt = f"{prompt}\n({count_hint})"
+        full_prompt = f"{prompt}\n({count_hint})\n{NAV_HINT}"
         result = checkboxlist_dialog(
-            title=title, text=full_prompt, values=values, default_values=current_defaults,
+            title=title, text=full_prompt,
+            values=values, default_values=current_defaults,
+            ok_text="Confirm",
+            cancel_text="Exit",
             style=FORGE_STYLE,
         ).run()
 
         if result is None:
-            return list(default_set) if default_set else []
+            sys.exit(0)
 
         if min_choices > 0 and len(result) < min_choices:
             from rich.console import Console
@@ -95,17 +114,23 @@ def select_multiple(prompt: str, options: List[Any], title: str = "World Forge",
 
 
 def input_dialog_val(prompt: str, title: str = "World Forge", default: str = "",
-                     max_length: int = 50) -> Optional[str]:
+                     max_length: int = 50) -> str:
     while True:
         result = input_dialog(
-            title=title, text=prompt, default=default, style=FORGE_STYLE,
+            title=title,
+            text=f"{prompt}\n{NAV_HINT}",
+            default=default,
+            ok_text="Accept",
+            cancel_text="Exit",
+            style=FORGE_STYLE,
         ).run()
+
         if result is None:
-            return None
+            sys.exit(0)
         if result.strip():
             if len(result) > max_length:
                 from rich.console import Console
-                Console().print(f"[red]Input must be at most {max_length} characters (got {len(result)}).[/]")
+                Console().print(f"[red]Must be at most {max_length} characters (got {len(result)}).[/]")
                 default = result[:max_length]
                 continue
             return result.strip()
@@ -115,7 +140,7 @@ def input_dialog_val(prompt: str, title: str = "World Forge", default: str = "",
 
 
 def input_number(prompt: str, title: str = "World Forge",
-                 min_val: int = 0, max_val: int = 99, default: str = "") -> Optional[int]:
+                 min_val: int = 0, max_val: int = 99, default: str = "") -> int:
 
     class RangeValidator(Validator):
         def validate(self, document):
@@ -127,17 +152,29 @@ def input_number(prompt: str, title: str = "World Forge",
             except ValueError:
                 raise ValidationError(message="Enter a valid integer")
             if val < min_val or val > max_val:
-                raise ValidationError(message=f"Value must be {min_val}–{max_val}")
+                raise ValidationError(message=f"Value must be {min_val}-{max_val}")
+
+    fallback = int(default) if default and default.isdigit() else min_val
 
     while True:
         result = input_dialog(
-            title=title, text=prompt, default=default, style=FORGE_STYLE,
+            title=title,
+            text=f"{prompt}\n{NAV_HINT}",
+            default=default,
+            ok_text="Accept",
+            cancel_text="Exit",
+            style=FORGE_STYLE,
             validator=RangeValidator(),
         ).run()
+
         if result is None:
-            return None
+            sys.exit(0)
         try:
             return int(result.strip())
         except ValueError:
             from rich.console import Console
             Console().print("[red]Invalid number. Please try again.[/]")
+
+
+def show_message(text: str, title: str = "World Forge"):
+    message_dialog(title=title, text=text, ok_text="OK", style=FORGE_STYLE).run()

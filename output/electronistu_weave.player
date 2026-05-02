@@ -2,12 +2,12 @@
   "name": "Electronistu",
   "level": 1,
   "xp": 0,
-  "gold": 75,
+  "gold": 125,
   "character_class": "Wizard",
   "race": "Wood Elf",
   "background": "Criminal",
   "alignment": "Chaotic Neutral",
-  "gender": "Male",
+  "gender": "male",
   "armor_class": 13,
   "current_hit_points": 7,
   "total_hit_points": 7,
@@ -24,11 +24,11 @@
   },
   "proficiency_bonus": 2,
   "skills": [
-    "Stealth",
     "Arcana",
-    "Deception",
+    "Perception",
     "Investigation",
-    "Perception"
+    "Stealth",
+    "Deception"
   ],
   "saves": [
     "Intelligence",
@@ -36,19 +36,19 @@
   ],
   "armor_proficiencies": [],
   "weapon_proficiencies": [
+    "Shortsword",
+    "Quarterstaffs",
     "Darts",
     "Light crossbows",
-    "Quarterstaffs",
-    "Slings",
     "Longsword",
-    "Shortsword",
-    "Daggers",
     "Shortbow",
-    "Longbow"
+    "Longbow",
+    "Daggers",
+    "Slings"
   ],
   "tool_proficiencies": [
-    "Thieves' tools",
-    "Dice Set"
+    "Dice Set",
+    "Thieves' tools"
   ],
   "languages": [
     "Common",
@@ -76,25 +76,25 @@
     "dc": 12,
     "attack_modifier": 4,
     "cantrips": [
+      "True Strike",
       "Minor Illusion",
-      "Mage Hand",
-      "True Strike"
+      "Fire Bolt"
     ],
     "slots": {
       "1": 2
     },
     "spellbook": [
-      "Identify",
       "Sleep",
       "Magic Missile",
-      "Charm Person",
+      "Identify",
+      "Grease",
       "Detect Magic",
-      "Disguise Self"
+      "Charm Person"
     ],
     "spells_prepared": [
-      "Disguise Self",
-      "Magic Missile",
-      "Sleep"
+      "Grease",
+      "Identify",
+      "Magic Missile"
     ]
   }
 }
