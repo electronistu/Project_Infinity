@@ -144,4 +144,23 @@ def format_stats(db_data):
     if inv_lines:
         panels.append(Panel("\n".join(inv_lines), title="🎒 Inventory & Consumables", border_style="cyan", expand=False))
 
+    active_effects = get('active_effects')
+    buff_data = get('_active_buff_data')
+    if isinstance(active_effects, list) and active_effects:
+        buff_lines = []
+        for spell_name in active_effects:
+            entries = []
+            if isinstance(buff_data, dict) and spell_name in buff_data:
+                for entry in buff_data[spell_name]:
+                    delta = entry.get('delta', 0)
+                    sign = '+' if delta >= 0 else ''
+                    entries.append(f"{entry.get('field', '?'):>20} {sign}{delta}")
+            if entries:
+                buff_lines.append(f"  ✨ [bold white]{spell_name}[/]")
+                for e in entries:
+                    buff_lines.append(f"     {e}")
+            else:
+                buff_lines.append(f"  ✨ [bold white]{spell_name}[/]")
+        panels.append(Panel("\n".join(buff_lines), title="🌀 Active Effects", border_style="bright_magenta", expand=False))
+
     return panels

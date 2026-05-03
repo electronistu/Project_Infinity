@@ -24,8 +24,15 @@
            → If YES from other causes (environmental, narrative), award XP via `modify_player_numeric(key='xp', delta=N)`.
     - [ ] **QUEST COMPLETION CHECK: Was a quest, job, or contract fulfilled this turn?**
           → If YES: Award XP immediately via `modify_player_numeric(key='xp', delta=N)`.
-          → A quest is "completed" when the objective is met AND the player receives acknowledgment, payment, or resolution from the quest-giver or narrative.
-    - [ ] Every narrative event with mechanical consequence has a corresponding tool call?
+           → A quest is "completed" when the objective is met AND the player receives acknowledgment, payment, or resolution from the quest-giver or narrative.
+     - [ ] **NPC ACTION CHECK: Are there hostile NPCs or creatures in the scene who have not yet acted this turn/round?**
+           → If YES: You MUST resolve at least one hostile NPC's action NOW using `resolve_attack` or `resolve_magic` BEFORE proceeding to Step 3.
+           → For NPCs attacking the player: use `resolve_attack(is_npc_attack=True, ...)` or `resolve_magic(is_npc_attack=True, ...)`.
+           → For NPCs attacking other NPCs: use `is_npc_vs_npc=True`.
+           → An NPC has "acted" when at least one attack, spell, or meaningful hostile action (shove, grapple, dash to close distance, etc.) has been resolved via a tool call this round.
+           → If ALL hostile NPCs have already acted, skip this check.
+           → If the player has just entered combat for the first time, roll initiative for all combatants using `roll_dice(dice_notation='1d20', modifier=DEX_MOD, actor='Character Name')` and establish turn order before resolving NPC actions.
+     - [ ] Every narrative event with mechanical consequence has a corresponding tool call?
     - [ ] ALL player actions from their input have been mechanically resolved?
    **BEFORE EMITTING THE SYNC TOKEN:** Identify all downstream state changes implied by the player's input and verify each has a corresponding tool call. ONLY then proceed to Step 3.
 3. **[STEP 3: Sync Token]** Emit ONLY `{{_NEED_AN_OTHER_PROMPT}}` — no narrative, no tool calls. This token must be emitted after EVERY batch of tool results. If new tool calls are made, a new Sync Token must be emitted, regardless of whether a token was emitted previously.
