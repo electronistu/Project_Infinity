@@ -1,3 +1,4 @@
+import math
 import random
 import sys
 import json
@@ -5,7 +6,7 @@ import sqlite3
 import os
 import re
 from mcp.server.fastmcp import FastMCP
-from level_up import apply_level_up
+from level_up import apply_level_up, CASTER_TYPE_MAP, SLOT_TABLES, FULL_CASTER_SPELL_SLOTS, WARLOCK_SPELL_SLOTS
 
 try:
     import yaml
@@ -828,6 +829,291 @@ def dump_player_db() -> dict:
         return result
     except Exception as e:
         return {"error": f"Error dumping database: {str(e)}"}
+
+
+@mcp.tool()
+def rest(rest_type: str, prepared_spells: list[str] | None = None) -> dict:
+    """
+    Applies a short or long rest to the player character per SRD 5.1 rules.
+    All numeric changes are auto-applied to the database.
+
+    PARAMETERS:
+    - rest_type: "short" or "long"
+    - prepared_spells: (long rest only, optional) Full replacement list of spell names to prepare.
+      Validated against max capacity (spellcasting_ability_modifier + level, min 1).
+      For Wizards: all spells must exist in the spellbook.
+      For known casters (Bard, Sorcerer, Warlock, Ranger): this parameter is ignored/error.
+
+    SHORT REST AUTO-APPLIES:
+    - Hit dice: spends hit dice one-by-one until HP is full or no dice remain.
+      Each die: roll 1d<hit_dice_size> + CON mod (min 0), heal HP, decrement hit_dice_count.
+    - Warlock: full Pact Magic slot restore from Warlock slot table.
+    - Wizard: Arcane Recovery auto-applied — recovers up to ceil(level/2) combined slot levels,
+      greedily from lowest expended slots first. Cannot recover 6th+ level slots.
+
+    LONG REST AUTO-APPLIES:
+    - HP: fully restored to total_hit_points.
+    - Hit dice: regain max(level // 2, 1) spent hit dice (cannot exceed level).
+    - Spell slots: all slots fully restored from the appropriate slot table.
+    - Active effects: all active_effects and _active_buff_data are cleared, stat deltas reverted.
+    - Prepared spells: if provided, replaces the full prepared list (validated).
+
+    CONSTRAINTS:
+    - Long rest requires at least 1 current HP to benefit.
+    - Cannot benefit from more than one long rest per 24 hours (GM tracks narratively).
+
+    Returns a hints list for manual GM follow-up (class features that recharge, etc.).
+    """
+    global DB_CONNECTION
+    if DB_CONNECTION is None:
+        return {"success": False, "error": "Database not initialized."}
+
+    if rest_type not in ("short", "long"):
+        return {"success": False, "error": "rest_type must be 'short' or 'long'."}
+
+    try:
+        cursor = DB_CONNECTION.cursor()
+
+        char_class = _db_val(cursor, "character_class", "")
+        level = int(_db_val(cursor, "level", 1))
+        hd_count = int(_db_val(cursor, "hit_dice_count", 0))
+        hd_size = int(_db_val(cursor, "hit_dice_size", 8))
+        total_hp = int(_db_val(cursor, "total_hit_points", 1))
+        current_hp = int(_db_val(cursor, "current_hit_points", 0))
+
+        stats_raw = _db_val(cursor, "stats", {})
+        if isinstance(stats_raw, str):
+            stats_raw = json.loads(stats_raw)
+        con_mod = (int(stats_raw.get("con", 10)) - 10) // 2
+
+        sc_raw = _db_val(cursor, "spellcasting", {})
+        if isinstance(sc_raw, str):
+            sc_raw = json.loads(sc_raw)
+        sc = dict(sc_raw) if sc_raw else {}
+
+        buff_data = _db_val(cursor, "_active_buff_data", {})
+        if isinstance(buff_data, str):
+            buff_data = json.loads(buff_data)
+        effects_list = _db_val(cursor, "active_effects", [])
+        if isinstance(effects_list, str):
+            effects_list = json.loads(effects_list)
+
+        result = {"success": True, "rest_type": rest_type}
+        changes = {}
+        hints = []
+
+        caster_type = CASTER_TYPE_MAP.get(char_class)
+        slot_table = None
+        if caster_type:
+            slot_table = SLOT_TABLES[caster_type].get(level, {})
+
+        if rest_type == "short":
+            dice_spent = 0
+            total_healing = 0
+            missing_hp = total_hp - current_hp
+
+            while missing_hp > 0 and dice_spent < hd_count:
+                roll = random.randint(1, hd_size)
+                healing = max(roll + con_mod, 0)
+                total_healing += healing
+                missing_hp -= healing
+                dice_spent += 1
+
+            new_hd = hd_count - dice_spent
+
+            if dice_spent > 0:
+                hp_result = _apply_hp_change(cursor, total_healing)
+                _db_set(cursor, "hit_dice_count", str(new_hd))
+                DB_CONNECTION.commit()
+                changes["hp"] = {"old": current_hp, "new": hp_result["new_value"],
+                                 "healed": total_healing, "dice_spent": dice_spent,
+                                 "status": hp_result["hp_status"]}
+                changes["hit_dice"] = {"old": hd_count, "new": new_hd, "spent": dice_spent}
+            else:
+                changes["hp"] = {"old": current_hp, "new": current_hp,
+                                 "healed": 0, "dice_spent": 0,
+                                 "status": _format_hp_status(current_hp, total_hp)}
+                changes["hit_dice"] = {"old": hd_count, "new": hd_count, "spent": 0}
+
+            recovered = {}
+
+            if caster_type == "warlock" and slot_table:
+                sc["slots"] = {str(k): v for k, v in slot_table.items()}
+                _db_set(cursor, "spellcasting", sc)
+                DB_CONNECTION.commit()
+                changes["slots_restored"] = {str(k): v for k, v in slot_table.items()}
+
+            if char_class == "Wizard" and caster_type == "full":
+                max_slots = FULL_CASTER_SPELL_SLOTS.get(level, {})
+                current_slots = sc.get("slots", {})
+                budget = math.ceil(level / 2)
+                recovered = {}
+                budget_used = 0
+
+                for slot_lvl in range(1, 6):
+                    slot_key = str(slot_lvl)
+                    slot_cost = slot_lvl
+                    curr = int(current_slots.get(slot_key, 0))
+                    max_s = max_slots.get(slot_lvl, 0)
+                    while curr < max_s and budget_used + slot_cost <= budget:
+                        curr += 1
+                        budget_used += slot_cost
+                    if slot_key in current_slots:
+                        recovered_amount = curr - int(current_slots.get(slot_key, 0))
+                    else:
+                        recovered_amount = curr
+                    if recovered_amount > 0:
+                        recovered[slot_key] = recovered_amount
+                        sc["slots"] = sc.get("slots", {})
+                        sc["slots"][slot_key] = curr
+
+                if recovered:
+                    _db_set(cursor, "spellcasting", sc)
+                    DB_CONNECTION.commit()
+                    changes["arcane_recovery"] = {
+                        "recovered": recovered,
+                        "budget_used": budget_used,
+                        "budget_total": budget,
+                    }
+
+            narrative_parts = [f"Short Rest complete."]
+            if dice_spent > 0:
+                narrative_parts.append(f"Spent {dice_spent} hit die(s) → healed {total_healing} HP ({new_hd}/{level} remaining).")
+            else:
+                narrative_parts.append("HP already at maximum — no hit dice spent.")
+            if caster_type == "warlock" and slot_table:
+                narrative_parts.append("Pact Magic slots restored.")
+            if recovered if 'recovered' in locals() else False:
+                arc_parts = ", ".join(f"Lv{k}: +{v}" for k, v in recovered.items())
+                narrative_parts.append(f"Arcane Recovery: {arc_parts} (budget {budget_used}/{budget}).")
+
+            hints.append("Wizard: Arcane Recovery has been used for this rest period (once per long rest)." if char_class == "Wizard" else None)
+            hints.append("Fighter: Second Wind and Action Surge recharge on short/long rest." if char_class == "Fighter" else None)
+            hints.append("Cleric: Channel Divinity recharges on short/long rest." if char_class == "Cleric" else None)
+            hints.append("Warlock: Pact Magic slots recharge on short rest." if char_class == "Warlock" else None)
+            hints.append("Bard: Bardic Inspiration recharges on short rest (level 5+)." if char_class == "Bard" and level >= 5 else None)
+            hints.append("Monk: Ki points recharge on short rest (level 2+)." if char_class == "Monk" and level >= 2 else None)
+            hints.append("Druid: Wild Shape uses recharge on short rest." if char_class == "Druid" and level >= 2 else None)
+            hints.append("Paladin: Channel Divinity recharges on short/long rest." if char_class == "Paladin" and level >= 3 else None)
+            hints = [h for h in hints if h is not None]
+
+        elif rest_type == "long":
+            if current_hp <= 0:
+                return {"success": False,
+                        "error": "Cannot benefit from a long rest with 0 HP. The character must be stabilized first."}
+
+            _db_set(cursor, "current_hit_points", str(total_hp))
+            changes["hp"] = {"old": current_hp, "new": total_hp,
+                             "status": _format_hp_status(total_hp, total_hp)}
+
+            hd_regained = max(level // 2, 1)
+            new_hd = min(hd_count + hd_regained, level)
+            _db_set(cursor, "hit_dice_count", str(new_hd))
+            DB_CONNECTION.commit()
+            changes["hit_dice"] = {"old": hd_count, "new": new_hd, "regained": hd_regained}
+
+            if slot_table:
+                sc["slots"] = {str(k): v for k, v in slot_table.items()}
+                _db_set(cursor, "spellcasting", sc)
+                DB_CONNECTION.commit()
+                changes["slots_restored"] = {str(k): v for k, v in slot_table.items()}
+                if caster_type == "warlock":
+                    changes["slots_restored"] = {"pact_magic": {str(k): v for k, v in slot_table.items()}}
+
+            effects_cleared = []
+            for spell_name in list(buff_data.keys()):
+                entries = buff_data[spell_name]
+                for entry in entries:
+                    modify_player_numeric(key=entry["field"], delta=-entry["delta"])
+                effects_cleared.append(spell_name)
+            _db_set(cursor, "active_effects", [])
+            _db_set(cursor, "_active_buff_data", {})
+            DB_CONNECTION.commit()
+            if effects_cleared:
+                changes["effects_cleared"] = effects_cleared
+
+            if prepared_spells is not None:
+                if char_class in PREPARED_CASTER_CLASSES or char_class == "Wizard":
+                    max_spells = get_max_prepared_spells(cursor)
+                    if max_spells is not None and len(prepared_spells) > max_spells:
+                        changes["prepared_spells_error"] = {
+                            "error": "Too many prepared spells.",
+                            "provided": len(prepared_spells),
+                            "max": max_spells,
+                            "formula": "spellcasting_ability_modifier + level",
+                        }
+                    elif char_class == "Wizard":
+                        spellbook = sc.get("spellbook", [])
+                        spellbook_names = set()
+                        for s in spellbook:
+                            if isinstance(s, dict):
+                                spellbook_names.add(s.get("name", ""))
+                            else:
+                                spellbook_names.add(str(s))
+                        not_in_book = [s for s in prepared_spells if s not in spellbook_names]
+                        if not_in_book:
+                            changes["prepared_spells_error"] = {
+                                "error": "Spells not in spellbook.",
+                                "not_in_spellbook": not_in_book,
+                                "hint": "Wizards can only prepare spells from their spellbook.",
+                            }
+                        else:
+                            old_prepared = [s.get("name", str(s)) if isinstance(s, dict) else str(s)
+                                            for s in sc.get("spells_prepared", [])]
+                            sc["spells_prepared"] = [{"name": s} for s in prepared_spells]
+                            _db_set(cursor, "spellcasting", sc)
+                            DB_CONNECTION.commit()
+                            changes["prepared_spells"] = {
+                                "old": old_prepared,
+                                "new": list(prepared_spells),
+                                "count": len(prepared_spells),
+                                "max": max_spells if max_spells is not None else 0,
+                            }
+                    else:
+                        old_prepared = [s.get("name", str(s)) if isinstance(s, dict) else str(s)
+                                        for s in sc.get("spells_prepared", [])]
+                        sc["spells_prepared"] = [{"name": s} for s in prepared_spells]
+                        _db_set(cursor, "spellcasting", sc)
+                        DB_CONNECTION.commit()
+                        changes["prepared_spells"] = {
+                            "old": old_prepared,
+                            "new": list(prepared_spells),
+                            "count": len(prepared_spells),
+                            "max": max_spells if max_spells is not None else 0,
+                        }
+                else:
+                    changes["prepared_spells_error"] = {
+                        "error": f"{char_class} is not a prepared caster.",
+                        "hint": f"{char_class} uses spells_known (cannot change on long rest).",
+                    }
+
+            narrative_parts = ["Long Rest complete. HP fully restored."]
+            narrative_parts.append(f"Hit Dice: {new_hd}/{level} (+{hd_regained} regained).")
+            if slot_table:
+                narrative_parts.append("All spell slots restored.")
+            if effects_cleared:
+                narrative_parts.append(f"Active effects cleared: {', '.join(effects_cleared)}.")
+            if prepared_spells is not None and "prepared_spells" in changes:
+                narrative_parts.append(f"Prepared spells updated ({len(prepared_spells)}/{changes['prepared_spells']['max']}).")
+
+            hints.append("Wizard: Arcane Recovery available (once per long rest) on next short rest." if char_class == "Wizard" else None)
+            hints.append("Fighter: Second Wind and Action Surge recharge on short/long rest." if char_class == "Fighter" else None)
+            hints.append("Cleric: Channel Divinity recharges on short/long rest." if char_class == "Cleric" else None)
+            hints.append("Warlock: Pact Magic slots recharge on short rest." if char_class == "Warlock" else None)
+            hints.append("Bard: Bardic Inspiration recharges on short rest (level 5+)." if char_class == "Bard" and level >= 5 else None)
+            hints.append("Monk: Ki points recharge on short rest (level 2+)." if char_class == "Monk" and level >= 2 else None)
+            hints.append("Druid: Wild Shape uses recharge on short/long rest." if char_class == "Druid" and level >= 2 else None)
+            hints.append("Paladin: Channel Divinity recharges on short/long rest." if char_class == "Paladin" and level >= 3 else None)
+            hints.append("No more than one long rest per 24 hours." if True else None)
+            hints = [h for h in hints if h is not None]
+
+        result["changes"] = changes
+        result["hints"] = hints
+        result["narrative_format"] = " ".join(narrative_parts)
+        return result
+
+    except Exception as e:
+        return {"success": False, "error": f"Error applying rest: {str(e)}"}
 
 
 @mcp.tool()

@@ -125,7 +125,17 @@ The game engine runs as a local **MCP (Model Context Protocol)** server with an 
 - **Attack Types** — Supports `attack_roll` (vs AC), `saving_throw` (half damage on save if `save_half`), and `automatic` (always hits).
 - **Healing & HP Pools** — Healing spells restore HP. HP pool spells (e.g. *Sleep*, *Color Spray*) roll a total HP pool against the target's HP.
 - **Conditions & Concentration** — Applies conditions with duration and concentration flags. Supports instant-kill spells (Power Word-style HP threshold checks).
+- **Active Buff Tracking** — Spells that modify stats (AC, speed, etc.) are tracked via `active_effects` and `_active_buff_data`. Recasting a duplicate is rejected before the slot is consumed. Removing an effect via `update_player_list` automatically reverts the stat changes. All active effects are visible in the `/stats` command display.
 - **Kill Detection & XP** — Identical to weapon attacks: NPC deaths award XP automatically.
+
+### Rest & Recovery
+
+The `rest` tool auto-applies all rest mechanics per SRD 5.1 — the GM doesn't need to track dice math manually.
+
+- **Short Rest** (1 hour): Automatically spends hit dice one-by-one until HP is full or no dice remain, rolling `1d<hit_dice_size> + CON mod` per die (minimum 0). Warlocks regain all Pact Magic slots. Wizards get Arcane Recovery auto-applied (recovers up to `ceil(level/2)` combined slot levels, greedily from lowest expended slots).
+- **Long Rest** (8 hours): Full HP restore. Regain `max(level//2, 1)` spent hit dice (capped at level). All spell slots fully restored from class slot tables. All active effects cleared with stat deltas auto-reverted. Prepared casters can optionally provide a full replacement list of prepared spells, validated against max capacity and (for Wizards) spellbook content.
+- Rejects long rest if the character is at 0 HP (must be stabilized first).
+- Returns class-specific hints for manual feature recharges (Second Wind, Channel Divinity, Bardic Inspiration, etc.).
 
 ### State Authority
 
