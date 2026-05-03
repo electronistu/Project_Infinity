@@ -2,9 +2,9 @@
 
 A text-based RPG where an AI acts as your Dungeon Master — with real dice rolls, real character tracking, and real D&D 5e rules (based on the SRD 5.1). No hallucinated stats. No forgotten inventory. The AI rolls fairly, tracks your HP, and levels you up automatically.
 
-*Running on gemini-2.5-pro:*
+*Running on deepseek-v4-pro:cloud:*
 
-![Project Infinity TUI — gemini-2.5-pro](screenshot.png)
+![Project Infinity TUI — deepseek-v4-pro:cloud](screenshot.png)
 ---
 
 ## What Makes This Different?
