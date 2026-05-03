@@ -70,8 +70,9 @@ def create_ollama_chat_fn(debug=False, think=False, thinking_level=None, tempera
         think_value = True
 
     async def chat_fn(messages, tools, model, context_window):
-        max_retries = 3
-        for attempt in range(max_retries):
+        attempt = 0
+        while True:
+            attempt += 1
             try:
                 response = await client.chat(
                     model=model,
@@ -142,10 +143,14 @@ def create_ollama_chat_fn(debug=False, think=False, thinking_level=None, tempera
                     'thinking_only': bool(thinking_text and not content and not normalized_tool_calls),
                 }
             except ollama._types.ResponseError as e:
-                if e.status_code in [500, 502, 503] and attempt < max_retries - 1:
+                if e.status_code in [500, 502, 503]:
+                    delay = 2 * (2 ** (attempt - 1))
                     if debug:
-                        console.print(f"[bold yellow]DEBUG: Ollama overloaded ({e.status_code}). Retrying... ({attempt+1}/{max_retries})[/bold yellow]")
-                    await asyncio.sleep(2)
+                        console.print(f"[bold yellow]DEBUG: Ollama overloaded ({e.status_code}). Retrying in {delay}s (attempt {attempt})...[/bold yellow]")
+                    with console.status(f"[yellow]Retrying in {delay}s...[/yellow]") as status:
+                        for remaining in range(delay, 0, -1):
+                            status.update(f"[yellow]Retrying in {remaining}s...[/yellow]")
+                            await asyncio.sleep(1)
                     continue
                 raise e
 
