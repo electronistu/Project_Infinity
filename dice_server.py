@@ -663,11 +663,13 @@ def update_player_list(key: str, item: str, action: str) -> dict:
     languages, saves, armor_proficiencies, weapon_proficiencies, tool_proficiencies,
     active_effects
 
-    FORMAT: 'Item Name: Description' (description optional)
+    FORMAT for add: 'Item Name: Description' (description optional)
+    IMPORTANT for remove: pass ONLY the item name, never the description.
+      Items stored as dicts {name, description} are matched by name only.
 
     EXAMPLES:
     - update_player_list(key='inventory', item='Dagger: A rusty blade (1d4 piercing, Finesse, Light, Thrown (range 20/60))', action='add')
-    - update_player_list(key='inventory', item='Health Potion', action='add')
+    - update_player_list(key='inventory', item='Dagger', action='remove')          ← name only, NOT 'Dagger: A rusty blade...'
     - update_player_list(key='spellcasting.spells_known', item='Shield', action='remove')
     - update_player_list(key='spellcasting.spells_prepared', item='Fireball', action='add')
 
@@ -718,7 +720,14 @@ def update_player_list(key: str, item: str, action: str) -> dict:
 
             exists = any((isinstance(e, dict) and e.get("name") == name) or e == name for e in current_list)
             if exists:
-                result = {"success": False, "error": "already_exists", "key": key, "item": name, "action": action}
+                available = []
+                for e in current_list:
+                    if isinstance(e, dict):
+                        available.append(e.get("name", str(e)))
+                    else:
+                        available.append(str(e))
+                result = {"success": False, "error": "already_exists", "key": key, "item": name,
+                          "action": action, "current_items": available}
                 if is_prepared_spells:
                     info = build_prepared_spells_info(cursor)
                     if info is not None:
@@ -741,7 +750,14 @@ def update_player_list(key: str, item: str, action: str) -> dict:
                     found = True
                     break
             if not found:
-                return {"success": False, "error": "not_found", "key": key, "item": item, "action": action}
+                available = []
+                for e in current_list:
+                    if isinstance(e, dict):
+                        available.append(e.get("name", str(e)))
+                    else:
+                        available.append(str(e))
+                return {"success": False, "error": "not_found", "key": key, "item": item,
+                        "action": action, "current_items": available}
 
             if key == "active_effects":
                 buff_data_raw = _db_val(cursor, "_active_buff_data", {})
