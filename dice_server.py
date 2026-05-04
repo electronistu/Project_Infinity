@@ -618,17 +618,15 @@ def modify_player_numeric(key: str, delta: int) -> dict:
                         cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", (db_key, db_value))
                     DB_CONNECTION.commit()
 
-                    total_hp = int(changes.get('total_hit_points', new_val))
+                    total_hp = int(changes.get('total_hit_points', _db_val(cursor, 'total_hit_points', 0)))
+                    current_hp = int(changes.get('current_hit_points', _db_val(cursor, 'current_hit_points', 0)))
 
                     result["level_up"] = True
                     result["old_level"] = current_level
                     result["new_level"] = new_level
                     result["level_up_changes"] = summary
                     result["level_up_summary"] = f"LEVEL UP! Level {current_level} → {new_level}. " + "; ".join(summary)
-                    result["hp_status"] = _format_hp_status(
-                        int(changes.get('total_hit_points', total_hp)),
-                        int(changes.get('total_hit_points', total_hp))
-                    )
+                    result["hp_status"] = _format_hp_status(current_hp, total_hp)
                     result["message"] = (
                         f"LEVEL UP! Level {current_level} → {new_level}. "
                         f"Changes: {', '.join(summary)}. "
@@ -999,7 +997,7 @@ def rest(rest_type: str, prepared_spells: list[str] | None = None) -> dict:
                 narrative_parts.append("HP already at maximum — no hit dice spent.")
             if caster_type == "warlock" and slot_table:
                 narrative_parts.append("Pact Magic slots restored.")
-            if recovered if 'recovered' in locals() else False:
+            if recovered:
                 arc_parts = ", ".join(f"Lv{k}: +{v}" for k, v in recovered.items())
                 narrative_parts.append(f"Arcane Recovery: {arc_parts} (budget {budget_used}/{budget}).")
 
@@ -2110,7 +2108,6 @@ def resolve_magic(
         result["slot_result"] = slot_result_data
 
     is_crit = False
-    damage_multiplier = 1.0
 
     # ── ATTACK ROLL ──
     if sp_attack_type == "attack_roll":
@@ -2292,14 +2289,33 @@ def resolve_magic(
 
     total_damage = primary_damage + extra_damage
 
-    # ── APPLY SAVE HALF / NO DAMAGE ──
-    if sp_attack_type == "saving_throw" and damage_multiplier < 1.0:
-        if damage_multiplier == 0.0:
-            total_damage = 0
-            narrative_parts.append(f"{saver_name} saved — no damage.")
-        else:
-            total_damage = max(1, total_damage // 2)
-            narrative_parts.append(f"{saver_name} saved — half damage: {total_damage}")
+    # ── SAVING THROW ──
+    if sp_attack_type == "saving_throw":
+        save_mod = player_save_modifier if is_npc_attack and player_save_modifier is not None else target_save_modifier
+        saver_name = target_name or actor
+        save_d20 = random.randint(1, 20)
+        save_total = save_d20 + save_mod
+        save_success = save_total >= spell_save_dc
+
+        result["save_roll"] = save_d20
+        result["save_modifier"] = save_mod
+        result["save_total"] = save_total
+        result["save_dc"] = spell_save_dc
+        result["save_success"] = save_success
+        save_outcome = "Success" if save_success else "Failure"
+
+        narrative_parts.append(
+            f"{saver_name} {sp_save_type.upper()} Save: {save_total} vs DC {spell_save_dc}"
+            f" ({save_outcome}) ({save_d20} + {save_mod})"
+        )
+
+        if save_success:
+            if sp_save_half:
+                total_damage = max(1, total_damage // 2)
+                narrative_parts.append(f"{saver_name} saved — half damage: {total_damage}")
+            else:
+                total_damage = 0
+                narrative_parts.append(f"{saver_name} saved — no damage.")
 
     result["damage_total"] = total_damage
     result["damage_type"] = sp_damage_type
