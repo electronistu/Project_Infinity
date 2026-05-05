@@ -8,9 +8,7 @@
   "alignment": "Chaotic Neutral",
   "gender": "male",
   "armor_class": 13,
-  "current_hit_points": 7,
   "total_hit_points": 7,
-  "hit_dice_count": 1,
   "hit_dice_size": 6,
   "speed": 35,
   "stats": {
@@ -64,6 +62,47 @@
     "Arcane Recovery",
     "Criminal Contact"
   ],
+  "consumables": {
+    "Bolts": 20
+  },
+  "inventory": [
+    "Spellbook",
+    "Crowbar",
+    "Dark Common Clothes",
+    {
+      "name": "Light Crossbow",
+      "description": "1d8 piercing, Ammunition, Range 80/320, Loading, Two-Handed"
+    },
+    {
+      "name": "Weighted Dagger",
+      "description": "1d4 piercing, Finesse, Light, Thrown (range 30/60)"
+    },
+    {
+      "name": "Rations (5 days)",
+      "description": "Dried travel rations \u2014 tough, but they keep"
+    },
+    {
+      "name": "Waterskin",
+      "description": "A leather waterskin, currently full"
+    },
+    {
+      "name": "Bedroll",
+      "description": "A rolled blanket and padded sleeping mat"
+    },
+    {
+      "name": "Rope (Hempen, 50ft)",
+      "description": "50 feet of sturdy hempen rope"
+    },
+    {
+      "name": "Thieves' Tools",
+      "description": "A leather pouch containing lockpicks, a small file, narrow-bladed scissors, and pliers"
+    }
+  ],
+  "gold": 63,
+  "current_hit_points": 7,
+  "hit_dice_count": 1,
+  "active_effects": [],
+  "_active_buff_data": {},
   "spellcasting": {
     "ability": "intelligence",
     "dc": 12,
@@ -85,28 +124,15 @@
       "Charm Person"
     ],
     "spells_prepared": [
-      "Grease",
-      "Identify",
-      "Magic Missile"
+      {
+        "name": "Grease"
+      },
+      {
+        "name": "Sleep"
+      },
+      {
+        "name": "Magic Missile"
+      }
     ]
-  },
-  "active_effects": [],
-  "_active_buff_data": {},
-  "consumables": {
-    "Bolts": 20
-  },
-  "gold": 94,
-  "inventory": [
-    "Spellbook",
-    "Crowbar",
-    "Dark Common Clothes",
-    {
-      "name": "Light Crossbow",
-      "description": "1d8 piercing, Ammunition, Range 80/320, Loading, Two-Handed"
-    },
-    {
-      "name": "Weighted Dagger",
-      "description": "1d4 piercing, Finesse, Light, Thrown (range 30/60)"
-    }
-  ]
+  }
 }
