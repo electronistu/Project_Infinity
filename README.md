@@ -15,7 +15,7 @@ Most AI RPGs let the language model make up numbers. Project Infinity doesn't. E
 - **Persistent Character** — Your stats, inventory, gold, and spell slots live in a real database that updates in real time. No "forgetting" that you used your last potion.
 - **SRD 5.1 Rules** — Leveling up, spell slot recovery, proficiency bonuses — all handled automatically by the engine.
 - **Combat Resolution** — Weapon attacks, spell attacks, saving throws, cantrip scaling, upcasting, spell slot consumption, crits, kill detection, and XP awards are all resolved mechanically in a single tool call. The AI cannot fudge damage or forget to deduct a slot.
-- **In-Game Commands** — Check your stats, force a database sync, or get help without leaving the game.
+- **In-Game Commands** — Check your stats, save your character sheet, force a database sync, or get help without leaving the game.
 
 ---
 
@@ -89,6 +89,7 @@ Then the Game Master awakens and your adventure begins. Type actions in plain En
 |---------|-------------|
 | `/help` | Show available commands |
 | `/stats` | Display your current character stats, inventory, and spell slots |
+| `/save` | Overwrite your .player file with your current character sheet (active effects are cleared/reverted) |
 | `/sync` | Force a database sync to make sure the GM's memory matches your actual state |
 | `/quit` | Exit the game |
 

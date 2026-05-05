@@ -223,6 +223,7 @@ async def run_game(chat_fn, model, context_window, verbose=False, debug=False):
                             "[bold white]Available Commands:[/bold white]\n\n"
                             "  [cyan]/help[/cyan]  - Show this help message\n"
                             "  [cyan]/stats[/cyan] - Display current player stats\n"
+                            "  [cyan]/save[/cyan]  - Overwrite your .player file with your current character sheet (active effects are cleared/reverted)\n"
                             "  [cyan]/sync[/cyan]  - Force a database sync with the GM\n"
                             "  [cyan]/quit[/cyan]  - Exit the game\n\n"
                             "[dim]Type anything else to send as an action to the Game Master.[/dim]"
@@ -247,6 +248,43 @@ async def run_game(chat_fn, model, context_window, verbose=False, debug=False):
                         console.print("[dim]Synchronizing database...[/dim]")
                         await chat_with_tools("{{_SYNC_DATABASE}}")
                         console.print(Panel("[green]Database synchronized.[/green]", border_style="green", expand=False))
+                    elif cmd == '/save':
+                        result = await session.call_tool("dump_player_db", arguments={})
+                        if hasattr(result, 'content') and result.content:
+                            text = "\n".join(block.text for block in result.content if hasattr(block, "text"))
+                            try:
+                                db_data = json.loads(text)
+                            except (json.JSONDecodeError, TypeError):
+                                db_data = {}
+                            buff_data = db_data.get("_active_buff_data", {})
+                            if isinstance(buff_data, str):
+                                try:
+                                    buff_data = json.loads(buff_data)
+                                except (json.JSONDecodeError, TypeError):
+                                    buff_data = {}
+                            cleared = []
+                            for spell_name, entries in buff_data.items():
+                                for entry in entries:
+                                    field = entry["field"]
+                                    delta = entry["delta"]
+                                    current_val = db_data.get(field, 0)
+                                    if isinstance(current_val, str):
+                                        try:
+                                            current_val = int(current_val)
+                                        except (ValueError, TypeError):
+                                            continue
+                                    db_data[field] = current_val - delta
+                                cleared.append(spell_name)
+                            db_data["active_effects"] = []
+                            db_data["_active_buff_data"] = {}
+                            with open(player_path, "w") as f:
+                                json.dump(db_data, f, indent=2)
+                            msg = f"[green]Character sheet saved to {player_path}[/green]"
+                            if cleared:
+                                msg += f"\n[dim]Reverted effects for save: {', '.join(cleared)}[/dim]"
+                            console.print(Panel(msg, border_style="green", expand=False))
+                        else:
+                            console.print("[red]Save failed — could not read database.[/red]")
                     elif cmd == '/quit':
                         return 'quit'
                     else:
