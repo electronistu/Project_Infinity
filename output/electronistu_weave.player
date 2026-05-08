@@ -1,14 +1,11 @@
 {
   "name": "Electronistu",
-  "level": 1,
-  "xp": 0,
   "character_class": "Wizard",
   "race": "Wood Elf",
   "background": "Criminal",
   "alignment": "Chaotic Neutral",
   "gender": "male",
   "armor_class": 13,
-  "total_hit_points": 7,
   "hit_dice_size": 6,
   "speed": 35,
   "stats": {
@@ -51,6 +48,11 @@
     "Common",
     "Elvish"
   ],
+  "consumables": {
+    "Bolts": 20
+  },
+  "level": 2,
+  "total_hit_points": 11,
   "features": [
     "Darkvision",
     "Fey Ancestry",
@@ -60,10 +62,54 @@
     "Mask of the Wild",
     "Spellcasting",
     "Arcane Recovery",
-    "Criminal Contact"
+    "Criminal Contact",
+    {
+      "name": "School of Illusion",
+      "description": "You have chosen the School of Illusion as your Arcane Tradition. You gain the Improved Minor Illusion feature (learn Minor Illusion cantrip if not already known; if known, gain a different Wizard cantrip). You also gain the Illusion Savant feature: the gold and time you must spend to copy an Illusion spell into your spellbook is halved."
+    }
   ],
-  "consumables": {
-    "Bolts": 20
+  "xp": 510,
+  "current_hit_points": 11,
+  "hit_dice_count": 2,
+  "active_effects": [],
+  "_active_buff_data": {},
+  "spellcasting": {
+    "ability": "intelligence",
+    "dc": 12,
+    "attack_modifier": 4,
+    "cantrips": [
+      "True Strike",
+      "Minor Illusion",
+      "Fire Bolt",
+      "Mage Hand"
+    ],
+    "slots": {
+      "1": 3
+    },
+    "spellbook": [
+      "Sleep",
+      "Magic Missile",
+      "Identify",
+      "Grease",
+      "Detect Magic",
+      "Charm Person",
+      "Disguise Self",
+      "Color Spray"
+    ],
+    "spells_prepared": [
+      {
+        "name": "Sleep"
+      },
+      {
+        "name": "Magic Missile"
+      },
+      {
+        "name": "Charm Person"
+      },
+      {
+        "name": "Disguise Self"
+      }
+    ]
   },
   "inventory": [
     "Spellbook",
@@ -98,41 +144,5 @@
       "description": "A leather pouch containing lockpicks, a small file, narrow-bladed scissors, and pliers"
     }
   ],
-  "gold": 63,
-  "current_hit_points": 7,
-  "hit_dice_count": 1,
-  "active_effects": [],
-  "_active_buff_data": {},
-  "spellcasting": {
-    "ability": "intelligence",
-    "dc": 12,
-    "attack_modifier": 4,
-    "cantrips": [
-      "True Strike",
-      "Minor Illusion",
-      "Fire Bolt"
-    ],
-    "slots": {
-      "1": 2
-    },
-    "spellbook": [
-      "Sleep",
-      "Magic Missile",
-      "Identify",
-      "Grease",
-      "Detect Magic",
-      "Charm Person"
-    ],
-    "spells_prepared": [
-      {
-        "name": "Grease"
-      },
-      {
-        "name": "Sleep"
-      },
-      {
-        "name": "Magic Missile"
-      }
-    ]
-  }
+  "gold": 494
 }
