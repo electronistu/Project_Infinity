@@ -1,5 +1,6 @@
 import argparse
 import os
+import random
 from forge.config_loader import load_config
 from forge.character_creator import create_character, create_debug_character
 from forge.population_generator import populate_world
@@ -24,6 +25,14 @@ def main():
 
     kingdoms = populate_world(config)
     create_guilds(kingdoms, config)
+
+    all_npcs = []
+    for kingdom in kingdoms:
+        all_npcs.append(kingdom.ruler)
+        for guild in kingdom.guilds:
+            all_npcs.append(guild.leader)
+            all_npcs.append(guild.right_hand)
+    random.choice(all_npcs).is_walker = True
 
     world_history = [
         "The War of the Ashen Crown, a bitter conflict ignited by Zarthus's expansionism, ended a decade ago in a fragile truce. The cities of Eldoria still bear the scars, and its people have long memories.",

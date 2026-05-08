@@ -7,15 +7,14 @@ import os
 
 WWF_SCHEMA = """
 schemas:
-  npc: [lvl, race, class, ac, hp, stats, walker, abilities_for_sale]
+  npc: [lvl, race, class, ac, hp, stats, walker]
   stats: [str, dex, con, int, wis, cha]
-"""
+""".strip()
 
 def get_npc_array(npc: NPC) -> list:
     """Converts an NPC object to a compact array based on the schema."""
     stats_array = [npc.stats.strength, npc.stats.dexterity, npc.stats.constitution, npc.stats.intelligence, npc.stats.wisdom, npc.stats.charisma]
-    abilities = [f"{a.name}:{a.tier}" for a in npc.abilities_for_sale] if npc.abilities_for_sale else None
-    return [npc.level, npc.race, npc.character_class, npc.armor_class, npc.total_hit_points, stats_array, True if npc.is_walker else None, abilities]
+    return [npc.level, npc.race, npc.character_class, npc.armor_class, npc.total_hit_points, stats_array, True if npc.is_walker else None]
 
 def get_player_json(pc) -> str:
     player_data = {

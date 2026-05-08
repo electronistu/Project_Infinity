@@ -101,7 +101,6 @@ class NPC(Creature):
     faction: str
     is_walker: bool = False
     dialogue_options: List[str] = []
-    abilities_for_sale: List['PlayerAbility'] = [] # Forward reference
     race: Optional[str] = None
     character_class: Optional[str] = None
     background: Optional[str] = None
@@ -121,12 +120,6 @@ class NPC(Creature):
     spell_slots: Dict[str, int] = Field(default_factory=dict)
 
 # --- Player Character Models ---
-
-class PlayerAbility(BaseModel):
-    name: str
-    description: str
-    tier: int
-    guild_source: str
 
 class ClassFeature(BaseModel):
     name: str
@@ -222,9 +215,5 @@ class Kingdom(BaseModel):
 class WorldState(BaseModel):
     player_character: PlayerCharacter
     kingdoms: List[Kingdom]
-    all_abilities: List[PlayerAbility] = [] # New field for all available abilities
 # Note: Creatures are now part of Locations, not a separate top-level list
     world_history: List[str] = [] # For L.I.C. Engine
-
-# Update forward reference for NPC
-NPC.model_rebuild()

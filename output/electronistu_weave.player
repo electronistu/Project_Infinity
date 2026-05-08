@@ -1,11 +1,17 @@
 {
   "name": "Electronistu",
+  "level": 1,
+  "xp": 0,
+  "gold": 95,
   "character_class": "Wizard",
   "race": "Wood Elf",
   "background": "Criminal",
   "alignment": "Chaotic Neutral",
   "gender": "male",
   "armor_class": 13,
+  "current_hit_points": 7,
+  "total_hit_points": 7,
+  "hit_dice_count": 1,
   "hit_dice_size": 6,
   "speed": 35,
   "stats": {
@@ -18,11 +24,11 @@
   },
   "proficiency_bonus": 2,
   "skills": [
+    "Deception",
     "Arcana",
-    "Perception",
-    "Investigation",
     "Stealth",
-    "Deception"
+    "Perception",
+    "Investigation"
   ],
   "saves": [
     "Intelligence",
@@ -30,29 +36,24 @@
   ],
   "armor_proficiencies": [],
   "weapon_proficiencies": [
-    "Shortsword",
-    "Quarterstaffs",
+    "Slings",
     "Darts",
+    "Shortbow",
+    "Daggers",
     "Light crossbows",
     "Longsword",
-    "Shortbow",
     "Longbow",
-    "Daggers",
-    "Slings"
+    "Shortsword",
+    "Quarterstaffs"
   ],
   "tool_proficiencies": [
-    "Dice Set",
-    "Thieves' tools"
+    "Thieves' tools",
+    "Dice Set"
   ],
   "languages": [
     "Common",
     "Elvish"
   ],
-  "consumables": {
-    "Bolts": 20
-  },
-  "level": 2,
-  "total_hit_points": 11,
   "features": [
     "Darkvision",
     "Fey Ancestry",
@@ -62,91 +63,38 @@
     "Mask of the Wild",
     "Spellcasting",
     "Arcane Recovery",
-    "Criminal Contact",
-    {
-      "name": "School of Illusion",
-      "description": "You have chosen the School of Illusion as your Arcane Tradition. You gain the Improved Minor Illusion feature (learn Minor Illusion cantrip if not already known; if known, gain a different Wizard cantrip). You also gain the Illusion Savant feature: the gold and time you must spend to copy an Illusion spell into your spellbook is halved."
-    }
+    "Criminal Contact"
   ],
-  "current_hit_points": 11,
-  "hit_dice_count": 2,
+  "inventory": [
+    "Spellbook",
+    "Crowbar",
+    "Dark Common Clothes"
+  ],
+  "consumables": {},
   "spellcasting": {
     "ability": "intelligence",
     "dc": 12,
     "attack_modifier": 4,
     "cantrips": [
       "True Strike",
-      "Minor Illusion",
-      "Fire Bolt",
+      "Poison Spray",
       "Mage Hand"
     ],
     "slots": {
-      "1": 3
+      "1": 2
     },
     "spellbook": [
       "Sleep",
+      "Mage Armor",
       "Magic Missile",
       "Identify",
-      "Grease",
       "Detect Magic",
-      "Charm Person",
-      "Disguise Self",
-      "Color Spray"
+      "Charm Person"
     ],
     "spells_prepared": [
-      {
-        "name": "Sleep"
-      },
-      {
-        "name": "Magic Missile"
-      },
-      {
-        "name": "Charm Person"
-      },
-      {
-        "name": "Disguise Self"
-      }
+      "Sleep",
+      "Mage Armor",
+      "Identify"
     ]
-  },
-  "active_effects": [],
-  "_active_buff_data": {},
-  "inventory": [
-    "Spellbook",
-    "Crowbar",
-    "Dark Common Clothes",
-    {
-      "name": "Light Crossbow",
-      "description": "1d8 piercing, Ammunition, Range 80/320, Loading, Two-Handed"
-    },
-    {
-      "name": "Weighted Dagger",
-      "description": "1d4 piercing, Finesse, Light, Thrown (range 30/60)"
-    },
-    {
-      "name": "Rations (5 days)",
-      "description": "Dried travel rations \u2014 tough, but they keep"
-    },
-    {
-      "name": "Waterskin",
-      "description": "A leather waterskin, currently full"
-    },
-    {
-      "name": "Bedroll",
-      "description": "A rolled blanket and padded sleeping mat"
-    },
-    {
-      "name": "Rope (Hempen, 50ft)",
-      "description": "50 feet of sturdy hempen rope"
-    },
-    {
-      "name": "Thieves' Tools",
-      "description": "A leather pouch containing lockpicks, a small file, narrow-bladed scissors, and pliers"
-    },
-    {
-      "name": "Harbor Pass",
-      "description": "A folded document stamped with the Eldoria Guard seal, granting access to Pier Seven and the skiff moored there"
-    }
-  ],
-  "gold": 544,
-  "xp": 660
+  }
 }

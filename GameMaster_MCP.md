@@ -258,7 +258,3 @@ systems:
   progression:
     rewards: [xp, gold, items]
     on_success: [award_all, announce_all]
-    guild_abilities:
-      source: npc.abilities_for_sale
-      gate: verify_5e_prerequisites
-      action: integrate_into_player_sheet

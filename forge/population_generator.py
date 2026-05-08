@@ -1,6 +1,6 @@
 from .models import Kingdom, Location, NPC, Stats
 import random
-from .models import CharacterClass, Background, PlayerAbility, StartingEquipmentOption, Item, Skill, SpecialAbility, Equipment, Stats
+from .models import CharacterClass, Background, StartingEquipmentOption, Item, Skill, SpecialAbility, Equipment, Stats
 from .character_creator import calculate_modifier, ALL_SKILLS, resolve_tool_proficiency
 
 WORD_TO_NUMBER = {
@@ -33,7 +33,7 @@ def get_cr_and_xp(level: int):
     if level <= 14: return (3, 700)
     return (5, 1800)
 
-def _generate_npc_details(level: int, role: str, faction: str, is_walker: bool, config):
+def _generate_npc_details(level: int, role: str, faction: str, config):
     chosen_race = random.choice(config.races)
     chosen_class = random.choice(config.classes)
     chosen_background = random.choice(config.backgrounds)
@@ -201,7 +201,7 @@ def _generate_npc_details(level: int, role: str, faction: str, is_walker: bool, 
         creature_type='humanoid',
         role=role,
         faction=faction,
-        is_walker=is_walker,
+        is_walker=False,
         dialogue_options=[],
         race=race_display,
         character_class=chosen_class.name,
@@ -244,7 +244,6 @@ def populate_world(config):
             level=ruler_level,
             role="Ruler",
             faction=name,
-            is_walker=random.random() < 0.042,
             config=config
         )
         ruler.alignment = data["alignment"]

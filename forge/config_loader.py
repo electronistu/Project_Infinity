@@ -2,7 +2,7 @@ import os
 import yaml
 from pydantic import BaseModel
 from typing import List, Optional
-from .models import PlayerAbility, CharacterClass, Background
+from .models import CharacterClass, Background
 
 class AbilityScoreIncrease(BaseModel):
     ability: str
@@ -45,7 +45,6 @@ class Config(BaseModel):
     classes: List[CharacterClass]
     backgrounds: List[Background]
     alignments: List[str]
-    abilities: List[PlayerAbility]
     weapons: List[Weapon] = []
 
 def load_config() -> Config:
@@ -61,9 +60,6 @@ def load_config() -> Config:
     with open(os.path.join(config_dir, 'alignments.yml'), 'r') as f:
         alignments_data = yaml.safe_load(f)
 
-    with open(os.path.join(config_dir, 'abilities.yml'), 'r') as f:
-        abilities_data = yaml.safe_load(f)
-
     with open(os.path.join(config_dir, 'weapons.yml'), 'r') as f:
         weapons_data = yaml.safe_load(f)
 
@@ -72,6 +68,5 @@ def load_config() -> Config:
         classes=[CharacterClass(**char_class) for char_class in classes_data],
         backgrounds=[Background(**bg) for bg in backgrounds_data],
         alignments=alignments_data,
-        abilities=[PlayerAbility(**ability) for ability in abilities_data],
         weapons=[Weapon(**weapon) for weapon in weapons_data]
     )
