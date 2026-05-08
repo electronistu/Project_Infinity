@@ -95,6 +95,38 @@ Then the Game Master awakens and your adventure begins. Type actions in plain En
 
 ---
 
+## Gameplay Hints
+
+### Play in Verbose Mode
+
+Run the game with `--verbose` (or `-v`) to see every tool call and its result behind the scenes:
+
+```bash
+python3 play.py --verbose
+```
+
+This lets you watch the GM roll dice, consume spell slots, track HP, and update your inventory in real time. It is the best way to catch missed mechanical updates before they go unnoticed.
+
+### When the GM Forgets Something
+
+The GM is an AI — it can forget to award quest XP, apply gold payments, or remove an item from your inventory. If you notice a missing update:
+
+1. **Try `/sync` first** — This forces a full database refresh. The GM reviews your current state and may self-correct.
+
+2. **If that doesn't work, address the GM directly** — Speak to the GameMaster in plain language, exactly as you would to a human DM. Be specific about what was missed.
+
+**Example from a real session:**
+
+> The player completed a quest and received 50 gold, but no XP was awarded.
+>
+> **Player:** `GameMaster I finished a quest and you didn't award me XP.`
+>
+> **GM:** *"Fair call. The vault infiltration and log delivery to Pippa was a completed contract — that's worth experience, not just coin."* — and awarded +50 XP.
+
+The GM will review the conversation, verify the omission, and apply the correction via a tool call. This works for any forgotten mechanic: gold, inventory changes, spell slot recovery, hit dice, conditions, or items.
+
+---
+
 ## How It Works
 
 If you're curious about what's happening under the hood, here's a high-level overview.
