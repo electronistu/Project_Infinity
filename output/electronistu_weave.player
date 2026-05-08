@@ -68,11 +68,8 @@
       "description": "You have chosen the School of Illusion as your Arcane Tradition. You gain the Improved Minor Illusion feature (learn Minor Illusion cantrip if not already known; if known, gain a different Wizard cantrip). You also gain the Illusion Savant feature: the gold and time you must spend to copy an Illusion spell into your spellbook is halved."
     }
   ],
-  "xp": 510,
   "current_hit_points": 11,
   "hit_dice_count": 2,
-  "active_effects": [],
-  "_active_buff_data": {},
   "spellcasting": {
     "ability": "intelligence",
     "dc": 12,
@@ -111,6 +108,8 @@
       }
     ]
   },
+  "active_effects": [],
+  "_active_buff_data": {},
   "inventory": [
     "Spellbook",
     "Crowbar",
@@ -142,7 +141,12 @@
     {
       "name": "Thieves' Tools",
       "description": "A leather pouch containing lockpicks, a small file, narrow-bladed scissors, and pliers"
+    },
+    {
+      "name": "Harbor Pass",
+      "description": "A folded document stamped with the Eldoria Guard seal, granting access to Pier Seven and the skiff moored there"
     }
   ],
-  "gold": 494
+  "gold": 544,
+  "xp": 660
 }
