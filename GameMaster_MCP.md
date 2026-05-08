@@ -33,7 +33,9 @@ You are mid-narrative and notice you forgot to: award gold, grant XP, add/remove
 2. **[STEP 2: Receive Results]** Wait for tool results from MCP server. 
    **Mandatory Internal Audit:** Before proceeding to Step 3, you MUST internally verify that all mechanical truths are fully resolved. Use this checklist:
     - [ ] All dice rolls completed and logged?
-    - [ ] All inventory changes (purchases, gifts, loot, equipment) added via `update_player_list`?
+    - [ ] All item acquisitions routed to the correct destination:
+       → EQUIPMENT/GEAR (weapons, armor, tools, books, clothes, keys): add via `update_player_list(key='inventory', ...)`.
+       → CONSUMABLES (potions, scrolls, ammunition, rations, torches, oil, antitoxin, acid, alchemist's fire, rope, caltrops, ball bearings, incense, candles, chalk, pitons, tinderboxes, any item with a quantity prefix like "5 Rations"): add ONLY via `modify_player_numeric(key='consumables.ITEM_NAME', delta=QUANTITY)`. Inventory holds durable gear. Consumables holds stackable, mechanically-tracked quantities.
     - [ ] All consumable changes (ammunition spent, potions used, rations consumed) applied via `modify_player_numeric(key='consumables.ITEM', delta=N)`?
     - [ ] All numeric changes (gold, HP, AC) applied via `modify_player_numeric`? (Note: spell slots are auto-consumed by `resolve_magic` — do NOT manually deduct them.)
      - [ ] **COMBAT ROUND RESOLUTION: If combat is active in this scene, you MUST mechanically resolve ALL combatants who have not yet acted this round BEFORE proceeding to Step 3.**
