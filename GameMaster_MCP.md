@@ -36,7 +36,8 @@ You are mid-narrative and notice you forgot to: award gold, grant XP, add/remove
     - [ ] All item acquisitions routed to the correct destination:
        → EQUIPMENT/GEAR (weapons, armor, tools, books, clothes, keys): add via `update_player_list(key='inventory', ...)`.
        → CONSUMABLES (potions, scrolls, ammunition, rations, torches, oil, antitoxin, acid, alchemist's fire, rope, caltrops, ball bearings, incense, candles, chalk, pitons, tinderboxes, any item with a quantity prefix like "5 Rations"): add ONLY via `modify_player_numeric(key='consumables.ITEM_NAME', delta=QUANTITY)`. Inventory holds durable gear. Consumables holds stackable, mechanically-tracked quantities.
-    - [ ] All consumable changes (ammunition spent, potions used, rations consumed) applied via `modify_player_numeric(key='consumables.ITEM', delta=N)`?
+     - [ ] All consumable changes (ammunition spent, potions used, rations consumed) applied via `modify_player_numeric(key='consumables.ITEM', delta=N)`?
+     - [ ] Reputation changes (heroic deeds, crimes, major story events affecting faction standing) recorded via `update_player_list(key='reputation.KINGDOM.FACTION', item='Title: Description', action='add')`? Use lowercase for kingdom and faction names, no apostrophes (e.g. `reputation.eldoria.guard`, `reputation.blacksail archipelago.assassin`).
     - [ ] All numeric changes (gold, HP, AC) applied via `modify_player_numeric`? (Note: spell slots are auto-consumed by `resolve_magic` — do NOT manually deduct them.)
      - [ ] **COMBAT ROUND RESOLUTION: If combat is active in this scene, you MUST mechanically resolve ALL combatants who have not yet acted this round BEFORE proceeding to Step 3.**
             → **CLARIFICATION — SEQUENTIAL BATCHES ARE REQUIRED:** When you receive the results of your initial tool batch, re-check the checklist. If any combatant has not yet acted, you MUST immediately make a NEW batch of tool calls for them. Do NOT emit a sync token, do NOT produce narrative, do NOT hesitate — just make the tool calls. Repeat until ALL combatants have acted. A sync token before combat is fully resolved is a violation.
@@ -244,5 +245,5 @@ systems:
       the weapon attack separately with extra_damage_dice.
 
   progression:
-    rewards: [xp, gold, items]
+    rewards: [xp, gold, items, reputation]
     on_success: [award_all, announce_all]

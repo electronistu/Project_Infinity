@@ -659,17 +659,23 @@ def update_player_list(key: str, item: str, action: str) -> dict:
     inventory, spellcasting.spells_known, spellcasting.spells_prepared,
     spellcasting.spellbook, spellcasting.cantrips, skills, features,
     languages, saves, armor_proficiencies, weapon_proficiencies, tool_proficiencies,
-    active_effects
+    active_effects, reputation, reputation.KINGDOM.FACTION
 
     FORMAT for add: 'Item Name: Description' (description optional)
     IMPORTANT for remove: pass ONLY the item name, never the description.
       Items stored as dicts {name, description} are matched by name only.
+
+    REPUTATION: Use reputation.KINGDOM.FACTION to track the player's standing.
+    Kingdom and faction names must be lowercase with no apostrophes
+    (e.g. 'eldoria', 'blacksail archipelago', 'guard', 'alchemists league', 'rangers conclave').
+    Each entry is a title:description pair stored as a list entry.
 
     EXAMPLES:
     - update_player_list(key='inventory', item='Dagger: A rusty blade (1d4 piercing, Finesse, Light, Thrown (range 20/60))', action='add')
     - update_player_list(key='inventory', item='Dagger', action='remove')          ← name only, NOT 'Dagger: A rusty blade...'
     - update_player_list(key='spellcasting.spells_known', item='Shield', action='remove')
     - update_player_list(key='spellcasting.spells_prepared', item='Fireball', action='add')
+    - update_player_list(key='reputation.eldoria.guard', item='Hero of the City: After defending the city from a dragon attack, {player_name} is a well known hero among people of Eldoria', action='add')
 
     action: 'add' or 'remove'
     """

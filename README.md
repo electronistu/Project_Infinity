@@ -125,6 +125,16 @@ The GM is an AI — it can forget to award quest XP, apply gold payments, or rem
 
 The GM will review the conversation, verify the omission, and apply the correction via a tool call. This works for any forgotten mechanic: gold, inventory changes, spell slot recovery, hit dice, conditions, or items.
 
+### Between Sessions
+
+`/save` writes your character sheet — stats, gold, inventory, spell slots — to the `.player` file so you can pick up where you left off. The story itself is not saved; each session is a fresh narrative with the same character.
+
+The **reputation system** offers a bridge between sessions. Your standing with every guild in every kingdom is stored in the `reputation` dictionary inside the `.player` file. The GM records your deeds as `title: description` entries:
+
+When you start a new session, these reputation entries persist — the GM sees them during the database dump and can reference them in the opening scene and throughout play. Use `/stats` at any time to review your current standing.
+
+**Save after a long rest** — that way your `.player` file reflects full HP and recovered spell slots, giving you the best starting point for your next session.
+
 ---
 
 ## How It Works

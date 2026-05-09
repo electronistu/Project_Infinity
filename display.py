@@ -144,6 +144,25 @@ def format_stats(db_data):
     if inv_lines:
         panels.append(Panel("\n".join(inv_lines), title="🎒 Inventory & Consumables", border_style="cyan", expand=False))
 
+    reputation = get('reputation')
+    if isinstance(reputation, dict):
+        rep_lines = []
+        for kname, factions in reputation.items():
+            if isinstance(factions, dict):
+                for faction, entries in factions.items():
+                    if isinstance(entries, list) and entries:
+                        rep_lines.append(f"  🏆 [bold white]{kname.title()} — {faction.title()}[/]")
+                        for entry in entries:
+                            if isinstance(entry, dict):
+                                rep_lines.append(f"     [bold]{entry.get('name', '?')}[/]")
+                                desc = entry.get('description', '')
+                                if desc:
+                                    rep_lines.append(f"     [dim]{desc}[/]")
+                            else:
+                                rep_lines.append(f"     {entry}")
+        if rep_lines:
+            panels.append(Panel("\n".join(rep_lines), title="🏆 Reputation", border_style="yellow", expand=False))
+
     active_effects = get('active_effects')
     buff_data = get('_active_buff_data')
     if isinstance(active_effects, list) and active_effects:

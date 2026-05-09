@@ -11,12 +11,29 @@ schemas:
   stats: [str, dex, con, int, wis, cha]
 """.strip()
 
+def _build_reputation(kingdoms) -> dict:
+    """Builds an empty reputation dictionary with all kingdom/faction entries as empty lists."""
+    KNOWN_FACTIONS = {"Guard", "Mage", "Assassin", "Merchant", "Thief", "Alchemist's League",
+                       "Ranger's Conclave", "Order of Scribes"}
+    rep = {}
+    for kingdom in kingdoms:
+        kname = kingdom.name.lower()
+        rep[kname] = {}
+        for guild in kingdom.guilds:
+            gname = guild.name
+            for faction in KNOWN_FACTIONS:
+                if gname.endswith(faction):
+                    key = faction.lower().replace("'", "")
+                    rep[kname][key] = []
+                    break
+    return rep
+
 def get_npc_array(npc: NPC) -> list:
     """Converts an NPC object to a compact array based on the schema."""
     stats_array = [npc.stats.strength, npc.stats.dexterity, npc.stats.constitution, npc.stats.intelligence, npc.stats.wisdom, npc.stats.charisma]
     return [npc.level, npc.race, npc.character_class, npc.armor_class, npc.total_hit_points, stats_array, True if npc.is_walker else None]
 
-def get_player_json(pc) -> str:
+def get_player_json(pc, kingdoms=None) -> str:
     player_data = {
         "name": pc.name,
         "level": pc.level,
@@ -54,6 +71,7 @@ def get_player_json(pc) -> str:
             for item in pc.equipment.inventory if item.item_type not in ("ammunition", "consumable")
         ],
         "consumables": pc.consumables if pc.consumables else {},
+        "reputation": _build_reputation(kingdoms) if kingdoms else {},
     }
     if pc.spellcasting_ability:
         spell_data = {
@@ -86,7 +104,7 @@ def format_world_to_wwf(world_state: WorldState, output_path: str):
     # Save player data as JSON for MCP/SQLite
     player_json_path = os.path.splitext(output_path)[0] + ".player"
     with open(player_json_path, 'w') as pf:
-        pf.write(get_player_json(pc))
+        pf.write(get_player_json(pc, world_state.kingdoms))
 
     # --- History ---
     output.append("history:")

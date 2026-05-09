@@ -17,92 +17,92 @@ kingdoms:
     capital: Eldoria City
     align: Lawful Good
     relations: {"Zarthus": "Rivalry", "Silverwood": "Suspicion", "Blacksail Archipelago": "Raiding"}
-    ruler: [14, "Lightfoot", "Paladin", 16, 74, [12, 16, 8, 15, 10, 14], null]
+    ruler: [10, "Human", "Fighter", 16, 74, [11, 14, 13, 9, 16, 15], null]
     guilds:
       - name: Eldoria Guard
         reports_to: ruler
-        leader: [5, "Lightfoot", "Cleric", 14, 33, [10, 16, 13, 15, 12, 9], null]
-        right_hand: [6, "Wood Elf", "Warlock", 14, 33, [13, 14, 10, 8, 15, 15], null]
+        leader: [8, "Human", "Druid", 14, 59, [13, 16, 14, 9, 15, 11], null]
+        right_hand: [9, "Dragonborn", "Barbarian", 13, 68, [15, 12, 10, 14, 8, 16], null]
       - name: Eldoria Mage
-        leader: [8, "Dragonborn", "Sorcerer", 12, 42, [12, 14, 12, 13, 15, 9], null]
-        right_hand: [9, "Human", "Paladin", 16, 58, [14, 13, 11, 15, 16, 9], null]
+        leader: [9, "Human", "Ranger", 14, 76, [11, 16, 15, 13, 14, 9], null]
+        right_hand: [6, "Mountain Dwarf", "Barbarian", 11, 65, [14, 8, 16, 15, 13, 10], null]
       - name: Eldoria Assassin
-        leader: [8, "Human", "Sorcerer", 11, 26, [11, 13, 9, 15, 16, 14], null]
-        right_hand: [10, "Human", "Bard", 14, 43, [13, 16, 9, 15, 11, 14], null]
+        leader: [5, "Hill Dwarf", "Paladin", 16, 39, [10, 13, 10, 14, 16, 12], null]
+        right_hand: [7, "Human", "Cleric", 14, 52, [16, 15, 14, 13, 11, 9], null]
       - name: Eldoria Merchant
-        leader: [9, "Human", "Barbarian", 14, 68, [9, 16, 11, 13, 14, 15], null]
-        right_hand: [9, "Dragonborn", "Paladin", 16, 76, [12, 12, 14, 8, 15, 14], null]
+        leader: [7, "Human", "Cleric", 13, 59, [15, 13, 16, 14, 9, 11], null]
+        right_hand: [5, "Human", "Cleric", 11, 33, [14, 9, 13, 15, 11, 16], null]
       - name: Eldoria Thief
-        leader: [5, "Dragonborn", "Paladin", 16, 39, [16, 12, 13, 10, 15, 9], null]
-        right_hand: [7, "Lightfoot", "Druid", 14, 52, [13, 14, 14, 15, 10, 9], null]
+        leader: [9, "Dragonborn", "Warlock", 14, 66, [10, 14, 15, 12, 10, 14], null]
+        right_hand: [5, "Mountain Dwarf", "Bard", 14, 38, [15, 14, 14, 8, 10, 15], null]
       - name: Eldoria Alchemist's League
-        leader: [10, "Lightfoot", "Cleric", 14, 53, [12, 16, 10, 13, 15, 9], null]
-        right_hand: [8, "Human", "Fighter", 16, 52, [9, 15, 11, 13, 16, 14], null]
+        leader: [8, "Human", "Cleric", 14, 43, [9, 15, 11, 14, 13, 16], null]
+        right_hand: [9, "Dragonborn", "Druid", 11, 66, [15, 8, 14, 12, 15, 11], null]
       - name: Eldoria Order of Scribes
-        leader: [6, "Dragonborn", "Sorcerer", 11, 32, [16, 13, 12, 8, 10, 16], null]
-        right_hand: [8, "Dragonborn", "Warlock", 12, 59, [15, 10, 14, 8, 12, 16], null]
+        leader: [9, "Lightfoot", "Warlock", 14, 48, [8, 16, 10, 15, 13, 13], null]
+        right_hand: [9, "Mountain Dwarf", "Wizard", 9, 56, [17, 8, 15, 12, 14, 10], null]
   - name: Zarthus
     capital: Zarthus City
     align: Lawful Evil
     relations: {"Eldoria": "Rivalry", "Silverwood": "Contempt", "Blacksail Archipelago": "Alliance"}
-    ruler: [12, "Lightfoot", "Monk", 13, 51, [10, 17, 8, 14, 13, 13], null]
+    ruler: [12, "Lightfoot", "Sorcerer", 11, 74, [13, 12, 14, 12, 15, 9], null]
     guilds:
       - name: Zarthus Guard
         reports_to: ruler
-        leader: [7, "Human", "Fighter", 16, 67, [13, 9, 16, 14, 15, 11], null]
-        right_hand: [8, "Lightfoot", "Bard", 14, 43, [8, 14, 10, 13, 15, 15], null]
+        leader: [9, "Dragonborn", "Paladin", 16, 76, [12, 8, 15, 14, 13, 13], null]
+        right_hand: [7, "Human", "Cleric", 14, 52, [13, 14, 15, 11, 9, 16], null]
       - name: Zarthus Mage
-        leader: [9, "Wood Elf", "Barbarian", 13, 59, [15, 12, 8, 13, 13, 14], null]
-        right_hand: [9, "Mountain Dwarf", "Rogue", 13, 48, [14, 13, 10, 14, 15, 10], null]
+        leader: [9, "Human", "Ranger", 12, 85, [14, 11, 16, 15, 13, 9], null]
+        right_hand: [7, "Mountain Dwarf", "Warlock", 12, 38, [17, 10, 10, 12, 13, 14], null]
       - name: Zarthus Assassin
-        leader: [10, "Human", "Bard", 14, 63, [14, 15, 13, 16, 11, 9], null]
-        right_hand: [8, "Wood Elf", "Cleric", 13, 59, [15, 12, 14, 8, 14, 12], null]
+        leader: [9, "Hill Dwarf", "Wizard", 10, 47, [13, 10, 10, 14, 13, 15], null]
+        right_hand: [7, "Lightfoot", "Warlock", 12, 38, [12, 10, 10, 13, 15, 15], null]
       - name: Zarthus Merchant
-        leader: [7, "Lightfoot", "Rogue", 14, 45, [8, 17, 12, 10, 14, 14], null]
-        right_hand: [7, "Mountain Dwarf", "Warlock", 11, 59, [12, 8, 16, 13, 12, 15], true]
+        leader: [7, "Dragonborn", "Sorcerer", 11, 44, [17, 12, 14, 10, 13, 9], null]
+        right_hand: [9, "Lightfoot", "Fighter", 16, 76, [13, 12, 15, 12, 14, 9], null]
       - name: Zarthus Thief
-        leader: [8, "Dragonborn", "Wizard", 9, 42, [14, 8, 13, 10, 15, 15], null]
-        right_hand: [7, "Wood Elf", "Bard", 13, 45, [8, 12, 13, 14, 16, 12], null]
+        leader: [7, "Wood Elf", "Cleric", 14, 38, [8, 17, 10, 13, 15, 12], null]
+        right_hand: [7, "Lightfoot", "Sorcerer", 13, 30, [14, 17, 10, 8, 13, 13], null]
       - name: Zarthus Alchemist's League
-        leader: [10, "Human", "Barbarian", 14, 105, [11, 14, 16, 15, 9, 13], null]
-        right_hand: [8, "Wood Elf", "Monk", 12, 51, [10, 14, 13, 8, 16, 14], null]
+        leader: [10, "Hill Dwarf", "Bard", 14, 73, [12, 15, 12, 8, 15, 13], null]
+        right_hand: [10, "Lightfoot", "Druid", 14, 43, [12, 17, 8, 10, 14, 14], null]
   - name: Silverwood
     capital: Silverwood City
     align: True Neutral
     relations: {"Eldoria": "Suspicion", "Zarthus": "Contempt", "Blacksail Archipelago": "Raiding"}
-    ruler: [15, "Human", "Barbarian", 13, 110, [14, 13, 11, 9, 15, 16], null]
+    ruler: [13, "Mountain Dwarf", "Bard", 12, 68, [17, 10, 10, 14, 12, 13], null]
     guilds:
       - name: Silverwood Guard
         reports_to: ruler
-        leader: [6, "Hill Dwarf", "Sorcerer", 9, 50, [14, 8, 17, 10, 14, 12], null]
-        right_hand: [7, "Dragonborn", "Druid", 12, 52, [10, 10, 15, 13, 14, 13], null]
+        leader: [7, "Human", "Druid", 11, 45, [16, 9, 13, 15, 11, 14], null]
+        right_hand: [7, "Hill Dwarf", "Monk", 11, 52, [15, 12, 12, 8, 15, 13], null]
       - name: Silverwood Mage
-        leader: [6, "Mountain Dwarf", "Wizard", 11, 26, [17, 13, 10, 14, 12, 10], null]
-        right_hand: [10, "Hill Dwarf", "Druid", 12, 63, [15, 10, 10, 12, 15, 13], null]
+        leader: [7, "Mountain Dwarf", "Monk", 12, 59, [15, 15, 16, 8, 12, 10], null]
+        right_hand: [5, "Mountain Dwarf", "Fighter", 16, 39, [16, 13, 12, 15, 12, 8], null]
       - name: Silverwood Assassin
-        leader: [6, "Dragonborn", "Warlock", 13, 45, [14, 13, 15, 14, 10, 9], null]
-        right_hand: [7, "Human", "Ranger", 12, 60, [9, 11, 14, 15, 16, 13], null]
+        leader: [5, "Dragonborn", "Bard", 11, 38, [15, 8, 14, 10, 12, 16], null]
+        right_hand: [5, "Hill Dwarf", "Ranger", 14, 44, [13, 14, 12, 12, 16, 8], null]
       - name: Silverwood Merchant
-        leader: [8, "Mountain Dwarf", "Bard", 12, 67, [14, 10, 16, 8, 15, 13], null]
-        right_hand: [8, "High Elf", "Sorcerer", 13, 50, [10, 17, 14, 14, 8, 12], null]
+        leader: [10, "Lightfoot", "Paladin", 16, 54, [10, 14, 8, 14, 15, 14], true]
+        right_hand: [9, "Human", "Ranger", 13, 49, [16, 13, 9, 15, 14, 11], null]
       - name: Silverwood Thief
-        leader: [8, "Human", "Rogue", 14, 67, [14, 15, 16, 9, 13, 11], null]
-        right_hand: [9, "High Elf", "Sorcerer", 11, 56, [8, 12, 15, 13, 14, 13], null]
+        leader: [10, "Lightfoot", "Wizard", 13, 52, [10, 17, 13, 12, 14, 9], null]
+        right_hand: [5, "Dragonborn", "Bard", 13, 38, [15, 12, 14, 10, 15, 9], null]
       - name: Silverwood Alchemist's League
-        leader: [5, "Hill Dwarf", "Bard", 14, 48, [12, 14, 17, 13, 11, 8], null]
-        right_hand: [5, "Dragonborn", "Warlock", 13, 38, [14, 13, 14, 15, 8, 11], null]
+        leader: [10, "Dragonborn", "Warlock", 12, 73, [14, 10, 15, 13, 8, 15], null]
+        right_hand: [7, "Mountain Dwarf", "Fighter", 16, 67, [12, 15, 16, 13, 12, 8], null]
       - name: Silverwood Ranger's Conclave
-        leader: [6, "Dragonborn", "Bard", 12, 45, [17, 10, 14, 8, 12, 14], null]
-        right_hand: [6, "Lightfoot", "Ranger", 14, 40, [12, 16, 10, 15, 8, 14], null]
+        leader: [7, "Wood Elf", "Barbarian", 12, 61, [15, 10, 12, 13, 11, 14], null]
+        right_hand: [7, "Dragonborn", "Warlock", 11, 45, [16, 8, 13, 10, 12, 16], null]
   - name: Blacksail Archipelago
     capital: Blacksail Archipelago City
     align: Chaotic Evil
     relations: {"Eldoria": "Raiding", "Zarthus": "Alliance", "Silverwood": "Raiding"}
-    ruler: [15, "Dragonborn", "Rogue", 12, 93, [16, 10, 13, 12, 8, 16], null]
+    ruler: [12, "High Elf", "Rogue", 14, 75, [12, 17, 13, 15, 10, 8], null]
     guilds:
       - name: Blacksail Archipelago Assassin
-        leader: [6, "Dragonborn", "Ranger", 14, 46, [15, 14, 12, 15, 8, 11], null]
-        right_hand: [6, "Dragonborn", "Druid", 13, 45, [16, 12, 15, 10, 13, 9], null]
+        leader: [5, "Lightfoot", "Barbarian", 13, 45, [8, 12, 13, 14, 12, 16], null]
+        right_hand: [10, "Dragonborn", "Paladin", 16, 74, [17, 12, 13, 14, 10, 9], null]
       - name: Blacksail Archipelago Thief
-        leader: [6, "Mountain Dwarf", "Fighter", 16, 58, [17, 10, 16, 13, 12, 8], null]
-        right_hand: [8, "Hill Dwarf", "Rogue", 14, 59, [8, 15, 12, 14, 13, 13], null]
+        leader: [8, "Mountain Dwarf", "Druid", 13, 51, [17, 12, 12, 8, 14, 13], null]
+        right_hand: [8, "Human", "Monk", 12, 59, [13, 14, 15, 11, 9, 16], null]
