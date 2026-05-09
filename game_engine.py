@@ -267,13 +267,16 @@ async def run_game(chat_fn, model, context_window, verbose=False, debug=False):
                                 for entry in entries:
                                     field = entry["field"]
                                     delta = entry["delta"]
-                                    current_val = db_data.get(field, 0)
-                                    if isinstance(current_val, str):
-                                        try:
-                                            current_val = int(current_val)
-                                        except (ValueError, TypeError):
-                                            continue
-                                    db_data[field] = current_val - delta
+                                    if field == "temporary_hit_points":
+                                        db_data[field] = 0
+                                    else:
+                                        current_val = db_data.get(field, 0)
+                                        if isinstance(current_val, str):
+                                            try:
+                                                current_val = int(current_val)
+                                            except (ValueError, TypeError):
+                                                continue
+                                        db_data[field] = current_val - delta
                                 cleared.append(spell_name)
                             db_data["active_effects"] = []
                             db_data["_active_buff_data"] = {}

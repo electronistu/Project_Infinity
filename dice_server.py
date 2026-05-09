@@ -198,6 +198,7 @@ def init_player_db(player_file_path: str) -> str:
 
         cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", ("active_effects", "[]"))
         cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", ("_active_buff_data", "{}"))
+        cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", ("temporary_hit_points", "0"))
         DB_CONNECTION.commit()
 
         return f"Database initialized with player data from {player_file_path}."
@@ -267,6 +268,37 @@ def _parse_and_roll_dice(dice_notation):
 def _apply_hp_change(cursor, delta):
     current_hp = int(_db_val(cursor, "current_hit_points", 0))
     total_hp = int(_db_val(cursor, "total_hit_points", 1))
+    thp = int(_db_val(cursor, "temporary_hit_points", 0))
+
+    thp_absorbed = 0
+    effect_expired = ""
+    if delta < 0 and thp > 0:
+        damage = abs(delta)
+        if thp >= damage:
+            thp_absorbed = damage
+            new_thp = thp - damage
+            _db_set(cursor, "temporary_hit_points", str(new_thp))
+            DB_CONNECTION.commit()
+            if new_thp == 0:
+                effect_expired = _cleanup_thp_effects(cursor)
+            result = {
+                "success": True,
+                "key": "current_hit_points",
+                "old_value": current_hp,
+                "new_value": current_hp,
+                "delta": 0,
+                "hp_status": _format_hp_status(current_hp, total_hp),
+                "temporary_hit_points": {"old": thp, "new": new_thp, "absorbed": damage},
+                "message": f"{damage} damage absorbed by temporary HP ({new_thp} THP remaining). {effect_expired}{_format_hp_status(current_hp, total_hp)}",
+            }
+            return result
+        else:
+            thp_absorbed = thp
+            _db_set(cursor, "temporary_hit_points", "0")
+            DB_CONNECTION.commit()
+            effect_expired = _cleanup_thp_effects(cursor)
+            delta = -(damage - thp)
+
     new_val = current_hp + delta
 
     clamped = False
@@ -289,6 +321,8 @@ def _apply_hp_change(cursor, delta):
         "delta": original_delta,
         "hp_status": _format_hp_status(new_val, total_hp),
     }
+    if thp_absorbed > 0:
+        result["temporary_hit_points"] = {"old": thp, "new": 0, "absorbed": thp_absorbed}
     if clamped:
         result["clamped"] = True
         if new_val == 0 and current_hp > 0:
@@ -308,7 +342,38 @@ def _apply_hp_change(cursor, delta):
     else:
         result["message"] = result["hp_status"]
 
+    if thp_absorbed > 0:
+        result["message"] = f"{thp_absorbed} damage absorbed by temporary HP. {effect_expired}" + result["message"]
+
     return result
+
+
+def _cleanup_thp_effects(cursor):
+    buff_data_raw = _db_val(cursor, "_active_buff_data", {})
+    if isinstance(buff_data_raw, str):
+        buff_data_raw = json.loads(buff_data_raw)
+
+    effects_list = _db_val(cursor, "active_effects", [])
+    if isinstance(effects_list, str):
+        effects_list = json.loads(effects_list)
+
+    removed = []
+    for spell_name in list(buff_data_raw.keys()):
+        for entry in buff_data_raw[spell_name]:
+            if entry.get("field") == "temporary_hit_points":
+                del buff_data_raw[spell_name]
+                if spell_name in effects_list:
+                    effects_list.remove(spell_name)
+                removed.append(spell_name)
+                break
+
+    if removed:
+        _db_set(cursor, "_active_buff_data", buff_data_raw)
+        _db_set(cursor, "active_effects", effects_list)
+        DB_CONNECTION.commit()
+        names = ", ".join(removed)
+        return f"{names} has expired — temporary HP depleted. "
+    return ""
 
 
 def get_nested_value(data, path):
@@ -501,6 +566,26 @@ def modify_player_numeric(key: str, delta: int) -> dict:
 
         if key == "current_hit_points":
             return _apply_hp_change(cursor, delta)
+
+        if key == "temporary_hit_points":
+            current_val = int(_db_val(cursor, "temporary_hit_points", 0))
+            new_val = max(current_val + delta, 0)
+            _db_set(cursor, "temporary_hit_points", str(new_val))
+            DB_CONNECTION.commit()
+            result = {
+                "success": True,
+                "key": key,
+                "old_value": current_val,
+                "new_value": new_val,
+                "delta": delta,
+            }
+            if new_val == 0 and current_val > 0:
+                result["message"] = "Temporary HP depleted."
+            else:
+                result["message"] = f"Temporary HP: {new_val}"
+            if current_val + delta < 0:
+                result["clamped"] = True
+            return result
 
         if key.startswith("spellcasting.slots."):
             slot_validation = _validate_spell_slot(cursor, key, delta)
@@ -1536,6 +1621,44 @@ def _ordinal(n: int) -> str:
     return f"{n}th"
 
 
+def _resolve_hp_temporary(value, cursor):
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        dice_match = re.match(r'^(\d+)d(\d+)(?:\+(\d+))?$', value)
+        if dice_match:
+            num = int(dice_match.group(1))
+            size = int(dice_match.group(2))
+            flat = int(dice_match.group(3)) if dice_match.group(3) else 0
+            rolls = [random.randint(1, size) for _ in range(num)]
+            return sum(rolls) + flat
+    return None
+
+
+def _apply_thp(cursor, spell_name, amount):
+    old_thp = int(_db_val(cursor, "temporary_hit_points", 0))
+    _db_set(cursor, "temporary_hit_points", str(amount))
+    DB_CONNECTION.commit()
+
+    buff_data_raw = _db_val(cursor, "_active_buff_data", {})
+    if isinstance(buff_data_raw, str):
+        buff_data_raw = json.loads(buff_data_raw)
+    if spell_name not in buff_data_raw:
+        buff_data_raw[spell_name] = []
+    buff_data_raw[spell_name].append({"field": "temporary_hit_points", "delta": amount})
+    _db_set(cursor, "_active_buff_data", buff_data_raw)
+
+    effects_list = _db_val(cursor, "active_effects", [])
+    if isinstance(effects_list, str):
+        effects_list = json.loads(effects_list)
+    if spell_name not in effects_list:
+        effects_list.append(spell_name)
+    _db_set(cursor, "active_effects", effects_list)
+
+    DB_CONNECTION.commit()
+    return {"field": "temporary_hit_points", "new": amount, "old": old_thp}
+
+
 def _apply_active_buff(cursor, spell_name, field, delta):
     buff_data_raw = _db_val(cursor, "_active_buff_data", {})
     if isinstance(buff_data_raw, str):
@@ -1602,6 +1725,12 @@ def _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_re
                         applied = _apply_active_buff(cursor, result.get("spell_name", ""), field, delta)
                 except ValueError:
                     pass
+
+            elif field == "hp_temporary":
+                thp_amount = _resolve_hp_temporary(value, cursor)
+                if thp_amount is not None:
+                    applied = _apply_thp(cursor, result.get("spell_name", ""), thp_amount)
+                    narrative_parts.append(f"{result.get('actor', '?')} {result.get('spell_name', '?')} Temporary HP: {thp_amount}")
 
             elif isinstance(value, str) and "+" in value and any(mod in value.upper() for mod in ["DEX", "STR", "CON", "INT", "WIS", "CHA"]):
                 if field == "armor_class":

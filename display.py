@@ -165,15 +165,20 @@ def format_stats(db_data):
 
     active_effects = get('active_effects')
     buff_data = get('_active_buff_data')
+    current_thp = get('temporary_hit_points')
     if isinstance(active_effects, list) and active_effects:
         buff_lines = []
         for spell_name in active_effects:
             entries = []
             if isinstance(buff_data, dict) and spell_name in buff_data:
                 for entry in buff_data[spell_name]:
-                    delta = entry.get('delta', 0)
-                    sign = '+' if delta >= 0 else ''
-                    entries.append(f"{entry.get('field', '?'):>20} {sign}{delta}")
+                    field = entry.get('field', '?')
+                    if field == "temporary_hit_points" and isinstance(current_thp, (int, float)):
+                        entries.append(f"{field:>20} {int(current_thp)}")
+                    else:
+                        delta = entry.get('delta', 0)
+                        sign = '+' if delta >= 0 else ''
+                        entries.append(f"{field:>20} {sign}{delta}")
             if entries:
                 buff_lines.append(f"  ✨ [bold white]{spell_name}[/]")
                 for e in entries:
