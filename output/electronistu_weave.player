@@ -2,7 +2,6 @@
   "name": "Electronistu",
   "level": 1,
   "xp": 0,
-  "gold": 105,
   "character_class": "Wizard",
   "race": "Wood Elf",
   "background": "Criminal",
@@ -65,12 +64,6 @@
     "Arcane Recovery",
     "Criminal Contact"
   ],
-  "inventory": [
-    "Spellbook",
-    "Crowbar",
-    "Dark Common Clothes"
-  ],
-  "consumables": {},
   "reputation": {
     "eldoria": {
       "guard": [],
@@ -128,5 +121,37 @@
       "Magic Missile",
       "False Life"
     ]
-  }
+  },
+  "active_effects": [],
+  "_active_buff_data": {},
+  "inventory": [
+    "Spellbook",
+    "Crowbar",
+    "Dark Common Clothes",
+    {
+      "name": "Dagger",
+      "description": "A simple, balanced blade (1d4 piercing, Finesse, Light, Thrown (range 20/60))"
+    },
+    {
+      "name": "Magda's Repeater",
+      "description": "A lever-action light crossbow, custom-made (1d8 piercing, Ammunition (range 80/320), Two-Handed, holds 4 bolts before reloading \u2014 no Loading property)"
+    },
+    {
+      "name": "Hempen Rope (50 ft)",
+      "description": "Sturdy hempen rope, 50 feet in length"
+    },
+    {
+      "name": "Bedroll",
+      "description": "A padded roll for sleeping on the ground"
+    },
+    {
+      "name": "Waterskin",
+      "description": "A leather container that holds up to 4 pints of liquid"
+    }
+  ],
+  "consumables": {
+    "Bolts": 20,
+    "Rations": 5
+  },
+  "gold": 53
 }

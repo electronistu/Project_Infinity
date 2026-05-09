@@ -129,7 +129,7 @@ The GM will review the conversation, verify the omission, and apply the correcti
 
 `/save` writes your character sheet — stats, gold, inventory, spell slots — to the `.player` file so you can pick up where you left off. The story itself is not saved; each session is a fresh narrative with the same character.
 
-The **reputation system** offers a bridge between sessions. Your standing with every guild in every kingdom is stored in the `reputation` dictionary inside the `.player` file. The GM records your deeds as `title: description` entries:
+The **reputation system** offers a bridge between sessions. Your standing with every guild in every kingdom is stored in the `reputation` dictionary inside the `.player` file. The GM records your deeds as `title: description` entries.
 
 When you start a new session, these reputation entries persist — the GM sees them during the database dump and can reference them in the opening scene and throughout play. Use `/stats` at any time to review your current standing.
 

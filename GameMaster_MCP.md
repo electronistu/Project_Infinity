@@ -63,7 +63,7 @@ You are mid-narrative and notice you forgot to: award gold, grant XP, add/remove
 
            ── KILL / DEATH AFTERMATH ──
            → If any creature died this round as a result of tool calls:
-              • Player kills (`is_npc_vs_npc=False`): XP is auto-awarded by `resolve_attack`/`resolve_magic` — no further action needed.
+               • Player kills (`is_npc_vs_npc=False`): XP is auto-awarded by `resolve_attack`/`resolve_magic` ONLY if you included `challenge_rating` in the tool call. If you forgot, award XP manually via `modify_player_numeric(key='xp', delta=N)` BEFORE emitting the sync token.
               • NPC-vs-NPC kills (`is_npc_vs_npc=True`): XP is NOT auto-awarded. The GM decides whether to award XP manually via `modify_player_numeric(key='xp', delta=N)`.
               • Environmental/narrative deaths: award XP via `modify_player_numeric(key='xp', delta=N)`.
 
