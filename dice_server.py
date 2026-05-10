@@ -1838,6 +1838,7 @@ def resolve_magic(
     caster_level: int | None = None,
     advantage: bool = False,
     force_crit: bool = False,
+    targets: list[dict] | None = None,
 ) -> dict:
     """
     Resolves a complete D&D 5E spell attack in one call. Supports attack roll spells,
@@ -1919,8 +1920,42 @@ def resolve_magic(
     awarded to the player. This only happens for player attacks (is_npc_attack=False,
     is_npc_vs_npc=False). NPC-vs-NPC kills do NOT auto-award XP to the player.
 
+    MULTI-TARGET (AoE spells):
+    For area-of-effect spells (Sleep, Color Spray, Fireball, etc.), provide a `targets` list
+    to resolve all targets in a single call — one spell slot consumed regardless of target count.
+    Each target is a dict with required/optional fields depending on the spell type:
+
+    HP POOL SPELLS (Sleep, Color Spray):
+      targets=[{"name": "Guard 1", "current_hp": 11}, {"name": "Guard 2", "current_hp": 11}, ...]
+      Targets are sorted by current_hp ascending (D&D 5e RAW). The spell affects them in order
+      until the pool is exhausted. The response includes targets_affected, targets_unaffected,
+      and hp_pool_remaining.
+
+    SAVING THROW AoE SPELLS (Fireball, Lightning Bolt, Cone of Cold, etc.):
+      targets=[{"name": "Goblin 1", "current_hp": 7, "save_modifier": 2, "challenge_rating": 0.25},
+               {"name": "Orc", "current_hp": 15, "save_modifier": 1, "challenge_rating": 0.5}, ...]
+      Damage is rolled once. Each target rolls its own saving throw (using its save_modifier).
+      Half damage on save if save_half=True. XP is auto-awarded for kills with challenge_rating.
+
     EXAMPLES:
-    # Player casts Fireball (level 3 spell) - slot consumed automatically
+    # Fireball on 3 goblins of mixed CR — damage rolled once, saves per target
+    resolve_magic(spell_name='Fireball', actor='{player_name}',
+                  spell_save_dc=15,
+                  targets=[
+                      {"name": "Goblin", "current_hp": 7, "save_modifier": 2, "challenge_rating": 0.25},
+                      {"name": "Goblin", "current_hp": 7, "save_modifier": 2, "challenge_rating": 0.25},
+                      {"name": "Hobgoblin", "current_hp": 11, "save_modifier": 1, "challenge_rating": 0.5},
+                  ])
+
+    # Sleep on 3 guards — pool exhausted, only 2 affected
+    resolve_magic(spell_name='Sleep', actor='{player_name}',
+                  targets=[
+                      {"name": "Guard 1", "current_hp": 11},
+                      {"name": "Guard 2", "current_hp": 11},
+                      {"name": "Guard 3", "current_hp": 11},
+                  ])
+
+    # Player casts Fireball (level 3 spell) - single target, slot consumed automatically
     resolve_magic(spell_name='Fireball', actor='{player_name}',
                          spell_save_dc=15,
                          target_name='Goblin Shaman', target_current_hp=24,
@@ -2369,7 +2404,31 @@ def resolve_magic(
                 result["condition_duration"] = sp_condition_duration
             if sp_requires_concentration:
                 result["requires_concentration"] = True
+
+        if targets and len(targets) > 0:
+            sorted_targets = sorted(targets, key=lambda t: t.get("current_hp", 0))
+            affected = []
+            unaffected = []
+            remaining_pool = hp_pool_total
+            for t in sorted_targets:
+                name = t.get("name", "Unknown")
+                chp = t.get("current_hp", 0)
+                if chp <= remaining_pool:
+                    affected.append({"name": name})
+                    remaining_pool -= chp
+                else:
+                    unaffected.append({"name": name})
+            result["targets_affected"] = affected
+            result["targets_unaffected"] = unaffected
+            result["hp_pool_remaining"] = remaining_pool
+
+            for t in affected:
+                narrative_parts.append(f"{t['name']}: Affected — {sp_condition} ({sp_condition_duration})")
+            for t in unaffected:
+                narrative_parts.append(f"{t['name']}: Unaffected — HP exceeds remaining pool ({remaining_pool})")
+        elif sp_condition:
             narrative_parts.append(f"Condition: {sp_condition} ({sp_condition_duration})")
+
         return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc, is_npc_vs_npc)
 
     # ── ROLL DAMAGE ──
@@ -2424,7 +2483,80 @@ def resolve_magic(
 
     total_damage = primary_damage + extra_damage
 
-    # ── SAVING THROW ──
+    # ── MULTI-TARGET SAVING THROW ──
+    target_results = None
+    if targets and len(targets) > 0 and sp_attack_type == "saving_throw":
+        total_xp = 0
+        target_results = []
+        killed_count = 0
+        save_name = sp_save_type.upper() if sp_save_type else "SAVE"
+
+        for t in targets:
+            tname = t.get("name", "Unknown")
+            tchp = t.get("current_hp", 0)
+            tsave = t.get("save_modifier", 0)
+            tcr = t.get("challenge_rating")
+
+            save_d20 = random.randint(1, 20)
+            save_total = save_d20 + tsave
+            save_success = save_total >= spell_save_dc
+            save_outcome = "Success" if save_success else "Failure"
+
+            t_damage = total_damage
+            if save_success:
+                if sp_save_half:
+                    t_damage = max(1, total_damage // 2)
+                    narrative_parts.append(
+                        f"{tname} {save_name} Save: {save_total} vs DC {spell_save_dc} ({save_outcome}) ({save_d20} + {tsave})"
+                    )
+                    narrative_parts.append(f"{tname} saved — half damage: {t_damage}")
+                else:
+                    t_damage = 0
+                    narrative_parts.append(
+                        f"{tname} {save_name} Save: {save_total} vs DC {spell_save_dc} ({save_outcome}) ({save_d20} + {tsave})"
+                    )
+                    narrative_parts.append(f"{tname} saved — no damage.")
+            else:
+                narrative_parts.append(
+                    f"{tname} {save_name} Save: {save_total} vs DC {spell_save_dc} ({save_outcome}) ({save_d20} + {tsave})"
+                )
+
+            remaining = tchp - t_damage
+            killed = remaining <= 0 if tchp > 0 else False
+            if killed:
+                killed_count += 1
+                narrative_parts.append(f"{tname} HP: 0 (KILLED)")
+            elif tchp > 0:
+                narrative_parts.append(f"{tname} HP: {remaining}/{tchp}")
+
+            tr = {"name": tname, "save_roll": save_d20, "save_modifier": tsave,
+                   "save_total": save_total, "save_success": save_success,
+                   "damage": t_damage, "remaining_hp": max(0, remaining), "killed": killed}
+
+            if killed and tcr is not None:
+                xp = CR_XP_TABLE.get(tcr, 0)
+                if xp > 0:
+                    total_xp += xp
+                    tr["xp_awarded"] = xp
+
+            target_results.append(tr)
+
+        result["targets"] = target_results
+        result["killed_count"] = killed_count
+
+        if total_xp > 0 and not is_npc_attack and not is_npc_vs_npc and cursor:
+            xp_result = modify_player_numeric(key="xp", delta=total_xp)
+            result["xp_awarded"] = total_xp
+            result["xp_result"] = xp_result
+            narrative_parts.append(f"Total XP Awarded: {total_xp}")
+            if xp_result.get("level_up"):
+                narrative_parts.append(xp_result["level_up_summary"])
+
+        result["damage_total"] = total_damage
+        result["damage_type"] = sp_damage_type
+        return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc, is_npc_vs_npc)
+
+    # ── SINGLE-TARGET SAVING THROW ──
     if sp_attack_type == "saving_throw":
         save_mod = player_save_modifier if is_npc_attack and player_save_modifier is not None else target_save_modifier
         saver_name = target_name or actor
@@ -2455,15 +2587,13 @@ def resolve_magic(
     result["damage_total"] = total_damage
     result["damage_type"] = sp_damage_type
 
-    # ── APPLY HP CHANGES ──
+    # ── APPLY HP CHANGES (single target) ──
     if is_npc_attack and total_damage > 0 and not sp_healing:
         hp_result = _apply_hp_change(cursor, -total_damage)
         result["hp_change"] = hp_result
-        target_remaining = hp_result["new_value"]
     elif is_npc_attack and sp_healing:
         hp_result = _apply_hp_change(cursor, total_damage)
         result["hp_change"] = hp_result
-        target_remaining = hp_result["new_value"]
         narrative_parts.append(f"Healed {target_name or 'Player'}: {hp_result['hp_status']}")
     elif is_npc_vs_npc and total_damage > 0 and not sp_healing:
         if target_current_hp is not None:

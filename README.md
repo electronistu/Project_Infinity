@@ -15,6 +15,9 @@ Most AI RPGs let the language model make up numbers. Project Infinity doesn't. E
 - **Persistent Character** — Your stats, inventory, gold, and spell slots live in a real database that updates in real time. No "forgetting" that you used your last potion.
 - **SRD 5.1 Rules** — Leveling up, spell slot recovery, proficiency bonuses — all handled automatically by the engine.
 - **Combat Resolution** — Weapon attacks, spell attacks, saving throws, cantrip scaling, upcasting, spell slot consumption, crits, kill detection, and XP awards are all resolved mechanically in a single tool call. The AI cannot fudge damage or forget to deduct a slot.
+- **Multi-Target AoE** — Area-of-effect spells like Fireball and Sleep resolve all targets in one call. Individual saving throws per target, HP pool exhaustion computed automatically, one spell slot consumed.
+- **Temporary Hit Points** — Spells like False Life and Armor of Agathys auto-apply THP. NPC attacks drain THP before real HP. When THP hits zero, the source spell is automatically removed from active effects.
+- **Reputation System** — Your standing with every guild persists in the `.player` file between sessions. Heroic deeds and crimes alike are tracked, visible at any time via `/stats`.
 - **In-Game Commands** — Check your stats, save your character sheet, force a database sync, or get help without leaving the game.
 
 ---
@@ -88,7 +91,7 @@ Then the Game Master awakens and your adventure begins. Type actions in plain En
 | Command | Description |
 |---------|-------------|
 | `/help` | Show available commands |
-| `/stats` | Display your current character stats, inventory, and spell slots |
+| `/stats` | Display your current character stats, inventory, spell slots, active effects, temporary HP, and reputation |
 | `/save` | Overwrite your .player file with your current character sheet (active effects are cleared/reverted) |
 | `/sync` | Force a database sync to make sure the GM's memory matches your actual state |
 | `/quit` | Exit the game |
@@ -178,10 +181,13 @@ The game engine runs as a local **MCP (Model Context Protocol)** server with an 
 - **Cantrip Scaling** — Automatically scales base dice at levels 5, 11, and 17.
 - **Upcasting** — Damage and healing scale automatically when a spell is cast in a higher-level slot (per the spell's `higher_levels` field).
 - **Attack Types** — Supports `attack_roll` (vs AC), `saving_throw` (half damage on save if `save_half`), and `automatic` (always hits).
-- **Healing & HP Pools** — Healing spells restore HP. HP pool spells (e.g. *Sleep*, *Color Spray*) roll a total HP pool against the target's HP.
+- **Multi-Target AoE** — For spells that affect an area (Fireball, Sleep, Lightning Bolt, Cone of Cold), pass a `targets` list. Damage is rolled once per spell, individual saves rolled per target with per-target modifiers, XP auto-awarded per kill — all in a single call consuming one slot.
+- **HP Pool Spells** — Sleep and Color Spray accept a `targets` list, sort creatures by HP per D&D 5e RAW, and drain the pool until it's exhausted. The response identifies which targets are affected and which are not.
+- **Healing & Temporary Hit Points** — Healing spells restore HP. False Life and Armor of Agathys auto-roll and apply temporary HP to the database. NPC attacks drain THP before real HP in all combat paths. When THP reaches zero, the source spell is auto-removed from active effects and the GM is notified.
 - **Conditions & Concentration** — Applies conditions with duration and concentration flags. Supports instant-kill spells (Power Word-style HP threshold checks).
 - **Active Buff Tracking** — Spells that modify stats (AC, speed, etc.) are tracked via `active_effects` and `_active_buff_data`. Recasting a duplicate is rejected before the slot is consumed. Removing an effect via `update_player_list` automatically reverts the stat changes. All active effects are visible in the `/stats` command display.
 - **Kill Detection & XP** — Identical to weapon attacks: NPC deaths award XP automatically.
+- **Scroll Casting** — Cast from scrolls without consuming a slot. Scrolls above the character's level trigger an ability check per D&D 5e (DMG p.200).
 
 ### Rest & Recovery
 
@@ -197,7 +203,7 @@ The `rest` tool auto-applies all rest mechanics per SRD 5.1 — the GM doesn't n
 Your character lives in an in-memory SQLite database that the AI updates through tool calls. Your HP, gold, inventory, spell slots — all of it is tracked precisely.
 
 - **Numeric State** — `modify_player_numeric` handles everything from gold to XP. Crossing a level threshold triggers **automatic level-up** (HP, proficiency bonus, hit dice, spell slots, DC, attack modifier). The AI must manually apply class features, new spells, ASIs, and subclass features.
-- **List State** — `update_player_list` manages inventory, known/prepared spells (capacity enforced for prepared casters), features, skills, proficiencies, and languages.
+- **List State** — `update_player_list` manages inventory, reputation, known/prepared spells (capacity enforced for prepared casters), features, skills, proficiencies, and languages.
 - **HP Clamping** — HP is bounded to `[0, max_HP]`. Hitting 0 returns an "Unconscious" status tag, triggers death saves, and clamps all damage to 0.
 - **HP Status Tags** — Every HP change returns a structured status: Healthy, Wounded, Bloodied, Critical, or Unconscious.
 - The AI is required to update state immediately when changes happen.
