@@ -1936,6 +1936,8 @@ def resolve_magic(
                {"name": "Orc", "current_hp": 15, "save_modifier": 1, "challenge_rating": 0.5}, ...]
       Damage is rolled once. Each target rolls its own saving throw (using its save_modifier).
       Half damage on save if save_half=True. XP is auto-awarded for kills with challenge_rating.
+      When a target has is_player=True and the spell is an NPC attack (is_npc_attack=True),
+      damage is automatically applied to the player's HP in the database (including THP absorption).
 
     EXAMPLES:
     # Fireball on 3 goblins of mixed CR — damage rolled once, saves per target
@@ -1945,6 +1947,15 @@ def resolve_magic(
                       {"name": "Goblin", "current_hp": 7, "save_modifier": 2, "challenge_rating": 0.25},
                       {"name": "Goblin", "current_hp": 7, "save_modifier": 2, "challenge_rating": 0.25},
                       {"name": "Hobgoblin", "current_hp": 11, "save_modifier": 1, "challenge_rating": 0.5},
+                  ])
+
+    # NPC Fireball hitting player + allies — is_player triggers auto HP application
+    resolve_magic(spell_name='Fireball', actor='Evil Wizard',
+                  is_npc_attack=True, spell_save_dc=15,
+                  targets=[
+                      {"name": "{player_name}", "current_hp": 7, "save_modifier": 3, "is_player": True},
+                      {"name": "Captain Holt", "current_hp": 30, "save_modifier": 4},
+                      {"name": "Town Guard", "current_hp": 25, "save_modifier": 2},
                   ])
 
     # Sleep on 3 guards — pool exhausted, only 2 affected
@@ -2496,6 +2507,7 @@ def resolve_magic(
             tchp = t.get("current_hp", 0)
             tsave = t.get("save_modifier", 0)
             tcr = t.get("challenge_rating")
+            is_player = t.get("is_player", False)
 
             save_d20 = random.randint(1, 20)
             save_total = save_d20 + tsave
@@ -2532,6 +2544,12 @@ def resolve_magic(
             tr = {"name": tname, "save_roll": save_d20, "save_modifier": tsave,
                    "save_total": save_total, "save_success": save_success,
                    "damage": t_damage, "remaining_hp": max(0, remaining), "killed": killed}
+
+            if is_player and is_npc_attack and t_damage > 0 and cursor:
+                hp_result = _apply_hp_change(cursor, -t_damage)
+                tr["hp_change"] = hp_result
+                if tname:
+                    narrative_parts.append(f"{tname} HP: {hp_result['hp_status']}")
 
             if killed and tcr is not None:
                 xp = CR_XP_TABLE.get(tcr, 0)
