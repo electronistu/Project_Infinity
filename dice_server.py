@@ -2358,16 +2358,16 @@ def resolve_magic(
     if sp_no_damage:
         result["damage_total"] = 0
         result["target_killed"] = None
-        return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc, is_npc_vs_npc)
+        # Fall through to saving throw / condition logic — do NOT return
 
     # ── DAMAGE / HEALING CALCULATION ──
-    if final_dice in ("0d0", "0", ""):
+    elif final_dice in ("0d0", "0", ""):
         total_damage = sp_damage_modifier + final_mod
         result["damage_total"] = total_damage
         result["target_killed"] = None
         return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc, is_npc_vs_npc)
 
-    if sp_healing and not is_npc_attack and sp_attack_type == "automatic":
+    if not sp_no_damage and sp_healing and not is_npc_attack and sp_attack_type == "automatic":
         heal_die_size, heal_rolls, heal_raw = _parse_and_roll_dice(final_dice)
         if heal_die_size is None:
             return {"success": False, "error": f"Invalid damage_dice notation: '{final_dice}'. Use format 'XdY' (e.g., '2d6')."}
@@ -2443,56 +2443,61 @@ def resolve_magic(
         return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc, is_npc_vs_npc)
 
     # ── ROLL DAMAGE ──
-    primary_die_size, primary_rolls, primary_sum = _parse_and_roll_dice(final_dice)
-    if primary_die_size is None:
-        return {"success": False, "error": f"Invalid damage_dice notation: '{final_dice}'. Use format 'XdY' (e.g., '2d6')."}
+    if not sp_no_damage:
+        primary_die_size, primary_rolls, primary_sum = _parse_and_roll_dice(final_dice)
+        if primary_die_size is None:
+            return {"success": False, "error": f"Invalid damage_dice notation: '{final_dice}'. Use format 'XdY' (e.g., '2d6')."}
 
-    if is_crit:
-        crit_rolls = [random.randint(1, primary_die_size) for _ in range(len(primary_rolls))]
-        primary_damage = sum(primary_rolls) + sum(crit_rolls) + final_mod
-        crit_rolls_str = " + ".join(str(r) for r in crit_rolls)
-        base_str = " + ".join(str(r) for r in primary_rolls)
-        if final_mod != 0:
-            narrative_parts.append(
-                f"{actor} {spell_name} Damage: {primary_damage} ({base_str} + {crit_rolls_str} + {final_mod}) [CRIT]"
-            )
+        if is_crit:
+            crit_rolls = [random.randint(1, primary_die_size) for _ in range(len(primary_rolls))]
+            primary_damage = sum(primary_rolls) + sum(crit_rolls) + final_mod
+            crit_rolls_str = " + ".join(str(r) for r in crit_rolls)
+            base_str = " + ".join(str(r) for r in primary_rolls)
+            if final_mod != 0:
+                narrative_parts.append(
+                    f"{actor} {spell_name} Damage: {primary_damage} ({base_str} + {crit_rolls_str} + {final_mod}) [CRIT]"
+                )
+            else:
+                narrative_parts.append(
+                    f"{actor} {spell_name} Damage: {primary_damage} ({base_str} + {crit_rolls_str}) [CRIT]"
+                )
+            result["crit_damage_rolls"] = crit_rolls
         else:
+            primary_damage = sum(primary_rolls) + final_mod
+            base_str = " + ".join(str(r) for r in primary_rolls)
+            if final_mod != 0:
+                narrative_parts.append(f"{actor} {spell_name} Damage: {primary_damage} ({base_str} + {final_mod})")
+            else:
+                narrative_parts.append(f"{actor} {spell_name} Damage: {primary_damage} ({base_str})")
+
+        result["primary_damage"] = primary_damage
+        result["primary_damage_rolls"] = primary_rolls
+        result["damage_modifier"] = final_mod
+        result["primary_die_size"] = primary_die_size
+
+        extra_damage = 0
+        extra_rolls = []
+        extra_crit_rolls = []
+        if final_extra_dice:
+            extra_die_size, extra_base_rolls, extra_base_sum = _parse_and_roll_dice(final_extra_dice)
+            if extra_die_size is None:
+                return {"success": False, "error": f"Invalid extra_damage_dice notation: '{final_extra_dice}'."}
+            extra_rolls = extra_base_rolls
+            extra_damage = sum(extra_base_rolls)
+            extra_base_str = " + ".join(str(r) for r in extra_base_rolls)
+            ext_type_label = sp_extra_damage_type.title() if sp_extra_damage_type else "Extra"
             narrative_parts.append(
-                f"{actor} {spell_name} Damage: {primary_damage} ({base_str} + {crit_rolls_str}) [CRIT]"
+                f"{actor} {spell_name} {ext_type_label} Damage: {extra_damage} ({extra_base_str})"
             )
-        result["crit_damage_rolls"] = crit_rolls
+            result["extra_damage"] = extra_damage
+            result["extra_damage_rolls"] = extra_rolls
+            result["extra_damage_type"] = sp_extra_damage_type
+
+        total_damage = primary_damage + extra_damage
     else:
-        primary_damage = sum(primary_rolls) + final_mod
-        base_str = " + ".join(str(r) for r in primary_rolls)
-        if final_mod != 0:
-            narrative_parts.append(f"{actor} {spell_name} Damage: {primary_damage} ({base_str} + {final_mod})")
-        else:
-            narrative_parts.append(f"{actor} {spell_name} Damage: {primary_damage} ({base_str})")
-
-    result["primary_damage"] = primary_damage
-    result["primary_damage_rolls"] = primary_rolls
-    result["damage_modifier"] = final_mod
-    result["primary_die_size"] = primary_die_size
-
-    extra_damage = 0
-    extra_rolls = []
-    extra_crit_rolls = []
-    if final_extra_dice:
-        extra_die_size, extra_base_rolls, extra_base_sum = _parse_and_roll_dice(final_extra_dice)
-        if extra_die_size is None:
-            return {"success": False, "error": f"Invalid extra_damage_dice notation: '{final_extra_dice}'."}
-        extra_rolls = extra_base_rolls
-        extra_damage = sum(extra_base_rolls)
-        extra_base_str = " + ".join(str(r) for r in extra_base_rolls)
-        ext_type_label = sp_extra_damage_type.title() if sp_extra_damage_type else "Extra"
-        narrative_parts.append(
-            f"{actor} {spell_name} {ext_type_label} Damage: {extra_damage} ({extra_base_str})"
-        )
-        result["extra_damage"] = extra_damage
-        result["extra_damage_rolls"] = extra_rolls
-        result["extra_damage_type"] = sp_extra_damage_type
-
-    total_damage = primary_damage + extra_damage
+        primary_damage = 0
+        extra_damage = 0
+        total_damage = 0
 
     # ── MULTI-TARGET SAVING THROW ──
     target_results = None
@@ -2521,17 +2526,25 @@ def resolve_magic(
                     narrative_parts.append(
                         f"{tname} {save_name} Save: {save_total} vs DC {spell_save_dc} ({save_outcome}) ({save_d20} + {tsave})"
                     )
-                    narrative_parts.append(f"{tname} saved — half damage: {t_damage}")
+                    if sp_no_damage:
+                        narrative_parts.append(f"{tname} saved — no effect.")
+                    else:
+                        narrative_parts.append(f"{tname} saved — half damage: {t_damage}")
                 else:
                     t_damage = 0
                     narrative_parts.append(
                         f"{tname} {save_name} Save: {save_total} vs DC {spell_save_dc} ({save_outcome}) ({save_d20} + {tsave})"
                     )
-                    narrative_parts.append(f"{tname} saved — no damage.")
+                    if sp_no_damage:
+                        narrative_parts.append(f"{tname} saved — no effect.")
+                    else:
+                        narrative_parts.append(f"{tname} saved — no damage.")
             else:
                 narrative_parts.append(
                     f"{tname} {save_name} Save: {save_total} vs DC {spell_save_dc} ({save_outcome}) ({save_d20} + {tsave})"
                 )
+                if sp_no_damage and sp_condition:
+                    narrative_parts.append(f"{tname}: Affected — {sp_condition} ({sp_condition_duration})")
 
             remaining = tchp - t_damage
             killed = remaining <= 0 if tchp > 0 else False
@@ -2597,10 +2610,18 @@ def resolve_magic(
         if save_success:
             if sp_save_half:
                 total_damage = max(1, total_damage // 2)
-                narrative_parts.append(f"{saver_name} saved — half damage: {total_damage}")
+                if sp_no_damage:
+                    narrative_parts.append(f"{saver_name} saved — no effect.")
+                else:
+                    narrative_parts.append(f"{saver_name} saved — half damage: {total_damage}")
             else:
                 total_damage = 0
-                narrative_parts.append(f"{saver_name} saved — no damage.")
+                if sp_no_damage:
+                    narrative_parts.append(f"{saver_name} saved — no effect.")
+                else:
+                    narrative_parts.append(f"{saver_name} saved — no damage.")
+        elif sp_no_damage and sp_condition:
+            narrative_parts.append(f"{saver_name}: Affected — {sp_condition} ({sp_condition_duration})")
 
     result["damage_total"] = total_damage
     result["damage_type"] = sp_damage_type

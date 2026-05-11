@@ -1,24 +1,31 @@
 # Project Infinity
 
-A text-based RPG where an AI acts as your Dungeon Master — with real dice rolls, real character tracking, and real D&D 5e rules (based on the SRD 5.1). No hallucinated stats. No forgotten inventory. The AI rolls fairly, tracks your HP, and levels you up automatically.
+*A text-based RPG where an AI Dungeon Master runs real D&D 5e — with mechanical rolls, persistent state, and SRD 5.1 rules enforced by a dedicated game engine.*
 
-*Running on deepseek-v4-pro:cloud:*
+*Running on deepseek-v4-pro:cloud*
 
 ![Project Infinity TUI — deepseek-v4-pro:cloud](screenshot.png)
+
 ---
 
-## What Makes This Different?
+## What Makes This Different
 
-Most AI RPGs let the language model make up numbers. Project Infinity doesn't. Every dice roll, every stat change, every level-up goes through an external game engine that the AI can read but not fake. The result is a Dungeon Master that actually plays by the rules.
+Most AI RPGs let the language model make up numbers. Project Infinity runs every dice roll, every stat change, and every combat action through an external game engine the AI can read but not invent. The result is a Dungeon Master that actually plays by the rules.
 
-- **Fair Dice** — All rolls are performed by a dedicated server and verified. The AI sees the results, it doesn't generate them.
-- **Persistent Character** — Your stats, inventory, gold, and spell slots live in a real database that updates in real time. No "forgetting" that you used your last potion.
-- **SRD 5.1 Rules** — Leveling up, spell slot recovery, proficiency bonuses — all handled automatically by the engine.
-- **Combat Resolution** — Weapon attacks, spell attacks, saving throws, cantrip scaling, upcasting, spell slot consumption, crits, kill detection, and XP awards are all resolved mechanically in a single tool call. The AI cannot fudge damage or forget to deduct a slot.
-- **Multi-Target AoE** — Area-of-effect spells like Fireball and Sleep resolve all targets in one call. Individual saving throws per target, HP pool exhaustion computed automatically, one spell slot consumed.
-- **Temporary Hit Points** — Spells like False Life and Armor of Agathys auto-apply THP. NPC attacks drain THP before real HP. When THP hits zero, the source spell is automatically removed from active effects.
-- **Reputation System** — Your standing with every guild persists in the `.player` file between sessions. Heroic deeds and crimes alike are tracked, visible at any time via `/stats`.
-- **In-Game Commands** — Check your stats, save your character sheet, force a database sync, or get help without leaving the game.
+- **Fair Dice** — All rolls performed by a dedicated server. The AI sees results, it doesn't generate them.
+- **Persistent Character** — Stats, inventory, gold, spell slots, and reputation live in a real database. No forgetting.
+- **Full Combat Resolution** — Weapon attacks, spell attacks, saving throws, cantrip scaling, upcasting, spell slot consumption, crits, kill detection, and XP awards in a single tool call.
+- **Multi-Target AoE** — Fireball, Sleep, and all area spells resolve every target in one call. Per-target saves, HP pool exhaustion, one slot consumed.
+- **Temporary Hit Points** — False Life, Armor of Agathys, and Heroism auto-apply and auto-expire. NPC attacks drain THP before real HP.
+- **Reputation System** — Faction standing persists between sessions. Heroic deeds and crimes tracked, visible via `/stats`.
+- **Saving Throw Spells** — Hold Person, Charm, Banishment, and 50+ others roll saves with full dice disclosure.
+- **Active Buffs** — Shield, Mage Armor, Longstrider auto-modify stats and auto-revert on removal.
+- **Scroll Casting** — Cast from scrolls without slots. Ability checks for scrolls above your level.
+- **Rest & Recovery** — Short and long rests auto-apply hit dice, slot recovery, Arcane Recovery, and effect clearing per SRD 5.1.
+- **Leveling Up** — XP thresholds auto-trigger HP, proficiency, hit dice, and spell slot progression.
+- **In-Game Commands** — `/stats`, `/save`, `/sync`, `/quit` from within the game.
+
+Read on for quick start, gameplay hints, and the full engine overview under **How It Works**.
 
 ---
 
