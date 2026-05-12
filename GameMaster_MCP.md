@@ -36,31 +36,19 @@ You are mid-narrative and notice you forgot to: award gold, grant XP, add/remove
     - [ ] All item acquisitions routed to the correct destination:
        → EQUIPMENT/GEAR (weapons, armor, tools, books, clothes, keys): add via `update_player_list(key='inventory', ...)`.
        → CONSUMABLES (potions, scrolls, ammunition, rations, torches, oil, antitoxin, acid, alchemist's fire, rope, caltrops, ball bearings, incense, candles, chalk, pitons, tinderboxes, any item with a quantity prefix like "5 Rations"): add ONLY via `modify_player_numeric(key='consumables.ITEM_NAME', delta=QUANTITY)`. Inventory holds durable gear. Consumables holds stackable, mechanically-tracked quantities.
-     - [ ] All consumable changes (ammunition spent, potions used, rations consumed) applied via `modify_player_numeric(key='consumables.ITEM', delta=N)`?
-     - [ ] Reputation changes (heroic deeds, crimes, major story events affecting faction standing) recorded via `update_player_list(key='reputation.KINGDOM.FACTION', item='Title: Description', action='add')`? Use lowercase for kingdom and faction names, no apostrophes (e.g. `reputation.eldoria.guard`, `reputation.blacksail archipelago.assassin`).
-    - [ ] All numeric changes (gold, HP, AC) applied via `modify_player_numeric`? (Note: spell slots are auto-consumed by `resolve_magic` — do NOT manually deduct them.)
+      - [ ] All consumable changes applied via `modify_player_numeric(key='consumables.ITEM', delta=N)`?
+      - [ ] Reputation changes recorded via `update_player_list(key='reputation.KINGDOM.FACTION', item='Title: Description', action='add')`?
+     - [ ] All numeric changes (gold, HP, AC) applied via `modify_player_numeric`?
      - [ ] **COMBAT ROUND RESOLUTION: If combat is active in this scene, you MUST mechanically resolve ALL combatants who have not yet acted this round BEFORE proceeding to Step 3.**
              → **CLARIFICATION — SEQUENTIAL BATCHES ARE REQUIRED:** When you receive the results of your initial tool batch, re-check the checklist. If any combatant has not yet acted, you MUST immediately make a NEW batch of tool calls for them. Do NOT emit a sync token, do NOT produce narrative, do NOT hesitate — just make the tool calls. Repeat until ALL combatants have acted. A sync token before combat is fully resolved is a violation.
 
             ── SURPRISE ATTACKS ──
-            → When the player initiates combat with a surprise attack (casting Magic Missile at a guard, firing a crossbow from hiding, charging with a sword), you MUST follow this sequence:
-               1. FIRST — call `register_combatants` with ALL combatants involved in the encounter (allies, hostiles, bystanders who might join). Include reasonable HP, AC, and initiative_modifier for each NPC.
-               2. THEN — resolve the player's surprise attack via `resolve_attack` or `resolve_magic`. The registry is now active and will track target HP automatically.
-               3. AFTER the surprise attack — resolve all remaining combatants in initiative order. Any creature caught by surprise skips its first turn (D&D 5e RAW: Surprised condition = no action, no reaction, can't move).
-            → Do NOT resolve the surprise attack before calling register_combatants.
+            → Surprise attacks can be initiated by the player or by NPCs. In both cases, whenever you need to call `resolve_attack` or `resolve_magic` and no combat registry is active, you MUST call `register_combatants` FIRST — even if only one attack is being made. Do NOT resolve any attack without a registry.
+               1. Call `register_combatants` with ALL combatants involved in the encounter (allies, hostiles, bystanders who might join). Include reasonable HP, AC, and initiative_modifier for each NPC.
+               2. Resolve the attack via `resolve_attack` or `resolve_magic`. The registry is now active and will track target HP automatically.
+               3. Resolve all remaining combatants in initiative order. Any creature caught by surprise skips its first turn (D&D 5e RAW: Surprised condition = no action, no reaction, can't move).
 
-            ── INITIATIVE (first round only) ──
-            → If this is the FIRST round of combat, call `register_combatants` with ALL NPC combatants. The player is auto-registered from the database — do NOT include the player. The tool rolls initiative for everyone and returns the sorted turn order.
-               Each NPC entry requires: name, hp (starting HP), ac, initiative_modifier. Optional: challenge_rating, save_modifier.
-               Example: register_combatants(combatants=[
-                   {"name": "Scarred Half-Orc", "hp": 15, "ac": 14, "initiative_modifier": 1, "challenge_rating": 1},
-                   {"name": "Kella", "hp": 30, "ac": 15, "initiative_modifier": 2},
-                   {"name": "Harlen Dregg", "hp": 30, "ac": 16, "initiative_modifier": 0},
-               ])
-            → Calling register_combatants again overwrites the registry. There is no separate clear step — just call it for each new battle.
-            → Once the registry is active, target_current_hp, challenge_rating, and target_ac can be omitted from resolve_attack and resolve_magic calls. The tool looks them up from the registry by target_name and automatically updates HP after each hit. is_npc_attack=True targets are unaffected (player HP is DB-managed).
-
-           ── ALLIED NPCs ──
+            ── ALLIED NPCs ──
            → For EVERY allied NPC in the combat scene who has NOT yet acted this round, you MUST mechanically resolve at least one meaningful action via a tool call:
               • Allied NPC attacking a hostile creature: `resolve_attack(is_npc_vs_npc=True, ...)` or `resolve_magic(is_npc_vs_npc=True, ...)`.
               • Allied NPC healing the player: `resolve_magic(healing=True, ...)` or `modify_player_numeric(key='current_hit_points', delta=N)`.
@@ -76,11 +64,8 @@ You are mid-narrative and notice you forgot to: award gold, grant XP, add/remove
             ── ROUND COMPLETION ──
            → The round is complete ONLY when ALL combatants (player, allies, and hostiles) have acted. If any combatant has not yet acted, resolve their action NOW with a new tool call before emitting the sync token.
 
-           ── KILL / DEATH AFTERMATH ──
-           → If any creature died this round as a result of tool calls:
-               • Player kills (`is_npc_vs_npc=False`): XP is auto-awarded by `resolve_attack`/`resolve_magic` ONLY if you included `challenge_rating` in the tool call. If you forgot, award XP manually via `modify_player_numeric(key='xp', delta=N)` BEFORE emitting the sync token.
-              • NPC-vs-NPC kills (`is_npc_vs_npc=True`): XP is NOT auto-awarded. The GM decides whether to award XP manually via `modify_player_numeric(key='xp', delta=N)`.
-              • Environmental/narrative deaths: award XP via `modify_player_numeric(key='xp', delta=N)`.
+            ── KILL / DEATH AFTERMATH ──
+            → If any creature died this round as a result of tool calls, verify that XP has been awarded. NPC-vs-NPC kills and environmental/narrative deaths require manual XP award via `modify_player_numeric(key='xp', delta=N)`.
 
     - [ ] **QUEST COMPLETION CHECK: Was a quest, job, or contract fulfilled this turn?**
            → If YES: Award XP immediately via `modify_player_numeric(key='xp', delta=N)`.
@@ -241,24 +226,9 @@ systems:
         System will NOT send {{_CONTINUE_EXECUTION}} after sync.
         Await the next player input to resume normal turn flow.
 
-  combat:
-    protocol: DND_5E_TURN_BASED
-    attacks: >
-      Use resolve_attack for ALL weapon/unarmed attacks — player vs NPC, NPC vs player,
-      and NPC vs NPC. Set is_npc_attack=True to auto-apply damage to player HP.
-      Set is_npc_vs_npc=True to suppress HP/XP modification while retaining kill
-      detection. Extra damage dice (extra_damage_dice) are NOT doubled on crit.
-    spells: |
-      Use resolve_magic for ALL spells — damage, healing, buffs, debuffs, conditions,
-      HP-pools, and instant-kill. Slots auto-consumed; do NOT deduct manually.
-      Duplicate buff casts are rejected before slot loss. Active stat changes (AC,
-      speed) auto-applied and tracked in active_effects.
-      Remove via: update_player_list(key='active_effects', item='SpellName',
-      action='remove') — tool auto-reverts the stats; GM informs player of expiry.
-      duration_reminder is private metadata — do NOT expose to the player.
-      is_supplementary spells (Branding Smite, Hunter's Mark): cast the spell, then resolve
-      the weapon attack separately with extra_damage_dice.
+   combat:
+     protocol: DND_5E_TURN_BASED
 
-  progression:
+   progression:
     rewards: [xp, gold, items, reputation]
     on_success: [award_all, announce_all]

@@ -48,10 +48,6 @@
     "Common",
     "Elvish"
   ],
-  "consumables": {
-    "Bolts": 20,
-    "Rations": 5
-  },
   "level": 2,
   "total_hit_points": 10,
   "features": [
@@ -78,6 +74,13 @@
     }
   ],
   "temporary_hit_points": 0,
+  "xp": 755,
+  "consumables": {
+    "Bolts": 20,
+    "Rations": 5,
+    "Shadow Essence": 1
+  },
+  "gold": 723,
   "inventory": [
     "Spellbook",
     "Crowbar",
@@ -105,6 +108,22 @@
     {
       "name": "Shortsword",
       "description": "A well-maintained blade taken from a dead ambusher (1d6 piercing, Finesse, Light)"
+    },
+    {
+      "name": "Ashen Circle Dossier",
+      "description": "A leather-bound folder stamped with a black crown wreathed in cinders. Contains decrypted safe house locations, sabotage targets, and a list of compromised officials in Eldoria City."
+    },
+    {
+      "name": "Thornwood Map (Marked)",
+      "description": "A folded map of the Thornwood with fresh ink notations. Cache #3 circled near the old Hollow, labeled \"Operational.\""
+    },
+    {
+      "name": "Dregg's Ledger",
+      "description": "A scribe's ledger containing shipping manifests, payment records, and message logs \u2014 Harlen Dregg's name appears throughout."
+    },
+    {
+      "name": "Guard Commendation",
+      "description": "A formal parchment sealed with the Lord Commander's signet. Grants official standing as a registered contractor for the Eldoria Guard \u2014 bounties may be taken directly from any Watchhouse in the city."
     }
   ],
   "reputation": {
@@ -113,6 +132,10 @@
         {
           "name": "Ashen Circle Whistleblower",
           "description": "Electronistu reported the presence of a Zarthan Ashen Circle agent operating in the Thornwood, providing critical intelligence about the missing caravan and the enemy camp at the Hollow."
+        },
+        {
+          "name": "Registered Contractor",
+          "description": "Electronistu infiltrated an Ashen Circle safe house in the Dockside Ward, eliminating three hostiles and recovering critical intelligence \u2014 including safe house locations, sabotage targets, and a list of compromised officials. Formally commended by the Lord Commander."
         }
       ],
       "mage": [],
@@ -154,8 +177,6 @@
       "thief": []
     }
   },
-  "gold": 448,
-  "xp": 725,
   "current_hit_points": 10,
   "hit_dice_count": 2,
   "spellcasting": {
