@@ -17,6 +17,8 @@ mcp = FastMCP("InfinityRolls", log_level="WARNING")
 
 DB_CONNECTION = None
 
+_COMBAT_REGISTRY: dict[str, dict] = {}
+
 XP_THRESHOLDS = [
     (2, 300), (3, 900), (4, 2700), (5, 6500),
     (6, 14000), (7, 23000), (8, 33000), (9, 48000),
@@ -1334,6 +1336,182 @@ def perform_check(modifier: int, dc: int, check_name: str = "Check", actor: str 
     return response
 
 
+def _registry_hp(target_name: str) -> int | None:
+    entry = _COMBAT_REGISTRY.get(target_name)
+    if entry:
+        return entry["current_hp"]
+    return None
+
+
+def _registry_ac(target_name: str) -> int | None:
+    entry = _COMBAT_REGISTRY.get(target_name)
+    if entry:
+        return entry["ac"]
+    return None
+
+
+def _registry_update_hp(target_name: str, new_hp: int):
+    entry = _COMBAT_REGISTRY.get(target_name)
+    if entry:
+        entry["current_hp"] = new_hp
+
+
+def _registry_kill(target_name: str):
+    entry = _COMBAT_REGISTRY.get(target_name)
+    if entry:
+        entry["killed"] = True
+
+
+def _registry_cr(target_name: str) -> float | None:
+    entry = _COMBAT_REGISTRY.get(target_name)
+    if entry:
+        return entry.get("challenge_rating")
+    return None
+
+
+def _registry_max_hp(target_name: str) -> int:
+    entry = _COMBAT_REGISTRY.get(target_name)
+    if entry:
+        return entry["max_hp"]
+    return 0
+
+
+@mcp.tool()
+def register_combatants(combatants: list[dict]) -> dict:
+    """
+    Registers all combatants for a battle and rolls initiative for everyone.
+    The player is auto-registered from the database — do NOT include the player
+    in the combatants list. Calling this again overwrites any existing registry.
+
+    PARAMETERS:
+    - combatants: list of NPC dicts with the following fields:
+      - name (str, required): combatant name, must match target_name in later calls
+      - hp (int, required): starting hit points
+      - ac (int, required): armor class
+      - initiative_modifier (int, required): DEX modifier for initiative
+      - challenge_rating (float, optional): CR for XP awards
+      - save_modifier (int, optional, default 0): generic save bonus
+
+    RETURNS:
+    - all combatants (player + NPCs) with initiative rolls, sorted by total descending
+    - initiative_order: flat list of names in turn order
+    - registry_summary: all registered combatants with current HP and AC
+
+    EXAMPLE:
+    register_combatants(combatants=[
+        {"name": "Scarred Half-Orc", "hp": 15, "ac": 14, "initiative_modifier": 1,
+         "challenge_rating": 1, "save_modifier": 1},
+        {"name": "Crossbow Bandit 1", "hp": 11, "ac": 12, "initiative_modifier": 2,
+         "challenge_rating": 0.125},
+        {"name": "Kella", "hp": 30, "ac": 15, "initiative_modifier": 2},
+        {"name": "Harlen Dregg", "hp": 30, "ac": 16, "initiative_modifier": 0},
+    ])
+    """
+    global _COMBAT_REGISTRY, DB_CONNECTION
+    _COMBAT_REGISTRY = {}
+
+    initiative_results = []
+
+    if DB_CONNECTION is not None:
+        cursor = DB_CONNECTION.cursor()
+        player_name = _db_val(cursor, "name", "Player")
+        stats_raw = _db_val(cursor, "stats", {})
+        if isinstance(stats_raw, str):
+            stats_raw = json.loads(stats_raw)
+        player_dex = int(stats_raw.get("dex", 10))
+        player_init_mod = (player_dex - 10) // 2
+        player_hp = int(_db_val(cursor, "current_hit_points", 1))
+        player_max_hp = int(_db_val(cursor, "total_hit_points", 1))
+        player_ac = int(_db_val(cursor, "armor_class", 10))
+
+        _COMBAT_REGISTRY[player_name] = {
+            "current_hp": player_hp,
+            "max_hp": player_max_hp,
+            "ac": player_ac,
+            "save_modifier": 0,
+            "challenge_rating": None,
+            "initiative_modifier": player_init_mod,
+            "initiative_roll": 0,
+            "initiative_total": 0,
+            "is_player": True,
+            "killed": False,
+        }
+
+        player_d20 = random.randint(1, 20)
+        player_init_total = player_d20 + player_init_mod
+        _COMBAT_REGISTRY[player_name]["initiative_roll"] = player_d20
+        _COMBAT_REGISTRY[player_name]["initiative_total"] = player_init_total
+        initiative_results.append({
+            "name": player_name,
+            "roll": player_d20,
+            "modifier": player_init_mod,
+            "total": player_init_total,
+            "is_player": True,
+        })
+
+    for c in combatants:
+        name = c["name"]
+        max_hp = c["hp"]
+        ac = c["ac"]
+        init_mod = c["initiative_modifier"]
+        cr = c.get("challenge_rating")
+        save_mod = c.get("save_modifier", 0)
+
+        _COMBAT_REGISTRY[name] = {
+            "current_hp": max_hp,
+            "max_hp": max_hp,
+            "ac": ac,
+            "save_modifier": save_mod,
+            "challenge_rating": cr,
+            "initiative_modifier": init_mod,
+            "initiative_roll": 0,
+            "initiative_total": 0,
+            "is_player": False,
+            "killed": False,
+        }
+
+        d20 = random.randint(1, 20)
+        init_total = d20 + init_mod
+        _COMBAT_REGISTRY[name]["initiative_roll"] = d20
+        _COMBAT_REGISTRY[name]["initiative_total"] = init_total
+        initiative_results.append({
+            "name": name,
+            "roll": d20,
+            "modifier": init_mod,
+            "total": init_total,
+            "is_player": False,
+        })
+
+    initiative_results.sort(key=lambda r: (-r["total"], r["name"]))
+    order = [r["name"] for r in initiative_results]
+
+    registry_summary = []
+    for name, entry in _COMBAT_REGISTRY.items():
+        registry_summary.append({
+            "name": name,
+            "hp": f"{entry['current_hp']}/{entry['max_hp']}",
+            "ac": entry["ac"],
+            "initiative": entry["initiative_total"],
+            "is_player": entry.get("is_player", False),
+        })
+
+    narrative_lines = [f"Combatants registered ({len(_COMBAT_REGISTRY)} total)."]
+    narrative_lines.append("Initiative Order:")
+    for i, r in enumerate(initiative_results, 1):
+        tag = " (Player)" if r["is_player"] else ""
+        narrative_lines.append(
+            f"  {i}. {r['name']}{tag}: {r['total']} ({r['roll']} + {r['modifier']})"
+        )
+
+    return {
+        "success": True,
+        "initiative": initiative_results,
+        "initiative_order": order,
+        "registry_summary": registry_summary,
+        "narrative_format": "\n".join(narrative_lines),
+    }
+
+
 @mcp.tool()
 def resolve_attack(
     actor: str,
@@ -1381,8 +1559,13 @@ def resolve_attack(
       Natural 1 is still a Critical Failure. Natural 20 is still a natural crit.
     - Both can be combined (e.g. advantage + force_crit for an unconscious target).
 
-    KILL DETECTION: If target_current_hp is provided and damage reduces the target
-    to 0 or below, the response includes target_killed=True.
+    KILL DETECTION: If target_current_hp is provided (or looked up from the combat registry)
+    and damage reduces the target to 0 or below, the response includes target_killed=True.
+
+    COMBAT REGISTRY: If register_combatants has been called, target_current_hp and
+    challenge_rating can be omitted — the tool looks them up from the registry by target_name.
+    After each hit, the registry is updated with the new remaining HP. Explicit parameters
+    still override registry values if provided. is_npc_attack=True is unaffected (player HP is DB-managed).
 
     XP AWARD: If challenge_rating is provided and the target is killed, XP is
     automatically awarded to the player using the D&D 5E CR/XP table. This only
@@ -1561,43 +1744,76 @@ def resolve_attack(
             target_remaining = hp_result["new_value"]
         elif is_npc_vs_npc:
             result["npc_vs_npc"] = True
+            from_registry = False
+            if target_current_hp is None and target_name:
+                target_current_hp = _registry_hp(target_name)
+                if target_current_hp is not None:
+                    from_registry = True
+            if challenge_rating is None and target_name:
+                challenge_rating = _registry_cr(target_name)
             if target_current_hp is not None and total_damage > 0:
                 target_remaining = target_current_hp - total_damage
                 result["target_remaining_hp"] = target_remaining
 
+                if target_name and from_registry:
+                    _registry_update_hp(target_name, max(target_remaining, 0))
+
                 if target_remaining <= 0:
                     result["target_killed"] = True
-                    if target_name:
-                        narrative_parts.append(f"{target_name} HP: 0 (KILLED)")
+                    if target_name and from_registry:
+                        _registry_kill(target_name)
+                    max_hp = _registry_max_hp(target_name)
+                    display_max = f"/{max_hp}" if max_hp else ""
+                    narrative_parts.append(f"{target_name} HP: 0{display_max} (KILLED)")
                 else:
                     result["target_killed"] = False
                     if target_name:
-                        narrative_parts.append(f"{target_name} HP: {target_remaining}/{target_current_hp}")
+                        max_hp = _registry_max_hp(target_name)
+                        display_max = f"/{max_hp}" if max_hp else ""
+                        narrative_parts.append(f"{target_name} HP: {target_remaining}{display_max}")
             else:
                 result["target_killed"] = None
-        elif not is_npc_attack and not is_npc_vs_npc and target_current_hp is not None:
-            target_remaining = target_current_hp - total_damage
-            result["target_remaining_hp"] = target_remaining
+        elif not is_npc_attack and not is_npc_vs_npc:
+            from_registry = False
+            if target_current_hp is None and target_name:
+                target_current_hp = _registry_hp(target_name)
+                if target_current_hp is not None:
+                    from_registry = True
+            if challenge_rating is None and target_name:
+                challenge_rating = _registry_cr(target_name)
+            if target_current_hp is not None:
+                target_remaining = target_current_hp - total_damage
+                result["target_remaining_hp"] = target_remaining
 
-            if target_remaining <= 0:
-                result["target_killed"] = True
-                if target_name:
-                    narrative_parts.append(f"{target_name} HP: 0 (KILLED)")
+                if target_name and from_registry:
+                    _registry_update_hp(target_name, max(target_remaining, 0))
+
+                if target_remaining <= 0:
+                    result["target_killed"] = True
+                    if target_name and from_registry:
+                        _registry_kill(target_name)
+                    max_hp = _registry_max_hp(target_name)
+                    display_max = f"/{max_hp}" if max_hp else ""
+                    narrative_parts.append(f"{target_name} HP: 0{display_max} (KILLED)")
+                else:
+                    result["target_killed"] = False
+                    if target_name:
+                        max_hp = _registry_max_hp(target_name)
+                        display_max = f"/{max_hp}" if max_hp else ""
+                        narrative_parts.append(f"{target_name} HP: {target_remaining}{display_max}")
+
+                if result.get("target_killed") and challenge_rating is not None:
+                    xp_awarded = CR_XP_TABLE.get(challenge_rating, 0)
+                    if xp_awarded > 0:
+                        xp_result = modify_player_numeric(key="xp", delta=xp_awarded)
+                        result["xp_awarded"] = xp_awarded
+                        result["challenge_rating"] = challenge_rating
+                        result["xp_result"] = xp_result
+                        narrative_parts.append(f"XP Awarded: {xp_awarded}")
+                        if xp_result.get("level_up"):
+                            narrative_parts.append(xp_result["level_up_summary"])
             else:
-                result["target_killed"] = False
-                if target_name:
-                    narrative_parts.append(f"{target_name} HP: {target_remaining}/{target_current_hp}")
-
-            if result.get("target_killed") and challenge_rating is not None:
-                xp_awarded = CR_XP_TABLE.get(challenge_rating, 0)
-                if xp_awarded > 0:
-                    xp_result = modify_player_numeric(key="xp", delta=xp_awarded)
-                    result["xp_awarded"] = xp_awarded
-                    result["challenge_rating"] = challenge_rating
-                    result["xp_result"] = xp_result
-                    narrative_parts.append(f"XP Awarded: {xp_awarded}")
-                    if xp_result.get("level_up"):
-                        narrative_parts.append(xp_result["level_up_summary"])
+                result["target_killed"] = None
         else:
             result["target_killed"] = None
 
@@ -1913,8 +2129,14 @@ def resolve_magic(
     to control the NPC caster's effective level. Do NOT set both is_npc_attack and
     is_npc_vs_npc to True.
 
-    KILL DETECTION: If target_current_hp is provided and damage reduces the target to 0
-    or below, the response includes target_killed=True.
+    KILL DETECTION: If target_current_hp is provided (or looked up from the combat registry)
+    and damage reduces the target to 0 or below, the response includes target_killed=True.
+
+    COMBAT REGISTRY: If register_combatants has been called, target_current_hp and
+    challenge_rating can be omitted from single-target and multi-target calls — the tool
+    looks them up from the registry by target_name. After each hit, the registry is
+    updated with the new remaining HP. Explicit parameters still override registry values.
+    is_npc_attack=True and is_player=True targets are unaffected (player HP is DB-managed).
 
     XP AWARD: If challenge_rating is provided and the target is killed, XP is automatically
     awarded to the player. This only happens for player attacks (is_npc_attack=False,
@@ -2417,6 +2639,12 @@ def resolve_magic(
                 result["requires_concentration"] = True
 
         if targets and len(targets) > 0:
+            for t in targets:
+                if "current_hp" not in t:
+                    name = t.get("name", "")
+                    registry_hp = _registry_hp(name)
+                    if registry_hp is not None:
+                        t["current_hp"] = registry_hp
             sorted_targets = sorted(targets, key=lambda t: t.get("current_hp", 0))
             affected = []
             unaffected = []
@@ -2509,9 +2737,13 @@ def resolve_magic(
 
         for t in targets:
             tname = t.get("name", "Unknown")
-            tchp = t.get("current_hp", 0)
+            tchp = t.get("current_hp")
+            if tchp is None:
+                tchp = _registry_hp(tname) or 0
             tsave = t.get("save_modifier", 0)
             tcr = t.get("challenge_rating")
+            if tcr is None:
+                tcr = _registry_cr(tname)
             is_player = t.get("is_player", False)
 
             save_d20 = random.randint(1, 20)
@@ -2548,11 +2780,20 @@ def resolve_magic(
 
             remaining = tchp - t_damage
             killed = remaining <= 0 if tchp > 0 else False
+
+            if not is_player and tname:
+                _registry_update_hp(tname, max(remaining, 0))
             if killed:
                 killed_count += 1
-                narrative_parts.append(f"{tname} HP: 0 (KILLED)")
+                if not is_player:
+                    _registry_kill(tname)
+                max_hp = _registry_max_hp(tname) if tname else 0
+                display_max = f"/{max_hp}" if max_hp else ""
+                narrative_parts.append(f"{tname} HP: 0{display_max} (KILLED)")
             elif tchp > 0:
-                narrative_parts.append(f"{tname} HP: {remaining}/{tchp}")
+                max_hp = _registry_max_hp(tname) if tname else 0
+                display_max = f"/{max_hp}" if max_hp else ""
+                narrative_parts.append(f"{tname} HP: {remaining}{display_max}")
 
             tr = {"name": tname, "save_roll": save_d20, "save_modifier": tsave,
                    "save_total": save_total, "save_success": save_success,
@@ -2635,18 +2876,33 @@ def resolve_magic(
         result["hp_change"] = hp_result
         narrative_parts.append(f"Healed {target_name or 'Player'}: {hp_result['hp_status']}")
     elif is_npc_vs_npc and total_damage > 0 and not sp_healing:
+        from_registry = False
+        if target_current_hp is None and target_name:
+            target_current_hp = _registry_hp(target_name)
+            if target_current_hp is not None:
+                from_registry = True
+        if challenge_rating is None and target_name:
+            challenge_rating = _registry_cr(target_name)
         if target_current_hp is not None:
             target_remaining = target_current_hp - total_damage
             result["target_remaining_hp"] = target_remaining
 
+            if target_name and from_registry:
+                _registry_update_hp(target_name, max(target_remaining, 0))
+
             if target_remaining <= 0:
                 result["target_killed"] = True
-                if target_name:
-                    narrative_parts.append(f"{target_name} HP: 0 (KILLED)")
+                if target_name and from_registry:
+                    _registry_kill(target_name)
+                max_hp = _registry_max_hp(target_name)
+                display_max = f"/{max_hp}" if max_hp else ""
+                narrative_parts.append(f"{target_name} HP: 0{display_max} (KILLED)")
             else:
                 result["target_killed"] = False
                 if target_name:
-                    narrative_parts.append(f"{target_name} HP: {target_remaining}/{target_current_hp}")
+                    max_hp = _registry_max_hp(target_name)
+                    display_max = f"/{max_hp}" if max_hp else ""
+                    narrative_parts.append(f"{target_name} HP: {target_remaining}{display_max}")
         else:
             result["target_killed"] = None
         result["npc_vs_npc"] = True
@@ -2654,29 +2910,47 @@ def resolve_magic(
         result["npc_vs_npc"] = True
         result["target_killed"] = None
         narrative_parts.append(f"{actor} heals {target_name or 'target'} for {total_damage} HP.")
-    elif not is_npc_attack and not is_npc_vs_npc and target_current_hp is not None and not sp_healing:
-        target_remaining = target_current_hp - total_damage
-        result["target_remaining_hp"] = target_remaining
+    elif not is_npc_attack and not is_npc_vs_npc and not sp_healing:
+        from_registry = False
+        if target_current_hp is None and target_name:
+            target_current_hp = _registry_hp(target_name)
+            if target_current_hp is not None:
+                from_registry = True
+        if challenge_rating is None and target_name:
+            challenge_rating = _registry_cr(target_name)
+        if target_current_hp is not None:
+            target_remaining = target_current_hp - total_damage
+            result["target_remaining_hp"] = target_remaining
 
-        if target_remaining <= 0:
-            result["target_killed"] = True
-            if target_name:
-                narrative_parts.append(f"{target_name} HP: 0 (KILLED)")
+            if target_name and from_registry:
+                _registry_update_hp(target_name, max(target_remaining, 0))
+
+            if target_remaining <= 0:
+                result["target_killed"] = True
+                if target_name and from_registry:
+                    _registry_kill(target_name)
+                max_hp = _registry_max_hp(target_name)
+                display_max = f"/{max_hp}" if max_hp else ""
+                narrative_parts.append(f"{target_name} HP: 0{display_max} (KILLED)")
+            else:
+                result["target_killed"] = False
+                if target_name:
+                    max_hp = _registry_max_hp(target_name)
+                    display_max = f"/{max_hp}" if max_hp else ""
+                    narrative_parts.append(f"{target_name} HP: {target_remaining}{display_max}")
+
+            if result.get("target_killed") and challenge_rating is not None:
+                xp_awarded = CR_XP_TABLE.get(challenge_rating, 0)
+                if xp_awarded > 0 and cursor:
+                    xp_result = modify_player_numeric(key="xp", delta=xp_awarded)
+                    result["xp_awarded"] = xp_awarded
+                    result["challenge_rating"] = challenge_rating
+                    result["xp_result"] = xp_result
+                    narrative_parts.append(f"XP Awarded: {xp_awarded}")
+                    if xp_result.get("level_up"):
+                        narrative_parts.append(xp_result["level_up_summary"])
         else:
-            result["target_killed"] = False
-            if target_name:
-                narrative_parts.append(f"{target_name} HP: {target_remaining}/{target_current_hp}")
-
-        if result.get("target_killed") and challenge_rating is not None:
-            xp_awarded = CR_XP_TABLE.get(challenge_rating, 0)
-            if xp_awarded > 0 and cursor:
-                xp_result = modify_player_numeric(key="xp", delta=xp_awarded)
-                result["xp_awarded"] = xp_awarded
-                result["challenge_rating"] = challenge_rating
-                result["xp_result"] = xp_result
-                narrative_parts.append(f"XP Awarded: {xp_awarded}")
-                if xp_result.get("level_up"):
-                    narrative_parts.append(xp_result["level_up_summary"])
+            result["target_killed"] = None
     elif not is_npc_attack and not is_npc_vs_npc and sp_healing:
         hp_result = _apply_hp_change(cursor, total_damage) if cursor else None
         if hp_result:

@@ -23,6 +23,7 @@ Most AI RPGs let the language model make up numbers. Project Infinity runs every
 - **Scroll Casting** — Cast from scrolls without slots. Ability checks for scrolls above your level.
 - **Rest & Recovery** — Short and long rests auto-apply hit dice, slot recovery, Arcane Recovery, and effect clearing per SRD 5.1.
 - **Leveling Up** — XP thresholds auto-trigger HP, proficiency, hit dice, and spell slot progression.
+- **Combat Registry** — GM registers all combatants once per battle. Initiative auto-rolled for everyone. The engine tracks every combatant's HP across attacks.
 - **In-Game Commands** — `/stats`, `/save`, `/sync`, `/quit` from within the game.
 
 Read on for quick start, gameplay hints, and the full engine overview under **How It Works**.
@@ -195,6 +196,17 @@ The game engine runs as a local **MCP (Model Context Protocol)** server with an 
 - **Active Buff Tracking** — Spells that modify stats (AC, speed, etc.) are tracked via `active_effects` and `_active_buff_data`. Recasting a duplicate is rejected before the slot is consumed. Removing an effect via `update_player_list` automatically reverts the stat changes. All active effects are visible in the `/stats` command display.
 - **Kill Detection & XP** — Identical to weapon attacks: NPC deaths award XP automatically.
 - **Scroll Casting** — Cast from scrolls without consuming a slot. Scrolls above the character's level trigger an ability check per D&D 5e (DMG p.200).
+
+### Combat Registry
+
+When combat begins, the GM calls `register_combatants` once with all NPC participants:
+- The player is auto-registered from the database — name, HP, AC, and DEX modifier are read automatically.
+- Initiative is rolled for everyone (`d20 + initiative_modifier`) and returned in sorted turn order.
+- Each combatant's HP, AC, save modifier, and challenge rating are stored in an in-memory registry.
+
+Once the registry is active, `resolve_attack` and `resolve_magic` auto-lookup target HP by name — no need to pass `target_current_hp` on every call. When multiple combatants attack the same target in the same round, the engine automatically carries forward the reduced HP from each hit. Kill detection uses the correct remaining HP, not the original value.
+
+Calling `register_combatants` again overwrites the registry — no separate clear step needed. When the player launches a surprise attack (Magic Missile at a guard, crossbow from hiding), the protocol requires `register_combatants` to be called first, so the registry is active before the attack resolves.
 
 ### Rest & Recovery
 

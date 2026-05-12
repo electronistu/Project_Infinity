@@ -52,6 +52,31 @@
     "Bolts": 20,
     "Rations": 5
   },
+  "level": 2,
+  "total_hit_points": 10,
+  "features": [
+    "Darkvision",
+    "Fey Ancestry",
+    "Trance",
+    "Elf Weapon Training",
+    "Fleet of Foot",
+    "Mask of the Wild",
+    "Spellcasting",
+    "Arcane Recovery",
+    "Criminal Contact",
+    {
+      "name": "Debt to the Deep Wood",
+      "description": "A mysterious forest spirit restored Electronistu's life. A favor is owed, to be called upon when the need is great."
+    },
+    {
+      "name": "School of Illusion",
+      "description": "Electronistu has chosen the School of Illusion as his Arcane Tradition, specializing in magic that deceives the senses and the mind."
+    },
+    {
+      "name": "Illusion Savant",
+      "description": "The gold and time spent to copy an Illusion spell into the spellbook is halved."
+    }
+  ],
   "temporary_hit_points": 0,
   "inventory": [
     "Spellbook",
@@ -82,37 +107,57 @@
       "description": "A well-maintained blade taken from a dead ambusher (1d6 piercing, Finesse, Light)"
     }
   ],
-  "gold": 340,
-  "xp": 350,
-  "level": 2,
-  "total_hit_points": 10,
-  "features": [
-    "Darkvision",
-    "Fey Ancestry",
-    "Trance",
-    "Elf Weapon Training",
-    "Fleet of Foot",
-    "Mask of the Wild",
-    "Spellcasting",
-    "Arcane Recovery",
-    "Criminal Contact",
-    {
-      "name": "Debt to the Deep Wood",
-      "description": "A mysterious forest spirit restored Electronistu's life. A favor is owed, to be called upon when the need is great."
+  "reputation": {
+    "eldoria": {
+      "guard": [
+        {
+          "name": "Ashen Circle Whistleblower",
+          "description": "Electronistu reported the presence of a Zarthan Ashen Circle agent operating in the Thornwood, providing critical intelligence about the missing caravan and the enemy camp at the Hollow."
+        }
+      ],
+      "mage": [],
+      "assassin": [],
+      "merchant": [
+        {
+          "name": "Reliable Caravan Guard",
+          "description": "Successfully defended a Merchant Guild caravan from bandits on the Silverwood route, nearly dying in the process."
+        }
+      ],
+      "thief": [],
+      "alchemists league": [],
+      "order of scribes": []
     },
-    {
-      "name": "School of Illusion",
-      "description": "Electronistu has chosen the School of Illusion as his Arcane Tradition, specializing in magic that deceives the senses and the mind."
+    "zarthus": {
+      "guard": [],
+      "mage": [],
+      "assassin": [],
+      "merchant": [],
+      "thief": [],
+      "alchemists league": []
     },
-    {
-      "name": "Illusion Savant",
-      "description": "The gold and time spent to copy an Illusion spell into the spellbook is halved."
+    "silverwood": {
+      "guard": [],
+      "mage": [],
+      "assassin": [],
+      "merchant": [
+        {
+          "name": "Registered Contractor",
+          "description": "Electronistu is a registered contractor with the Silverwood Merchant Guild, vouched for by the Eldoria Merchant Guild after surviving a bandit ambush on the Thornwood route."
+        }
+      ],
+      "thief": [],
+      "alchemists league": [],
+      "rangers conclave": []
+    },
+    "blacksail archipelago": {
+      "assassin": [],
+      "thief": []
     }
-  ],
+  },
+  "gold": 448,
+  "xp": 725,
   "current_hit_points": 10,
   "hit_dice_count": 2,
-  "active_effects": [],
-  "_active_buff_data": {},
   "spellcasting": {
     "ability": "intelligence",
     "dc": 12,
@@ -150,46 +195,6 @@
       }
     ]
   },
-  "reputation": {
-    "eldoria": {
-      "guard": [
-        {
-          "name": "Ashen Circle Whistleblower",
-          "description": "Electronistu reported the presence of a Zarthan Ashen Circle agent operating in the Thornwood, providing critical intelligence about the missing caravan and the enemy camp at the Hollow."
-        }
-      ],
-      "mage": [],
-      "assassin": [],
-      "merchant": [
-        {
-          "name": "Reliable Caravan Guard",
-          "description": "Successfully defended a Merchant Guild caravan from bandits on the Silverwood route, nearly dying in the process."
-        }
-      ],
-      "thief": [],
-      "alchemists league": [],
-      "order of scribes": []
-    },
-    "zarthus": {
-      "guard": [],
-      "mage": [],
-      "assassin": [],
-      "merchant": [],
-      "thief": [],
-      "alchemists league": []
-    },
-    "silverwood": {
-      "guard": [],
-      "mage": [],
-      "assassin": [],
-      "merchant": [],
-      "thief": [],
-      "alchemists league": [],
-      "rangers conclave": []
-    },
-    "blacksail archipelago": {
-      "assassin": [],
-      "thief": []
-    }
-  }
+  "active_effects": [],
+  "_active_buff_data": {}
 }

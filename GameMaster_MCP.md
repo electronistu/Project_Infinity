@@ -40,10 +40,25 @@ You are mid-narrative and notice you forgot to: award gold, grant XP, add/remove
      - [ ] Reputation changes (heroic deeds, crimes, major story events affecting faction standing) recorded via `update_player_list(key='reputation.KINGDOM.FACTION', item='Title: Description', action='add')`? Use lowercase for kingdom and faction names, no apostrophes (e.g. `reputation.eldoria.guard`, `reputation.blacksail archipelago.assassin`).
     - [ ] All numeric changes (gold, HP, AC) applied via `modify_player_numeric`? (Note: spell slots are auto-consumed by `resolve_magic` — do NOT manually deduct them.)
      - [ ] **COMBAT ROUND RESOLUTION: If combat is active in this scene, you MUST mechanically resolve ALL combatants who have not yet acted this round BEFORE proceeding to Step 3.**
-            → **CLARIFICATION — SEQUENTIAL BATCHES ARE REQUIRED:** When you receive the results of your initial tool batch, re-check the checklist. If any combatant has not yet acted, you MUST immediately make a NEW batch of tool calls for them. Do NOT emit a sync token, do NOT produce narrative, do NOT hesitate — just make the tool calls. Repeat until ALL combatants have acted. A sync token before combat is fully resolved is a violation.
+             → **CLARIFICATION — SEQUENTIAL BATCHES ARE REQUIRED:** When you receive the results of your initial tool batch, re-check the checklist. If any combatant has not yet acted, you MUST immediately make a NEW batch of tool calls for them. Do NOT emit a sync token, do NOT produce narrative, do NOT hesitate — just make the tool calls. Repeat until ALL combatants have acted. A sync token before combat is fully resolved is a violation.
 
-           ── INITIATIVE (first round only) ──
-           → If this is the FIRST round of combat, roll initiative for EVERY combatant using `roll_dice(dice_notation='1d20', modifier=DEX_MOD, actor='Name')`. Include the player, all allied NPCs, and all hostile creatures. Establish turn order, then resolve actions in initiative sequence.
+            ── SURPRISE ATTACKS ──
+            → When the player initiates combat with a surprise attack (casting Magic Missile at a guard, firing a crossbow from hiding, charging with a sword), you MUST follow this sequence:
+               1. FIRST — call `register_combatants` with ALL combatants involved in the encounter (allies, hostiles, bystanders who might join). Include reasonable HP, AC, and initiative_modifier for each NPC.
+               2. THEN — resolve the player's surprise attack via `resolve_attack` or `resolve_magic`. The registry is now active and will track target HP automatically.
+               3. AFTER the surprise attack — resolve all remaining combatants in initiative order. Any creature caught by surprise skips its first turn (D&D 5e RAW: Surprised condition = no action, no reaction, can't move).
+            → Do NOT resolve the surprise attack before calling register_combatants.
+
+            ── INITIATIVE (first round only) ──
+            → If this is the FIRST round of combat, call `register_combatants` with ALL NPC combatants. The player is auto-registered from the database — do NOT include the player. The tool rolls initiative for everyone and returns the sorted turn order.
+               Each NPC entry requires: name, hp (starting HP), ac, initiative_modifier. Optional: challenge_rating, save_modifier.
+               Example: register_combatants(combatants=[
+                   {"name": "Scarred Half-Orc", "hp": 15, "ac": 14, "initiative_modifier": 1, "challenge_rating": 1},
+                   {"name": "Kella", "hp": 30, "ac": 15, "initiative_modifier": 2},
+                   {"name": "Harlen Dregg", "hp": 30, "ac": 16, "initiative_modifier": 0},
+               ])
+            → Calling register_combatants again overwrites the registry. There is no separate clear step — just call it for each new battle.
+            → Once the registry is active, target_current_hp, challenge_rating, and target_ac can be omitted from resolve_attack and resolve_magic calls. The tool looks them up from the registry by target_name and automatically updates HP after each hit. is_npc_attack=True targets are unaffected (player HP is DB-managed).
 
            ── ALLIED NPCs ──
            → For EVERY allied NPC in the combat scene who has NOT yet acted this round, you MUST mechanically resolve at least one meaningful action via a tool call:
@@ -57,11 +72,6 @@ You are mid-narrative and notice you forgot to: award gold, grant XP, add/remove
               • Hostile NPC attacking the player: `resolve_attack(is_npc_attack=True, ...)` or `resolve_magic(is_npc_attack=True, ...)`.
               • Hostile NPC attacking allied NPCs: `resolve_attack(is_npc_vs_npc=True, ...)` or `resolve_magic(is_npc_vs_npc=True, ...)`.
             → A hostile NPC has "acted" when at least one attack, spell, or meaningful hostile action (shove, grapple, dash to close distance, etc.) has been resolved via a tool call.
-
-            ── SHARED TARGET HP TRACKING ──
-            → The tools are stateless — each call computes `target_remaining_hp` from the `target_current_hp` you provide. When two or more combatants attack the SAME target in the same round, you MUST pass the actual remaining HP from the previous hit as `target_current_hp` in the next call. Do NOT blindly reuse the original HP value.
-               • Guardsman 5 hits Cookfire Bandit 1 for 10. The tool reports `target_remaining_hp: 1`. Guardsman 6 attacks the SAME Cookfire Bandit 1: pass `target_current_hp=1`, NOT 11.
-               • If you pass the original HP again, the tool's calculation will not account for the damage already dealt by the previous attacker.
 
             ── ROUND COMPLETION ──
            → The round is complete ONLY when ALL combatants (player, allies, and hostiles) have acted. If any combatant has not yet acted, resolve their action NOW with a new tool call before emitting the sync token.
