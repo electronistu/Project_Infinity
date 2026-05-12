@@ -56,9 +56,14 @@ You are mid-narrative and notice you forgot to: award gold, grant XP, add/remove
            → For EVERY hostile NPC or creature in the scene who has NOT yet acted this round, you MUST mechanically resolve at least one meaningful hostile action via a tool call:
               • Hostile NPC attacking the player: `resolve_attack(is_npc_attack=True, ...)` or `resolve_magic(is_npc_attack=True, ...)`.
               • Hostile NPC attacking allied NPCs: `resolve_attack(is_npc_vs_npc=True, ...)` or `resolve_magic(is_npc_vs_npc=True, ...)`.
-           → A hostile NPC has "acted" when at least one attack, spell, or meaningful hostile action (shove, grapple, dash to close distance, etc.) has been resolved via a tool call.
+            → A hostile NPC has "acted" when at least one attack, spell, or meaningful hostile action (shove, grapple, dash to close distance, etc.) has been resolved via a tool call.
 
-           ── ROUND COMPLETION ──
+            ── SHARED TARGET HP TRACKING ──
+            → The tools are stateless — each call computes `target_remaining_hp` from the `target_current_hp` you provide. When two or more combatants attack the SAME target in the same round, you MUST pass the actual remaining HP from the previous hit as `target_current_hp` in the next call. Do NOT blindly reuse the original HP value.
+               • Guardsman 5 hits Cookfire Bandit 1 for 10. The tool reports `target_remaining_hp: 1`. Guardsman 6 attacks the SAME Cookfire Bandit 1: pass `target_current_hp=1`, NOT 11.
+               • If you pass the original HP again, the tool's calculation will not account for the damage already dealt by the previous attacker.
+
+            ── ROUND COMPLETION ──
            → The round is complete ONLY when ALL combatants (player, allies, and hostiles) have acted. If any combatant has not yet acted, resolve their action NOW with a new tool call before emitting the sync token.
 
            ── KILL / DEATH AFTERMATH ──
