@@ -8,14 +8,6 @@
   "armor_class": 13,
   "hit_dice_size": 6,
   "speed": 35,
-  "stats": {
-    "str": 8,
-    "dex": 17,
-    "con": 12,
-    "int": 15,
-    "wis": 10,
-    "cha": 12
-  },
   "proficiency_bonus": 2,
   "skills": [
     "Stealth",
@@ -48,60 +40,30 @@
     "Common",
     "Elvish"
   ],
-  "reputation": {
-    "eldoria": {
-      "guard": [
-        {
-          "name": "Ashen Circle Whistleblower",
-          "description": "Electronistu reported the presence of a Zarthan Ashen Circle agent operating in the Thornwood, providing critical intelligence about the missing caravan and the enemy camp at the Hollow."
-        },
-        {
-          "name": "Registered Contractor",
-          "description": "Electronistu infiltrated an Ashen Circle safe house in the Dockside Ward, eliminating three hostiles and recovering critical intelligence \u2014 including safe house locations, sabotage targets, and a list of compromised officials. Formally commended by the Lord Commander."
-        }
-      ],
-      "mage": [],
-      "assassin": [],
-      "merchant": [
-        {
-          "name": "Reliable Caravan Guard",
-          "description": "Successfully defended a Merchant Guild caravan from bandits on the Silverwood route, nearly dying in the process."
-        }
-      ],
-      "thief": [],
-      "alchemists league": [],
-      "order of scribes": []
+  "features": [
+    "Darkvision",
+    "Fey Ancestry",
+    "Trance",
+    "Elf Weapon Training",
+    "Fleet of Foot",
+    "Mask of the Wild",
+    "Spellcasting",
+    "Arcane Recovery",
+    "Criminal Contact",
+    {
+      "name": "School of Illusion",
+      "description": "Electronistu has chosen the School of Illusion as his Arcane Tradition, specializing in magic that deceives the senses and the mind."
     },
-    "zarthus": {
-      "guard": [],
-      "mage": [],
-      "assassin": [],
-      "merchant": [],
-      "thief": [],
-      "alchemists league": []
+    {
+      "name": "Illusion Savant",
+      "description": "The gold and time spent to copy an Illusion spell into the spellbook is halved."
     },
-    "silverwood": {
-      "guard": [],
-      "mage": [],
-      "assassin": [],
-      "merchant": [
-        {
-          "name": "Registered Contractor",
-          "description": "Electronistu is a registered contractor with the Silverwood Merchant Guild, vouched for by the Eldoria Merchant Guild after surviving a bandit ambush on the Thornwood route."
-        }
-      ],
-      "thief": [],
-      "alchemists league": [],
-      "rangers conclave": []
-    },
-    "blacksail archipelago": {
-      "assassin": [],
-      "thief": []
+    {
+      "name": "Mark of the Deep Wood",
+      "description": "A faint pattern of silver-green veins traces Electronistu's left forearm \u2014 the sigil of an ancient forest spirit. The debt has been paid, but a new pact has begun. The spirit's purpose remains unknown, but its power thrums beneath the skin, waiting."
     }
-  },
+  ],
   "temporary_hit_points": 0,
-  "level": 3,
-  "total_hit_points": 16,
   "inventory": [
     "Spellbook",
     "Crowbar",
@@ -153,53 +115,112 @@
     {
       "name": "Cache #3 Inventory Ledger",
       "description": "A brittle parchment listing supplies stored at this location. Several items are crossed out \u2014 withdrawn recently. One entry at the bottom reads \"Package for Dregg \u2014 awaiting courier.\""
+    },
+    {
+      "name": "Cloak of Elvenkind",
+      "description": "A deep charcoal-grey cloak of ancient Silverwood weave. When the hood is raised, the cloak shifts colors to camouflage the wearer \u2014 Wisdom (Perception) checks to spot you have disadvantage, and you gain advantage on Dexterity (Stealth) checks to hide."
+    },
+    {
+      "name": "Grand Conflagration Plans",
+      "description": "A sheaf of papers from Voss's table \u2014 coded notes, a partial map of the Eldoria sewer system with three junctions circled in red ink, and a timetable referencing \"delivery windows\" at the Alchemist's League, the Guard Armory, and the Grand Temple. One phrase repeats throughout: \"The Crown rises from the ashes.\""
+    },
+    {
+      "name": "Voss's Orders",
+      "description": "A singed parchment bearing the Ashen Circle's black crown seal. Dated two weeks ago. Orders Voss to \"establish operational base at Tidewater, coordinate supply chain, await Ash Prime's signal.\" Mentions three other Cinder operatives still active in the city \u2014 Cinder 3, Cinder 5, and Cinder 9."
+    },
+    {
+      "name": "Ashen Cipher Key",
+      "description": "A small, singed codebook found hidden beneath a loose floorboard in Voss's quarters. Contains the substitution cipher used in the Grand Conflagration Plans \u2014 enough to decode the delivery targets and timetable."
     }
   ],
   "consumables": {
     "Bolts": 19,
     "Rations": 5,
     "Shadow Essence": 1,
-    "Health Potion": 1
+    "Potion of Invisibility": 1
   },
-  "features": [
-    "Darkvision",
-    "Fey Ancestry",
-    "Trance",
-    "Elf Weapon Training",
-    "Fleet of Foot",
-    "Mask of the Wild",
-    "Spellcasting",
-    "Arcane Recovery",
-    "Criminal Contact",
-    {
-      "name": "School of Illusion",
-      "description": "Electronistu has chosen the School of Illusion as his Arcane Tradition, specializing in magic that deceives the senses and the mind."
+  "gold": 788,
+  "xp": 2755,
+  "level": 4,
+  "total_hit_points": 18,
+  "reputation": {
+    "eldoria": {
+      "guard": [
+        {
+          "name": "Ashen Circle Whistleblower",
+          "description": "Electronistu reported the presence of a Zarthan Ashen Circle agent operating in the Thornwood, providing critical intelligence about the missing caravan and the enemy camp at the Hollow."
+        },
+        {
+          "name": "Registered Contractor",
+          "description": "Electronistu infiltrated an Ashen Circle safe house in the Dockside Ward, eliminating three hostiles and recovering critical intelligence \u2014 including safe house locations, sabotage targets, and a list of compromised officials. Formally commended by the Lord Commander."
+        },
+        {
+          "name": "Mole Hunter",
+          "description": "Electronistu tracked down and eliminated the Ashen Circle impostor wearing Sergeant Kellan Voss's face, recovering the Grand Conflagration Plans and a cipher key \u2014 intelligence that may save countless lives at the Festival of the Twin Moons."
+        }
+      ],
+      "mage": [],
+      "assassin": [],
+      "merchant": [
+        {
+          "name": "Reliable Caravan Guard",
+          "description": "Successfully defended a Merchant Guild caravan from bandits on the Silverwood route, nearly dying in the process."
+        }
+      ],
+      "thief": [],
+      "alchemists league": [],
+      "order of scribes": []
     },
-    {
-      "name": "Illusion Savant",
-      "description": "The gold and time spent to copy an Illusion spell into the spellbook is halved."
+    "zarthus": {
+      "guard": [],
+      "mage": [],
+      "assassin": [],
+      "merchant": [],
+      "thief": [],
+      "alchemists league": []
     },
-    {
-      "name": "Mark of the Deep Wood",
-      "description": "A faint pattern of silver-green veins traces Electronistu's left forearm \u2014 the sigil of an ancient forest spirit. The debt has been paid, but a new pact has begun. The spirit's purpose remains unknown, but its power thrums beneath the skin, waiting."
+    "silverwood": {
+      "guard": [],
+      "mage": [],
+      "assassin": [],
+      "merchant": [
+        {
+          "name": "Registered Contractor",
+          "description": "Electronistu is a registered contractor with the Silverwood Merchant Guild, vouched for by the Eldoria Merchant Guild after surviving a bandit ambush on the Thornwood route."
+        }
+      ],
+      "thief": [],
+      "alchemists league": [],
+      "rangers conclave": []
+    },
+    "blacksail archipelago": {
+      "assassin": [],
+      "thief": []
     }
-  ],
-  "xp": 1830,
-  "gold": 793,
-  "current_hit_points": 16,
-  "hit_dice_count": 3,
+  },
+  "stats": {
+    "str": 8,
+    "dex": 17,
+    "con": 12,
+    "int": 17,
+    "wis": 10,
+    "cha": 12
+  },
+  "current_hit_points": 18,
+  "hit_dice_count": 4,
   "spellcasting": {
     "ability": "intelligence",
-    "dc": 12,
-    "attack_modifier": 4,
+    "dc": 13,
+    "attack_modifier": 5,
     "cantrips": [
       "True Strike",
       "Mage Hand",
-      "Fire Bolt"
+      "Fire Bolt",
+      "Infestation"
     ],
     "slots": {
       "1": 4,
-      "2": 2
+      "2": 3
     },
     "spellbook": [
       "Sleep",
@@ -211,7 +232,9 @@
       "Disguise Self",
       "Charm Person",
       "Misty Step",
-      "Knock"
+      "Knock",
+      "Web",
+      "Invisibility"
     ],
     "spells_prepared": [
       {
@@ -224,7 +247,9 @@
         "name": "Disguise Self"
       },
       "Misty Step",
-      "Knock"
+      "Knock",
+      "Invisibility",
+      "Mage Armor"
     ]
   },
   "active_effects": [],

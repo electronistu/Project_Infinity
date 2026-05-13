@@ -206,7 +206,7 @@ When combat begins, the GM calls `register_combatants` once with all NPC partici
 
 Once the registry is active, `resolve_attack` and `resolve_magic` auto-lookup target HP by name — no need to pass `target_current_hp` on every call. When multiple combatants attack the same target in the same round, the engine automatically carries forward the reduced HP from each hit. Kill detection uses the correct remaining HP, not the original value.
 
-Calling `register_combatants` again overwrites the registry — no separate clear step needed. When the player launches a surprise attack (Magic Missile at a guard, crossbow from hiding), the protocol requires `register_combatants` to be called first, so the registry is active before the attack resolves.
+Calling `register_combatants` again overwrites the registry — no separate clear step needed. When the player launches a surprise attack (Magic Missile at a guard, crossbow from hiding), the protocol requires `register_combatants` to be called first, so the registry is active before the attack resolves. For mid-combat reinforcements or forgotten combatants, call `register_combatants(combatants=[...], add_to_existing=True)`. This adds NPCs to the existing registry without wiping it — existing HP states are preserved, and no initiative rolls are made for the new arrivals.
 
 ### Rest & Recovery
 
