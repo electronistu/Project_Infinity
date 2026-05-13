@@ -48,84 +48,6 @@
     "Common",
     "Elvish"
   ],
-  "level": 2,
-  "total_hit_points": 10,
-  "features": [
-    "Darkvision",
-    "Fey Ancestry",
-    "Trance",
-    "Elf Weapon Training",
-    "Fleet of Foot",
-    "Mask of the Wild",
-    "Spellcasting",
-    "Arcane Recovery",
-    "Criminal Contact",
-    {
-      "name": "Debt to the Deep Wood",
-      "description": "A mysterious forest spirit restored Electronistu's life. A favor is owed, to be called upon when the need is great."
-    },
-    {
-      "name": "School of Illusion",
-      "description": "Electronistu has chosen the School of Illusion as his Arcane Tradition, specializing in magic that deceives the senses and the mind."
-    },
-    {
-      "name": "Illusion Savant",
-      "description": "The gold and time spent to copy an Illusion spell into the spellbook is halved."
-    }
-  ],
-  "temporary_hit_points": 0,
-  "xp": 755,
-  "consumables": {
-    "Bolts": 20,
-    "Rations": 5,
-    "Shadow Essence": 1
-  },
-  "gold": 723,
-  "inventory": [
-    "Spellbook",
-    "Crowbar",
-    "Dark Common Clothes",
-    {
-      "name": "Dagger",
-      "description": "A simple, balanced blade (1d4 piercing, Finesse, Light, Thrown (range 20/60))"
-    },
-    {
-      "name": "Magda's Repeater",
-      "description": "A lever-action light crossbow, custom-made (1d8 piercing, Ammunition (range 80/320), Two-Handed, holds 4 bolts before reloading \u2014 no Loading property)"
-    },
-    {
-      "name": "Hempen Rope (50 ft)",
-      "description": "Sturdy hempen rope, 50 feet in length"
-    },
-    {
-      "name": "Bedroll",
-      "description": "A padded roll for sleeping on the ground"
-    },
-    {
-      "name": "Waterskin",
-      "description": "A leather container that holds up to 4 pints of liquid"
-    },
-    {
-      "name": "Shortsword",
-      "description": "A well-maintained blade taken from a dead ambusher (1d6 piercing, Finesse, Light)"
-    },
-    {
-      "name": "Ashen Circle Dossier",
-      "description": "A leather-bound folder stamped with a black crown wreathed in cinders. Contains decrypted safe house locations, sabotage targets, and a list of compromised officials in Eldoria City."
-    },
-    {
-      "name": "Thornwood Map (Marked)",
-      "description": "A folded map of the Thornwood with fresh ink notations. Cache #3 circled near the old Hollow, labeled \"Operational.\""
-    },
-    {
-      "name": "Dregg's Ledger",
-      "description": "A scribe's ledger containing shipping manifests, payment records, and message logs \u2014 Harlen Dregg's name appears throughout."
-    },
-    {
-      "name": "Guard Commendation",
-      "description": "A formal parchment sealed with the Lord Commander's signet. Grants official standing as a registered contractor for the Eldoria Guard \u2014 bounties may be taken directly from any Watchhouse in the city."
-    }
-  ],
   "reputation": {
     "eldoria": {
       "guard": [
@@ -177,8 +99,95 @@
       "thief": []
     }
   },
-  "current_hit_points": 10,
-  "hit_dice_count": 2,
+  "temporary_hit_points": 0,
+  "level": 3,
+  "total_hit_points": 16,
+  "inventory": [
+    "Spellbook",
+    "Crowbar",
+    "Dark Common Clothes",
+    {
+      "name": "Dagger",
+      "description": "A simple, balanced blade (1d4 piercing, Finesse, Light, Thrown (range 20/60))"
+    },
+    {
+      "name": "Magda's Repeater",
+      "description": "A lever-action light crossbow, custom-made (1d8 piercing, Ammunition (range 80/320), Two-Handed, holds 4 bolts before reloading \u2014 no Loading property)"
+    },
+    {
+      "name": "Hempen Rope (50 ft)",
+      "description": "Sturdy hempen rope, 50 feet in length"
+    },
+    {
+      "name": "Bedroll",
+      "description": "A padded roll for sleeping on the ground"
+    },
+    {
+      "name": "Waterskin",
+      "description": "A leather container that holds up to 4 pints of liquid"
+    },
+    {
+      "name": "Shortsword",
+      "description": "A well-maintained blade taken from a dead ambusher (1d6 piercing, Finesse, Light)"
+    },
+    {
+      "name": "Ashen Circle Dossier",
+      "description": "A leather-bound folder stamped with a black crown wreathed in cinders. Contains decrypted safe house locations, sabotage targets, and a list of compromised officials in Eldoria City."
+    },
+    {
+      "name": "Thornwood Map (Marked)",
+      "description": "A folded map of the Thornwood with fresh ink notations. Cache #3 circled near the old Hollow, labeled \"Operational.\""
+    },
+    {
+      "name": "Dregg's Ledger",
+      "description": "A scribe's ledger containing shipping manifests, payment records, and message logs \u2014 Harlen Dregg's name appears throughout."
+    },
+    {
+      "name": "Guard Commendation",
+      "description": "A formal parchment sealed with the Lord Commander's signet. Grants official standing as a registered contractor for the Eldoria Guard \u2014 bounties may be taken directly from any Watchhouse in the city."
+    },
+    {
+      "name": "Ashen Circle Communiqu\u00e9",
+      "description": "A sealed scroll case containing coded correspondence between \"Cinder 7\" and \"Ash Prime.\" References a \"Grand Conflagration\" scheduled for the Festival of the Twin Moons in Eldoria City \u2014 three weeks from now. Also mentions a mole within the Eldoria Guard."
+    },
+    {
+      "name": "Cache #3 Inventory Ledger",
+      "description": "A brittle parchment listing supplies stored at this location. Several items are crossed out \u2014 withdrawn recently. One entry at the bottom reads \"Package for Dregg \u2014 awaiting courier.\""
+    }
+  ],
+  "consumables": {
+    "Bolts": 19,
+    "Rations": 5,
+    "Shadow Essence": 1,
+    "Health Potion": 1
+  },
+  "features": [
+    "Darkvision",
+    "Fey Ancestry",
+    "Trance",
+    "Elf Weapon Training",
+    "Fleet of Foot",
+    "Mask of the Wild",
+    "Spellcasting",
+    "Arcane Recovery",
+    "Criminal Contact",
+    {
+      "name": "School of Illusion",
+      "description": "Electronistu has chosen the School of Illusion as his Arcane Tradition, specializing in magic that deceives the senses and the mind."
+    },
+    {
+      "name": "Illusion Savant",
+      "description": "The gold and time spent to copy an Illusion spell into the spellbook is halved."
+    },
+    {
+      "name": "Mark of the Deep Wood",
+      "description": "A faint pattern of silver-green veins traces Electronistu's left forearm \u2014 the sigil of an ancient forest spirit. The debt has been paid, but a new pact has begun. The spirit's purpose remains unknown, but its power thrums beneath the skin, waiting."
+    }
+  ],
+  "xp": 1830,
+  "gold": 793,
+  "current_hit_points": 16,
+  "hit_dice_count": 3,
   "spellcasting": {
     "ability": "intelligence",
     "dc": 12,
@@ -189,7 +198,8 @@
       "Fire Bolt"
     ],
     "slots": {
-      "1": 3
+      "1": 4,
+      "2": 2
     },
     "spellbook": [
       "Sleep",
@@ -199,7 +209,9 @@
       "False Life",
       "Detect Magic",
       "Disguise Self",
-      "Charm Person"
+      "Charm Person",
+      "Misty Step",
+      "Knock"
     ],
     "spells_prepared": [
       {
@@ -209,11 +221,10 @@
         "name": "Sleep"
       },
       {
-        "name": "Charm Person"
-      },
-      {
         "name": "Disguise Self"
-      }
+      },
+      "Misty Step",
+      "Knock"
     ]
   },
   "active_effects": [],

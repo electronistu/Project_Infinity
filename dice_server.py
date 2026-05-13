@@ -1377,27 +1377,38 @@ def _registry_max_hp(target_name: str) -> int:
 
 
 @mcp.tool()
-def register_combatants(combatants: list[dict]) -> dict:
+def register_combatants(combatants: list[dict], add_to_existing: bool = False) -> dict:
     """
     Registers all combatants for a battle and rolls initiative for everyone.
     The player is auto-registered from the database — do NOT include the player
-    in the combatants list. Calling this again overwrites any existing registry.
+    in the combatants list. Calling this again overwrites any existing registry
+    unless add_to_existing=True.
 
     PARAMETERS:
     - combatants: list of NPC dicts with the following fields:
       - name (str, required): combatant name, must match target_name in later calls
       - hp (int, required): starting hit points
       - ac (int, required): armor class
-      - initiative_modifier (int, required): DEX modifier for initiative
+      - initiative_modifier (int, required unless add_to_existing=True): DEX modifier
       - challenge_rating (float, optional): CR for XP awards
       - save_modifier (int, optional, default 0): generic save bonus
+    - add_to_existing (bool, default False): If True, adds the combatants to the
+      existing registry without wiping it. No initiative rolls are made for new
+      combatants — the GM handles their turn position narratively. initiative_modifier
+      is not needed when add_to_existing=True. Use this for mid-combat reinforcements
+      or combatants forgotten during the initial registration.
 
-    RETURNS:
+    RETURNS (add_to_existing=False):
     - all combatants (player + NPCs) with initiative rolls, sorted by total descending
     - initiative_order: flat list of names in turn order
     - registry_summary: all registered combatants with current HP and AC
 
-    EXAMPLE:
+    RETURNS (add_to_existing=True):
+    - registry_summary: all registered combatants with current HP and AC
+    - No initiative or initiative_order returned
+
+    EXAMPLES:
+    # Initial registration
     register_combatants(combatants=[
         {"name": "Scarred Half-Orc", "hp": 15, "ac": 14, "initiative_modifier": 1,
          "challenge_rating": 1, "save_modifier": 1},
@@ -1406,13 +1417,21 @@ def register_combatants(combatants: list[dict]) -> dict:
         {"name": "Kella", "hp": 30, "ac": 15, "initiative_modifier": 2},
         {"name": "Harlen Dregg", "hp": 30, "ac": 16, "initiative_modifier": 0},
     ])
+
+    # Mid-combat reinforcements
+    register_combatants(combatants=[
+        {"name": "Guard Reinforce 1", "hp": 11, "ac": 16},
+        {"name": "Guard Reinforce 2", "hp": 11, "ac": 16},
+    ], add_to_existing=True)
     """
     global _COMBAT_REGISTRY, DB_CONNECTION
-    _COMBAT_REGISTRY = {}
+
+    if not add_to_existing:
+        _COMBAT_REGISTRY = {}
 
     initiative_results = []
 
-    if DB_CONNECTION is not None:
+    if not add_to_existing and DB_CONNECTION is not None:
         cursor = DB_CONNECTION.cursor()
         player_name = _db_val(cursor, "name", "Player")
         stats_raw = _db_val(cursor, "stats", {})
@@ -1453,9 +1472,13 @@ def register_combatants(combatants: list[dict]) -> dict:
         name = c["name"]
         max_hp = c["hp"]
         ac = c["ac"]
-        init_mod = c["initiative_modifier"]
         cr = c.get("challenge_rating")
         save_mod = c.get("save_modifier", 0)
+
+        if add_to_existing:
+            init_mod = 0
+        else:
+            init_mod = c["initiative_modifier"]
 
         _COMBAT_REGISTRY[name] = {
             "current_hp": max_hp,
@@ -1470,36 +1493,47 @@ def register_combatants(combatants: list[dict]) -> dict:
             "killed": False,
         }
 
-        d20 = random.randint(1, 20)
-        init_total = d20 + init_mod
-        _COMBAT_REGISTRY[name]["initiative_roll"] = d20
-        _COMBAT_REGISTRY[name]["initiative_total"] = init_total
-        initiative_results.append({
-            "name": name,
-            "roll": d20,
-            "modifier": init_mod,
-            "total": init_total,
-            "is_player": False,
-        })
-
-    initiative_results.sort(key=lambda r: (-r["total"], r["name"]))
-    order = [r["name"] for r in initiative_results]
+        if not add_to_existing:
+            d20 = random.randint(1, 20)
+            init_total = d20 + init_mod
+            _COMBAT_REGISTRY[name]["initiative_roll"] = d20
+            _COMBAT_REGISTRY[name]["initiative_total"] = init_total
+            initiative_results.append({
+                "name": name,
+                "roll": d20,
+                "modifier": init_mod,
+                "total": init_total,
+                "is_player": False,
+            })
 
     registry_summary = []
-    for name, entry in _COMBAT_REGISTRY.items():
+    for rname, entry in _COMBAT_REGISTRY.items():
         registry_summary.append({
-            "name": name,
+            "name": rname,
             "hp": f"{entry['current_hp']}/{entry['max_hp']}",
             "ac": entry["ac"],
             "initiative": entry["initiative_total"],
             "is_player": entry.get("is_player", False),
         })
 
-    narrative_lines = [f"Combatants registered ({len(_COMBAT_REGISTRY)} total)."]
-    narrative_lines.append("Initiative Order:")
+    narrative_parts = [f"Combatants registered ({len(_COMBAT_REGISTRY)} total)."]
+
+    if add_to_existing:
+        added_names = [c["name"] for c in combatants]
+        narrative_parts.append(f"Added to existing registry: {', '.join(added_names)}")
+        return {
+            "success": True,
+            "registry_summary": registry_summary,
+            "narrative_format": "\n".join(narrative_parts),
+        }
+
+    initiative_results.sort(key=lambda r: (-r["total"], r["name"]))
+    order = [r["name"] for r in initiative_results]
+
+    narrative_parts.append("Initiative Order:")
     for i, r in enumerate(initiative_results, 1):
         tag = " (Player)" if r["is_player"] else ""
-        narrative_lines.append(
+        narrative_parts.append(
             f"  {i}. {r['name']}{tag}: {r['total']} ({r['roll']} + {r['modifier']})"
         )
 
@@ -1508,7 +1542,7 @@ def register_combatants(combatants: list[dict]) -> dict:
         "initiative": initiative_results,
         "initiative_order": order,
         "registry_summary": registry_summary,
-        "narrative_format": "\n".join(narrative_lines),
+        "narrative_format": "\n".join(narrative_parts),
     }
 
 
