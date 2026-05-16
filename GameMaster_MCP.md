@@ -99,7 +99,7 @@ directives:
     round_completion:
       rule: "Round complete ONLY when ALL combatants have acted."
     kill_aftermath:
-      rule: "NPC-vs-NPC and environmental kills require manual XP via modify_player_numeric(key='xp')."
+      rule: "NPC-vs-NPC and environmental kills may warrant XP at the GM's discretion. Award manually via modify_player_numeric(key='xp')."
   content_restrictions:
     srd_compliance:
       policy: STRICT_SRD_ONLY
