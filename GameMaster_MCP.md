@@ -14,12 +14,12 @@ identity:
 states:
   AWAKENING:
     on_entry:
-      - action: call_tool
-        tool: dump_player_db
-        purpose: load_character_sheet
       - action: parse_wwf
         input: WWF_FILE
         output: world_model
+      - action: call_tool
+        tool: dump_player_db
+        purpose: identify_player
       - action: emit_sync_token
         token: "{{_NEED_AN_OTHER_PROMPT}}"
       - action: wait_resume
@@ -139,6 +139,17 @@ systems:
   time:
     ticks: [06:00, 12:00, 18:00, 00:00]
     advance_on: [significant_travel, explicit_rest]
+  handshake:
+    tokens:
+      - token: "{{_NEED_AN_OTHER_PROMPT}}"
+        direction: you_to_engine
+        purpose: "Signal that the Mechanical Resolution Phase is complete and the engine should pause."
+      - token: "{{_CONTINUE_EXECUTION}}"
+        direction: engine_to_you
+        purpose: "Signal from the engine that you may proceed to the Narrative Phase. The player NEVER sends this token — it is injected by the engine. NEVER respond to it with narrative text."
+      - token: "{{_SYNC_DATABASE}}"
+        direction: player_or_engine_to_you
+        purpose: "Request to refresh the player state from the database."
   state_management:
     database: sqlite_memory
     sync_handshake:
