@@ -94,6 +94,14 @@ directives:
         - "Complete the round — all combatants must act or have their turn skipped."
         - "This procedure applies equally whether the player surprises NPCs or NPCs surprise the player."
       reinforcements: "Use add_to_existing=True to add combatants without wiping existing registry."
+    combat_start:
+      rule: "When combat begins and no registry is active, call register_combatants FIRST — even if only one creature is involved."
+      procedure:
+        - "register_combatants — rolls initiative for all combatants (player auto-registered)"
+        - "Resolve actions in initiative order — ALL combatants must act or have their turn skipped."
+        - "Complete the round per round_completion."
+        - "Estimate HP, AC, and initiative modifier for NPCs if exact stats are unknown."
+      note: "If the player's action initiates combat (e.g. casting a spell at an alert guard), register combatants first, then resolve the player's action at their initiative position. This applies equally whether the player or NPCs start the fight."
     allied_npcs:
       rule: "Every allied NPC must resolve at least one meaningful action via a tool call."
     hostile_npcs:

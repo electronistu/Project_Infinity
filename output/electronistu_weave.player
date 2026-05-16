@@ -78,9 +78,9 @@
     "wis": 10,
     "cha": 12
   },
-  "xp": 4205,
   "armor_class": 14,
   "temporary_hit_points": 0,
+  "gold": 229,
   "inventory": [
     "Spellbook",
     "Crowbar",
@@ -132,10 +132,6 @@
     {
       "name": "Cache #3 Inventory Ledger",
       "description": "A brittle parchment listing supplies stored at this location. Several items are crossed out \u2014 withdrawn recently. One entry at the bottom reads \"Package for Dregg \u2014 awaiting courier.\""
-    },
-    {
-      "name": "Cloak of Elvenkind",
-      "description": "A deep charcoal-grey cloak of ancient Silverwood weave. When the hood is raised, the cloak shifts colors to camouflage the wearer \u2014 Wisdom (Perception) checks to spot you have disadvantage, and you gain advantage on Dexterity (Stealth) checks to hide."
     },
     {
       "name": "Grand Conflagration Plans",
@@ -196,9 +192,33 @@
     {
       "name": "Corvin's Coded Notebook",
       "description": "A slim leather notebook filled with densely written entries in a personal cipher. Contains records of informant payments, dead drop locations, and shipping intelligence bound for Zarthus. May take time to decode fully."
+    },
+    {
+      "name": "Voss's Shipping Ledger",
+      "description": "A leather-bound ledger containing real manifests \u2014 Zarthan steel, alchemical supplies, and crossbow components smuggled under false labels. Destinations include three Merchant Ward addresses."
+    },
+    {
+      "name": "Zarthan Correspondence",
+      "description": "Letters between Doran Voss and a Zarthan contact discussing shipment schedules, warehouse availability, and the Conflagration timetable."
+    },
+    {
+      "name": "Warehouse 7 Key",
+      "description": "A small, well-worn iron key labeled in Voss's handwriting \u2014 'Warehouse 7 \u2014 Pier 12.'"
+    },
+    {
+      "name": "Ashen Circle Hit List",
+      "description": "A sealed envelope containing a coded message and a list of Cinder operatives. Cinder 3 in Goldsmith's Alley, Cinder 9 at the Shrine of Saint Aldric. Notes that Doran Voss is 'compromised' and marked for termination before the Festival."
+    },
+    {
+      "name": "Velvet Gem Pouch",
+      "description": "A small black velvet bag containing three polished bloodstones \u2014 deep green with red flecks. Worth approximately 30 gp each to the right buyer."
+    },
+    {
+      "name": "Scroll of Misty Step",
+      "description": "A slim leather scroll case containing a spell scroll. The parchment within shimmers with faint silver ink \u2014 Misty Step, ready for a single use."
     }
   ],
-  "gold": 213,
+  "xp": 4555,
   "reputation": {
     "eldoria": {
       "guard": [
@@ -244,7 +264,12 @@
           "description": "Successfully defended a Merchant Guild caravan from bandits on the Silverwood route, nearly dying in the process."
         }
       ],
-      "thief": [],
+      "thief": [
+        {
+          "name": "Silverscale Heist",
+          "description": "Electronistu infiltrated the Silver Scale Exchange, eliminated the night guard, cracked Doran Voss's safe, and delivered a trove of incriminating documents to the Thief Guild \u2014 including the Ashen Circle hit list, smuggling ledgers, and proof of Voss's connection to the Grand Conflagration plot. Durgan is impressed. The guild now considers Electronistu a trusted asset."
+        }
+      ],
       "alchemists league": [
         {
           "name": "Friend of the League",
