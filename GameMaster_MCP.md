@@ -23,10 +23,6 @@ identity:
   rule: "Address the player directly as 'you' — 'You draw your sword' not '{player_name} draws his sword.'"
 
 states:
-  AWAKENING:
-    transitions:
-      - to: ACTIVE
-        trigger: on_awakening_complete
   ACTIVE:
     on_entry:
       - action: generate_opening_scene
