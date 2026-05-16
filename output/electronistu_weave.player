@@ -5,7 +5,6 @@
   "background": "Criminal",
   "alignment": "Chaotic Neutral",
   "gender": "male",
-  "armor_class": 13,
   "hit_dice_size": 6,
   "speed": 35,
   "proficiency_bonus": 2,
@@ -63,7 +62,145 @@
       "description": "A faint pattern of silver-green veins traces Electronistu's left forearm \u2014 the sigil of an ancient forest spirit. The debt has been paid, but a new pact has begun. The spirit's purpose remains unknown, but its power thrums beneath the skin, waiting."
     }
   ],
+  "consumables": {
+    "Bolts": 19,
+    "Rations": 5,
+    "Shadow Essence": 1,
+    "Potion of Invisibility": 1
+  },
+  "level": 4,
+  "total_hit_points": 18,
+  "stats": {
+    "str": 8,
+    "dex": 17,
+    "con": 12,
+    "int": 17,
+    "wis": 10,
+    "cha": 12
+  },
   "temporary_hit_points": 0,
+  "xp": 4205,
+  "reputation": {
+    "eldoria": {
+      "guard": [
+        {
+          "name": "Ashen Circle Whistleblower",
+          "description": "Electronistu reported the presence of a Zarthan Ashen Circle agent operating in the Thornwood, providing critical intelligence about the missing caravan and the enemy camp at the Hollow."
+        },
+        {
+          "name": "Registered Contractor",
+          "description": "Electronistu infiltrated an Ashen Circle safe house in the Dockside Ward, eliminating three hostiles and recovering critical intelligence \u2014 including safe house locations, sabotage targets, and a list of compromised officials. Formally commended by the Lord Commander."
+        },
+        {
+          "name": "Mole Hunter",
+          "description": "Electronistu tracked down and eliminated the Ashen Circle impostor wearing Sergeant Kellan Voss's face, recovering the Grand Conflagration Plans and a cipher key \u2014 intelligence that may save countless lives at the Festival of the Twin Moons."
+        },
+        {
+          "name": "Special Deputization",
+          "description": "Electronistu has been granted a special investigator's commission by Captain Rhea Halstead, reporting directly to her and the Lord Commander. Tasked with rooting out the Ashen Circle mole within the Eldoria Guard and stopping the Grand Conflagration before the Festival of the Twin Moons."
+        },
+        {
+          "name": "Mole Eliminated",
+          "description": "Electronistu tracked down and personally eliminated Lieutenant Harlen Dregg \u2014 the Ashen Circle mole inside the Eldoria Guard. Dregg's final report to Ash Prime was recovered, confirming his treachery and providing critical intelligence on the Grand Conflagration plot."
+        }
+      ],
+      "mage": [],
+      "assassin": [
+        {
+          "name": "Double Agent Offer",
+          "description": "Electronistu infiltrated the Eldoria Assassin Guild's hidden temple and offered to serve as their inside man within the Eldoria Guard \u2014 trading his special deputization, access to personnel files, and knowledge of the Grand Conflagration investigation for a seat at the table after a city takeover."
+        },
+        {
+          "name": "Provisional Member",
+          "description": "Electronistu has been granted provisional membership in the Eldoria Assassin Guild after eliminating Harlen Dregg and Cinder 5. Full membership \u2014 and a seat at the inner table \u2014 awaits the completion of his mission against the Ashen Circle."
+        }
+      ],
+      "merchant": [
+        {
+          "name": "Reliable Caravan Guard",
+          "description": "Successfully defended a Merchant Guild caravan from bandits on the Silverwood route, nearly dying in the process."
+        }
+      ],
+      "thief": [],
+      "alchemists league": [],
+      "order of scribes": []
+    },
+    "zarthus": {
+      "guard": [],
+      "mage": [],
+      "assassin": [],
+      "merchant": [],
+      "thief": [],
+      "alchemists league": []
+    },
+    "silverwood": {
+      "guard": [],
+      "mage": [],
+      "assassin": [],
+      "merchant": [
+        {
+          "name": "Registered Contractor",
+          "description": "Electronistu is a registered contractor with the Silverwood Merchant Guild, vouched for by the Eldoria Merchant Guild after surviving a bandit ambush on the Thornwood route."
+        }
+      ],
+      "thief": [],
+      "alchemists league": [],
+      "rangers conclave": []
+    },
+    "blacksail archipelago": {
+      "assassin": [],
+      "thief": []
+    }
+  },
+  "current_hit_points": 18,
+  "hit_dice_count": 4,
+  "spellcasting": {
+    "ability": "intelligence",
+    "dc": 13,
+    "attack_modifier": 5,
+    "cantrips": [
+      "True Strike",
+      "Mage Hand",
+      "Fire Bolt",
+      "Infestation"
+    ],
+    "slots": {
+      "1": 4,
+      "2": 3
+    },
+    "spellbook": [
+      "Sleep",
+      "Magic Missile",
+      "Mage Armor",
+      "Identify",
+      "False Life",
+      "Detect Magic",
+      "Disguise Self",
+      "Charm Person",
+      "Misty Step",
+      "Knock",
+      "Web",
+      "Invisibility"
+    ],
+    "spells_prepared": [
+      {
+        "name": "Magic Missile"
+      },
+      {
+        "name": "Sleep"
+      },
+      {
+        "name": "Disguise Self"
+      },
+      "Misty Step",
+      "Knock",
+      "Invisibility",
+      "Mage Armor"
+    ]
+  },
+  "active_effects": [],
+  "_active_buff_data": {},
+  "gold": 188,
   "inventory": [
     "Spellbook",
     "Crowbar",
@@ -131,127 +268,43 @@
     {
       "name": "Ashen Cipher Key",
       "description": "A small, singed codebook found hidden beneath a loose floorboard in Voss's quarters. Contains the substitution cipher used in the Grand Conflagration Plans \u2014 enough to decode the delivery targets and timetable."
+    },
+    {
+      "name": "Guard Investigator Badge",
+      "description": "A small iron badge stamped with the Eldoria Guard's blue falcon. Grants special deputization \u2014 full access to Guard resources, Watchhouse archives, and personnel files. Reports directly to Captain Rhea Halstead and the Lord Commander."
+    },
+    {
+      "name": "Dregg's Final Report",
+      "description": "A folded parchment from Harlen Dregg's breast pocket \u2014 a half-written report to Ash Prime, dated today. It confirms Dregg was feeding Guard patrol schedules and festival security plans to the Ashen Circle. The report is unfinished. The last line reads: \"Cinder 5 reports the sewer cache is fully stocked. Awaiting final delivery coordinates for the Alchemist's League.\""
+    },
+    {
+      "name": "Cinder 5's Folio",
+      "description": "A singed leather folio containing operational notes. References a \"Cinder 3\" operating in the Merchant Ward and a \"Cinder 9\" embedded somewhere near the Grand Temple. Also contains a crude sketch of the Eldoria sewer system with two junctions marked \u2014 one near the Alchemist's League, one near the Guard Armory. A third junction near the Grand Temple is circled but unmarked, with a question mark beside it."
+    },
+    {
+      "name": "Dockside Contact's Papers",
+      "description": "Standard dockworker identification \u2014 name listed as \"Petyr Holm.\" Includes a cargo manifest for the warehouse, listing mundane goods. But one entry at the bottom is handwritten: \"Special delivery \u2014 hold for C5. Do not open.\""
+    },
+    {
+      "name": "Dregg's Hit List",
+      "description": "A folded slip of paper from a hidden compartment in Dregg's boot. Lists six Guard personnel \u2014 four crossed out, two unmarked. Labeled \"Compromised \u2014 approach with caution.\" The two remaining names: Sergeant Doran Voss and Corporal Mira Thorne."
+    },
+    {
+      "name": "Stolen Alchemical Vial",
+      "description": "A small glass vial of thick amber liquid, bearing the Eldoria Alchemist's League symbol. Found in a hidden lockbox beneath a loose floorboard. Purpose unknown \u2014 possibly a reagent, a catalyst, or a poison."
+    },
+    {
+      "name": "Blasting Powder (4 pots)",
+      "description": "Four clay pots of crude grey powder \u2014 sulfur and charcoal mix. Enough combined force to breach a stone wall or collapse a foundation. Packed in a crate marked \"Special delivery \u2014 hold for C5.\""
+    },
+    {
+      "name": "Assassin's Ring",
+      "description": "A plain iron ring etched with the Eldoria Assassin Guild's mark. Grants provisional membership \u2014 access to safe houses, information networks, and contacts in the Merchant Ward and Temple district. Full membership (and a seat at the table) contingent on eliminating Cinder 3, Cinder 9, and Ash Prime, and stopping the Grand Conflagration."
+    },
+    {
+      "name": "Ring of Protection",
+      "description": "A plain silver ring with faint protective runes shimmering beneath the surface. Requires attunement. Grants +1 bonus to AC and +1 bonus to all saving throws. Acquired from Orin Frostvein, a retired evoker in Silverwood City."
     }
   ],
-  "consumables": {
-    "Bolts": 19,
-    "Rations": 5,
-    "Shadow Essence": 1,
-    "Potion of Invisibility": 1
-  },
-  "gold": 788,
-  "xp": 2755,
-  "level": 4,
-  "total_hit_points": 18,
-  "reputation": {
-    "eldoria": {
-      "guard": [
-        {
-          "name": "Ashen Circle Whistleblower",
-          "description": "Electronistu reported the presence of a Zarthan Ashen Circle agent operating in the Thornwood, providing critical intelligence about the missing caravan and the enemy camp at the Hollow."
-        },
-        {
-          "name": "Registered Contractor",
-          "description": "Electronistu infiltrated an Ashen Circle safe house in the Dockside Ward, eliminating three hostiles and recovering critical intelligence \u2014 including safe house locations, sabotage targets, and a list of compromised officials. Formally commended by the Lord Commander."
-        },
-        {
-          "name": "Mole Hunter",
-          "description": "Electronistu tracked down and eliminated the Ashen Circle impostor wearing Sergeant Kellan Voss's face, recovering the Grand Conflagration Plans and a cipher key \u2014 intelligence that may save countless lives at the Festival of the Twin Moons."
-        }
-      ],
-      "mage": [],
-      "assassin": [],
-      "merchant": [
-        {
-          "name": "Reliable Caravan Guard",
-          "description": "Successfully defended a Merchant Guild caravan from bandits on the Silverwood route, nearly dying in the process."
-        }
-      ],
-      "thief": [],
-      "alchemists league": [],
-      "order of scribes": []
-    },
-    "zarthus": {
-      "guard": [],
-      "mage": [],
-      "assassin": [],
-      "merchant": [],
-      "thief": [],
-      "alchemists league": []
-    },
-    "silverwood": {
-      "guard": [],
-      "mage": [],
-      "assassin": [],
-      "merchant": [
-        {
-          "name": "Registered Contractor",
-          "description": "Electronistu is a registered contractor with the Silverwood Merchant Guild, vouched for by the Eldoria Merchant Guild after surviving a bandit ambush on the Thornwood route."
-        }
-      ],
-      "thief": [],
-      "alchemists league": [],
-      "rangers conclave": []
-    },
-    "blacksail archipelago": {
-      "assassin": [],
-      "thief": []
-    }
-  },
-  "stats": {
-    "str": 8,
-    "dex": 17,
-    "con": 12,
-    "int": 17,
-    "wis": 10,
-    "cha": 12
-  },
-  "current_hit_points": 18,
-  "hit_dice_count": 4,
-  "spellcasting": {
-    "ability": "intelligence",
-    "dc": 13,
-    "attack_modifier": 5,
-    "cantrips": [
-      "True Strike",
-      "Mage Hand",
-      "Fire Bolt",
-      "Infestation"
-    ],
-    "slots": {
-      "1": 4,
-      "2": 3
-    },
-    "spellbook": [
-      "Sleep",
-      "Magic Missile",
-      "Mage Armor",
-      "Identify",
-      "False Life",
-      "Detect Magic",
-      "Disguise Self",
-      "Charm Person",
-      "Misty Step",
-      "Knock",
-      "Web",
-      "Invisibility"
-    ],
-    "spells_prepared": [
-      {
-        "name": "Magic Missile"
-      },
-      {
-        "name": "Sleep"
-      },
-      {
-        "name": "Disguise Self"
-      },
-      "Misty Step",
-      "Knock",
-      "Invisibility",
-      "Mage Armor"
-    ]
-  },
-  "active_effects": [],
-  "_active_buff_data": {}
+  "armor_class": 14
 }

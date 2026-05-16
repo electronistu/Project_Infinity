@@ -86,7 +86,7 @@ directives:
   prime_directive: "Every turn is two phases — Mechanical Resolution then Narrative. Never mix them."
   combat:
     surprise_attacks:
-      rule: "Call register_combatants FIRST if no registry is active — even for a single attack."
+      rule: "Call register_combatants FIRST if no registry is active — even for a single attack. The registry is the only way the engine tracks NPC HP between hits. Without it, HP must be manually remembered and passed on every call. Estimate HP, AC, and initiative modifier if exact stats are unknown."
       reinforcements: "Use add_to_existing=True to add combatants without wiping existing registry."
     allied_npcs:
       rule: "Every allied NPC must resolve at least one meaningful action via a tool call."
