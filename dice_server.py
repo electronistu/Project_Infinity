@@ -531,34 +531,27 @@ def _validate_spell_slot(cursor, slot_key, delta):
 @mcp.tool()
 def modify_player_numeric(key: str, delta: int) -> dict:
     """
-    Increments or decrements a numeric player attribute. Supports dotted notation for nested attributes.
+    Increments or decrements a numeric player attribute. Supports dotted notation for nested paths.
 
-    KEY RULES (enforced by this tool):
-    - current_hit_points: Automatically clamped to [0, total_hit_points]. Returns an HP status tag.
-      When HP reaches 0, the response includes "status: Unconscious" and a death_saves flag.
-    - spellcasting.slots.N: Validates the slot exists and has uses remaining before decrementing.
-      Returns an error with available slots if the slot is empty.
-    - consumables.ITEM: Auto-creates the entry at 0 if missing. At 0 quantity, the item is removed
-      and a DEPLETION message is returned. NEGATIVE values are NOT allowed — the tool clamps to 0.
-    - xp: When XP crosses a D&D 5E level threshold, ALL numeric level-up changes are applied
-      automatically: level, proficiency_bonus, hit_dice_count, total_hit_points (rolled hit dice + CON mod),
-      and spellcasting (slots, dc, attack_modifier). The response includes a full change summary.
-      You MUST still manually apply: new class features, new cantrips/spells known, ability score
-      improvements (levels 4/8/12/16/19), and subclass progression via update_player_list.
-    - IMPORTANT: You MUST award XP for any creatures the player kills and on quest completion.
-      Use key='xp' with the appropriate positive delta.
+    PARAMETERS:
+    - key: dotted path to the numeric field (e.g. 'gold', 'spellcasting.slots.1', 'consumables.Bolts')
+    - delta: integer increment (negative to decrement)
 
-    DOTTED PATH EXAMPLES:
-    - Top-level: modify_player_numeric(key='gold', delta=-10)
-    - Nested slot: modify_player_numeric(key='spellcasting.slots.1', delta=-1)
-    - Consumable: modify_player_numeric(key='consumables.Bolts', delta=-1)
-    - Add consumable: modify_player_numeric(key='consumables.Arrows', delta=20)
+    PROJECT-SPECIFIC BEHAVIORS:
+    1. current_hit_points: Clamped to [0, total_hit_points]. At 0, returns death_saves flag and Unconscious status.
+    2. spellcasting.slots.N: Validates slot availability before decrementing. Returns error with available slots if empty.
+    3. consumables.ITEM: Auto-creates at 0 if missing. At 0 or below, auto-removed with DEPLETION message.
+       Values are clamped to 0 — items cannot have negative quantity.
+    4. xp: Crossing a level threshold auto-applies ALL numeric level-up changes (level, proficiency, hit dice,
+       HP rolls, spell slots, DC, attack modifier). You MUST still manually apply class features,
+       cantrips/spells known, ASIs (levels 4/8/12/16/19), and subclass features via update_player_list.
 
-    KEY REFERENCE (common keys):
-    current_hit_points, total_hit_points, armor_class, gold, xp, level,
-    proficiency_bonus, hit_dice_count, hit_dice_size, speed,
-    spellcasting.slots.1, spellcasting.slots.2, ... spellcasting.slots.9,
-    consumables.Bolts, consumables.Arrows, consumables.Health Potion, etc.
+    EXAMPLES:
+    modify_player_numeric(key='gold', delta=-10)
+    modify_player_numeric(key='spellcasting.slots.1', delta=-1)
+    modify_player_numeric(key='consumables.Bolts', delta=-1)
+    modify_player_numeric(key='consumables.Arrows', delta=20)
+    modify_player_numeric(key='xp', delta=50)
     """
     global DB_CONNECTION
     if DB_CONNECTION is None:
@@ -730,41 +723,25 @@ def update_player_list(key: str, item: str, action: str) -> dict:
     """
     Adds or removes an item from a player list.
 
-    SPELL CASTING RULES (enforced by this tool):
-    - Known casters (Bard, Sorcerer, Warlock, Ranger): use 'spellcasting.spells_known'.
-    - Prepared casters (Cleric, Druid, Paladin, Artificer): use 'spellcasting.spells_prepared'.
-      Capacity enforced: max = spellcasting_ability_modifier + character_level.
-      At capacity, the tool rejects the add and returns the current spell list.
-    - Wizards: add to 'spellcasting.spellbook' for the reference pool, then prepare via 'spellcasting.spells_prepared'.
-    - If a player tries to cast a spell not on their castable list, DO NOT resolve it mechanically.
-      Narrate that the spell is not known/prepared and list available castable spells.
+    PARAMETERS:
+    - key: dotted path to the list (e.g. 'inventory', 'spellcasting.spells_known', 'reputation.eldoria.guard')
+    - item: for add — 'Name: Description' (description optional); for remove — name ONLY (never include the description)
+    - action: 'add' or 'remove'
 
-    CONSUMABLES: NEVER use this tool for consumable quantity changes.
-    Use modify_player_numeric with key='consumables.ITEM' instead.
-
-    VALID KEYS:
-    inventory, spellcasting.spells_known, spellcasting.spells_prepared,
-    spellcasting.spellbook, spellcasting.cantrips, skills, features,
-    languages, saves, armor_proficiencies, weapon_proficiencies, tool_proficiencies,
-    active_effects, reputation, reputation.KINGDOM.FACTION
-
-    FORMAT for add: 'Item Name: Description' (description optional)
-    IMPORTANT for remove: pass ONLY the item name, never the description.
-      Items stored as dicts {name, description} are matched by name only.
-
-    REPUTATION: Use reputation.KINGDOM.FACTION to track the player's standing.
-    Kingdom and faction names must be lowercase with no apostrophes
-    (e.g. 'eldoria', 'blacksail archipelago', 'guard', 'alchemists league', 'rangers conclave').
-    Each entry is a title:description pair stored as a list entry.
+    PROJECT-SPECIFIC BEHAVIORS:
+    1. Prepared casters: capacity enforced on spells_prepared (max = spellcasting_ability_mod + level).
+       At capacity, the add is rejected with the current spell list.
+    2. Removing from active_effects auto-reverts any stat deltas applied by that effect.
+    3. CONSUMABLES: NEVER use this tool for consumable quantities — use modify_player_numeric(key='consumables.ITEM', delta=N) instead.
+    4. Reputation: use key='reputation.KINGDOM.FACTION' with lowercase kingdom/faction names and no apostrophes.
+       Each entry is a 'Title: Description' pair.
 
     EXAMPLES:
-    - update_player_list(key='inventory', item='Dagger: A rusty blade (1d4 piercing, Finesse, Light, Thrown (range 20/60))', action='add')
-    - update_player_list(key='inventory', item='Dagger', action='remove')          ← name only, NOT 'Dagger: A rusty blade...'
-    - update_player_list(key='spellcasting.spells_known', item='Shield', action='remove')
-    - update_player_list(key='spellcasting.spells_prepared', item='Fireball', action='add')
-    - update_player_list(key='reputation.eldoria.guard', item='Hero of the City: After defending the city from a dragon attack, {player_name} is a well known hero among people of Eldoria', action='add')
-
-    action: 'add' or 'remove'
+    update_player_list(key='inventory', item='Dagger: A rusty blade (1d4 piercing, Finesse, Light, Thrown (range 20/60))', action='add')
+    update_player_list(key='inventory', item='Dagger', action='remove')          ← name only, NOT 'Dagger: A rusty blade...'
+    update_player_list(key='spellcasting.spells_known', item='Shield', action='remove')
+    update_player_list(key='spellcasting.spells_prepared', item='Fireball', action='add')
+    update_player_list(key='reputation.eldoria.guard', item='Hero of the City: After defending the city from a dragon attack, {player_name} is a well known hero among people of Eldoria', action='add')
     """
     global DB_CONNECTION
     if DB_CONNECTION is None:
@@ -911,8 +888,7 @@ def update_player_list(key: str, item: str, action: str) -> dict:
 @mcp.tool()
 def dump_player_db() -> dict:
     """
-    Returns a full dump of the current in-memory player database.
-    Use this tool to refresh your understanding of the player's stats, inventory, spell slots, and condition.
+    Returns a full dump of the current in-memory player database for state refresh.
     """
     global DB_CONNECTION
     if DB_CONNECTION is None:
@@ -941,35 +917,26 @@ def dump_player_db() -> dict:
 @mcp.tool()
 def rest(rest_type: str, prepared_spells: list[str] | None = None) -> dict:
     """
-    Applies a short or long rest to the player character per SRD 5.1 rules.
-    All numeric changes are auto-applied to the database.
+    Applies a short or long rest. All numeric changes auto-applied to the database.
 
     PARAMETERS:
     - rest_type: "short" or "long"
-    - prepared_spells: (long rest only, optional) Full replacement list of spell names to prepare.
-      Validated against max capacity (spellcasting_ability_modifier + level, min 1).
-      For Wizards: all spells must exist in the spellbook.
-      For known casters (Bard, Sorcerer, Warlock, Ranger): this parameter is ignored/error.
+    - prepared_spells: (long rest only, optional) full replacement list of spell names to prepare.
+      Validated against max capacity. Wizards validated against spellbook. Known casters ignored/error.
 
-    SHORT REST AUTO-APPLIES:
-    - Hit dice: spends hit dice one-by-one until HP is full or no dice remain.
-      Each die: roll 1d<hit_dice_size> + CON mod (min 0), heal HP, decrement hit_dice_count.
-    - Warlock: full Pact Magic slot restore from Warlock slot table.
-    - Wizard: Arcane Recovery auto-applied — recovers up to ceil(level/2) combined slot levels,
-      greedily from lowest expended slots first. Cannot recover 6th+ level slots.
+    PROJECT-SPECIFIC BEHAVIORS:
+    1. Short rest: auto-spends hit dice one-by-one until HP full or no dice remain.
+       Warlocks: full Pact Magic restore. Wizards: Arcane Recovery auto-applied
+       (ceil(level/2) combined slot levels, greedily from lowest expended, cannot recover 6th+ slots).
+    2. Long rest: full HP, regain max(level//2, 1) hit dice (capped at level), all slots restored,
+       all active effects cleared with stat deltas reverted.
+    3. Long rest rejected if HP is 0.
+    4. Returns hints for class features that need manual recharge.
 
-    LONG REST AUTO-APPLIES:
-    - HP: fully restored to total_hit_points.
-    - Hit dice: regain max(level // 2, 1) spent hit dice (cannot exceed level).
-    - Spell slots: all slots fully restored from the appropriate slot table.
-    - Active effects: all active_effects and _active_buff_data are cleared, stat deltas reverted.
-    - Prepared spells: if provided, replaces the full prepared list (validated).
-
-    CONSTRAINTS:
-    - Long rest requires at least 1 current HP to benefit.
-    - Cannot benefit from more than one long rest per 24 hours (GM tracks narratively).
-
-    Returns a hints list for manual GM follow-up (class features that recharge, etc.).
+    EXAMPLES:
+    rest(rest_type='short')
+    rest(rest_type='long')
+    rest(rest_type='long', prepared_spells=['Magic Missile', 'Shield', 'Mage Armor', 'Burning Hands'])
     """
     global DB_CONNECTION
     if DB_CONNECTION is None:
@@ -1226,25 +1193,20 @@ def rest(rest_type: str, prepared_spells: list[str] | None = None) -> dict:
 @mcp.tool()
 def roll_dice(dice_notation: str, modifier: int = 0, actor: str = "{player_name}") -> dict:
     """
-    Rolls dice based on standard notation.
+    Rolls dice for damage, healing, loot quantity, or any random magnitude.
 
-    DECISION GUIDE: Use this tool ONLY for "How much X?" scenarios — damage, healing, loot quantity,
-    initiative, or any situation where you need a random magnitude. Do NOT use this for success/failure
-    checks; use 'perform_check' instead.
+    PARAMETERS:
+    - dice_notation: dice only (e.g. '3d4'), do NOT include modifiers in this string
+    - modifier: flat bonus/penalty to add to the roll total
+    - actor: who is rolling — character name for player, NPC/creature name for NPCs
 
     RULES:
-    - dice_notation must ONLY contain the dice (e.g., '3d4'). Do NOT include modifiers like '+3' in the string.
-    - All bonuses or penalties MUST go in the modifier parameter.
-    - The actor parameter MUST identify who is rolling: use the player's character name for the player,
-      and the NPC/creature's name for NPCs (e.g., 'Goblin Brute', 'Guard Captain').
-    - NEVER use the player's name for NPC actions, and NEVER use an NPC's name for the player's actions.
+    - Use this for "how much?" scenarios only. For success/failure checks, use perform_check.
+    - Include the 'narrative_format' field from the response verbatim when disclosing results.
 
-    Correct: roll_dice(actor='Senna', dice_notation='3d4', modifier=3)
-    Correct: roll_dice(actor='Goblin Brute', dice_notation='1d6', modifier=2)
-    Incorrect: roll_dice(dice_notation='3d4+3', modifier=0)
-
-    The response includes a 'narrative_format' field with a pre-formatted string suitable for direct
-    inclusion in your narrative output. Use this format when disclosing roll results to the player.
+    EXAMPLES:
+    roll_dice(actor='Senna', dice_notation='3d4', modifier=3)
+    roll_dice(actor='Goblin Brute', dice_notation='1d6', modifier=2)
     """
     try:
         if actor == "{player_name}" and DB_CONNECTION is not None:
@@ -1284,26 +1246,23 @@ def roll_dice(dice_notation: str, modifier: int = 0, actor: str = "{player_name}
 @mcp.tool()
 def perform_check(modifier: int, dc: int, check_name: str = "Check", actor: str = "{player_name}") -> dict:
     """
-    Performs a D&D 5E difficulty check (d20 roll + modifier vs DC).
+    Performs a skill check or saving throw (d20 + modifier vs DC).
 
-    DECISION GUIDE: For weapon/unarmed attacks, use 'resolve_attack' instead — it handles attack rolls,
-    damage, crits, HP application, kill detection, and XP award in a single call.
-    Use perform_check for skill checks, saving throws, and any other binary success/failure roll
-    that is NOT an attack.
+    PARAMETERS:
+    - modifier: bonus to add to the d20 roll
+    - dc: difficulty class to beat
+    - check_name: label for the check (e.g. 'Athletics', 'Perception')
+    - actor: who is performing the check — character name for player, NPC/creature name for NPCs
 
     RULES:
-    - The actor parameter MUST identify who is performing the action: use the player's character name
-      for the player, and the NPC/creature's name for NPCs (e.g., 'Senna', 'Guard Captain').
-    - NEVER use the player's name for NPC actions, and NEVER use an NPC's name for the player's actions.
+    - For weapon/unarmed attacks, use resolve_attack instead.
+    - For spell attacks, use resolve_magic.
+    - Include the 'narrative_format' field from the response verbatim when disclosing results.
 
-    The response includes a 'narrative_format' field with a pre-formatted string suitable for direct
-    inclusion in your narrative output. Use this format when disclosing check results to the player.
-    Every check result MUST appear in your narrative using this exact format.
-
-    Examples:
-    - perform_check(actor='Thorin', modifier=5, dc=15, check_name='Athletics')
-    - perform_check(actor='Guard Captain', modifier=2, dc=13, check_name='Perception')
-    - perform_check(actor='Senna', modifier=1, dc=13, check_name='Deception')
+    EXAMPLES:
+    perform_check(actor='Thorin', modifier=5, dc=15, check_name='Athletics')
+    perform_check(actor='Guard Captain', modifier=2, dc=13, check_name='Perception')
+    perform_check(actor='Senna', modifier=1, dc=13, check_name='Deception')
     """
     if actor == "{player_name}" and DB_CONNECTION is not None:
         actor = _db_val(DB_CONNECTION.cursor(), "name", "Player")
@@ -1379,36 +1338,26 @@ def _registry_max_hp(target_name: str) -> int:
 @mcp.tool()
 def register_combatants(combatants: list[dict], add_to_existing: bool = False) -> dict:
     """
-    Registers all combatants for a battle and rolls initiative for everyone.
-    The player is auto-registered from the database — do NOT include the player
-    in the combatants list. Calling this again overwrites any existing registry
-    unless add_to_existing=True.
+    Registers all combatants for a battle and rolls initiative for everyone. Player is auto-registered.
 
     PARAMETERS:
-    - combatants: list of NPC dicts with the following fields:
-      - name (str, required): combatant name, must match target_name in later calls
+    - combatants: list of NPC dicts with fields:
+      - name (str, required): must match target_name in resolve_attack/resolve_magic calls
       - hp (int, required): starting hit points
       - ac (int, required): armor class
       - initiative_modifier (int, required unless add_to_existing=True): DEX modifier
       - challenge_rating (float, optional): CR for XP awards
       - save_modifier (int, optional, default 0): generic save bonus
-    - add_to_existing (bool, default False): If True, adds the combatants to the
-      existing registry without wiping it. No initiative rolls are made for new
-      combatants — the GM handles their turn position narratively. initiative_modifier
-      is not needed when add_to_existing=True. Use this for mid-combat reinforcements
-      or combatants forgotten during the initial registration.
+    - add_to_existing (bool, default False): if True, adds to existing registry without wiping it.
+      No initiative rolled for new arrivals. Use for mid-combat reinforcements or forgotten combatants.
+      Existing HP states are preserved.
 
-    RETURNS (add_to_existing=False):
-    - all combatants (player + NPCs) with initiative rolls, sorted by total descending
-    - initiative_order: flat list of names in turn order
-    - registry_summary: all registered combatants with current HP and AC
-
-    RETURNS (add_to_existing=True):
-    - registry_summary: all registered combatants with current HP and AC
-    - No initiative or initiative_order returned
+    PROJECT-SPECIFIC BEHAVIORS:
+    1. Resolve_attack and resolve_magic auto-lookup target HP from the registry — no need to pass
+       target_current_hp on every call. HP is carried forward between hits automatically.
+    2. Calling this again without add_to_existing overwrites the registry entirely.
 
     EXAMPLES:
-    # Initial registration
     register_combatants(combatants=[
         {"name": "Scarred Half-Orc", "hp": 15, "ac": 14, "initiative_modifier": 1,
          "challenge_rating": 1, "save_modifier": 1},
@@ -1418,7 +1367,6 @@ def register_combatants(combatants: list[dict], add_to_existing: bool = False) -
         {"name": "Harlen Dregg", "hp": 30, "ac": 16, "initiative_modifier": 0},
     ])
 
-    # Mid-combat reinforcements
     register_combatants(combatants=[
         {"name": "Guard Reinforce 1", "hp": 11, "ac": 16},
         {"name": "Guard Reinforce 2", "hp": 11, "ac": 16},
@@ -1564,74 +1512,47 @@ def resolve_attack(
     force_crit: bool = False,
 ) -> dict:
     """
-    Resolves a complete D&D 5E attack in one call: attack roll, damage roll,
-    HP application (NPC attacks on the player), kill detection, and XP award.
+    Resolves a full weapon/unarmed attack: attack roll, damage, HP application, kill detection, XP award.
 
-    Use this for ALL weapon and unarmed attacks — player vs NPC, NPC vs player,
-    and NPC vs NPC. Do NOT use this for spell attacks; use resolve_magic
-    for spells instead.
+    PARAMETERS:
+    - actor: who is attacking — character name for player, NPC name for NPCs
+    - attack_modifier: bonus to the d20 attack roll
+    - target_ac: target's armor class
+    - damage_dice: primary damage dice (e.g. '1d8'), doubled on crit
+    - damage_modifier: flat bonus added to damage (default 0)
+    - target_name: optional name for HP lookup via combat registry
+    - target_current_hp: optional current HP (auto-looked up from registry if omitted)
+    - challenge_rating: optional CR for XP awards (auto-looked up from registry if omitted)
+    - extra_damage_dice: bonus damage dice NOT doubled on crit (e.g. elemental riders, sneak attack)
+    - extra_damage_modifier: flat bonus for extra damage (default 0)
+    - is_npc_attack: NPC attacking player — damage auto-applied to player HP, no slot consumed
+    - is_npc_vs_npc: NPC attacking NPC — no player HP modified, no XP auto-awarded
+    - advantage: roll 2d20 take highest
+    - force_crit: any successful hit becomes a crit (for unconscious/paralyzed targets within 5 feet)
 
-    CRITICAL HITS: On a natural 20, the primary damage dice are doubled automatically.
-    Extra damage dice are NOT doubled (representing elemental/sneak-attack bonus damage
-    that doesn't crit). If you want all dice doubled, put everything in damage_dice.
-
-    NPC ATTACKING PLAYER: Set is_npc_attack=True. The tool applies damage to the
-    player's HP automatically and returns the updated HP status. target_ac should be
-    the player's current AC.
-
-    NPC VS NPC: Set is_npc_vs_npc=True when one NPC attacks another NPC (e.g. a town
-    guard attacking a goblin). No player HP is modified, no XP is auto-awarded to the
-    player, and the GM must decide if any XP should be awarded. Kill detection still
-    works — if target_current_hp is provided and damage reduces the target to 0 or below,
-    the response includes target_killed=True. Do NOT set both is_npc_attack and
-    is_npc_vs_npc to True.
-
-    ADVANTAGE / FORCED CRIT (D&D 5e RAW):
-    - advantage=True: Rolls two d20s and uses the higher result (advantage).
-    - force_crit=True: Any successful hit (not a natural 1) is treated as a Critical
-      Success. Use this for unconscious targets within 5 feet, paralyzed targets, etc.
-      Natural 1 is still a Critical Failure. Natural 20 is still a natural crit.
-    - Both can be combined (e.g. advantage + force_crit for an unconscious target).
-
-    KILL DETECTION: If target_current_hp is provided (or looked up from the combat registry)
-    and damage reduces the target to 0 or below, the response includes target_killed=True.
-
-    COMBAT REGISTRY: If register_combatants has been called, target_current_hp and
-    challenge_rating can be omitted — the tool looks them up from the registry by target_name.
-    After each hit, the registry is updated with the new remaining HP. Explicit parameters
-    still override registry values if provided. is_npc_attack=True is unaffected (player HP is DB-managed).
-
-    XP AWARD: If challenge_rating is provided and the target is killed, XP is
-    automatically awarded to the player using the D&D 5E CR/XP table. This only
-    happens when is_npc_vs_npc=False — NPC-vs-NPC kills do NOT auto-award XP to the
-    player. The GM may choose to award XP manually via modify_player_numeric(key='xp')
-    if appropriate.
-
-    CR TABLE (for reference):
-      CR 0=10, 1/8=25, 1/4=50, 1/2=100, 1=200, 2=450, 3=700, 4=1100,
-      5=1800, 6=2300, 7=2900, 8=3900, 9=5000, 10=5900, 11=7200, 12=8400,
-      13=10000, 14=11500, 15=13000, 16=15000, 17=18000, 18=20000, 19=22000,
-      20=25000
+    PROJECT-SPECIFIC BEHAVIORS:
+    1. Combat registry: if register_combatants was called, target_current_hp and challenge_rating
+       auto-lookup from the registry. Registry HP is updated after each hit — sequential hits on
+       the same target use the correct reduced HP.
+    2. Extra damage dice are NOT doubled on crit. Put everything in damage_dice if you want all dice doubled.
+    3. Temporary HP on the player is drained before real HP when is_npc_attack=True.
+    4. XP auto-awarded on kill (unless is_npc_vs_npc=True). Uses the CR/XP table internally.
 
     EXAMPLES:
-    # Player attacks goblin with longsword
     resolve_attack(actor='{player_name}', attack_modifier=4, target_ac=13,
                    damage_dice='1d8', damage_modifier=2, target_name='Goblin',
                    target_current_hp=12, challenge_rating=0.5)
 
-    # Goblin attacks player
     resolve_attack(actor='Goblin', attack_modifier=4, target_ac=13,
                    damage_dice='1d6', damage_modifier=2, target_name='{player_name}',
                    is_npc_attack=True)
 
-    # Player attacks with a Flaming Dagger (1d4+3 piercing + 1d6 fire)
     resolve_attack(actor='{player_name}', attack_modifier=5, target_ac=15,
                    damage_dice='1d4', damage_modifier=3,
                    extra_damage_dice='1d6', extra_damage_modifier=0,
                    target_name='Orc Brute', target_current_hp=25,
                    challenge_rating=0.5)
 
-    # Town guard attacks a goblin (NPC vs NPC, no XP for player)
     resolve_attack(actor='Town Guard', attack_modifier=4, target_ac=13,
                    damage_dice='1d8', damage_modifier=2, target_name='Goblin',
                    target_current_hp=12, is_npc_vs_npc=True)
@@ -2091,112 +2012,56 @@ def resolve_magic(
     targets: list[dict] | None = None,
 ) -> dict:
     """
-    Resolves a complete D&D 5E spell attack in one call. Supports attack roll spells,
-    saving throw spells, and automatic-hit spells. Lookups spell properties from the
-    spells config, or uses custom override params if the spell is not found.
+    Resolves a full spell: spell slot management, attack/save, damage/healing, HP application, kill detection, XP award.
 
-    SPELL LOOKUP: The function first checks the spell database (config/spells.yml).
-    If found, all spell properties (attack_type, damage_dice, save_type, etc.) come from
-    the database. If NOT found, you MUST provide at minimum attack_type and damage_dice
-    as custom override parameters.
+    PARAMETERS:
+    - spell_name: spell name (looked up in config/spells.yml; custom spells need attack_type + damage_dice)
+    - actor: who is casting — character name for player, NPC name for NPCs
+    - spell_attack_modifier: bonus to d20 for attack_roll spells
+    - spell_save_dc: save DC for saving_throw spells
+    - target_ac: target AC (required for attack_roll spells)
+    - target_name: optional name for HP lookup via combat registry
+    - target_current_hp: optional current HP (auto-looked up from registry if omitted)
+    - challenge_rating: optional CR for XP awards (auto-looked up from registry if omitted)
+    - target_save_modifier: save bonus for single-target saving_throw spells
+    - player_save_modifier: player's save bonus when is_npc_attack=True with saving throws
+    - slot_level: upcast slot level (defaults to spell's native level)
+    - is_npc_attack: NPC casting on player — damage auto-applied to player HP, no slot consumed
+    - is_scroll: cast from scroll — no slot consumed, ability check for scrolls above caster level (DMG p.200)
+    - attack_type: "attack_roll", "saving_throw", or "automatic" (from DB or override)
+    - save_type: ability for saving throw (e.g. 'dex', 'wis')
+    - save_half: half damage on successful save (default True)
+    - damage_dice: custom damage dice (override, needed for spells not in DB)
+    - damage_modifier: flat damage bonus (default 0)
+    - damage_type: damage type label (e.g. 'fire', 'force')
+    - cantrip_scaling: enable auto-scaling at levels 5/11/17
+    - higher_levels: upcast scaling string (e.g. '+1d6')
+    - healing: spell heals instead of dealing damage
+    - aoe: spell affects an area
+    - ritual: cast as ritual — no slot consumed
+    - is_npc_vs_npc: NPC casting on NPC — no player HP modified, no XP auto-awarded
+    - caster_level: caster level for NPC-vs-NPC cantrip scaling
+    - advantage: roll 2d20 take highest (attack_roll only)
+    - force_crit: successful hit becomes crit (attack_roll only, unconscious/paralyzed targets within 5 feet)
+    - targets: list of dicts for AoE multi-target resolution. Fields vary by spell type:
+        HP pool (Sleep/Color Spray): {"name": str, "current_hp": int}
+        Saving throw (Fireball/etc.): {"name": str, "current_hp": int, "save_modifier": int, "challenge_rating": float}
+          Add {"is_player": True} to auto-apply damage to player HP in the DB.
 
-    SPELL SLOT MANAGEMENT (AUTOMATIC):
-    - Cantrips (level 0): No spell slot consumed. Always castable.
-    - Leveled spells (level 1+): A spell slot of the appropriate level is consumed
-      automatically from the player's spellcasting profile. If the player has no slots
-      remaining at that level, the function returns an error with available slots —
-      NO dice are rolled, NO damage is dealt, NO spell effect is applied.
-    - The effective slot level is determined by:
-      1. The slot_level parameter, if provided (for upcasting, e.g. Fireball in a 5th-level slot).
-      2. The spell's native level from the database, if slot_level is not provided.
-      3. For custom spells not in the database: slot_level MUST be provided for leveled spells,
-         or the function returns an error.
-    - If slot_level is higher than the spell's native level, the spell is upcast and damage
-      scales automatically (per the spell's higher_levels field in spells.yml).
-    - ritual=True: Casts the spell as a ritual. No spell slot is consumed. Only valid for spells
-      with the Ritual tag in D&D 5E. The GM is responsible for ensuring the spell can be cast
-      as a ritual.
-    - is_scroll=True: Casts the spell from a scroll. Never consumes a spell slot — the scroll
-      provides the magic. For scrolls of a level the player CANNOT cast (no slot of that level),
-      resolves a scroll ability check (d20 + spellcasting modifier vs DC 10 + spell level)
-      per D&D 5e (DMG p.200). On failure, the scroll is wasted. On success, the spell resolves.
-      Cantrips always pass. The GM must remove the scroll from inventory after use.
-    - NPC attacks (is_npc_attack=True or is_npc_vs_npc=True): No spell slot is deducted.
-
-    ATTACK TYPES:
-    - "attack_roll": d20 + spell_attack_modifier vs target_ac. Natural 20 = crit (double base dice).
-    - "saving_throw": Target rolls d20 + save_modifier vs spell_save_dc.
-      On fail: full damage. On success: half damage (if save_half=true) or no damage.
-    - "automatic": Always hits. Just roll damage. No attack roll or save needed.
-
-    ADVANTAGE / FORCED CRIT (D&D 5e RAW):
-    - advantage=True: Rolls two d20s for attack_roll spells and uses the higher result.
-    - force_crit=True: Any successful hit (not a natural 1) on an attack_roll spell is
-      treated as a Critical Success. Use for unconscious targets within 5 feet, etc.
-      Natural 1 is still a Critical Failure. Natural 20 is still a natural crit.
-    - These only apply to "attack_roll" spells. They are silently ignored for
-      "saving_throw" and "automatic" spells.
-
-    CRITICAL HITS: Only apply to "attack_roll" type spells. On a natural 20, the base
-    damage dice are doubled. Extra damage dice (from spell properties) are NOT doubled.
-    A forced_crit functions identically to a natural 20 for damage purposes.
-
-    CANTRIP SCALING: Cantrips (level 0) scale automatically based on character level:
-      Levels 1-4: base dice
-      Levels 5-10: base dice x2
-      Levels 11-16: base dice x3
-      Levels 17+: base dice x4
-    For NPC-vs-NPC combat, provide caster_level to control cantrip scaling. Without it,
-    cantrips use base damage (no scaling).
-
-    HEALING SPELLS: Set healing=true. Damage dice heal the target instead of dealing damage.
-    For player healing (is_npc_attack=False, target is ally), positive values restore HP.
-    Healing spells still consume a spell slot.
-
-    NPC ATTACKING PLAYER: Set is_npc_attack=True. Damage is applied to the player's HP
-    automatically for damaging spells. For saving throws, use player_save_modifier.
-    No spell slot is consumed for NPC attacks.
-
-    NPC VS NPC: Set is_npc_vs_npc=True when one NPC casts a spell on another NPC
-    (e.g. an enemy mage casting Fireball at a guard). No player HP is modified, no spell
-    slot is consumed, no XP is auto-awarded. For cantrip scaling, provide caster_level
-    to control the NPC caster's effective level. Do NOT set both is_npc_attack and
-    is_npc_vs_npc to True.
-
-    KILL DETECTION: If target_current_hp is provided (or looked up from the combat registry)
-    and damage reduces the target to 0 or below, the response includes target_killed=True.
-
-    COMBAT REGISTRY: If register_combatants has been called, target_current_hp and
-    challenge_rating can be omitted from single-target and multi-target calls — the tool
-    looks them up from the registry by target_name. After each hit, the registry is
-    updated with the new remaining HP. Explicit parameters still override registry values.
-    is_npc_attack=True and is_player=True targets are unaffected (player HP is DB-managed).
-
-    XP AWARD: If challenge_rating is provided and the target is killed, XP is automatically
-    awarded to the player. This only happens for player attacks (is_npc_attack=False,
-    is_npc_vs_npc=False). NPC-vs-NPC kills do NOT auto-award XP to the player.
-
-    MULTI-TARGET (AoE spells):
-    For area-of-effect spells (Sleep, Color Spray, Fireball, etc.), provide a `targets` list
-    to resolve all targets in a single call — one spell slot consumed regardless of target count.
-    Each target is a dict with required/optional fields depending on the spell type:
-
-    HP POOL SPELLS (Sleep, Color Spray):
-      targets=[{"name": "Guard 1", "current_hp": 11}, {"name": "Guard 2", "current_hp": 11}, ...]
-      Targets are sorted by current_hp ascending (D&D 5e RAW). The spell affects them in order
-      until the pool is exhausted. The response includes targets_affected, targets_unaffected,
-      and hp_pool_remaining.
-
-    SAVING THROW AoE SPELLS (Fireball, Lightning Bolt, Cone of Cold, etc.):
-      targets=[{"name": "Goblin 1", "current_hp": 7, "save_modifier": 2, "challenge_rating": 0.25},
-               {"name": "Orc", "current_hp": 15, "save_modifier": 1, "challenge_rating": 0.5}, ...]
-      Damage is rolled once. Each target rolls its own saving throw (using its save_modifier).
-      Half damage on save if save_half=True. XP is auto-awarded for kills with challenge_rating.
-      When a target has is_player=True and the spell is an NPC attack (is_npc_attack=True),
-      damage is automatically applied to the player's HP in the database (including THP absorption).
+    PROJECT-SPECIFIC BEHAVIORS:
+    1. Slot validation happens BEFORE dice are rolled. Empty slots return an error with available slots.
+    2. Known spells from DB auto-consume a slot. Cantrips, rituals, scrolls, and NPC attacks do not.
+    3. Duplicate active buff spells (e.g. casting Shield while Shield is already active) are rejected
+       BEFORE slot consumption.
+    4. Multi-target AoE: damage is rolled ONCE, individual saves per target, one slot consumed.
+       HP is tracked through the combat registry. XP summed from all kills with CRs.
+    5. HP pool spells (Sleep): targets sorted by HP ascending, pool drained in order.
+    6. Extra damage dice are NOT doubled on crit.
+    7. Temporary HP on the player is drained before real HP when is_npc_attack=True.
+    8. Scrolls above caster's available slot level trigger an ability check (d20 + spellcasting mod vs DC 10 + spell level).
+       On failure, scroll is wasted and spell does not take effect.
 
     EXAMPLES:
-    # Fireball on 3 goblins of mixed CR — damage rolled once, saves per target
     resolve_magic(spell_name='Fireball', actor='{player_name}',
                   spell_save_dc=15,
                   targets=[
@@ -2205,7 +2070,6 @@ def resolve_magic(
                       {"name": "Hobgoblin", "current_hp": 11, "save_modifier": 1, "challenge_rating": 0.5},
                   ])
 
-    # NPC Fireball hitting player + allies — is_player triggers auto HP application
     resolve_magic(spell_name='Fireball', actor='Evil Wizard',
                   is_npc_attack=True, spell_save_dc=15,
                   targets=[
@@ -2214,7 +2078,6 @@ def resolve_magic(
                       {"name": "Town Guard", "current_hp": 25, "save_modifier": 2},
                   ])
 
-    # Sleep on 3 guards — pool exhausted, only 2 affected
     resolve_magic(spell_name='Sleep', actor='{player_name}',
                   targets=[
                       {"name": "Guard 1", "current_hp": 11},
@@ -2222,62 +2085,53 @@ def resolve_magic(
                       {"name": "Guard 3", "current_hp": 11},
                   ])
 
-    # Player casts Fireball (level 3 spell) - single target, slot consumed automatically
     resolve_magic(spell_name='Fireball', actor='{player_name}',
-                         spell_save_dc=15,
-                         target_name='Goblin Shaman', target_current_hp=24,
-                         challenge_rating=1)
+                  spell_save_dc=15,
+                  target_name='Goblin Shaman', target_current_hp=24,
+                  challenge_rating=1)
 
-    # Player upcasts Fireball using a 5th-level slot (8d6 damage) - 5th-level slot consumed
     resolve_magic(spell_name='Fireball', actor='{player_name}',
-                         spell_save_dc=15,
-                         target_name='Ogre', target_current_hp=60,
-                         challenge_rating=2, slot_level=5)
+                  spell_save_dc=15,
+                  target_name='Ogre', target_current_hp=60,
+                  challenge_rating=2, slot_level=5)
 
-    # Player casts Fire Bolt (cantrip, no slot consumed)
     resolve_magic(spell_name='Fire Bolt', actor='{player_name}',
-                   spell_attack_modifier=6, target_ac=14,
-                   target_name='Orc', target_current_hp=18,
-                   challenge_rating=0.5)
+                  spell_attack_modifier=6, target_ac=14,
+                  target_name='Orc', target_current_hp=18,
+                  challenge_rating=0.5)
 
-    # Player casts Detect Magic as a ritual (no slot consumed)
     resolve_magic(spell_name='Detect Magic', actor='{player_name}',
-                   attack_type='saving_throw', save_type='wis',
-                   spell_save_dc=13, ritual=True)
+                  attack_type='saving_throw', save_type='wis',
+                  spell_save_dc=13, ritual=True)
 
-    # Player casts a custom homebrew spell not in the database
     resolve_magic(spell_name='Void Blast', actor='{player_name}',
-                   spell_attack_modifier=7, target_ac=16,
-                   attack_type='attack_roll',
-                   damage_dice='3d10', damage_type='force',
-                   target_name='Shadow Wraith', target_current_hp=40,
-                   challenge_rating=4, slot_level=3)
+                  spell_attack_modifier=7, target_ac=16,
+                  attack_type='attack_roll',
+                  damage_dice='3d10', damage_type='force',
+                  target_name='Shadow Wraith', target_current_hp=40,
+                  challenge_rating=4, slot_level=3)
 
-    # NPC casts Magic Missile at the player (no slot consumed)
     resolve_magic(spell_name='Magic Missile', actor='Evil Wizard',
-                         is_npc_attack=True,
-                         attack_type='automatic',
-                         damage_dice='3d4', damage_modifier=3,
-                         damage_type='force',
-                         target_name='{player_name}')
+                  is_npc_attack=True,
+                  attack_type='automatic',
+                  damage_dice='3d4', damage_modifier=3,
+                  damage_type='force',
+                  target_name='{player_name}')
 
-    # NPC mage casts Fireball at a guard (NPC vs NPC, no slot consumed, no XP)
     resolve_magic(spell_name='Fireball', actor='Dark Wizard',
-                         spell_save_dc=15, target_save_modifier=2,
-                         target_name='Town Guard', target_current_hp=30,
-                         is_npc_vs_npc=True, caster_level=7)
+                  spell_save_dc=15, target_save_modifier=2,
+                  target_name='Town Guard', target_current_hp=30,
+                  is_npc_vs_npc=True, caster_level=7)
 
-    # NPC casts a cantrip at another NPC (cantrip scaling with caster_level)
     resolve_magic(spell_name='Fire Bolt', actor='Dark Wizard',
-                         spell_attack_modifier=6, target_ac=14,
-                         target_name='Town Guard', target_current_hp=20,
-                         is_npc_vs_npc=True, caster_level=11)
+                  spell_attack_modifier=6, target_ac=14,
+                  target_name='Town Guard', target_current_hp=20,
+                  is_npc_vs_npc=True, caster_level=11)
 
-    # Player casts Inflict Wounds on unconscious target (automatic crit within 5 feet)
     resolve_magic(spell_name='Inflict Wounds', actor='{player_name}',
-                   spell_attack_modifier=4, target_ac=10,
-                   target_name='Sleeping Guard', target_current_hp=6,
-                   challenge_rating=0, advantage=True, force_crit=True)
+                  spell_attack_modifier=4, target_ac=10,
+                  target_name='Sleeping Guard', target_current_hp=6,
+                  challenge_rating=0, advantage=True, force_crit=True)
     """
     global DB_CONNECTION
     spells_db = _load_spells()
