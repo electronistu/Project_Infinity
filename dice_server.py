@@ -2794,7 +2794,7 @@ def resolve_magic(
                    "save_total": save_total, "save_success": save_success,
                    "damage": t_damage, "remaining_hp": max(0, remaining), "killed": killed}
 
-            if is_player and is_npc_attack and t_damage > 0 and cursor:
+            if is_player and t_damage > 0 and cursor:
                 hp_result = _apply_hp_change(cursor, -t_damage)
                 tr["hp_change"] = hp_result
                 if tname:
@@ -2920,10 +2920,16 @@ def resolve_magic(
             narrative_parts.append(f"{actor} heals {target_name or 'target'} for {total_damage} HP.")
     elif not is_npc_attack and not is_npc_vs_npc and not sp_healing:
         from_registry = False
+        db_target = False
         if target_current_hp is None and target_name:
             target_current_hp = _registry_hp(target_name)
             if target_current_hp is not None:
                 from_registry = True
+        if target_current_hp is None and target_name and cursor:
+            player_name = (_db_val(cursor, "name", "") or "").lower()
+            if (target_name or "").lower() == player_name:
+                target_current_hp = int(_db_val(cursor, "current_hit_points", 0))
+                db_target = True
         if challenge_rating is None and target_name:
             challenge_rating = _registry_cr(target_name)
         if target_current_hp is not None:
@@ -2932,6 +2938,9 @@ def resolve_magic(
 
             if target_name and from_registry:
                 _registry_update_hp(target_name, max(target_remaining, 0))
+            elif db_target and cursor:
+                hp_result = _apply_hp_change(cursor, -total_damage)
+                result["hp_change"] = hp_result
 
             if target_remaining <= 0:
                 result["target_killed"] = True
@@ -2943,9 +2952,12 @@ def resolve_magic(
             else:
                 result["target_killed"] = False
                 if target_name:
-                    max_hp = _registry_max_hp(target_name)
-                    display_max = f"/{max_hp}" if max_hp else ""
-                    narrative_parts.append(f"{target_name} HP: {target_remaining}{display_max}")
+                    if db_target and result.get("hp_change"):
+                        narrative_parts.append(f"{target_name} HP: {result['hp_change']['hp_status']}")
+                    else:
+                        max_hp = _registry_max_hp(target_name)
+                        display_max = f"/{max_hp}" if max_hp else ""
+                        narrative_parts.append(f"{target_name} HP: {target_remaining}{display_max}")
 
             if result.get("target_killed") and challenge_rating is not None:
                 xp_awarded = CR_XP_TABLE.get(challenge_rating, 0)
