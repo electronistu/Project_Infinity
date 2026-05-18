@@ -24,6 +24,7 @@ Most AI RPGs let the language model make up numbers. Project Infinity runs every
 - **Rest & Recovery** — Short and long rests auto-apply hit dice, slot recovery, Arcane Recovery, and effect clearing per SRD 5.1.
 - **Leveling Up** — XP thresholds auto-trigger HP, proficiency, hit dice, and spell slot progression.
 - **Combat Registry** — GM registers all combatants once per battle. Initiative auto-rolled for everyone. The engine tracks every combatant's HP across attacks.
+- **Combat Healing** — Cure Wounds, Healing Word, Mass Cure Wounds, Heal, and all SRD healing spells resolve through the combat registry. Player-to-NPC, NPC-to-player, and NPC-to-NPC healing all apply correctly with HP capped at maximum. Power Word Heal restores full HP.
 - **In-Game Commands** — `/stats`, `/save`, `/sync`, `/quit` from within the game.
 
 Read on for quick start, gameplay hints, and the full engine overview under **How It Works**.
@@ -192,6 +193,7 @@ The game engine runs as a local **MCP (Model Context Protocol)** server with an 
 - **Multi-Target AoE** — For spells that affect an area (Fireball, Sleep, Lightning Bolt, Cone of Cold), pass a `targets` list. Damage is rolled once per spell, individual saves rolled per target with per-target modifiers, XP auto-awarded per kill — all in a single call consuming one slot.
 - **HP Pool Spells** — Sleep and Color Spray accept a `targets` list, sort creatures by HP per D&D 5e RAW, and drain the pool until it's exhausted. The response identifies which targets are affected and which are not.
 - **Healing & Temporary Hit Points** — Healing spells restore HP. False Life and Armor of Agathys auto-roll and apply temporary HP to the database. NPC attacks drain THP before real HP in all combat paths. When THP reaches zero, the source spell is auto-removed from active effects and the GM is notified.
+- **Combat Healing** — Healing spells (Cure Wounds, Healing Word, Mass Cure Wounds, Mass Healing Word, Heal, Mass Heal, Power Word Heal) are resolved through `resolve_magic` with the same combat registry integration as damage spells. When a `target_name` or `targets` list is provided, healing is applied to the registry entry — capped at `max_hp`. Flat-healing spells (Heal: 70 HP, Mass Heal: 700 HP) are handled without dice rolls. Power Word Heal restores full HP. NPC-vs-NPC healing (e.g. a priest healing a wounded guard) correctly updates the registry.
 - **Conditions & Concentration** — Applies conditions with duration and concentration flags. Supports instant-kill spells (Power Word-style HP threshold checks).
 - **Active Buff Tracking** — Spells that modify stats (AC, speed, etc.) are tracked via `active_effects` and `_active_buff_data`. Recasting a duplicate is rejected before the slot is consumed. Removing an effect via `update_player_list` automatically reverts the stat changes. All active effects are visible in the `/stats` command display.
 - **Kill Detection & XP** — Identical to weapon attacks: NPC deaths award XP automatically.

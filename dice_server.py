@@ -254,12 +254,19 @@ def _format_hp_status(current, total):
 
 def _parse_and_roll_dice(dice_notation):
     try:
-        parts = dice_notation.lower().split('d')
+        if isinstance(dice_notation, (int, float)):
+            return 0, [], int(dice_notation)
+        s = str(dice_notation).strip().lower()
+        if s.isdigit():
+            return 0, [], int(s)
+        parts = s.split('d')
         if len(parts) != 2:
             return None, [], 0
         num_dice = int(parts[0]) if parts[0] else 1
         die_size = int(parts[1])
-        if num_dice <= 0 or die_size <= 0:
+        if num_dice == 0 or die_size == 0:
+            return 0, [], 0
+        if num_dice < 0 or die_size < 0:
             return None, [], 0
         rolls = [random.randint(1, die_size) for _ in range(num_dice)]
         return die_size, rolls, sum(rolls)
@@ -2153,6 +2160,7 @@ def resolve_magic(
         sp_save_type = spell.get("save_type", None)
         sp_save_half = spell.get("save_half", True)
         sp_healing = spell.get("healing", False)
+        sp_flat_healing = spell.get("flat_healing", False)
         sp_aoe = spell.get("aoe", False)
         sp_cantrip_scaling = spell.get("cantrip_scaling", False)
         sp_higher_levels = spell.get("higher_levels", None)
@@ -2471,32 +2479,117 @@ def resolve_magic(
         # Fall through to saving throw / condition logic — do NOT return
 
     # ── DAMAGE / HEALING CALCULATION ──
-    elif final_dice in ("0d0", "0", ""):
+    elif final_dice in ("0d0", "0", "") and not sp_healing:
         total_damage = sp_damage_modifier + final_mod
         result["damage_total"] = total_damage
         result["target_killed"] = None
         return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc, is_npc_vs_npc)
 
-    if not sp_no_damage and sp_healing and not is_npc_attack and sp_attack_type == "automatic":
+    if sp_healing and not is_npc_attack and not is_npc_vs_npc and sp_attack_type == "automatic":
         heal_die_size, heal_rolls, heal_raw = _parse_and_roll_dice(final_dice)
         if heal_die_size is None:
             return {"success": False, "error": f"Invalid damage_dice notation: '{final_dice}'. Use format 'XdY' (e.g., '2d6')."}
         total_healing = heal_raw + final_mod
 
-        heal_rolls_str = " + ".join(str(r) for r in heal_rolls)
-        heal_narrative = f"{actor} {spell_name} Healing: {total_healing}"
-        if final_mod != 0:
-            heal_narrative += f" ({heal_rolls_str} + {final_mod})"
-        else:
-            heal_narrative += f" ({heal_rolls_str})"
-        narrative_parts.append(heal_narrative)
+        if sp_flat_healing and total_healing == 0:
+            heal_narrative = f"{actor} {spell_name} Healing: full HP restore"
+            narrative_parts.append(heal_narrative)
+            result["healing_total"] = "full"
 
-        hp_result = _apply_hp_change(cursor, total_healing) if cursor else None
+            if targets and len(targets) > 0:
+                healed_list = []
+                for t in targets:
+                    tname = t.get("name", "Unknown")
+                    is_player = t.get("is_player", False)
+                    tchp = t.get("current_hp")
+                    if tchp is None:
+                        tchp = _registry_hp(tname) or 0
+                    max_hp = _registry_max_hp(tname) or tchp
+                    delta = max_hp - tchp
+                    if is_player and cursor:
+                        hp_result = _apply_hp_change(cursor, delta) if delta > 0 else None
+                        healed_list.append({"name": tname, "healing": delta, "hp_change": hp_result})
+                        narrative_parts.append(f"{tname} HP: {hp_result['hp_status']}" if hp_result else f"{tname} HP: already full ({max_hp}/{max_hp})")
+                    elif not is_player and tname:
+                        _registry_update_hp(tname, max_hp)
+                        healed_list.append({"name": tname, "healing": delta, "remaining_hp": max_hp, "max_hp": max_hp})
+                        narrative_parts.append(f"{tname} HP: {max_hp}/{max_hp} (fully restored)")
+                result["targets_healed"] = healed_list
+            elif target_name:
+                registry_hp = _registry_hp(target_name)
+                if registry_hp is not None:
+                    max_hp = _registry_max_hp(target_name) or registry_hp
+                    new_hp = max_hp
+                    _registry_update_hp(target_name, new_hp)
+                    result["target_healed"] = {"name": target_name, "healing": new_hp - registry_hp, "remaining_hp": new_hp, "max_hp": max_hp}
+                    narrative_parts.append(f"{target_name} HP: {new_hp}/{max_hp} (fully restored)")
+                else:
+                    full_hp = int(_db_val(cursor, "total_hit_points", 0))
+                    hp_result = _apply_hp_change(cursor, full_hp - int(_db_val(cursor, "current_hit_points", 0))) if cursor else None
+                    if hp_result:
+                        result["hp_change"] = hp_result
+            else:
+                full_hp = int(_db_val(cursor, "total_hit_points", 0))
+                current_hp = int(_db_val(cursor, "current_hit_points", 0))
+                delta = full_hp - current_hp
+                hp_result = _apply_hp_change(cursor, delta) if cursor and delta > 0 else None
+                if hp_result:
+                    result["hp_change"] = hp_result
+                    narrative_parts.append(f"HP: {hp_result['hp_status']}")
+
+            result["healing_rolls"] = []
+            result["damage_type"] = sp_damage_type
+            return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc, is_npc_vs_npc)
+
+        if heal_rolls:
+            heal_rolls_str = " + ".join(str(r) for r in heal_rolls)
+            if final_mod != 0:
+                heal_narrative = f"{actor} {spell_name} Healing: {total_healing} ({heal_rolls_str} + {final_mod})"
+            else:
+                heal_narrative = f"{actor} {spell_name} Healing: {total_healing} ({heal_rolls_str})"
+        else:
+            heal_narrative = f"{actor} {spell_name} Healing: {total_healing}"
+        narrative_parts.append(heal_narrative)
         result["healing_total"] = total_healing
         result["healing_rolls"] = heal_rolls
         result["damage_type"] = sp_damage_type
-        if hp_result:
-            result["hp_change"] = hp_result
+
+        if targets and len(targets) > 0:
+            healed_list = []
+            for t in targets:
+                tname = t.get("name", "Unknown")
+                is_player = t.get("is_player", False)
+                tchp = t.get("current_hp")
+                if tchp is None:
+                    tchp = _registry_hp(tname) or 0
+                max_hp = _registry_max_hp(tname) or tchp
+                new_hp = min(tchp + total_healing, max_hp)
+                if is_player and cursor:
+                    delta = new_hp - tchp
+                    hp_result = _apply_hp_change(cursor, delta)
+                    healed_list.append({"name": tname, "healing": delta, "hp_change": hp_result})
+                    narrative_parts.append(f"{tname} HP: {hp_result['hp_status']}")
+                elif not is_player and tname:
+                    _registry_update_hp(tname, new_hp)
+                    healed_list.append({"name": tname, "healing": new_hp - tchp, "remaining_hp": new_hp, "max_hp": max_hp})
+                    narrative_parts.append(f"{tname} HP: {new_hp}/{max_hp}")
+            result["targets_healed"] = healed_list
+        elif target_name:
+            registry_hp = _registry_hp(target_name)
+            if registry_hp is not None:
+                max_hp = _registry_max_hp(target_name) or registry_hp
+                new_hp = min(registry_hp + total_healing, max_hp)
+                _registry_update_hp(target_name, new_hp)
+                result["target_healed"] = {"name": target_name, "healing": new_hp - registry_hp, "remaining_hp": new_hp, "max_hp": max_hp}
+                narrative_parts.append(f"{target_name} HP: {new_hp}/{max_hp}")
+            else:
+                hp_result = _apply_hp_change(cursor, total_healing) if cursor else None
+                if hp_result:
+                    result["hp_change"] = hp_result
+        else:
+            hp_result = _apply_hp_change(cursor, total_healing) if cursor else None
+            if hp_result:
+                result["hp_change"] = hp_result
         return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc, is_npc_vs_npc)
 
     # ── HP POOL (Sleep, Color Spray) ──
@@ -2564,27 +2657,37 @@ def resolve_magic(
         if primary_die_size is None:
             return {"success": False, "error": f"Invalid damage_dice notation: '{final_dice}'. Use format 'XdY' (e.g., '2d6')."}
 
+        label = "Healing" if sp_healing else "Damage"
+
         if is_crit:
             crit_rolls = [random.randint(1, primary_die_size) for _ in range(len(primary_rolls))]
-            primary_damage = sum(primary_rolls) + sum(crit_rolls) + final_mod
+            primary_damage = primary_sum + sum(crit_rolls) + final_mod
             crit_rolls_str = " + ".join(str(r) for r in crit_rolls)
-            base_str = " + ".join(str(r) for r in primary_rolls)
-            if final_mod != 0:
-                narrative_parts.append(
-                    f"{actor} {spell_name} Damage: {primary_damage} ({base_str} + {crit_rolls_str} + {final_mod}) [CRIT]"
-                )
+            if primary_rolls:
+                base_str = " + ".join(str(r) for r in primary_rolls)
+                if final_mod != 0:
+                    narrative_parts.append(
+                        f"{actor} {spell_name} {label}: {primary_damage} ({base_str} + {crit_rolls_str} + {final_mod}) [CRIT]"
+                    )
+                else:
+                    narrative_parts.append(
+                        f"{actor} {spell_name} {label}: {primary_damage} ({base_str} + {crit_rolls_str}) [CRIT]"
+                    )
             else:
                 narrative_parts.append(
-                    f"{actor} {spell_name} Damage: {primary_damage} ({base_str} + {crit_rolls_str}) [CRIT]"
+                    f"{actor} {spell_name} {label}: {primary_damage} (flat + {crit_rolls_str} + {final_mod}) [CRIT]"
                 )
             result["crit_damage_rolls"] = crit_rolls
         else:
-            primary_damage = sum(primary_rolls) + final_mod
-            base_str = " + ".join(str(r) for r in primary_rolls)
-            if final_mod != 0:
-                narrative_parts.append(f"{actor} {spell_name} Damage: {primary_damage} ({base_str} + {final_mod})")
+            primary_damage = primary_sum + final_mod
+            if primary_rolls:
+                base_str = " + ".join(str(r) for r in primary_rolls)
+                if final_mod != 0:
+                    narrative_parts.append(f"{actor} {spell_name} {label}: {primary_damage} ({base_str} + {final_mod})")
+                else:
+                    narrative_parts.append(f"{actor} {spell_name} {label}: {primary_damage} ({base_str})")
             else:
-                narrative_parts.append(f"{actor} {spell_name} Damage: {primary_damage} ({base_str})")
+                narrative_parts.append(f"{actor} {spell_name} {label}: {primary_damage}")
 
         result["primary_damage"] = primary_damage
         result["primary_damage_rolls"] = primary_rolls
@@ -2648,6 +2751,8 @@ def resolve_magic(
                     )
                     if sp_no_damage:
                         narrative_parts.append(f"{tname} saved — no effect.")
+                    elif sp_healing:
+                        narrative_parts.append(f"{tname} saved — half healing: {t_damage}")
                     else:
                         narrative_parts.append(f"{tname} saved — half damage: {t_damage}")
                 else:
@@ -2657,6 +2762,8 @@ def resolve_magic(
                     )
                     if sp_no_damage:
                         narrative_parts.append(f"{tname} saved — no effect.")
+                    elif sp_healing:
+                        narrative_parts.append(f"{tname} saved — no healing.")
                     else:
                         narrative_parts.append(f"{tname} saved — no damage.")
             else:
@@ -2666,11 +2773,11 @@ def resolve_magic(
                 if sp_no_damage and sp_condition:
                     narrative_parts.append(f"{tname}: Affected — {sp_condition} ({sp_condition_duration})")
 
-            remaining = tchp - t_damage
-            killed = remaining <= 0 if tchp > 0 else False
+            remaining = min(tchp + t_damage, _registry_max_hp(tname) or tchp) if sp_healing else tchp - t_damage
+            killed = False if sp_healing else (remaining <= 0 if tchp > 0 else False)
 
             if not is_player and tname:
-                _registry_update_hp(tname, max(remaining, 0))
+                _registry_update_hp(tname, remaining if sp_healing else max(remaining, 0))
             if killed:
                 killed_count += 1
                 if not is_player:
@@ -2702,7 +2809,8 @@ def resolve_magic(
             target_results.append(tr)
 
         result["targets"] = target_results
-        result["killed_count"] = killed_count
+        if not sp_healing:
+            result["killed_count"] = killed_count
 
         if total_xp > 0 and not is_npc_attack and not is_npc_vs_npc and cursor:
             xp_result = modify_player_numeric(key="xp", delta=total_xp)
@@ -2741,12 +2849,16 @@ def resolve_magic(
                 total_damage = max(1, total_damage // 2)
                 if sp_no_damage:
                     narrative_parts.append(f"{saver_name} saved — no effect.")
+                elif sp_healing:
+                    narrative_parts.append(f"{saver_name} saved — half healing: {total_damage}")
                 else:
                     narrative_parts.append(f"{saver_name} saved — half damage: {total_damage}")
             else:
                 total_damage = 0
                 if sp_no_damage:
                     narrative_parts.append(f"{saver_name} saved — no effect.")
+                elif sp_healing:
+                    narrative_parts.append(f"{saver_name} saved — no healing.")
                 else:
                     narrative_parts.append(f"{saver_name} saved — no damage.")
         elif sp_no_damage and sp_condition:
@@ -2797,7 +2909,15 @@ def resolve_magic(
     elif is_npc_vs_npc and sp_healing:
         result["npc_vs_npc"] = True
         result["target_killed"] = None
-        narrative_parts.append(f"{actor} heals {target_name or 'target'} for {total_damage} HP.")
+        registry_hp = _registry_hp(target_name) if target_name else None
+        if registry_hp is not None:
+            max_hp = _registry_max_hp(target_name) or registry_hp
+            new_hp = min(registry_hp + total_damage, max_hp)
+            _registry_update_hp(target_name, new_hp)
+            result["target_healed"] = {"name": target_name, "healing": new_hp - registry_hp, "remaining_hp": new_hp, "max_hp": max_hp}
+            narrative_parts.append(f"{actor} heals {target_name} for {new_hp - registry_hp} HP ({new_hp}/{max_hp})")
+        else:
+            narrative_parts.append(f"{actor} heals {target_name or 'target'} for {total_damage} HP.")
     elif not is_npc_attack and not is_npc_vs_npc and not sp_healing:
         from_registry = False
         if target_current_hp is None and target_name:
@@ -2840,10 +2960,18 @@ def resolve_magic(
         else:
             result["target_killed"] = None
     elif not is_npc_attack and not is_npc_vs_npc and sp_healing:
-        hp_result = _apply_hp_change(cursor, total_damage) if cursor else None
-        if hp_result:
-            result["hp_change"] = hp_result
-            narrative_parts.append(f"Healed {target_name}: {hp_result['hp_status']}")
+        registry_hp = _registry_hp(target_name) if target_name else None
+        if registry_hp is not None:
+            max_hp = _registry_max_hp(target_name) or registry_hp
+            new_hp = min(registry_hp + total_damage, max_hp)
+            _registry_update_hp(target_name, new_hp)
+            result["target_healed"] = {"name": target_name, "healing": new_hp - registry_hp, "remaining_hp": new_hp, "max_hp": max_hp}
+            narrative_parts.append(f"{target_name} HP: {new_hp}/{max_hp}")
+        else:
+            hp_result = _apply_hp_change(cursor, total_damage) if cursor else None
+            if hp_result:
+                result["hp_change"] = hp_result
+                narrative_parts.append(f"Healed {target_name}: {hp_result['hp_status']}")
     else:
         result["target_killed"] = None
         if is_npc_vs_npc:
