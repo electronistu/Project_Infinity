@@ -19,6 +19,7 @@ def _build_reputation(kingdoms) -> dict:
     for kingdom in kingdoms:
         kname = kingdom.name.lower()
         rep[kname] = {}
+        rep[kname]["ruler"] = []
         for guild in kingdom.guilds:
             gname = guild.name
             for faction in KNOWN_FACTIONS:
@@ -26,6 +27,7 @@ def _build_reputation(kingdoms) -> dict:
                     key = faction.lower().replace("'", "")
                     rep[kname][key] = []
                     break
+    rep["others"] = {}
     return rep
 
 def get_npc_array(npc: NPC) -> list:

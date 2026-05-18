@@ -7,7 +7,6 @@
   "gender": "male",
   "hit_dice_size": 6,
   "speed": 35,
-  "proficiency_bonus": 2,
   "skills": [
     "Stealth",
     "Deception",
@@ -39,6 +38,30 @@
     "Common",
     "Elvish"
   ],
+  "consumables": {
+    "Bolts": 19,
+    "Rations": 5,
+    "Shadow Essence": 1,
+    "Potion of Invisibility": 1
+  },
+  "stats": {
+    "str": 8,
+    "dex": 17,
+    "con": 12,
+    "int": 17,
+    "wis": 10,
+    "cha": 12
+  },
+  "armor_class": 14,
+  "temporary_hit_points": 0,
+  "xp": 7055,
+  "level": 5,
+  "proficiency_bonus": 3,
+  "total_hit_points": 25,
+  "current_hit_points": 25,
+  "hit_dice_count": 5,
+  "active_effects": [],
+  "_active_buff_data": {},
   "features": [
     "Darkvision",
     "Fey Ancestry",
@@ -60,35 +83,76 @@
     {
       "name": "Mark of the Deep Wood",
       "description": "A faint pattern of silver-green veins traces Electronistu's left forearm \u2014 the sigil of an ancient forest spirit. The debt has been paid, but a new pact has begun. The spirit's purpose remains unknown, but its power thrums beneath the skin, waiting."
+    },
+    {
+      "name": "Improved Minor Illusion",
+      "description": "When Electronistu casts Minor Illusion, he can create both a sound and an image with a single casting of the cantrip."
     }
   ],
-  "consumables": {
-    "Bolts": 19,
-    "Rations": 5,
-    "Shadow Essence": 1,
-    "Potion of Invisibility": 1
+  "spellcasting": {
+    "ability": "intelligence",
+    "dc": 14,
+    "attack_modifier": 6,
+    "cantrips": [
+      "True Strike",
+      "Mage Hand",
+      "Fire Bolt",
+      "Infestation",
+      "Minor Illusion"
+    ],
+    "slots": {
+      "1": 4,
+      "2": 3,
+      "3": 2
+    },
+    "spellbook": [
+      "Sleep",
+      "Magic Missile",
+      "Mage Armor",
+      "Identify",
+      "False Life",
+      "Detect Magic",
+      "Disguise Self",
+      "Charm Person",
+      "Misty Step",
+      "Knock",
+      "Web",
+      "Invisibility",
+      "Fireball",
+      "Magic Circle"
+    ],
+    "spells_prepared": [
+      {
+        "name": "Magic Missile"
+      },
+      {
+        "name": "Sleep"
+      },
+      {
+        "name": "Misty Step"
+      },
+      {
+        "name": "Knock"
+      },
+      {
+        "name": "Invisibility"
+      },
+      {
+        "name": "Mage Armor"
+      },
+      {
+        "name": "Fireball"
+      },
+      {
+        "name": "Magic Circle"
+      }
+    ]
   },
-  "level": 4,
-  "total_hit_points": 18,
-  "stats": {
-    "str": 8,
-    "dex": 17,
-    "con": 12,
-    "int": 17,
-    "wis": 10,
-    "cha": 12
-  },
-  "armor_class": 14,
-  "temporary_hit_points": 0,
-  "gold": 229,
+  "gold": 77,
   "inventory": [
     "Spellbook",
     "Crowbar",
     "Dark Common Clothes",
-    {
-      "name": "Dagger",
-      "description": "A simple, balanced blade (1d4 piercing, Finesse, Light, Thrown (range 20/60))"
-    },
     {
       "name": "Magda's Repeater",
       "description": "A lever-action light crossbow, custom-made (1d8 piercing, Ammunition (range 80/320), Two-Handed, holds 4 bolts before reloading \u2014 no Loading property)"
@@ -102,72 +166,12 @@
       "description": "A padded roll for sleeping on the ground"
     },
     {
-      "name": "Waterskin",
-      "description": "A leather container that holds up to 4 pints of liquid"
-    },
-    {
-      "name": "Shortsword",
-      "description": "A well-maintained blade taken from a dead ambusher (1d6 piercing, Finesse, Light)"
-    },
-    {
-      "name": "Ashen Circle Dossier",
-      "description": "A leather-bound folder stamped with a black crown wreathed in cinders. Contains decrypted safe house locations, sabotage targets, and a list of compromised officials in Eldoria City."
-    },
-    {
-      "name": "Thornwood Map (Marked)",
-      "description": "A folded map of the Thornwood with fresh ink notations. Cache #3 circled near the old Hollow, labeled \"Operational.\""
-    },
-    {
-      "name": "Dregg's Ledger",
-      "description": "A scribe's ledger containing shipping manifests, payment records, and message logs \u2014 Harlen Dregg's name appears throughout."
-    },
-    {
       "name": "Guard Commendation",
       "description": "A formal parchment sealed with the Lord Commander's signet. Grants official standing as a registered contractor for the Eldoria Guard \u2014 bounties may be taken directly from any Watchhouse in the city."
     },
     {
-      "name": "Ashen Circle Communiqu\u00e9",
-      "description": "A sealed scroll case containing coded correspondence between \"Cinder 7\" and \"Ash Prime.\" References a \"Grand Conflagration\" scheduled for the Festival of the Twin Moons in Eldoria City \u2014 three weeks from now. Also mentions a mole within the Eldoria Guard."
-    },
-    {
-      "name": "Cache #3 Inventory Ledger",
-      "description": "A brittle parchment listing supplies stored at this location. Several items are crossed out \u2014 withdrawn recently. One entry at the bottom reads \"Package for Dregg \u2014 awaiting courier.\""
-    },
-    {
-      "name": "Grand Conflagration Plans",
-      "description": "A sheaf of papers from Voss's table \u2014 coded notes, a partial map of the Eldoria sewer system with three junctions circled in red ink, and a timetable referencing \"delivery windows\" at the Alchemist's League, the Guard Armory, and the Grand Temple. One phrase repeats throughout: \"The Crown rises from the ashes.\""
-    },
-    {
-      "name": "Voss's Orders",
-      "description": "A singed parchment bearing the Ashen Circle's black crown seal. Dated two weeks ago. Orders Voss to \"establish operational base at Tidewater, coordinate supply chain, await Ash Prime's signal.\" Mentions three other Cinder operatives still active in the city \u2014 Cinder 3, Cinder 5, and Cinder 9."
-    },
-    {
-      "name": "Ashen Cipher Key",
-      "description": "A small, singed codebook found hidden beneath a loose floorboard in Voss's quarters. Contains the substitution cipher used in the Grand Conflagration Plans \u2014 enough to decode the delivery targets and timetable."
-    },
-    {
       "name": "Guard Investigator Badge",
       "description": "A small iron badge stamped with the Eldoria Guard's blue falcon. Grants special deputization \u2014 full access to Guard resources, Watchhouse archives, and personnel files. Reports directly to Captain Rhea Halstead and the Lord Commander."
-    },
-    {
-      "name": "Dregg's Final Report",
-      "description": "A folded parchment from Harlen Dregg's breast pocket \u2014 a half-written report to Ash Prime, dated today. It confirms Dregg was feeding Guard patrol schedules and festival security plans to the Ashen Circle. The report is unfinished. The last line reads: \"Cinder 5 reports the sewer cache is fully stocked. Awaiting final delivery coordinates for the Alchemist's League.\""
-    },
-    {
-      "name": "Cinder 5's Folio",
-      "description": "A singed leather folio containing operational notes. References a \"Cinder 3\" operating in the Merchant Ward and a \"Cinder 9\" embedded somewhere near the Grand Temple. Also contains a crude sketch of the Eldoria sewer system with two junctions marked \u2014 one near the Alchemist's League, one near the Guard Armory. A third junction near the Grand Temple is circled but unmarked, with a question mark beside it."
-    },
-    {
-      "name": "Dockside Contact's Papers",
-      "description": "Standard dockworker identification \u2014 name listed as \"Petyr Holm.\" Includes a cargo manifest for the warehouse, listing mundane goods. But one entry at the bottom is handwritten: \"Special delivery \u2014 hold for C5. Do not open.\""
-    },
-    {
-      "name": "Dregg's Hit List",
-      "description": "A folded slip of paper from a hidden compartment in Dregg's boot. Lists six Guard personnel \u2014 four crossed out, two unmarked. Labeled \"Compromised \u2014 approach with caution.\" The two remaining names: Sergeant Doran Voss and Corporal Mira Thorne."
-    },
-    {
-      "name": "Blasting Powder (4 pots)",
-      "description": "Four clay pots of crude grey powder \u2014 sulfur and charcoal mix. Enough combined force to breach a stone wall or collapse a foundation. Packed in a crate marked \"Special delivery \u2014 hold for C5.\""
     },
     {
       "name": "Assassin's Ring",
@@ -178,47 +182,34 @@
       "description": "A plain silver ring with faint protective runes shimmering beneath the surface. Requires attunement. Grants +1 bonus to AC and +1 bonus to all saving throws. Acquired from Orin Frostvein, a retired evoker in Silverwood City."
     },
     {
-      "name": "Dragon's Tears Vial",
-      "description": "A small glass vial of thick amber liquid \u2014 a rare alchemical catalyst. When mixed with blasting powder, it multiplies explosive force tenfold. Stolen from the Alchemist's League two weeks ago by an unidentified operative. Returned to the League, but Master Voss has offered to provide a small sample if needed for the investigation."
-    },
-    {
-      "name": "Corvin's Signet Ring",
-      "description": "A heavy gold ring bearing the Vane family crest \u2014 a hawk clutching a coin. Could be used to seal documents in Corvin's name or as proof of his demise."
-    },
-    {
-      "name": "Corvin's Key",
-      "description": "A small iron key, unremarkable but well-worn. Likely opens something in the Silver Scale Exchange \u2014 a safe, a drawer, a hidden compartment."
-    },
-    {
-      "name": "Corvin's Coded Notebook",
-      "description": "A slim leather notebook filled with densely written entries in a personal cipher. Contains records of informant payments, dead drop locations, and shipping intelligence bound for Zarthus. May take time to decode fully."
-    },
-    {
-      "name": "Voss's Shipping Ledger",
-      "description": "A leather-bound ledger containing real manifests \u2014 Zarthan steel, alchemical supplies, and crossbow components smuggled under false labels. Destinations include three Merchant Ward addresses."
-    },
-    {
-      "name": "Zarthan Correspondence",
-      "description": "Letters between Doran Voss and a Zarthan contact discussing shipment schedules, warehouse availability, and the Conflagration timetable."
-    },
-    {
-      "name": "Warehouse 7 Key",
-      "description": "A small, well-worn iron key labeled in Voss's handwriting \u2014 'Warehouse 7 \u2014 Pier 12.'"
-    },
-    {
-      "name": "Ashen Circle Hit List",
-      "description": "A sealed envelope containing a coded message and a list of Cinder operatives. Cinder 3 in Goldsmith's Alley, Cinder 9 at the Shrine of Saint Aldric. Notes that Doran Voss is 'compromised' and marked for termination before the Festival."
-    },
-    {
       "name": "Velvet Gem Pouch",
       "description": "A small black velvet bag containing three polished bloodstones \u2014 deep green with red flecks. Worth approximately 30 gp each to the right buyer."
     },
     {
       "name": "Scroll of Misty Step",
       "description": "A slim leather scroll case containing a spell scroll. The parchment within shimmers with faint silver ink \u2014 Misty Step, ready for a single use."
+    },
+    {
+      "name": "Alchemical Disguise Kit",
+      "description": "A compact leather case containing theatrical makeup, spirit gum, wax for facial prosthetics, and three small vials of skin-tinting solution. Found among Cinder 3's supplies \u2014 clearly used for covert movement through the city."
+    },
+    {
+      "name": "Smoke Pellet",
+      "description": "A small clay pot of grey powder labeled \"Smoke Pellet \u2014 Burst Radius 10 ft.\" When thrown, creates a cloud of thick smoke that heavily obscures a 10-foot radius area for 1 minute."
+    },
+    {
+      "name": "Alchemist's League Reward Box",
+      "description": "A polished wooden box inlaid with silver, containing three potions: Potion of Healing (2d4+2), Potion of Hill Giant Strength (STR 21 for 1 hour), and Potion of Water Breathing (breathe underwater for 1 hour). A gift from Master Lydda Voss."
+    },
+    {
+      "name": "Pearl of Power",
+      "description": "A thumb-sized pearl glowing with faint blue light. Once per dawn, you can use an action to speak its command word and recover one expended spell slot of up to 3rd level. Found among Harlen Dregg's personal effects \u2014 now yours."
+    },
+    {
+      "name": "Whisper",
+      "description": "A shortsword of exceptional craftsmanship by Magda of the Iron Phoenix. +1 to attack and damage rolls. The blade is so dark it seems to drink light, and when drawn it makes no sound \u2014 no ring of steel, no scrape of leather. Silent as a thought. (1d6+1 piercing, Finesse, Light)"
     }
   ],
-  "xp": 4555,
   "reputation": {
     "eldoria": {
       "guard": [
@@ -241,6 +232,26 @@
         {
           "name": "Mole Eliminated",
           "description": "Electronistu tracked down and personally eliminated Lieutenant Harlen Dregg \u2014 the Ashen Circle mole inside the Eldoria Guard. Dregg's final report to Ash Prime was recovered, confirming his treachery and providing critical intelligence on the Grand Conflagration plot."
+        },
+        {
+          "name": "Cinder 3 Eliminated",
+          "description": "Electronistu led the strike team that raided Kellen's Fine Goldwork, personally engaging and eliminating Lyssa Kellen (Cinder 3) \u2014 the Ashen Circle's supply chain mastermind. The Goldsmith's Alley safe house was secured and its alchemical stockpile captured."
+        },
+        {
+          "name": "Ash Prime Eliminated",
+          "description": "Electronistu planned and executed the ambush at the Spire that killed Ash Prime \u2014 revealed to be former Magistrate Cora Vane. The Ashen Circle's command center was captured, its leader eliminated, and critical intelligence on the Grand Conflagration was recovered. The Lord Commander has been notified."
+        },
+        {
+          "name": "Cinder 9 Eliminated",
+          "description": "Electronistu led the strike team into the crypt of Saint Aldric and personally eliminated Cinder 9 \u2014 the last active Cinder operative. The Temple cache was secured, the sewer route to Junction Gamma was cut off, and the Grand Conflagration plot has been fully dismantled."
+        },
+        {
+          "name": "Humble Hero",
+          "description": "Offered a public ceremony and medals by the Lord Commander himself, Electronistu declined the spotlight and asked that the honor be given to the guardsmen who fought alongside him instead. The Lord Commander will not forget this."
+        },
+        {
+          "name": "Case Closed",
+          "description": "Electronistu personally delivered the complete evidentiary record of the Ashen Circle conspiracy to the Eldoria Guard evidence room \u2014 every document, key, ring, and journal recovered during the investigation. The case file on the Grand Conflagration is now the most comprehensive counter-conspiracy dossier in the kingdom's history."
         }
       ],
       "mage": [],
@@ -256,6 +267,18 @@
         {
           "name": "Contract Fulfilled",
           "description": "Electronistu eliminated Corvin Vane \u2014 a Zarthan intelligence agent operating out of the Silver Scale Exchange \u2014 cleanly and without collateral exposure. The kill was made to look like a robbery. The Assassin Guild is pleased."
+        },
+        {
+          "name": "Cinder 3 Eliminated",
+          "description": "Electronistu eliminated Lyssa Kellen (Cinder 3) at Kellen's Fine Goldwork in Goldsmith's Alley. The Ashen Circle's supply chain is broken."
+        },
+        {
+          "name": "Ash Prime Eliminated",
+          "description": "Electronistu planned and executed the ambush at the Spire that killed Ash Prime \u2014 revealed to be former Magistrate Cora Vane. Only Cinder 9 remains. Full membership and a seat at the inner table are within reach."
+        },
+        {
+          "name": "Cinder 9 Eliminated",
+          "description": "Electronistu eliminated Cinder 9 in the crypt of Saint Aldric. All three Cinder operatives and Ash Prime are dead. The Grand Conflagration is stopped. Full membership and a seat at the inner table are earned."
         }
       ],
       "merchant": [
@@ -268,15 +291,24 @@
         {
           "name": "Silverscale Heist",
           "description": "Electronistu infiltrated the Silver Scale Exchange, eliminated the night guard, cracked Doran Voss's safe, and delivered a trove of incriminating documents to the Thief Guild \u2014 including the Ashen Circle hit list, smuggling ledgers, and proof of Voss's connection to the Grand Conflagration plot. Durgan is impressed. The guild now considers Electronistu a trusted asset."
+        },
+        {
+          "name": "Architect of the Shadow Pact",
+          "description": "Electronistu proposed and brokered an unprecedented alliance between the Eldoria Assassin Guild and the Eldoria Thief Guild \u2014 a unified intelligence and operations network that will extend the reach of both guilds across the kingdom and beyond. Durgan has agreed. The Thief Guild's eyes and the Assassin Guild's blades now move in concert, with Electronistu as the bridge between them."
         }
       ],
       "alchemists league": [
         {
           "name": "Friend of the League",
           "description": "Electronistu returned a stolen vial of Dragon's Tears \u2014 a rare alchemical catalyst \u2014 to the Eldoria Alchemist's League, earning the gratitude and trust of Master Alchemist Lydda Voss."
+        },
+        {
+          "name": "Trusted Ally",
+          "description": "Electronistu returned a second vial of Dragon's Tears \u2014 this one recovered from Cinder 3's personal stockpile \u2014 to the Eldoria Alchemist's League. Master Lydda Voss now considers him one of the League's most valued friends. The League's resources, alchemical expertise, and political connections are available to him."
         }
       ],
-      "order of scribes": []
+      "order of scribes": [],
+      "ruler": []
     },
     "zarthus": {
       "guard": [],
@@ -284,7 +316,8 @@
       "assassin": [],
       "merchant": [],
       "thief": [],
-      "alchemists league": []
+      "alchemists league": [],
+      "ruler": []
     },
     "silverwood": {
       "guard": [],
@@ -298,59 +331,14 @@
       ],
       "thief": [],
       "alchemists league": [],
-      "rangers conclave": []
+      "rangers conclave": [],
+      "ruler": []
     },
     "blacksail archipelago": {
       "assassin": [],
-      "thief": []
-    }
-  },
-  "current_hit_points": 18,
-  "hit_dice_count": 4,
-  "spellcasting": {
-    "ability": "intelligence",
-    "dc": 13,
-    "attack_modifier": 5,
-    "cantrips": [
-      "True Strike",
-      "Mage Hand",
-      "Fire Bolt",
-      "Infestation"
-    ],
-    "slots": {
-      "1": 4,
-      "2": 3
+      "thief": [],
+      "ruler": []
     },
-    "spellbook": [
-      "Sleep",
-      "Magic Missile",
-      "Mage Armor",
-      "Identify",
-      "False Life",
-      "Detect Magic",
-      "Disguise Self",
-      "Charm Person",
-      "Misty Step",
-      "Knock",
-      "Web",
-      "Invisibility"
-    ],
-    "spells_prepared": [
-      {
-        "name": "Magic Missile"
-      },
-      {
-        "name": "Sleep"
-      },
-      {
-        "name": "Disguise Self"
-      },
-      "Misty Step",
-      "Knock",
-      "Invisibility",
-      "Mage Armor"
-    ]
-  },
-  "active_effects": [],
-  "_active_buff_data": {}
+    "others": {}
+  }
 }
