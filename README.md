@@ -37,6 +37,7 @@ Read on for quick start, gameplay hints, and the full engine overview under **Ho
 
 - **Python 3.11** or newer
 - **One AI backend** (pick one):
+  - **DeepSeek** — cloud-based, requires a paid API key (OpenAI-compatible, no proxy needed)
   - **Ollama** — cloud-based, free and paid
   - **OpenAI** — cloud-based, requires a paid API key
   - **Gemini** — cloud-based, requires a paid API key
@@ -58,6 +59,7 @@ pip install -r requirements.txt
 | Backend | Requirements | Supported Models | Play Command |
 |---------|-------------|------------------|--------------|
 | **Ollama** | Install [Ollama](https://ollama.ai/), pull your model | `kimi-k2.6:cloud`, `deepseek-v4-flash:cloud`, `deepseek-v4-pro:cloud` | `python3 play.py` |
+| **DeepSeek** | `export DEEPSEEK_API_KEY=your-api-key` | `deepseek-v4-flash`, `deepseek-v4-pro` | `python3 play_with_deepseek.py` |
 | **OpenAI** | `export OPENAI_API_KEY=your-api-key` | `gpt-5.5-pro`, `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.4-nano` | `python3 play_with_gpt.py` |
 | **Gemini** | `export GEMINI_API_KEY=your-api-key` | `gemini-3.1-pro-preview`, `gemini-3-flash-preview`, `gemini-2.5-pro` | `python3 play_with_gemini.py` |
 | **Claude** | `export ANTHROPIC_API_KEY=your-api-key` | `claude-opus-4-7`, `claude-opus-4-6` | `python3 play_with_claude.py` |
@@ -83,6 +85,7 @@ Launch the game with the script that matches your backend:
 | Backend | Command |
 |---------|---------|
 | Ollama | `python3 play.py` |
+| DeepSeek | `python3 play_with_deepseek.py` |
 | OpenAI | `python3 play_with_gpt.py` |
 | Gemini | `python3 play_with_gemini.py` |
 | Claude | `python3 play_with_claude.py` |
