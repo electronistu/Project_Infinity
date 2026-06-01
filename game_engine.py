@@ -79,9 +79,9 @@ async def run_game(chat_fn, model, context_window, verbose=False, debug=False):
 
     player_path = os.path.splitext(wwf_path)[0] + ".player"
 
-    with open(LOCK_FILE, "r") as f:
+    with open(LOCK_FILE, "r", encoding="utf-8") as f:
         lock_content = f.read()
-    with open(wwf_path, "r") as f:
+    with open(wwf_path, "r", encoding="utf-8") as f:
         key_content = f.read()
 
     try:
@@ -141,14 +141,15 @@ async def run_game(chat_fn, model, context_window, verbose=False, debug=False):
                         response_msg = response['message']
                         content = response_msg['content'] if response_msg else ""
 
-                        messages.append({
+                        msg_entry = {
                             "role": "assistant",
                             "content": content or "",
-                            "tool_calls": response_msg.get('tool_calls') or None,
-                        } if response_msg.get('tool_calls') else {
-                            "role": "assistant",
-                            "content": content or "",
-                        })
+                        }
+                        if response_msg.get('tool_calls'):
+                            msg_entry["tool_calls"] = response_msg['tool_calls']
+                        if response.get('thinking'):
+                            msg_entry["thinking"] = response['thinking']
+                        messages.append(msg_entry)
 
                         thinking_retries = 0
                         MAX_THINKING_RETRIES = 3
@@ -280,7 +281,7 @@ async def run_game(chat_fn, model, context_window, verbose=False, debug=False):
                                 cleared.append(spell_name)
                             db_data["active_effects"] = []
                             db_data["_active_buff_data"] = {}
-                            with open(player_path, "w") as f:
+                            with open(player_path, "w", encoding="utf-8") as f:
                                 json.dump(db_data, f, indent=2)
                             msg = f"[green]Character sheet saved to {player_path}[/green]"
                             if cleared:
