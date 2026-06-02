@@ -26,6 +26,9 @@ Most AI RPGs let the language model make up numbers. Project Infinity runs every
 - **Combat Registry** — GM registers all combatants once per battle. Initiative auto-rolled for everyone. The engine tracks every combatant's HP across attacks.
 - **Combat Healing** — Cure Wounds, Healing Word, Mass Cure Wounds, Heal, and all SRD healing spells resolve through the combat registry. Player-to-NPC, NPC-to-player, and NPC-to-NPC healing all apply correctly with HP capped at maximum. Power Word Heal restores full HP.
 - **In-Game Commands** — `/stats`, `/save`, `/sync`, `/quit` from within the game.
+- **Session Timeline** — Every 5 rounds, the GM auto-summarizes key events, NPCs met, mechanical changes, and active hooks into a structured `.timeline.md`. Persists between sessions and injected on next load. Cache-friendly: old entries reused by the LLM without re-processing.
+
+> **Encoding Note for Chinese Windows**: Python defaults to CP936 (GBK) on Chinese Windows, which cannot decode UTF-8 files. All `open()` calls in this project now use `encoding="utf-8"` to prevent `UnicodeDecodeError` when reading YAML configs, JSON player data, world `.wwf` files, and spell databases.
 
 Read on for quick start, gameplay hints, and the full engine overview under **How It Works**.
 
@@ -77,6 +80,7 @@ python3 main.py
 This generates two files in the `output/` directory:
 - `yourcharacter_weave.wwf` — the world data (kingdoms, NPCs, guilds, history)
 - `yourcharacter_weave.player` — your character's stats and inventory
+- `yourcharacter_weave.timeline.md` — session timeline (auto-created on first save checkpoint)
 
 ### 5. Play!
 
