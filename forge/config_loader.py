@@ -48,19 +48,19 @@ class Config(BaseModel):
     weapons: List[Weapon] = []
 
 def load_config() -> Config:
-    with open(os.path.join(config_dir, 'races.yml'), 'r') as f:
+    with open(os.path.join(config_dir, 'races.yml'), 'r', encoding="utf-8") as f:
         races_data = yaml.safe_load(f)
     
-    with open(os.path.join(config_dir, 'classes.yml'), 'r') as f:
+    with open(os.path.join(config_dir, 'classes.yml'), 'r', encoding="utf-8") as f:
         classes_data = yaml.safe_load(f)
 
-    with open(os.path.join(config_dir, 'backgrounds.yml'), 'r') as f:
+    with open(os.path.join(config_dir, 'backgrounds.yml'), 'r', encoding="utf-8") as f:
         backgrounds_data = yaml.safe_load(f)
         
-    with open(os.path.join(config_dir, 'alignments.yml'), 'r') as f:
+    with open(os.path.join(config_dir, 'alignments.yml'), 'r', encoding="utf-8") as f:
         alignments_data = yaml.safe_load(f)
 
-    with open(os.path.join(config_dir, 'weapons.yml'), 'r') as f:
+    with open(os.path.join(config_dir, 'weapons.yml'), 'r', encoding="utf-8") as f:
         weapons_data = yaml.safe_load(f)
 
     return Config(

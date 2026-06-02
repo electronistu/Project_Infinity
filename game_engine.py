@@ -13,6 +13,46 @@ from display import format_stats, render_gm_text
 
 LOCK_FILE = "GameMaster_MCP.md"
 OUTPUT_DIR = "output"
+TIMELINE_INTERVAL = 5  # rounds between timeline snapshots
+
+TIMELINE_PROMPT = """SYSTEM INSTRUCTION: You have just completed several rounds of gameplay.
+Write a session timeline entry in the following EXACT format. Replace bracketed
+text with actual content. Keep it concise. Output ONLY the entry — no extra narration.
+
+## Rounds X-Y | [current location] | [in-game time]
+**Key Events**:
+- [event 1 in one sentence]
+- [event 2 in one sentence]
+**NPCs**: [names and roles of new NPCs encountered, or "none"]
+**Mechanical Changes**:
+- Gold: [old]→[new] (reason)
+- Items: [gained/used key items]
+- Reputation: [changed factions, if any]
+**Active Hooks**: [all unresolved plot threads, one per line]"""
+
+
+def load_timeline(timeline_path):
+    """Load existing timeline if available."""
+    if os.path.exists(timeline_path):
+        with open(timeline_path, "r", encoding="utf-8") as f:
+            return f.read().strip()
+    return ""
+
+
+def append_timeline_file(timeline_path, entry):
+    """Append a new timeline entry to the file."""
+    # Ensure output dir exists
+    os.makedirs(os.path.dirname(timeline_path) or ".", exist_ok=True)
+    # Write header on first entry
+    if not os.path.exists(timeline_path):
+        header = "# Session Timeline\n\n"
+    else:
+        header = ""
+    with open(timeline_path, "a", encoding="utf-8") as f:
+        if header:
+            f.write(header)
+        f.write(entry.strip() + "\n\n")
+
 
 console = Console()
 VERBOSE = False
@@ -78,6 +118,7 @@ async def run_game(chat_fn, model, context_window, verbose=False, debug=False):
     console.print(f"\n[green]Selected world:[/green] {wwf_path}")
 
     player_path = os.path.splitext(wwf_path)[0] + ".player"
+    timeline_path = os.path.splitext(wwf_path)[0] + ".timeline.md"
 
     with open(LOCK_FILE, "r", encoding="utf-8") as f:
         lock_content = f.read()
@@ -104,9 +145,24 @@ async def run_game(chat_fn, model, context_window, verbose=False, debug=False):
                         }
                     })
 
+                # ── Load session timeline ─────────────────────────────
+                existing_timeline = load_timeline(timeline_path)
+                round_counter = 0
+
                 messages = [
                     {"role": "system", "content": lock_content}
                 ]
+                if existing_timeline:
+                    messages.append({
+                        "role": "system",
+                        "content": f"""SESSION_TIMELINE — these are events that happened earlier this session.
+Refer to them when the player asks about past events. Do not replay or re-describe them.
+
+{existing_timeline}"""
+                    })
+                    if VERBOSE:
+                        console.print(f"[dim]Timeline loaded: {timeline_path} ({len(existing_timeline)} chars)[/dim]")
+
                 current_context_tokens = 0
 
                 async def chat_with_tools(role_content):
@@ -368,6 +424,29 @@ async def run_game(chat_fn, model, context_window, verbose=False, debug=False):
                                 border_style="magenta"
                             ))
                             console.print("\n")
+
+                        # ── Timeline checkpoint ────────────────────────
+                        round_counter += 1
+                        if round_counter % TIMELINE_INTERVAL == 0:
+                            if VERBOSE:
+                                console.print(f"\n[dim]⏳ Timeline checkpoint (round {round_counter})...[/dim]")
+                            try:
+                                # Calculate round range for this entry
+                                start_round = round_counter - TIMELINE_INTERVAL + 1
+                                prompt = TIMELINE_PROMPT.replace("X-Y", f"{start_round}-{round_counter}")
+                                tl_response = await chat_with_tools(prompt)
+                                if tl_response and tl_response != "__SYSTEM_PAUSE__":
+                                    # Clean up sync tokens from timeline entry
+                                    entry = tl_response.replace("{{_NEED_AN_OTHER_PROMPT}}", "").replace("{{_NEED_ANOTHER_PROMPT}}", "").strip()
+                                    if entry and "**Key Events**" in entry:
+                                        append_timeline_file(timeline_path, entry)
+                                        if VERBOSE:
+                                            console.print(f"[dim]✅ Timeline saved ({len(entry)} chars)[/dim]")
+                                    elif VERBOSE:
+                                        console.print(f"[dim]⚠️ Timeline entry missing Key Events — skipped[/dim]")
+                            except Exception as e:
+                                if VERBOSE:
+                                    console.print(f"[dim]⚠️ Timeline checkpoint failed: {e}[/dim]")
 
 
     except KeyboardInterrupt:

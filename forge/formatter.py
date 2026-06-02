@@ -105,7 +105,7 @@ def format_world_to_wwf(world_state: WorldState, output_path: str):
     
     # Save player data as JSON for MCP/SQLite
     player_json_path = os.path.splitext(output_path)[0] + ".player"
-    with open(player_json_path, 'w') as pf:
+    with open(player_json_path, 'w', encoding="utf-8") as pf:
         pf.write(get_player_json(pc, world_state.kingdoms))
 
     # --- History ---
@@ -129,7 +129,7 @@ def format_world_to_wwf(world_state: WorldState, output_path: str):
             output.append(f"        leader: {json.dumps(get_npc_array(g.leader))}")
             output.append(f"        right_hand: {json.dumps(get_npc_array(g.right_hand))}")
 
-    with open(output_path, 'w') as f:
+    with open(output_path, 'w', encoding="utf-8") as f:
         f.write("\n".join(output))
 
     print(f"Schema-driven World-Weave File successfully generated at: {output_path}")
