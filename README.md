@@ -26,6 +26,9 @@ Most AI RPGs let the language model make up numbers. Project Infinity runs every
 - **Combat Registry** — GM registers all combatants once per battle. Initiative auto-rolled for everyone. The engine tracks every combatant's HP across attacks.
 - **Combat Healing** — Cure Wounds, Healing Word, Mass Cure Wounds, Heal, and all SRD healing spells resolve through the combat registry. Player-to-NPC, NPC-to-player, and NPC-to-NPC healing all apply correctly with HP capped at maximum. Power Word Heal restores full HP.
 - **In-Game Commands** — `/stats`, `/save`, `/sync`, `/quit` from within the game.
+- **Session Timeline** — Every 5 rounds, the GM auto-summarizes key events, NPCs met, mechanical changes, and active hooks into a structured `.timeline.md`. Persists between sessions and injected on next load. Cache-friendly: old entries reused by the LLM without re-processing.
+
+> **Encoding Note for Chinese Windows**: Python defaults to CP936 (GBK) on Chinese Windows, which cannot decode UTF-8 files. All `open()` calls in this project now use `encoding="utf-8"` to prevent `UnicodeDecodeError` when reading YAML configs, JSON player data, world `.wwf` files, and spell databases.
 
 Read on for quick start, gameplay hints, and the full engine overview under **How It Works**.
 
@@ -37,6 +40,7 @@ Read on for quick start, gameplay hints, and the full engine overview under **Ho
 
 - **Python 3.11** or newer
 - **One AI backend** (pick one):
+  - **DeepSeek** — cloud-based, requires a paid API key (OpenAI-compatible, no proxy needed)
   - **Ollama** — cloud-based, free and paid
   - **OpenAI** — cloud-based, requires a paid API key
   - **Gemini** — cloud-based, requires a paid API key
@@ -58,6 +62,7 @@ pip install -r requirements.txt
 | Backend | Requirements | Supported Models | Play Command |
 |---------|-------------|------------------|--------------|
 | **Ollama** | Install [Ollama](https://ollama.ai/), pull your model | `kimi-k2.6:cloud`, `deepseek-v4-flash:cloud`, `deepseek-v4-pro:cloud` | `python3 play.py` |
+| **DeepSeek** | `export DEEPSEEK_API_KEY=your-api-key` | `deepseek-v4-flash`, `deepseek-v4-pro` | `python3 play_with_deepseek.py` |
 | **OpenAI** | `export OPENAI_API_KEY=your-api-key` | `gpt-5.5-pro`, `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.4-nano` | `python3 play_with_gpt.py` |
 | **Gemini** | `export GEMINI_API_KEY=your-api-key` | `gemini-3.1-pro-preview`, `gemini-3-flash-preview`, `gemini-2.5-pro` | `python3 play_with_gemini.py` |
 | **Claude** | `export ANTHROPIC_API_KEY=your-api-key` | `claude-opus-4-7`, `claude-opus-4-6` | `python3 play_with_claude.py` |
@@ -75,6 +80,7 @@ python3 main.py
 This generates two files in the `output/` directory:
 - `yourcharacter_weave.wwf` — the world data (kingdoms, NPCs, guilds, history)
 - `yourcharacter_weave.player` — your character's stats and inventory
+- `yourcharacter_weave.timeline.md` — session timeline (auto-created on first save checkpoint)
 
 ### 5. Play!
 
@@ -83,6 +89,7 @@ Launch the game with the script that matches your backend:
 | Backend | Command |
 |---------|---------|
 | Ollama | `python3 play.py` |
+| DeepSeek | `python3 play_with_deepseek.py` |
 | OpenAI | `python3 play_with_gpt.py` |
 | Gemini | `python3 play_with_gemini.py` |
 | Claude | `python3 play_with_claude.py` |

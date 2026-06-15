@@ -57,7 +57,7 @@ def _load_spells() -> dict:
     if not os.path.exists(config_path):
         _SPELLS_DB = {}
         return _SPELLS_DB
-    with open(config_path, "r") as f:
+    with open(config_path, "r", encoding="utf-8") as f:
         spells_list = yaml.safe_load(f)
     if spells_list is None:
         _SPELLS_DB = {}
@@ -180,7 +180,7 @@ def get_level_for_xp(xp: int) -> int:
 def init_player_db(player_file_path: str) -> str:
     global DB_CONNECTION
     try:
-        with open(player_file_path, 'r') as f:
+        with open(player_file_path, 'r', encoding="utf-8") as f:
             data = json.load(f)
 
         DB_CONNECTION = sqlite3.connect(":memory:")

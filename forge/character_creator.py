@@ -450,7 +450,7 @@ def create_character(config: Config) -> PlayerCharacter:
     weapon_categories = build_weapon_categories(weapon_data)
     weapon_names = set(weapon_data.keys())
 
-    with open(_os.path.join(_os.path.dirname(__file__), '..', 'config', 'spells.yml'), 'r') as f:
+    with open(_os.path.join(_os.path.dirname(__file__), '..', 'config', 'spells.yml'), 'r', encoding="utf-8") as f:
         all_spells = yaml.safe_load(f)
     spell_names = {s['name'] for s in all_spells}
 
