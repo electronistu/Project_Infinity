@@ -2,9 +2,10 @@
 
 *A text-based RPG where an AI Dungeon Master runs real D&D 5e — with mechanical rolls, persistent state, and SRD 5.1 rules enforced by a dedicated game engine.*
 
-*Running on deepseek-v4-pro:cloud*
+*Running on gemini-3.5-flash & gemini-3-pro-image-preview*
 
-![Project Infinity TUI — deepseek-v4-pro:cloud](screenshot.png)
+![Project Infinity TUI](one.png)
+![Project Infinity TUI](two.png)
 
 ---
 
@@ -67,8 +68,6 @@ pip install -r requirements.txt
 | **Gemini** | `export GEMINI_API_KEY=your-api-key` | `gemini-3.1-pro-preview`, `gemini-3-flash-preview`, `gemini-2.5-pro` | `python3 play_with_gemini.py` |
 | **Claude** | `export ANTHROPIC_API_KEY=your-api-key` | `claude-opus-4-7`, `claude-opus-4-6` | `python3 play_with_claude.py` |
 
-> **Note:** The Gemini preview models have known issues. See [Known Issues](#known-issues) for details.
-
 ### 4. Create Your World
 
 Before you can play, you need to create a character and generate a world. The World Forge walks you through picking a race, class, background, distributing stats, choosing equipment, and more — all following SRD 5.1 rules.
@@ -93,12 +92,53 @@ Launch the game with the script that matches your backend:
 | OpenAI | `python3 play_with_gpt.py` |
 | Gemini | `python3 play_with_gemini.py` |
 | Claude | `python3 play_with_claude.py` |
+| **Nano Banana (Image)** | `python3 play_with_nano.py` |
 
 You'll be prompted to:
 1. **Select a model** — pick from the list of supported models
 2. **Select a world file** — pick the `.wwf` file you generated in Step 4
 
 Then the Game Master awakens and your adventure begins. Type actions in plain English. The GM handles the rest.
+
+### Nano Banana — Image-Enhanced Play
+ 
+`play_with_nano.py` automatically generates AI scene illustrations from the Game Master's narrative, displayed directly in your terminal.
+ 
+**Key Features:**
+- **Visual Continuity** — The system maintains a history of previous scenes to ensure the protagonist and environment remain consistent throughout the journey.
+- **Dynamic Visuals** — The AI automatically adjusts the protagonist's appearance based on their current HP (e.g., depicting them as bloodied or exhausted when wounded).
+- **Sequential Scenes** — Every illustration is tracked as a chronological sequence, starting with the "Opening Scene" followed by "Scene 1", "Scene 2", and so on.
+ 
+**Requirements:**
+- **Kitty terminal** — the only terminal emulator that supports inline image display. Install it:
+  ```bash
+  # Ubuntu/Debian
+  sudo apt install kitty
+  # Or via the official installer
+  curl -L https://sw.kovidgoyal.net/kitty/installer.sh | sh /dev/stdin
+  ```
+- **GEMINI_API_KEY** — same as the standard Gemini backend.
+
+**Model selection:**
+
+At startup, you choose two models:
+
+| Role | Available Models |
+|------|-----------------|
+| **GameMaster** (text) | `gemini-3.5-flash` |
+| **Image Generation** | `gemini-3-pro-image-preview`, `gemini-3.1-flash-image-preview`, `gemini-2.5-flash-image` |
+
+**Play command:**
+
+```bash
+python3 play_with_nano.py                          # image every prompt (default)
+python3 play_with_nano.py --image-frequency 3      # image every 3 prompts
+python3 play_with_nano.py --image-frequency 0      # no images
+```
+
+All standard flags (`--verbose`, `--debug`, `--temperature`, `--thinking-level`) are supported.
+
+> **Note:** You must run the game **inside Kitty terminal** to see images. Other terminals will skip image display silently.
 
 ---
 
@@ -304,16 +344,6 @@ Temperature is deprecated for GPT-5.5 models (internally locked to 1.0). Use `--
 ### GPT-5.4 Models (Legacy)
 
 GPT-5.4 models sometimes return completely empty responses (no text, no tool calls). The engine automatically detects this and re-sends your last action as a new message, up to 3 times. If retries are exhausted, the empty response is shown as-is.
-
-### Gemini Preview Models
-
-`gemini-3.1-pro-preview` and `gemini-3-flash-preview` have bugs with function calling:
-
-- **Malformed tool calls** — These models intermittently send broken function calls. The engine retries with corrective messages to guide the model back on track.
-- **Thinking leakage (3.1-pro only)** — The model may output its internal reasoning as visible text in the game narrative. There is currently no workaround.
-- **Thinking-only responses** — When `--thinking-level` is enabled, the model may think without producing any output. The engine auto-injects "Continue" to prompt a response.
-
-The default temperature for Gemini is set to `1.0` (instead of the usual `0.0`) because this significantly reduces malformed call rates. You can override this with `--temperature`.
 
 ---
 

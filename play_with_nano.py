@@ -11,39 +11,44 @@ from google.genai import types
 from google.genai import errors as genai_errors
 from game_engine import run_game, console
 
-AVAILABLE_MODELS = [
+GM_MODELS = [
     "gemini-3.5-flash",
+]
+IMAGE_MODELS = [
+    "gemini-3-pro-image-preview",
+    "gemini-3.1-flash-image-preview",
+    "gemini-2.5-flash-image",
 ]
 MODEL_CONTEXT_LENGTHS = {
     "gemini-3.5-flash": 1048576,
-
 }
 DEFAULT_TEMP = 1.0
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Project Infinity: A Dynamic, Text-Based RPG World Engine (Gemini)")
+    parser = argparse.ArgumentParser(description="Project Infinity: A Dynamic, Text-Based RPG World Engine (Nano Banana — Image Enhanced)")
     parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed MCP tool calls and responses")
     parser.add_argument("--debug", "-d", action="store_true", help="Show raw LLM responses and tool calls")
     parser.add_argument("--temperature", "-t", type=float, default=DEFAULT_TEMP, help=f"Sampling temperature (default: {DEFAULT_TEMP})")
     parser.add_argument("--thinking-level", choices=["LOW", "MEDIUM", "HIGH"], default=None, help="Enable structured thinking with the specified level")
+    parser.add_argument("--image-frequency", "-f", type=int, default=1, help="Generate an image every N prompts (default: 1 = every prompt, 0 = never)")
     return parser.parse_args()
 
 
-async def select_model(input_session):
-    console.print(Panel("[bold magenta] Infinity Project: LLM Selection (Gemini) [/bold magenta]", expand=False))
-    for i, model in enumerate(AVAILABLE_MODELS):
+async def select_model(input_session, models, title):
+    console.print(Panel(f"[bold magenta]{title}[/bold magenta]", expand=False))
+    for i, model in enumerate(models):
         console.print(f"[cyan]{i+1}[/cyan] {model}")
 
     choice = await input_session.prompt_async(HTML('<ansicyan><b>Select a model (number)</b></ansicyan> '))
     try:
         idx = int(choice) - 1
-        selected_model = AVAILABLE_MODELS[idx]
+        selected_model = models[idx]
         console.print(Panel(f"[bold green]Model selected:[/bold green] {selected_model}", border_style="green"))
         return selected_model
     except (ValueError, IndexError):
         console.print("[red]Invalid selection. Defaulting to first model.[/red]")
-        return AVAILABLE_MODELS[0]
+        return models[0]
 
 
 def _strip_additional_properties(schema):
@@ -329,6 +334,101 @@ def create_gemini_chat_fn(api_key, debug=False, thinking_level=None, temperature
     return chat_fn
 
 
+def create_image_gen_fn(api_key, image_model, debug=False):
+    client = genai.Client(api_key=api_key)
+    # We store text history and count locally instead of using the API's conversation history
+    image_history = [] 
+    scene_count = 0
+
+    async def image_gen_fn(description, char_anchor=None, hp_info=None):
+        nonlocal image_history, scene_count
+        
+        config = types.GenerateContentConfig(
+            response_modalities=["IMAGE"],
+            image_config=types.ImageConfig(aspect_ratio="16:9"),
+        )
+
+        scene_label = "Opening Scene" if scene_count == 0 else f"Scene {scene_count}"
+        hp_text = f" Current HP: {hp_info}" if hp_info else ""
+        
+        # Build a single, comprehensive prompt for this request
+        prompt_parts = []
+        
+        # 1. Anchor
+        if char_anchor:
+            prompt_parts.append(f"VISUAL ANCHOR (Primary Character Reference): {char_anchor}")
+        
+        # 2. Brief Continuity (last 3 scenes)
+        if image_history:
+            history_context = "\n".join(image_history[-3:])
+            prompt_parts.append(f"PREVIOUS SCENES FOR VISUAL CONTINUITY:\n{history_context}")
+            
+        # 3. Current Scene
+        current_scene_prompt = (
+            f"{scene_label}{hp_text}. Maintain visual consistency with the protagonist and environment. "
+            f"Use the HP to influence the character's physical appearance (e.g., blood, fatigue), "
+            f"but DO NOT render any text or numbers.\n"
+            f"Current Scene Description: {description}"
+        )
+        prompt_parts.append(current_scene_prompt)
+        
+        final_prompt = "\n\n".join(prompt_parts)
+        
+        # Update local history (only store the description part to save tokens)
+        image_history.append(f"{scene_label}: {description[:200]}...")
+        scene_count += 1
+
+        if debug:
+            console.print(f"[dim]DEBUG IMAGE: Prompt length: {len(final_prompt)} chars, model: {image_model}, scene: {scene_label}[/dim]")
+
+        try:
+            # Use a single-turn request to avoid API session issues with IMAGE modality
+            response = await client.aio.models.generate_content(
+                model=image_model,
+                contents=[types.Content(role="user", parts=[types.Part(text=final_prompt)])],
+                config=config,
+            )
+
+            if debug:
+                num_candidates = len(response.candidates) if response.candidates else 0
+                console.print(f"[dim]DEBUG IMAGE: Candidates: {num_candidates}[/dim]")
+
+            if not response.candidates or not response.candidates[0].content:
+                if debug:
+                    console.print("[bold yellow]DEBUG: Image generation returned no content.[/bold yellow]")
+                return None
+
+            parts = response.candidates[0].content.parts
+            if not parts:
+                if debug:
+                    console.print("[bold yellow]DEBUG: Image generation returned no parts.[/bold yellow]")
+                return None
+
+            for part in parts:
+                image = part.as_image()
+                if image:
+                    return image
+
+            if debug:
+                console.print("[bold yellow]DEBUG: No image part found in response.[/bold yellow]")
+            return None
+
+        except genai_errors.ClientError as e:
+            if debug:
+                console.print(f"[bold yellow]DEBUG: Image generation API error: {e}[/bold yellow]")
+            return None
+        except genai_errors.ServerError as e:
+            if debug:
+                console.print(f"[bold yellow]DEBUG: Image generation server error: {e}[/bold yellow]")
+            return None
+        except Exception as e:
+            if debug:
+                console.print(f"[bold yellow]DEBUG: Image generation unexpected error: {e}[/bold yellow]")
+            return None
+
+    return image_gen_fn
+
+
 async def main():
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
@@ -342,15 +442,18 @@ async def main():
 
     input_session = PromptSession()
 
-    model = await select_model(input_session)
+    gm_model = await select_model(input_session, GM_MODELS, "Infinity Project: GameMaster Model Selection (Nano Banana)")
+    image_model = await select_model(input_session, IMAGE_MODELS, "Infinity Project: Image Generation Model Selection (Nano Banana)")
 
-    context_window = MODEL_CONTEXT_LENGTHS.get(model, 1048576)
+    context_window = MODEL_CONTEXT_LENGTHS.get(gm_model, 1048576)
     if verbose:
         console.print(f"[dim]Context window: {context_window:,} tokens[/dim]")
 
     chat_fn = create_gemini_chat_fn(api_key, debug=debug, thinking_level=args.thinking_level, temperature=args.temperature)
+    image_gen_fn = create_image_gen_fn(api_key, image_model, debug=debug)
 
-    await run_game(chat_fn, model, context_window, verbose=verbose, debug=debug)
+    await run_game(chat_fn, gm_model, context_window, verbose=verbose, debug=debug,
+                   image_gen_fn=image_gen_fn, image_frequency=args.image_frequency)
 
 
 if __name__ == "__main__":

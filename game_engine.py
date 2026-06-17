@@ -9,7 +9,7 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.formatted_text import HTML
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
-from display import format_stats, render_gm_text
+from display import format_stats, render_gm_text, render_image
 
 LOCK_FILE = "GameMaster_MCP.md"
 OUTPUT_DIR = "output"
@@ -84,7 +84,8 @@ async def select_wwf(input_session):
         return os.path.join(OUTPUT_DIR, files[0])
 
 
-async def run_game(chat_fn, model, context_window, verbose=False, debug=False):
+async def run_game(chat_fn, model, context_window, verbose=False, debug=False,
+                   image_gen_fn=None, image_frequency=0):
     """
     Run the game loop.
 
@@ -148,6 +149,7 @@ async def run_game(chat_fn, model, context_window, verbose=False, debug=False):
                 # ── Load session timeline ─────────────────────────────
                 existing_timeline = load_timeline(timeline_path)
                 round_counter = 0
+                narrative_counter = 0
 
                 messages = [
                     {"role": "system", "content": lock_content}
@@ -273,6 +275,49 @@ Refer to them when the player asks about past events. Do not replay or re-descri
 
                         return content
 
+                async def _auto_generate_image(narrative_text):
+                    if not narrative_text:
+                        return
+                    try:
+                        result = await session.call_tool("dump_player_db", {})
+                        db_text = "\n".join(block.text for block in result.content if hasattr(block, "text"))
+                        db_data = json.loads(db_text)
+                    except Exception:
+                        db_data = {}
+                    name = db_data.get("name", "the protagonist")
+                    gender = db_data.get("gender", "")
+                    race = db_data.get("race", "")
+                    cls = db_data.get("character_class", "")
+                    level = db_data.get("level", "")
+                    hp = db_data.get("hit_points", "unknown")
+                    max_hp = db_data.get("max_hp", "unknown")
+                    stats = db_data.get("stats", {})
+                    bg = db_data.get("background", "")
+                    alignment = db_data.get("alignment", "")
+                    stat_parts = []
+                    for k, v in stats.items():
+                        stat_parts.append(f"{k.upper()} {v}")
+                    stat_str = ", ".join(stat_parts)
+                    char_anchor = f"Character: {name}, a {gender} {race} {cls} (level {level}). {stat_str}. Background: {bg}, Alignment: {alignment}."
+                    hp_info = f"{hp}/{max_hp}"
+                    
+                    image_path = os.path.join(OUTPUT_DIR, "current_scene.png")
+                    os.makedirs(OUTPUT_DIR, exist_ok=True)
+                    try:
+                        with console.status("[bold magenta]Generating image...[/bold magenta]"):
+                            image = await image_gen_fn(narrative_text, char_anchor=char_anchor, hp_info=hp_info)
+                        if image:
+                            image.save(image_path)
+                            if VERBOSE:
+                                console.print(f"[dim]✅ Image saved to {image_path}[/dim]")
+                            render_image(image_path)
+                        else:
+                            if VERBOSE:
+                                console.print("[dim]⚠️ Image generation returned no image. Continuing without image.[/dim]")
+                    except Exception as e:
+                        if VERBOSE:
+                            console.print(f"[dim]⚠️ Image generation failed: {e}. Continuing without image.[/dim]")
+
                 async def handle_slash_command(cmd):
                     cmd = cmd.strip().lower()
                     if cmd == '/help':
@@ -368,6 +413,13 @@ Refer to them when the player asks about past events. Do not replay or re-descri
                         with console.status("[bold blue]GM is thinking...[/bold blue]"):
                             response_text = await chat_with_tools("{{_CONTINUE_EXECUTION}}")
 
+                if image_gen_fn and image_frequency > 0 and response_text and response_text != "__SYSTEM_PAUSE__":
+                    clean = response_text.replace("{{_NEED_AN_OTHER_PROMPT}}", "").replace("{{_NEED_ANOTHER_PROMPT}}", "").strip()
+                    if clean:
+                        narrative_counter += 1
+                        if narrative_counter % image_frequency == 0:
+                            await _auto_generate_image(clean)
+
                 console.print(Panel(
                     Padding(render_gm_text(response_text), (1, 1)),
                     title="[bold magenta]The Game Master Awakens[/bold magenta]",
@@ -416,6 +468,11 @@ Refer to them when the player asks about past events. Do not replay or re-descri
 
                     if gm_response and gm_response != "__SYSTEM_PAUSE__":
                         clean_response = gm_response.replace("{{_NEED_AN_OTHER_PROMPT}}", "").replace("{{_NEED_ANOTHER_PROMPT}}", "").strip()
+
+                        if image_gen_fn and image_frequency > 0 and clean_response:
+                            narrative_counter += 1
+                            if narrative_counter % image_frequency == 0:
+                                await _auto_generate_image(clean_response)
 
                         if clean_response:
                             console.print(Panel(

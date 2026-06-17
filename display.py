@@ -1,5 +1,7 @@
 import json
 import re
+import subprocess
+import os
 from rich.panel import Panel
 from rich.console import Console
 
@@ -23,6 +25,20 @@ def render_gm_text(text):
             content = lines[i].strip('#').strip()
             lines[i] = f"[bold magenta]{content}[/]"
     return "\n".join(lines)
+
+
+def render_image(filepath):
+    if not os.path.exists(filepath):
+        return
+    try:
+        subprocess.run(
+            ["kitty", "+kitten", "icat", "--align", "center", filepath],
+            check=False,
+        )
+    except FileNotFoundError:
+        pass
+    except Exception:
+        pass
 
 
 def _render_inventory_item(item):
