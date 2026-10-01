@@ -1,0 +1,188 @@
+{
+  "name": "Electronistu",
+  "character_class": "Wizard",
+  "race": "High Elf",
+  "background": "Criminal",
+  "alignment": "Chaotic Neutral",
+  "gender": "Male",
+  "armor_class": 13,
+  "hit_dice_size": 6,
+  "speed": 30,
+  "stats": {
+    "str": 8,
+    "dex": 17,
+    "con": 8,
+    "int": 16,
+    "wis": 8,
+    "cha": 15
+  },
+  "proficiency_bonus": 2,
+  "skills": [
+    "Deception",
+    "Stealth",
+    "Investigation",
+    "Perception",
+    "Arcana"
+  ],
+  "saves": [
+    "Intelligence",
+    "Wisdom"
+  ],
+  "armor_proficiencies": [],
+  "weapon_proficiencies": [
+    "Longbow",
+    "Darts",
+    "Slings",
+    "Longsword",
+    "Light crossbows",
+    "Shortbow",
+    "Shortsword",
+    "Quarterstaffs",
+    "Daggers"
+  ],
+  "tool_proficiencies": [
+    "Dice Set",
+    "Thieves' tools"
+  ],
+  "languages": [
+    "Common",
+    "Elvish",
+    "Orc"
+  ],
+  "reputation": {
+    "eldoria": {
+      "ruler": [],
+      "guard": [],
+      "mage": [],
+      "assassin": [],
+      "merchant": [],
+      "thief": [],
+      "alchemists league": [],
+      "order of scribes": []
+    },
+    "zarthus": {
+      "ruler": [],
+      "guard": [],
+      "mage": [],
+      "assassin": [],
+      "merchant": [],
+      "thief": [],
+      "alchemists league": []
+    },
+    "silverwood": {
+      "ruler": [],
+      "guard": [],
+      "mage": [],
+      "assassin": [],
+      "merchant": [],
+      "thief": [],
+      "alchemists league": [],
+      "rangers conclave": []
+    },
+    "blacksail archipelago": {
+      "ruler": [],
+      "assassin": [],
+      "thief": []
+    },
+    "others": {}
+  },
+  "temporary_hit_points": 0,
+  "level": 2,
+  "total_hit_points": 9,
+  "gold": 524,
+  "xp": 650,
+  "consumables": {
+    "Crossbow Bolts": 12
+  },
+  "inventory": [
+    "Spellbook",
+    "Crowbar",
+    "Dark Common Clothes",
+    {
+      "name": "Matched Daggers (pair)",
+      "description": "Twin well-balanced steel daggers with wrapped grips (1d4 piercing, Finesse, Light, Thrown (range 20/60))"
+    },
+    {
+      "name": "Magic Dagger (+1)",
+      "description": "A worn, chipped steel dagger with a leather grip gone shiny with use; cold to the touch and faintly humming. Genuinely enchanted (+1 to attack and damage rolls; counts as magical)"
+    },
+    {
+      "name": "Silver-chased Rapier (cane-sword)",
+      "description": "A fine rapier hidden in a walking cane; silver chased along the guard (1d8 piercing, Finesse)"
+    },
+    {
+      "name": "Hand Crossbow",
+      "description": "A compact crossbow taken from the Zarthus agent (1d6 piercing, Ammunition, Light, Loading, range 30/120)"
+    },
+    {
+      "name": "Sealed Letter",
+      "description": "Folded parchment, wax-sealed with a mark \u2014 a fist crushing a serpent; taken from the Zarthus agent"
+    }
+  ],
+  "features": [
+    "Darkvision",
+    "Fey Ancestry",
+    "Trance",
+    "Elf Weapon Training",
+    "Cantrip",
+    "Spellcasting",
+    "Arcane Recovery",
+    "Criminal Contact",
+    {
+      "name": "Arcane Tradition",
+      "description": "School of Evocation"
+    },
+    {
+      "name": "Evocation Savant (SRD)",
+      "description": "Halve the gold and time to copy an Evocation spell into your spellbook"
+    },
+    {
+      "name": "Sculpt Spells (SRD)",
+      "description": "When you cast an Evocation spell affecting others, choose creatures up to 1 + spell level to automatically succeed their save and take no damage"
+    }
+  ],
+  "current_hit_points": 9,
+  "hit_dice_count": 2,
+  "active_effects": [],
+  "_active_buff_data": {},
+  "spellcasting": {
+    "ability": "intelligence",
+    "dc": 13,
+    "attack_modifier": 5,
+    "cantrips": [
+      "Mage Hand",
+      "Minor Illusion",
+      "Poison Spray"
+    ],
+    "slots": {
+      "1": 3
+    },
+    "spellbook": [
+      "Charm Person",
+      "Detect Magic",
+      "Disguise Self",
+      "Identify",
+      "Magic Missile",
+      "Sleep",
+      "Shield",
+      "Mage Armor"
+    ],
+    "spells_prepared": [
+      {
+        "name": "Detect Magic"
+      },
+      {
+        "name": "Disguise Self"
+      },
+      {
+        "name": "Magic Missile"
+      },
+      {
+        "name": "Sleep"
+      },
+      {
+        "name": "Identify"
+      }
+    ]
+  }
+}

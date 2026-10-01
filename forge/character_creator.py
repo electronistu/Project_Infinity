@@ -12,7 +12,7 @@ from typing import Optional, List, Dict
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from level_up import FULL_CASTER_SPELL_SLOTS, HALF_CASTER_SPELL_SLOTS, WARLOCK_SPELL_SLOTS
-from . import tui
+from . import ui
 from .class_spells import (
     get_available_cantrips, get_available_level1_spells,
     CANTRIP_COUNTS, KNOWN_SPELL_COUNTS, PREPARED_SPELL_COUNTS_BASE,
@@ -258,11 +258,11 @@ def select_from_list(prompt: str, options: list, display_key='name'):
     else:
         display_fn = lambda opt: getattr(opt, display_key) if hasattr(opt, display_key) else str(opt)
 
-    return tui.select_single(prompt, options, display_fn=display_fn)
+    return ui.select_single(prompt, options, display_fn=display_fn)
 
 
 def select_multiple(prompt: str, options: list, count: int = 1, default_selected: list = None):
-    return tui.select_multiple(prompt, options, min_choices=count, max_choices=count, default_checked=default_selected)
+    return ui.select_multiple(prompt, options, min_choices=count, max_choices=count, default_checked=default_selected)
 
 def calculate_modifier(stat_value: int) -> int:
     return math.floor((stat_value - 10) / 2)
@@ -454,8 +454,8 @@ def create_character(config: Config) -> PlayerCharacter:
         all_spells = yaml.safe_load(f)
     spell_names = {s['name'] for s in all_spells}
 
-    name = tui.input_dialog_val("Enter your character's name:", default="Adventurer")
-    gender = tui.input_dialog_val("Enter your character's gender:", default="Unknown", max_length=15)
+    name = ui.input_dialog_val("Enter your character's name:", default="Adventurer")
+    gender = ui.input_dialog_val("Enter your character's gender:", default="Unknown", max_length=15)
 
     chosen_race = select_from_list("Choose your Race", config.races)
     if not chosen_race:
@@ -477,46 +477,32 @@ def create_character(config: Config) -> PlayerCharacter:
         sys.exit(1)
 
     console.print("\n[bold #e94560]--- Distribute Your Stat Points (Point-Buy System) ---[/]")
-    base_stats = {"strength": 8, "dexterity": 8, "constitution": 8, "intelligence": 8, "wisdom": 8, "charisma": 8}
-    points_spent = 0
-    point_costs = {9: 1, 10: 2, 11: 3, 12: 4, 13: 5, 14: 7, 15: 9}
-
+    abilities = ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"]
     point_costs = {8: 0, 9: 1, 10: 2, 11: 3, 12: 4, 13: 5, 14: 7, 15: 9}
 
+    # Racial/subrace increases apply after point-buy, but the UI shows them live.
+    racial_bonuses = {a: 0 for a in abilities}
+    for increase in chosen_race.ability_score_increases:
+        key = increase.ability.lower()
+        racial_bonuses[key] = racial_bonuses.get(key, 0) + increase.value
+    if chosen_subrace:
+        for increase in chosen_subrace.ability_score_increases:
+            key = increase.ability.lower()
+            racial_bonuses[key] = racial_bonuses.get(key, 0) + increase.value
+
     while True:
-        base_stats = {"strength": 8, "dexterity": 8, "constitution": 8, "intelligence": 8, "wisdom": 8, "charisma": 8}
-        points_spent = 0
-
-        for stat in ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"]:
-            while True:
-                points_remaining = 27 - points_spent
-                current_default = str(base_stats[stat])
-                result = tui.input_number(
-                    f"Set {stat.upper()} (8-15)\n(Points remaining: {points_remaining})",
-                    min_val=8, max_val=15, default=current_default
-                )
-
-                current_stat_cost = point_costs.get(base_stats[stat], 0)
-                new_stat_cost = point_costs.get(result, 0)
-                potential_points_spent = points_spent - current_stat_cost + new_stat_cost
-                if potential_points_spent <= 27:
-                    base_stats[stat] = result
-                    points_spent = potential_points_spent
-                    break
-                else:
-                    tui.show_message(
-                        f"Not enough points! Setting {stat.upper()} to {result} costs "
-                        f"{new_stat_cost} points, but you only have {points_remaining} left "
-                        f"(after getting back {current_stat_cost} from your previous {base_stats[stat]})."
-                    )
-
-        if points_spent < 27:
-            tui.show_message(
-                f"You have {27 - points_spent} unspent points. All 27 must be spent.\n\n"
-                f"Point distribution will restart."
-            )
-            continue
-        break
+        base_stats = ui.point_buy(
+            "Distribute your ability scores (all 27 points must be spent)",
+            costs=point_costs, budget=27,
+            default={a: 8 for a in abilities}, min_val=8, max_val=15,
+            bonuses=racial_bonuses,
+        )
+        if (isinstance(base_stats, dict)
+                and all(isinstance(base_stats.get(a), int) and 8 <= base_stats[a] <= 15 for a in abilities)
+                and sum(point_costs[base_stats[a]] for a in abilities) == 27):
+            base_stats = {a: int(base_stats[a]) for a in abilities}
+            break
+        ui.show_message("All 27 points must be spent, with each score between 8 and 15.")
 
     final_stats = base_stats.copy()
     for increase in chosen_race.ability_score_increases:
@@ -536,7 +522,7 @@ def create_character(config: Config) -> PlayerCharacter:
             for dt in dragon_types
         ]
         ancestry_display = dict(zip(dragon_types, ancestry_labels))
-        draconic_ancestry = tui.select_single(
+        draconic_ancestry = ui.select_single(
             "Choose Your Draconic Ancestry", dragon_types,
             display_fn=lambda x: ancestry_display.get(x, x)
         )
@@ -614,7 +600,7 @@ def create_character(config: Config) -> PlayerCharacter:
 
     fighting_style = None
     if chosen_class.fighting_styles:
-        fs = tui.select_single(
+        fs = ui.select_single(
             "Choose a Fighting Style",
             chosen_class.fighting_styles,
             display_fn=lambda f: f"{f.name}: {f.description}"
@@ -627,7 +613,7 @@ def create_character(config: Config) -> PlayerCharacter:
     player_consumables = {}
 
     console.print("\n[bold #e94560]--- Starting Equipment ---[/]")
-    eq_choice = tui.select_single(
+    eq_choice = ui.select_single(
         "Starting equipment or gold?", ["equipment", "gold"],
         title="Equipment Choice"
     )

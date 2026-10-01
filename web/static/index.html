@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="dark light" />
+  <meta name="theme-color" content="#14110C" />
+  <title>Project Infinity</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">Project <span>Infinity</span></div>
+      <div class="meta">
+        <span id="world-label">no world</span>
+        <span class="sep">·</span>
+        <span id="model-label">no model</span>
+        <span class="sep">·</span>
+        <span id="ctx-label">context —</span>
+      </div>
+      <div class="actions">
+        <label class="chk" title="Show tool calls"><input type="checkbox" id="toggle-tools" /> tools</label>
+        <label class="chk" title="Show model thinking"><input type="checkbox" id="toggle-thinking" checked /> thinking</label>
+        <button id="save-open" class="ghost" type="button" title="Save game">save</button>
+        <button id="load-open" class="ghost" type="button" title="Load game">load</button>
+        <button id="sync-open" class="ghost" type="button" title="Synchronise database">sync</button>
+        <button id="end-session" class="ghost danger" type="button" title="End session and return home">end</button>
+        <button id="theme-toggle" class="icon-btn" type="button" title="Toggle light / dark" aria-label="Toggle light or dark theme">◐</button>
+        <button id="sheet-toggle" class="icon-btn sheet-toggle" type="button" title="Character sheet" aria-label="Open character sheet">☰</button>
+        <span id="conn" class="conn off">disconnected</span>
+      </div>
+    </header>
+
+    <main>
+      <section id="transcript" class="transcript show-thinking" aria-live="polite"></section>
+      <aside id="sidebar" class="sidebar">
+        <div class="sidebar-head">
+          <span>Character</span>
+          <div class="sidebar-head-actions">
+            <button id="collapse-all" class="ghost" type="button" title="Collapse all sections">collapse</button>
+            <button id="expand-all" class="ghost" type="button" title="Expand all sections">expand</button>
+            <button id="refresh-stats" class="ghost" disabled>refresh</button>
+            <button id="sheet-close" class="icon-btn sheet-close" type="button" aria-label="Close character sheet">✕</button>
+          </div>
+        </div>
+        <div id="stats" class="stats"><div class="muted">Start a session to load your sheet.</div></div>
+      </aside>
+      <div id="sheet-backdrop" class="sheet-backdrop" hidden></div>
+    </main>
+
+    <footer class="composer-wrap">
+      <div class="composer">
+        <textarea id="input" rows="2" placeholder="Describe your action…" disabled></textarea>
+        <button id="send" class="primary" disabled>Send</button>
+      </div>
+      <div class="statusbar">
+        <span id="status" class="status">Not connected</span>
+        <span id="turn-label" class="status">turn 0</span>
+        <div class="ctx-meter" id="ctx-meter" title="Context usage"><div id="ctx-fill" class="ctx-fill"></div></div>
+      </div>
+    </footer>
+  </div>
+
+  <div id="start-overlay" class="overlay">
+    <div class="start-card">
+      <h1>Project <span>Infinity</span></h1>
+      <label>World
+        <div class="world-row">
+          <select id="world-select"></select>
+          <button id="world-delete" class="ghost danger" type="button" title="Delete the selected world">Delete</button>
+        </div>
+      </label>
+      <label>Model<select id="model-select"></select></label>
+      <label>Temperature<input id="temp-input" type="number" min="0" max="2" step="0.1" value="1.0" /></label>
+      <button id="begin" class="primary">Begin session</button>
+      <button id="open-create" class="ghost wide">Forge a new character…</button>
+      <div id="start-error" class="error hidden"></div>
+    </div>
+  </div>
+
+  <div id="create-overlay" class="overlay hidden">
+    <div class="wizard-card">
+      <div class="wizard-head">
+        <h1>Character Forge</h1>
+        <span id="create-progress" class="wizard-progress">step 0</span>
+        <button id="create-cancel" class="ghost">cancel</button>
+      </div>
+      <div id="create-transcript" class="wizard-transcript"></div>
+      <div id="create-prompt" class="wizard-prompt"></div>
+      <div id="create-controls" class="wizard-controls"></div>
+      <div id="create-error" class="error hidden"></div>
+      <div class="wizard-actions">
+        <button id="create-submit" class="primary">Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="save-overlay" class="overlay hidden">
+    <div class="dialog-card">
+      <h1>Save game</h1>
+      <p class="muted">Writes <code>{name}.wwf</code> + <code>{name}.player</code> (and the timeline) to <code>output/</code>.</p>
+      <label>Save name<input id="save-name" type="text" maxlength="80" autocomplete="off" /></label>
+      <div id="save-error" class="error hidden"></div>
+      <div class="dialog-actions">
+        <button id="save-cancel" class="ghost" type="button">Cancel</button>
+        <button id="save-confirm" class="primary" type="button">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="load-overlay" class="overlay hidden">
+    <div class="dialog-card">
+      <div class="wizard-head">
+        <h1>Load game</h1>
+        <button id="load-cancel" class="ghost" type="button">cancel</button>
+      </div>
+      <div id="load-list" class="load-list"></div>
+      <div id="load-error" class="error hidden"></div>
+    </div>
+  </div>
+
+  <div id="end-overlay" class="overlay hidden">
+    <div class="dialog-card">
+      <h1>End session</h1>
+      <p class="muted">Progress is saved only when you save. Save before ending?</p>
+      <div class="dialog-actions">
+        <button id="end-cancel" class="ghost" type="button">Cancel</button>
+        <button id="end-discard" class="ghost danger" type="button">End without saving</button>
+        <button id="end-save" class="primary" type="button">Save &amp; end</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="item-tooltip" class="item-tooltip hidden" role="tooltip"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

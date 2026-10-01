@@ -1,11 +1,13 @@
 # Project Infinity
 
-*A text-based RPG where an AI Dungeon Master runs real D&D 5e — with mechanical rolls, persistent state, and SRD 5.1 rules enforced by a dedicated game engine.*
+*A text-based RPG where an AI Dungeon Master runs real D&D 5e — with mechanical rolls, persistent state, and SRD 5.1 rules enforced by a dedicated game engine. Played in your browser.*
 
-*Running on gemini-3.5-flash & gemini-3-pro-image-preview*
+*Local web client · Ollama Cloud models*
 
-![Project Infinity TUI](one.png)
-![Project Infinity TUI](two.png)
+<!-- 
+![Project Infinity](screenshot-1.png)
+![Project Infinity](screenshot-2.png)
+-->
 
 ---
 
@@ -15,23 +17,17 @@ Most AI RPGs let the language model make up numbers. Project Infinity runs every
 
 - **Fair Dice** — All rolls performed by a dedicated server. The AI sees results, it doesn't generate them.
 - **Persistent Character** — Stats, inventory, gold, spell slots, and reputation live in a real database. No forgetting.
-- **Full Combat Resolution** — Weapon attacks, spell attacks, saving throws, cantrip scaling, upcasting, spell slot consumption, crits, kill detection, and XP awards in a single tool call.
+- **Full Combat Resolution** — Weapon attacks, spell attacks, saving throws, cantrip scaling, upcasting, spell slot consumption, crits, kill detection, and XP awards in a single call.
 - **Multi-Target AoE** — Fireball, Sleep, and all area spells resolve every target in one call. Per-target saves, HP pool exhaustion, one slot consumed.
 - **Temporary Hit Points** — False Life, Armor of Agathys, and Heroism auto-apply and auto-expire. NPC attacks drain THP before real HP.
-- **Reputation System** — Faction standing persists between sessions. Heroic deeds and crimes tracked, visible via `/stats`.
+- **Reputation System** — Faction standing persists between sessions. Heroic deeds and crimes tracked, visible on your character sheet.
 - **Saving Throw Spells** — Hold Person, Charm, Banishment, and 50+ others roll saves with full dice disclosure.
 - **Active Buffs** — Shield, Mage Armor, Longstrider auto-modify stats and auto-revert on removal.
 - **Scroll Casting** — Cast from scrolls without slots. Ability checks for scrolls above your level.
 - **Rest & Recovery** — Short and long rests auto-apply hit dice, slot recovery, Arcane Recovery, and effect clearing per SRD 5.1.
 - **Leveling Up** — XP thresholds auto-trigger HP, proficiency, hit dice, and spell slot progression.
-- **Combat Registry** — GM registers all combatants once per battle. Initiative auto-rolled for everyone. The engine tracks every combatant's HP across attacks.
-- **Combat Healing** — Cure Wounds, Healing Word, Mass Cure Wounds, Heal, and all SRD healing spells resolve through the combat registry. Player-to-NPC, NPC-to-player, and NPC-to-NPC healing all apply correctly with HP capped at maximum. Power Word Heal restores full HP.
-- **In-Game Commands** — `/stats`, `/save`, `/sync`, `/quit` from within the game.
-- **Session Timeline** — Every 5 rounds, the GM auto-summarizes key events, NPCs met, mechanical changes, and active hooks into a structured `.timeline.md`. Persists between sessions and injected on next load. Cache-friendly: old entries reused by the LLM without re-processing.
-
-> **Encoding Note for Chinese Windows**: Python defaults to CP936 (GBK) on Chinese Windows, which cannot decode UTF-8 files. All `open()` calls in this project now use `encoding="utf-8"` to prevent `UnicodeDecodeError` when reading YAML configs, JSON player data, world `.wwf` files, and spell databases.
-
-Read on for quick start, gameplay hints, and the full engine overview under **How It Works**.
+- **Combat Registry** — The GM registers all combatants once per battle. Initiative is auto-rolled for everyone and every combatant's HP is tracked across attacks.
+- **Combat Healing** — Cure Wounds, Healing Word, Heal, and all SRD healing spells resolve through the combat registry, capped at maximum HP, for player-to-NPC, NPC-to-player, and NPC-to-NPC healing alike.
 
 ---
 
@@ -40,12 +36,7 @@ Read on for quick start, gameplay hints, and the full engine overview under **Ho
 ### 1. Prerequisites
 
 - **Python 3.11** or newer
-- **One AI backend** (pick one):
-  - **DeepSeek** — cloud-based, requires a paid API key (OpenAI-compatible, no proxy needed)
-  - **Ollama** — cloud-based, free and paid
-  - **OpenAI** — cloud-based, requires a paid API key
-  - **Gemini** — cloud-based, requires a paid API key
-  - **Claude** — cloud-based, requires a paid API key
+- **[Ollama](https://ollama.ai/)** installed and signed in — the models are Ollama Cloud tags
 
 ### 2. Install
 
@@ -58,237 +49,105 @@ source venv/bin/activate      # Linux/macOS
 pip install -r requirements.txt
 ```
 
-### 3. Choose Your AI Backend
-
-| Backend | Requirements | Supported Models | Play Command |
-|---------|-------------|------------------|--------------|
-| **Ollama** | Install [Ollama](https://ollama.ai/), pull your model | `kimi-k2.6:cloud`, `deepseek-v4-flash:cloud`, `deepseek-v4-pro:cloud` | `python3 play.py` |
-| **DeepSeek** | `export DEEPSEEK_API_KEY=your-api-key` | `deepseek-v4-flash`, `deepseek-v4-pro` | `python3 play_with_deepseek.py` |
-| **OpenAI** | `export OPENAI_API_KEY=your-api-key` | `gpt-5.5-pro`, `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.4-nano` | `python3 play_with_gpt.py` |
-| **Gemini** | `export GEMINI_API_KEY=your-api-key` | `gemini-3.1-pro-preview`, `gemini-3-flash-preview`, `gemini-2.5-pro` | `python3 play_with_gemini.py` |
-| **Claude** | `export ANTHROPIC_API_KEY=your-api-key` | `claude-opus-4-7`, `claude-opus-4-6` | `python3 play_with_claude.py` |
-
-### 4. Create Your World
-
-Before you can play, you need to create a character and generate a world. The World Forge walks you through picking a race, class, background, distributing stats, choosing equipment, and more — all following SRD 5.1 rules.
+### 3. Run the server
 
 ```bash
-python3 main.py
+# Windows
+venv\Scripts\python.exe web_server.py
+
+# Linux / macOS
+python3 web_server.py
 ```
 
-This generates two files in the `output/` directory:
-- `yourcharacter_weave.wwf` — the world data (kingdoms, NPCs, guilds, history)
-- `yourcharacter_weave.player` — your character's stats and inventory
-- `yourcharacter_weave.timeline.md` — session timeline (auto-created on first save checkpoint)
+Then open **http://127.0.0.1:8000** in your browser. The server binds to localhost only.
 
-### 5. Play!
+Useful flags: `--port 8000`, `--host 127.0.0.1`, `--reload` (auto-restart on code changes), `--log-level info`.
 
-Launch the game with the script that matches your backend:
+### 4. Create a character
 
-| Backend | Command |
-|---------|---------|
-| Ollama | `python3 play.py` |
-| DeepSeek | `python3 play_with_deepseek.py` |
-| OpenAI | `python3 play_with_gpt.py` |
-| Gemini | `python3 play_with_gemini.py` |
-| Claude | `python3 play_with_claude.py` |
-| **Nano Banana (Image)** | `python3 play_with_nano.py` |
+On the start screen, choose **Create character**. The in-browser **Character Forge** walks you through the full SRD 5.1 creation flow — race, class, background, point-buy stats, skills, equipment, and more. On completion it writes two files into `output/`:
 
-You'll be prompted to:
-1. **Select a model** — pick from the list of supported models
-2. **Select a world file** — pick the `.wwf` file you generated in Step 4
+- `yourcharacter.wwf` — the world (kingdoms, NPCs, guilds, history)
+- `yourcharacter.player` — your character's stats and inventory
 
-Then the Game Master awakens and your adventure begins. Type actions in plain English. The GM handles the rest.
+(A third file, `yourcharacter.timeline`, is created the first time you save.)
 
-### Nano Banana — Image-Enhanced Play
- 
-`play_with_nano.py` automatically generates AI scene illustrations from the Game Master's narrative, displayed directly in your terminal.
- 
-**Key Features:**
-- **Visual Continuity** — The system maintains a history of previous scenes to ensure the protagonist and environment remain consistent throughout the journey.
-- **Dynamic Visuals** — The AI automatically adjusts the protagonist's appearance based on their current HP (e.g., depicting them as bloodied or exhausted when wounded).
-- **Sequential Scenes** — Every illustration is tracked as a chronological sequence, starting with the "Opening Scene" followed by "Scene 1", "Scene 2", and so on.
- 
-**Requirements:**
-- **Kitty terminal** — the only terminal emulator that supports inline image display. Install it:
-  ```bash
-  # Ubuntu/Debian
-  sudo apt install kitty
-  # Or via the official installer
-  curl -L https://sw.kovidgoyal.net/kitty/installer.sh | sh /dev/stdin
-  ```
-- **GEMINI_API_KEY** — same as the standard Gemini backend.
+### 5. Play
 
-**Model selection:**
-
-At startup, you choose two models:
-
-| Role | Available Models |
-|------|-----------------|
-| **GameMaster** (text) | `gemini-3.5-flash` |
-| **Image Generation** | `gemini-3-pro-image-preview`, `gemini-3.1-flash-image-preview`, `gemini-2.5-flash-image` |
-
-**Play command:**
-
-```bash
-python3 play_with_nano.py                          # image every prompt (default)
-python3 play_with_nano.py --image-frequency 3      # image every 3 prompts
-python3 play_with_nano.py --image-frequency 0      # no images
-```
-
-All standard flags (`--verbose`, `--debug`, `--temperature`, `--thinking-level`) are supported.
-
-> **Note:** You must run the game **inside Kitty terminal** to see images. Other terminals will skip image display silently.
+Pick your world and a model on the start screen, then begin. The Game Master awakens and your adventure starts. Type actions in plain English — the GM handles the rest.
 
 ---
 
-## In-Game Commands
+## Playing
 
-| Command | Description |
-|---------|-------------|
-| `/help` | Show available commands |
-| `/stats` | Display your current character stats, inventory, spell slots, active effects, temporary HP, and reputation |
-| `/save` | Overwrite your .player file with your current character sheet (active effects are cleared/reverted) |
-| `/sync` | Force a database sync to make sure the GM's memory matches your actual state |
-| `/quit` | Exit the game |
+### Choosing a model
 
----
+The start screen lets you pick from the curated Ollama Cloud models and set a sampling temperature.
 
-## Gameplay Hints
+| Model | Context | Notes |
+|-------|---------|-------|
+| `deepseek-v4.1-flash:cloud` | 1,048,576 | Default |
+| `deepseek-v4-pro:cloud` | 1,000,000 | |
+| `kimi-k2.6:cloud` | 250,000 | |
 
-### Play in Verbose Mode
+### Controls
 
-Run the game with `--verbose` (or `-v`) to see every tool call and its result behind the scenes:
+| Control | Where | What it does |
+|---------|-------|--------------|
+| **Sync** | Header | Force a full database sync so the GM's memory matches your actual state |
+| **Save** | Header | Save your progress under a name of your choosing (see below) |
+| **Load** | Header | Load a saved game — from the start screen or mid-session |
+| **End** | Header | End the session (**Save & end**, **End without saving**, or Cancel) |
+| **Refresh** | Character sheet | Reload your character sheet from the engine |
+| **Tools** | Header | Show or hide the GM's tool calls behind the scenes |
+| **Thinking** | Header | Show or hide the GM's reasoning |
+| **Theme** | Header | Toggle **Candlelit Codex** (dark, default) and **Vellum** (light) |
 
-```bash
-python3 play.py --verbose
-```
+### Saving and loading
 
-This lets you watch the GM roll dice, consume spell slots, track HP, and update your inventory in real time. It is the best way to catch missed mechanical updates before they go unnoticed.
+**There is no autosave — progress persists only when you save.** When you save, the engine writes three things under your chosen name:
 
-### When the GM Forgets Something
+- the world (`.wwf`)
+- your character (`.player`)
+- a session **timeline** (`.timeline`)
+
+The GM writes the timeline at save time: a concise, comprehensive summary of everything that happened since your last save (key events, NPCs met, and loose plot threads). When you load that save, the timeline is injected so the story continues coherently.
+
+Your existing saves are listed on the start screen and in the **Load** picker, and can be deleted from there.
+
+### The character sheet
+
+The sidebar shows your live sheet: ability scores and modifiers, combat stats with an HP bar, spellcasting, proficiencies, inventory (with item descriptions on hover/tap), consumables, active effects, and reputation. Each section folds independently — use **collapse** / **expand** to fold them all at once. The sheet refreshes automatically after each of your actions.
+
+### When the GM forgets something
 
 The GM is an AI — it can forget to award quest XP, apply gold payments, or remove an item from your inventory. If you notice a missing update:
 
-1. **Try `/sync` first** — This forces a full database refresh. The GM reviews your current state and may self-correct.
+1. **Press Sync first.** This forces a full database refresh; the GM reviews your state and may self-correct.
+2. **If that doesn't work, address the GM directly** in plain language, exactly as you would a human DM. Be specific about what was missed.
 
-2. **If that doesn't work, address the GM directly** — Speak to the GameMaster in plain language, exactly as you would to a human DM. Be specific about what was missed.
+This works for any forgotten mechanic: gold, inventory changes, spell slot recovery, hit dice, conditions, or items.
 
-**Example from a real session:**
+### Reputation between sessions
 
-> The player completed a quest and received 50 gold, but no XP was awarded.
->
-> **Player:** `GameMaster I finished a quest and you didn't award me XP.`
->
-> **GM:** *"Fair call. The vault infiltration and log delivery to Pippa was a completed contract — that's worth experience, not just coin."* — and awarded +50 XP.
-
-The GM will review the conversation, verify the omission, and apply the correction via a tool call. This works for any forgotten mechanic: gold, inventory changes, spell slot recovery, hit dice, conditions, or items.
-
-### Between Sessions
-
-`/save` writes your character sheet — stats, gold, inventory, spell slots — to the `.player` file so you can pick up where you left off. The story itself is not saved; each session is a fresh narrative with the same character.
-
-The **reputation system** offers a bridge between sessions. Your standing with every guild in every kingdom is stored in the `reputation` dictionary inside the `.player` file. The GM records your deeds as `title: description` entries.
-
-When you start a new session, these reputation entries persist — the GM sees them during the database dump and can reference them in the opening scene and throughout play. Use `/stats` at any time to review your current standing.
-
-**Save after a long rest** — that way your `.player` file reflects full HP and recovered spell slots, giving you the best starting point for your next session.
+Your standing with every guild in every kingdom is stored in the `reputation` dictionary inside your `.player` file. The GM records your deeds as `title: description` entries. Because they persist in the save, the GM can reference them in the opening scene and throughout play. Check your current standing any time on the character sheet.
 
 ---
 
 ## How It Works
 
-If you're curious about what's happening under the hood, here's a high-level overview.
+The browser is just a client; the rules live in an external engine.
 
-### Session Startup
+- **The engine is authoritative.** The game runs as a local **MCP (Model Context Protocol)** server with an in-memory SQLite database initialized from your `.player` file. The AI cannot invent rolls, stats, or outcomes — every mechanical action is a verified tool call that returns a result the GM must respect. The GM's full personality, combat rules, and constraints live in [`GameMaster_MCP.md`](GameMaster_MCP.md), loaded as the system prompt.
+- **Session startup.** Four steps bring the world to life: the GM protocol is loaded, your `.wwf` world is injected, the character is dumped from the database, and only then is the opening scene narrated.
+- **Dice & checks.** `perform_check` rolls `d20 + modifier` vs a DC with natural-20/1 criticals. `roll_dice` supports any notation (e.g. `3d6+2`) and must be used for every random magnitude.
+- **Combat.** `resolve_attack` runs the full attack sequence (attack roll vs AC, advantage, crits, HP application, kill detection, XP). `resolve_magic` handles spells end to end: slot validation and consumption, cantrip scaling, upcasting, attack/save/automatic types, multi-target AoE, HP-pool spells like Sleep, healing, temporary HP, conditions and concentration, and active buff tracking that reverts on removal. `register_combatants` builds a battle registry so targets are looked up by name and HP carries forward between hits.
+- **Rest, recovery & leveling.** The `rest` tool applies short/long-rest mechanics per SRD 5.1 (hit dice, slot recovery, Arcane Recovery, effect clearing). Crossing an XP threshold triggers automatic level-up of HP, proficiency, hit dice, and spell slots.
+- **State authority.** `modify_player_numeric` and `update_player_list` manage all numeric and list state, with HP clamped to `[0, max]` and status tags (Healthy → Unconscious). Reaching 0 HP triggers death saves.
+- **Phased resolution.** To keep complex turns accurate, the GM resolves all mechanics first (pausing with a sync token), and only then writes the narrative — so results are mechanically correct before the story is told.
 
-When you launch the game, a four-step bootstrap brings the world to life:
+Every roll is shown in a readable format, e.g.:
 
-1. **System Prompt** — `GameMaster_MCP.md` is loaded as the system prompt. It defines the GM's entire personality, the phased resolution protocol, combat rules, and all mechanical constraints.
-
-2. **World Injection** — Your selected `.wwf` file is sent to the GM. This contains all kingdoms, rulers, guilds, NPCs, and world history generated by the World Forge.
-
-3. **Database Dump** — The GM calls `dump_player_db` to read your character from the in-memory SQLite database — your stats, inventory, gold, spell slots, hit points.
-
-4. **Opening Scene** — Only after all world data and character state are loaded does the GM produce the opening scene narrative. Your adventure begins.
-
-### MCP Tool Server
-
-The game engine runs as a local **MCP (Model Context Protocol)** server with an in-memory SQLite database initialized from your `.player` file at startup. The AI cannot invent rolls, stats, or outcomes — every mechanical action is a verified tool call that returns a `narrative_format` string the GM must include verbatim.
-
-### Checks & Generic Rolls
-
-- **Skill Checks & Saves** — `perform_check` rolls `d20 + modifier` vs DC with native Critical Success/Failure on natural 20/1. Every result is formatted for direct inclusion in the narrative.
-- **Damage, Healing & Quantity** — `roll_dice` supports any standard notation (e.g. `3d6+2`). The AI must use this for all random magnitudes; it cannot make up damage numbers.
-
-### Weapon & Unarmed Combat
-
-`resolve_attack` handles the **full attack sequence** in a single call:
-- Attack roll vs AC. Supports **Advantage** (roll twice, take higher) and **forced crits** (unconscious targets within 5 feet).
-- Critical hits double **primary** damage dice but not extra damage dice (e.g. elemental riders).
-- Automatic HP application, kill detection, and XP award using the 5e CR/XP table.
-- Works for player-vs-NPC, NPC-vs-player, and NPC-vs-NPC.
-
-### Spell Combat
-
-`resolve_magic` resolves **all spell resolution** in one call:
-- **Spell Database** — Properties are looked up from `config/spells.yml`. Custom spells can be cast with override parameters.
-- **Automatic Spell Slot Management** — Validates slot availability before rolling; consumes the slot automatically. Rejects under-level slots or empty slots with a clear error.
-- **Cantrip Scaling** — Automatically scales base dice at levels 5, 11, and 17.
-- **Upcasting** — Damage and healing scale automatically when a spell is cast in a higher-level slot (per the spell's `higher_levels` field).
-- **Attack Types** — Supports `attack_roll` (vs AC), `saving_throw` (half damage on save if `save_half`), and `automatic` (always hits).
-- **Multi-Target AoE** — For spells that affect an area (Fireball, Sleep, Lightning Bolt, Cone of Cold), pass a `targets` list. Damage is rolled once per spell, individual saves rolled per target with per-target modifiers, XP auto-awarded per kill — all in a single call consuming one slot.
-- **HP Pool Spells** — Sleep and Color Spray accept a `targets` list, sort creatures by HP per D&D 5e RAW, and drain the pool until it's exhausted. The response identifies which targets are affected and which are not.
-- **Healing & Temporary Hit Points** — Healing spells restore HP. False Life and Armor of Agathys auto-roll and apply temporary HP to the database. NPC attacks drain THP before real HP in all combat paths. When THP reaches zero, the source spell is auto-removed from active effects and the GM is notified.
-- **Combat Healing** — Healing spells (Cure Wounds, Healing Word, Mass Cure Wounds, Mass Healing Word, Heal, Mass Heal, Power Word Heal) are resolved through `resolve_magic` with the same combat registry integration as damage spells. When a `target_name` or `targets` list is provided, healing is applied to the registry entry — capped at `max_hp`. Flat-healing spells (Heal: 70 HP, Mass Heal: 700 HP) are handled without dice rolls. Power Word Heal restores full HP. NPC-vs-NPC healing (e.g. a priest healing a wounded guard) correctly updates the registry.
-- **Conditions & Concentration** — Applies conditions with duration and concentration flags. Supports instant-kill spells (Power Word-style HP threshold checks).
-- **Active Buff Tracking** — Spells that modify stats (AC, speed, etc.) are tracked via `active_effects` and `_active_buff_data`. Recasting a duplicate is rejected before the slot is consumed. Removing an effect via `update_player_list` automatically reverts the stat changes. All active effects are visible in the `/stats` command display.
-- **Kill Detection & XP** — Identical to weapon attacks: NPC deaths award XP automatically.
-- **Scroll Casting** — Cast from scrolls without consuming a slot. Scrolls above the character's level trigger an ability check per D&D 5e (DMG p.200).
-
-### Combat Registry
-
-When combat begins, the GM calls `register_combatants` once with all NPC participants:
-- The player is auto-registered from the database — name, HP, AC, and DEX modifier are read automatically.
-- Initiative is rolled for everyone (`d20 + initiative_modifier`) and returned in sorted turn order.
-- Each combatant's HP, AC, save modifier, and challenge rating are stored in an in-memory registry.
-
-Once the registry is active, `resolve_attack` and `resolve_magic` auto-lookup target HP by name — no need to pass `target_current_hp` on every call. When multiple combatants attack the same target in the same round, the engine automatically carries forward the reduced HP from each hit. Kill detection uses the correct remaining HP, not the original value.
-
-Calling `register_combatants` again overwrites the registry — no separate clear step needed. When the player launches a surprise attack (Magic Missile at a guard, crossbow from hiding), the protocol requires `register_combatants` to be called first, so the registry is active before the attack resolves. For mid-combat reinforcements or forgotten combatants, call `register_combatants(combatants=[...], add_to_existing=True)`. This adds NPCs to the existing registry without wiping it — existing HP states are preserved, and no initiative rolls are made for the new arrivals.
-
-### Rest & Recovery
-
-The `rest` tool auto-applies all rest mechanics per SRD 5.1 — the GM doesn't need to track dice math manually.
-
-- **Short Rest** (1 hour): Automatically spends hit dice one-by-one until HP is full or no dice remain, rolling `1d<hit_dice_size> + CON mod` per die (minimum 0). Warlocks regain all Pact Magic slots. Wizards get Arcane Recovery auto-applied (recovers up to `ceil(level/2)` combined slot levels, greedily from lowest expended slots).
-- **Long Rest** (8 hours): Full HP restore. Regain `max(level//2, 1)` spent hit dice (capped at level). All spell slots fully restored from class slot tables. All active effects cleared with stat deltas auto-reverted. Prepared casters can optionally provide a full replacement list of prepared spells, validated against max capacity and (for Wizards) spellbook content.
-- Rejects long rest if the character is at 0 HP (must be stabilized first).
-- Returns class-specific hints for manual feature recharges (Second Wind, Channel Divinity, Bardic Inspiration, etc.).
-
-### State Authority
-
-Your character lives in an in-memory SQLite database that the AI updates through tool calls. Your HP, gold, inventory, spell slots — all of it is tracked precisely.
-
-- **Numeric State** — `modify_player_numeric` handles everything from gold to XP. Crossing a level threshold triggers **automatic level-up** (HP, proficiency bonus, hit dice, spell slots, DC, attack modifier). The AI must manually apply class features, new spells, ASIs, and subclass features.
-- **List State** — `update_player_list` manages inventory, reputation, known/prepared spells (capacity enforced for prepared casters), features, skills, proficiencies, and languages.
-- **HP Clamping** — HP is bounded to `[0, max_HP]`. Hitting 0 returns an "Unconscious" status tag, triggers death saves, and clamps all damage to 0.
-- **HP Status Tags** — Every HP change returns a structured status: Healthy, Wounded, Bloodied, Critical, or Unconscious.
-- The AI is required to update state immediately when changes happen.
-- You can force a full database sync at any time with `/sync`.
-
-### Phased Resolution
-
-To prevent the AI from "collapsing" on complex turns (trying to narrate and calculate at the same time), the engine uses a two-phase protocol:
-
-1. **Mechanical Phase** — The AI resolves all dice rolls and state updates first, pausing with a sync token.
-2. **Narrative Phase** — Only after all mechanics are verified does the AI produce its story output.
-
-This means you always get mechanically accurate results before the narrative.
-
-### Transparency
-
-Every roll is shown in a standard format:
 ```
 Guard Attack: 17 vs AC 15 (Success) (15 + 2)
 TestHero Fireball: 28 vs DEX Save DC 15 (Failure) (3 + 2 + 6 + 5 + 5 + 7)
@@ -296,67 +155,17 @@ TestHero Fireball: 28 vs DEX Save DC 15 (Failure) (3 + 2 + 6 + 5 + 5 + 7)
 
 ---
 
-## Advanced Options
-
-All play scripts accept the following flags:
-
-| Flag | Description |
-|------|-------------|
-| `--verbose`, `-v` | Show all tool calls and their results behind the scenes |
-| `--debug`, `-d` | Show raw AI responses including internal reasoning (also enables `--verbose`) |
-| `--temperature`, `-t` | Set sampling temperature (Ollama/OpenAI/Claude default: 0.0, Gemini default: 1.0). Ignored for GPT-5.5 and Claude Opus 4.7 models (temperature is deprecated). |
-| `--think` | Enable thinking/reasoning for the model as a boolean toggle (Ollama only) |
-| `--thinking-level` | Enable structured AI reasoning with effort level: `LOW`, `MEDIUM`, `HIGH`, `XHIGH`. `XHIGH` is exclusive to Pro/Enterprise-tier models. See Known Issues. |
-| `--verbosity` | Control output verbosity for GPT-5.5 models: `low`, `medium`, `high` (default: `medium`). Ignored by other backends. |
-| `--max-output-tokens` | Maximum output tokens for GPT-5.5 and Claude models (default: 16384). Includes thinking tokens. Ignored by other backends. |
-
-Examples:
-```bash
-python3 play.py --temperature 0.6 --think
-python3 play_with_gemini.py --temperature 0.7
-python3 play_with_gpt.py --debug
-python3 play_with_claude.py --thinking-level MEDIUM
-python3 play_with_gpt.py --thinking-level HIGH --verbosity low
-python3 play_with_gpt.py --thinking-level XHIGH --max-output-tokens 32000
-python3 play.py --thinking-level MEDIUM --verbose
-python3 play_with_gemini.py --thinking-level MEDIUM --verbose
-```
-
-### Debug Mode
-
-When the game is running with `--debug`, the engine logs:
-
-- Every tool call and response (same as `--verbose`)
-- Raw JSON responses from the AI model
-- AI thinking/reasoning panels (when available)
-- Automatic retry messages for empty or malformed responses
-
----
-
-## Known Issues
-
-### GPT-5.5 Models (Responses API)
-
-GPT-5.5 models consume "thinking tokens" from the total `--max-output-tokens` budget. If this is set too low, the model may run out of space before finishing its reasoning, leading to truncated responses. Increase `--max-output-tokens` if you see incomplete output.
-
-Temperature is deprecated for GPT-5.5 models (internally locked to 1.0). Use `--thinking-level` and `--verbosity` to control behavior instead.
-
-### GPT-5.4 Models (Legacy)
-
-GPT-5.4 models sometimes return completely empty responses (no text, no tool calls). The engine automatically detects this and re-sends your last action as a new message, up to 3 times. If retries are exhausted, the empty response is shown as-is.
-
----
-
-## Technology Stack
+## Technology
 
 | Component | Technology |
 |-----------|------------|
 | Language | Python 3.11+ |
-| Game Engine | MCP (Model Context Protocol) server + SQLite |
-| Terminal UI | Rich + prompt_toolkit |
-| Data Validation | Pydantic |
+| Game engine | MCP (Model Context Protocol) server + in-memory SQLite |
+| Web server | FastAPI + Uvicorn, streaming over WebSocket |
+| Character sheet | Vanilla JS / HTML / CSS (no build step) |
+| Data validation | Pydantic |
 | Config | YAML |
-| AI Backends | Ollama, OpenAI, Google Gemini, Anthropic Claude |
+| Models | Ollama Cloud |
 
 ---
 
@@ -366,7 +175,7 @@ This project has a **dual-license structure** to comply with copyright law and W
 
 ### Source Code — MIT License
 
-All **original source code** in this project (the game engine, TUI, MCP server, dice server, world forge, and all `.py` source files) is licensed under the [MIT License](LICENSE). See `LICENSE` for the full terms.
+All **original source code** in this project (the game engine, web client, MCP server, dice server, world forge, and all `.py` source files) is licensed under the [MIT License](LICENSE). See `LICENSE` for the full terms.
 
 ### D&D 5e Rules Content — CC-BY-4.0 (via SRD 5.1)
 

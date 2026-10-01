@@ -2,8 +2,8 @@ pydantic>=2.12
 PyYAML>=6.0
 ollama>=0.6
 rich>=14.0
-mcp>=1.27
-prompt_toolkit>=3.0
-google-genai>=1.73
-openai>=2.32
-anthropic>=0.97.0
+mcp>=1.27,<2
+
+# Web client
+fastapi>=0.115
+uvicorn>=0.34
