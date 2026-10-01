@@ -4,10 +4,8 @@
 
 *Local web client · Ollama Cloud models*
 
-<!-- 
 ![Project Infinity](screenshot-1.png)
 ![Project Infinity](screenshot-2.png)
--->
 
 ---
 
