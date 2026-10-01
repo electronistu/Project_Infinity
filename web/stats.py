@@ -100,6 +100,216 @@ def _slot_levels(slots, character_class, level):
     return out
 
 
+_CONFIG_CACHE = {}
+
+
+def _load_config(filename):
+    """Load a YAML list from config/ (cached). Returns [] on any failure."""
+    if filename in _CONFIG_CACHE:
+        return _CONFIG_CACHE[filename]
+    data = []
+    path = _CONFIG_DIR / filename
+    if yaml is not None and path.exists():
+        try:
+            loaded = yaml.safe_load(path.read_text(encoding="utf-8")) or []
+            if isinstance(loaded, list):
+                data = loaded
+        except Exception:
+            data = []
+    _CONFIG_CACHE[filename] = data
+    return data
+
+
+def _index_by_name(entries):
+    return {str(e["name"]).lower(): e
+            for e in entries if isinstance(e, dict) and e.get("name")}
+
+
+def _weapon_index():
+    return _index_by_name(_load_config("weapons.yml"))
+
+
+def _weapon_entry(name):
+    """(canonical name, description) for a weapon, matched against weapons.yml."""
+    idx = _weapon_index()
+    key = str(name or "").strip().lower()
+    entry = idx.get(key)
+    if entry is None and key.endswith("s"):
+        entry = idx.get(key[:-1])
+    if entry is None:
+        return str(name), ""
+    desc = f"{entry.get('damage', '')} {entry.get('damage_type', '')}".strip()
+    props = entry.get("properties") or []
+    if props:
+        desc = (desc + ", " if desc else "") + ", ".join(str(p) for p in props)
+    if entry.get("category"):
+        kind = f"{entry['category']} {'melee' if entry.get('melee') else 'ranged'}"
+        desc = f"{desc} ({kind})" if desc else kind
+    return str(entry["name"]), desc
+
+
+def _weapon_entries(names):
+    if not isinstance(names, list):
+        return []
+    out = []
+    for name in names:
+        if isinstance(name, dict):
+            name = name.get("name", "")
+        canonical, desc = _weapon_entry(name)
+        out.append({"name": canonical, "description": desc})
+    return out
+
+
+def _race_index():
+    idx = {}
+    for race in _load_config("races.yml"):
+        if not isinstance(race, dict) or not race.get("name"):
+            continue
+        idx[str(race["name"]).lower()] = (race, None)
+        for sub in race.get("subraces") or []:
+            if isinstance(sub, dict) and sub.get("name"):
+                idx[str(sub["name"]).lower()] = (race, sub)
+    return idx
+
+
+def _race_traits(race, sub):
+    traits = list((race or {}).get("traits") or []) + list((sub or {}).get("traits") or [])
+    return [t for t in traits if isinstance(t, dict) and t.get("name")]
+
+
+def _race_description(name):
+    race, sub = _race_index().get(str(name or "").strip().lower(), (None, None))
+    if race is None:
+        return ""
+    lines = [str(race["name"]) + (f" ({sub['name']})" if sub else "")]
+    increases = (list(race.get("ability_score_increases") or [])
+                 + list((sub or {}).get("ability_score_increases") or []))
+    if increases:
+        lines.append("Ability increases: " + ", ".join(
+            f"+{i.get('value')} {i.get('ability')}" for i in increases if isinstance(i, dict)))
+    if race.get("speed"):
+        lines.append(f"Speed: {race['speed']} ft")
+    languages = list(race.get("languages") or []) + list((sub or {}).get("languages") or [])
+    if languages:
+        lines.append("Languages: " + ", ".join(str(x) for x in languages))
+    for t in _race_traits(race, sub):
+        lines.append(f"{t['name']}: {t.get('description', '')}")
+    return "\n".join(lines)
+
+
+def _class_index():
+    return _index_by_name(_load_config("classes.yml"))
+
+
+def _class_description(name):
+    entry = _class_index().get(str(name or "").strip().lower())
+    if entry is None:
+        return ""
+    lines = [str(entry["name"])]
+    if entry.get("hit_die"):
+        lines.append(f"Hit die: d{entry['hit_die']}")
+    for f in entry.get("features") or []:
+        if isinstance(f, dict) and f.get("name"):
+            label = str(f["name"]) + (f" (L{f['level']})" if f.get("level") else "")
+            lines.append(f"{label}: {f.get('description', '')}")
+    return "\n".join(lines)
+
+
+def _background_index():
+    return _index_by_name(_load_config("backgrounds.yml"))
+
+
+def _background_description(name):
+    entry = _background_index().get(str(name or "").strip().lower())
+    if entry is None:
+        return ""
+    lines = [str(entry["name"])]
+    for label, key in (("Skills", "skill_proficiencies"), ("Tools", "tool_proficiencies")):
+        vals = entry.get(key) or []
+        if vals:
+            lines.append(f"{label}: {', '.join(str(v) for v in vals)}")
+    if entry.get("languages"):
+        lines.append(f"Languages: {entry['languages']}")
+    feat = entry.get("feature") or {}
+    if isinstance(feat, dict) and feat.get("name"):
+        lines.append(f"{feat['name']}: {feat.get('description', '')}")
+    return "\n".join(lines)
+
+
+def _feature_index(class_name=None, race_name=None, background_name=None):
+    """Feature name -> description from config; the character's own class/race/background win."""
+    idx = {}
+
+    def add(name, desc):
+        if name and str(name).lower() not in idx:
+            idx[str(name).lower()] = desc or ""
+
+    def override(entries):
+        for f in entries:
+            if isinstance(f, dict) and f.get("name"):
+                idx[str(f["name"]).lower()] = f.get("description") or ""
+
+    for cls in _load_config("classes.yml"):
+        for f in cls.get("features") or []:
+            if isinstance(f, dict) and f.get("name"):
+                add(f["name"], f.get("description"))
+    for race in _load_config("races.yml"):
+        for t in _race_traits(race, None):
+            add(t["name"], t.get("description"))
+        for sub in race.get("subraces") or []:
+            for t in _race_traits(None, sub):
+                add(t["name"], t.get("description"))
+    for bg in _load_config("backgrounds.yml"):
+        feat = bg.get("feature") or {}
+        if isinstance(feat, dict) and feat.get("name"):
+            add(feat["name"], feat.get("description"))
+
+    race, sub = _race_index().get(str(race_name or "").strip().lower(), (None, None))
+    if race is not None:
+        override(_race_traits(race, sub))
+    cls = _class_index().get(str(class_name or "").strip().lower())
+    if cls is not None:
+        override(cls.get("features") or [])
+    bg = _background_index().get(str(background_name or "").strip().lower())
+    if bg is not None:
+        override([bg.get("feature") or {}])
+    return idx
+
+
+def _feature_entries(features, class_name=None, race_name=None, background_name=None):
+    if not isinstance(features, list):
+        return []
+    idx = _feature_index(class_name, race_name, background_name)
+    out = []
+    for f in features:
+        if isinstance(f, dict):
+            name = str(f.get("name") or "")
+            desc = f.get("description") or ""
+        else:
+            name = str(f)
+            desc = ""
+        if not desc:
+            desc = idx.get(name.lower(), "")
+        out.append({"name": name, "description": str(desc)})
+    return out
+
+
+def _inventory_entries(items):
+    out = []
+    for it in items:
+        if isinstance(it, dict):
+            name = str(it.get("name") or "")
+            desc = it.get("description") or ""
+        else:
+            name = str(it)
+            desc = ""
+        if not desc:
+            _canon, wdesc = _weapon_entry(name)
+            desc = wdesc
+        out.append({"name": name, "description": str(desc)})
+    return out
+
+
 def _parse(val):
     if isinstance(val, str):
         try:
@@ -148,19 +358,24 @@ def build_stats(db_data: dict) -> dict:
             "slot_levels": _slot_levels(spell_slots, g("character_class"), g("level")),
         }
 
+    race_name = g("race")
+    class_name = g("character_class")
+    background_name = g("background")
+
     proficiencies = {
         "skills": g("skills") if isinstance(g("skills"), list) else [],
         "saves": g("saves") if isinstance(g("saves"), list) else [],
         "armor": g("armor_proficiencies") if isinstance(g("armor_proficiencies"), list) else [],
-        "weapons": g("weapon_proficiencies") if isinstance(g("weapon_proficiencies"), list) else [],
+        "weapons": _weapon_entries(g("weapon_proficiencies")),
         "tools": g("tool_proficiencies") if isinstance(g("tool_proficiencies"), list) else [],
-        "features": g("features") if isinstance(g("features"), list) else [],
+        "features": _feature_entries(g("features"), class_name, race_name, background_name),
         "languages": g("languages") if isinstance(g("languages"), list) else [],
     }
 
     inventory = g("inventory")
     if not isinstance(inventory, list):
         inventory = []
+    inventory = _inventory_entries(inventory)
 
     consumables = g("consumables")
     if not isinstance(consumables, dict):
@@ -200,13 +415,16 @@ def build_stats(db_data: dict) -> dict:
     return {
         "character": {
             "name": g("name"),
-            "race": g("race"),
-            "character_class": g("character_class"),
+            "race": race_name,
+            "character_class": class_name,
             "level": g("level"),
             "gold": g("gold"),
             "xp": g("xp"),
-            "background": g("background"),
+            "background": background_name,
             "alignment": g("alignment"),
+            "race_desc": _race_description(race_name),
+            "character_class_desc": _class_description(class_name),
+            "background_desc": _background_description(background_name),
         },
         "combat": {
             "hp_current": g("current_hit_points", "?"),

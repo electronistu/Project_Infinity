@@ -268,7 +268,7 @@ function row(k, v, desc) {
   if (desc) {
     kk.setAttribute("data-desc", desc);
     kk.setAttribute("tabindex", "0");
-    kk.setAttribute("title", desc);
+    kk.setAttribute("aria-describedby", "item-tooltip");
   }
   const vv = document.createElement("span");
   vv.className = "v";
@@ -287,7 +287,7 @@ function descTag(item) {
   if (desc) {
     s.setAttribute("data-desc", desc);
     s.setAttribute("tabindex", "0");
-    s.setAttribute("title", desc);
+    s.setAttribute("aria-describedby", "item-tooltip");
   }
   return s;
 }
@@ -406,8 +406,8 @@ function renderStats(d) {
   }
   const c = d.character || {};
   statsBox.appendChild(card("Character", [
-    row("Name", c.name), row("Race", c.race), row("Class", c.character_class),
-    row("Level", c.level), row("Background", c.background), row("Alignment", c.alignment),
+    row("Name", c.name), row("Race", c.race, c.race_desc), row("Class", c.character_class, c.character_class_desc),
+    row("Level", c.level), row("Background", c.background, c.background_desc), row("Alignment", c.alignment),
     row("Gold", c.gold), row("XP", c.xp),
   ]));
 

@@ -218,7 +218,7 @@ button.wide { width: 100%; margin-top: 10px; }
   background: var(--surface-2); color: var(--text); border: 1px solid var(--border);
   border-left: 3px solid var(--gold); border-radius: var(--radius-sm);
   padding: 8px 10px; font-family: var(--serif); font-size: 13px; line-height: 1.45;
-  box-shadow: var(--shadow); pointer-events: none;
+  box-shadow: var(--shadow); pointer-events: none; white-space: pre-line;
 }
 .tag.has-desc { cursor: help; border-color: var(--accent); }
 

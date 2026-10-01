@@ -42,10 +42,10 @@
     - "Light armor"
   weapon_proficiencies:
     - "Simple weapons"
-    - "Hand crossbows"
-    - "Longswords"
-    - "Rapiers"
-    - "Shortswords"
+    - "Hand Crossbow"
+    - "Longsword"
+    - "Rapier"
+    - "Shortsword"
   tool_proficiencies: []
   tool_proficiency_choices:
     choose_one_from:
@@ -131,15 +131,15 @@
     - "Medium armor"
     - "Shields"
   weapon_proficiencies:
-    - "Clubs"
-    - "Daggers"
-    - "Javelins"
-    - "Maces"
-    - "Quarterstaffs"
-    - "Scimitars"
-    - "Sickles"
-    - "Slings"
-    - "Spears"
+    - "Club"
+    - "Dagger"
+    - "Javelin"
+    - "Mace"
+    - "Quarterstaff"
+    - "Scimitar"
+    - "Sickle"
+    - "Sling"
+    - "Spear"
   tool_proficiencies:
     - "Herbalism Kit"
   skills:
@@ -227,7 +227,7 @@
   armor_proficiencies: []
   weapon_proficiencies:
     - "Simple weapons"
-    - "Shortswords"
+    - "Shortsword"
   tool_proficiencies: []
   tool_proficiency_choices:
     choose_one_from:
@@ -357,10 +357,10 @@
     - "Light armor"
   weapon_proficiencies:
     - "Simple weapons"
-    - "Hand crossbows"
-    - "Longswords"
-    - "Rapiers"
-    - "Shortswords"
+    - "Hand Crossbow"
+    - "Longsword"
+    - "Rapier"
+    - "Shortsword"
   tool_proficiencies:
     - "Thieves' Tools"
   skills:
@@ -401,11 +401,11 @@
     - Charisma
   armor_proficiencies: []
   weapon_proficiencies:
-    - "Daggers"
-    - "Darts"
-    - "Slings"
-    - "Quarterstaffs"
-    - "Light crossbows"
+    - "Dagger"
+    - "Dart"
+    - "Sling"
+    - "Quarterstaff"
+    - "Light Crossbow"
   tool_proficiencies: []
   skills:
     choices: ["Arcana", "Deception", "Insight", "Intimidation", "Persuasion", "Religion"]
@@ -474,11 +474,11 @@
     - Wisdom
   armor_proficiencies: []
   weapon_proficiencies:
-    - "Daggers"
-    - "Darts"
-    - "Slings"
-    - "Quarterstaffs"
-    - "Light crossbows"
+    - "Dagger"
+    - "Dart"
+    - "Sling"
+    - "Quarterstaff"
+    - "Light Crossbow"
   tool_proficiencies: []
   skills:
     choices: ["Arcana", "History", "Insight", "Investigation", "Medicine", "Religion"]

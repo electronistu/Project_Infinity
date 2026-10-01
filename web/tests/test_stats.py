@@ -103,6 +103,32 @@ def main() -> bool:
     rec("unknown class falls back to remaining",
         slots_for("Homebrew", 3, {"1": 2}) == [(1, 2, 2)])
 
+    # Config-sourced descriptions + weapon name normalization.
+    cfg = build_stats({
+        "name": "T", "race": "High Elf", "character_class": "Wizard", "level": 3,
+        "background": "Criminal",
+        "weapon_proficiencies": ["Light crossbows", "Daggers", "Simple weapons"],
+        "features": ["Darkvision", "Spellcasting", {"name": "Custom", "description": "gm"}],
+        "inventory": ["Dagger", {"name": "Magic Dagger", "description": "gm text"}],
+    })
+    ch = cfg["character"]
+    rec("race tooltip from config",
+        "Fey Ancestry" in ch["race_desc"] and "Elf Weapon Training" in ch["race_desc"])
+    rec("class tooltip from config",
+        "Hit die: d6" in ch["character_class_desc"] and "Spellcasting" in ch["character_class_desc"])
+    rec("background tooltip from config", "Criminal Contact" in ch["background_desc"])
+    wp = cfg["proficiencies"]["weapons"]
+    rec("weapon names canonicalized",
+        [w["name"] for w in wp] == ["Light Crossbow", "Dagger", "Simple weapons"])
+    rec("weapon description from config", "piercing" in wp[0]["description"])
+    feats = {f["name"]: f["description"] for f in cfg["proficiencies"]["features"]}
+    rec("feature desc from race trait", "superior vision" in feats["Darkvision"].lower())
+    rec("feature desc from class", bool(feats["Spellcasting"]))
+    rec("GM feature desc wins", feats["Custom"] == "gm")
+    inv = {i["name"]: i["description"] for i in cfg["inventory"]}
+    rec("inventory weapon gets config desc", bool(inv["Dagger"]))
+    rec("GM inventory desc wins", inv["Magic Dagger"] == "gm text")
+
     # Regression against the real save, if present.
     real = REPO / "output" / "electronistu.player"
     if real.exists():
