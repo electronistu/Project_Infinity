@@ -400,17 +400,27 @@ def build_stats(db_data: dict) -> dict:
     buff_data = g("_active_buff_data")
     thp = g("temporary_hit_points")
     if isinstance(effects, list):
-        for spell_name in effects:
+        for raw in effects:
+            # Entries may be plain strings or {name, description} dicts (the
+            # engine stores the latter when update_player_list gets a colon).
+            if isinstance(raw, dict):
+                name = str(raw.get("name") or raw.get("spell") or "")
+                desc = str(raw.get("description") or "")
+            else:
+                name = str(raw) if raw is not None else ""
+                desc = ""
             rows = []
-            if isinstance(buff_data, dict) and spell_name in buff_data:
-                for entry in buff_data[spell_name]:
+            if name and isinstance(buff_data, dict) and name in buff_data:
+                for entry in buff_data.get(name) or []:
+                    if not isinstance(entry, dict):
+                        continue
                     field = entry.get("field", "?")
                     if field == "temporary_hit_points" and isinstance(thp, (int, float)):
                         rows.append({"field": field, "value": int(thp)})
                     else:
                         delta = entry.get("delta", 0)
                         rows.append({"field": field, "value": f"{'+' if delta >= 0 else ''}{delta}"})
-            active_effects.append({"name": spell_name, "rows": rows})
+            active_effects.append({"name": name, "description": desc, "rows": rows})
 
     return {
         "character": {

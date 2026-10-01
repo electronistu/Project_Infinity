@@ -129,6 +129,36 @@ def main() -> bool:
     rec("inventory weapon gets config desc", bool(inv["Dagger"]))
     rec("GM inventory desc wins", inv["Magic Dagger"] == "gm text")
 
+    # Active effects: string entries (spells) and {name, description} dicts
+    # (update_player_list stores a dict when the item text has a colon). The
+    # dict shape used to crash build_stats with "unhashable type: 'dict'".
+    ae = build_stats({
+        "active_effects": [
+            "Bless",
+            {"name": "Bracers of Defense", "description": "+2 AC while unarmored."},
+        ],
+        "_active_buff_data": {"Bless": [{"field": "armor_class", "delta": 1},
+                                         {"field": "saving_throw_bonus", "delta": 1}]},
+    })["active_effects"]
+    by_name = {e["name"]: e for e in ae}
+    rec("active_effects: string entry keeps its buff rows",
+        by_name["Bless"]["rows"] == [{"field": "armor_class", "value": "+1"},
+                                      {"field": "saving_throw_bonus", "value": "+1"}])
+    rec("active_effects: dict entry does not crash (unhashable dict)",
+        "Bracers of Defense" in by_name)
+    rec("active_effects: dict entry keeps its description",
+        by_name["Bracers of Defense"]["description"] == "+2 AC while unarmored.")
+    rec("active_effects: dict entry without buff data -> empty rows",
+        by_name["Bracers of Defense"]["rows"] == [])
+
+    # A dict entry whose name matches a buff still gets its rows.
+    ae2 = build_stats({
+        "active_effects": [{"name": "Shield", "description": "gm"}],
+        "_active_buff_data": {"Shield": [{"field": "armor_class", "delta": 5}]},
+    })["active_effects"]
+    rec("active_effects: dict entry matched to buff_data by name",
+        ae2[0]["rows"] == [{"field": "armor_class", "value": "+5"}])
+
     # Regression against the real save, if present.
     real = REPO / "output" / "electronistu.player"
     if real.exists():

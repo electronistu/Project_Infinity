@@ -467,7 +467,7 @@ function renderStats(d) {
   if (d.active_effects && d.active_effects.length) {
     const kids = [];
     d.active_effects.forEach((e) => {
-      kids.push(row(e.name, ""));
+      kids.push(row(e.name, "", e.description || ""));
       (e.rows || []).forEach((r) => kids.push(row("  " + r.field, r.value)));
     });
     statsBox.appendChild(card("Active Effects", kids));
