@@ -310,6 +310,31 @@ function field(label, items) {
   return wrap;
 }
 
+// Spell slots as pips: lit (gold) = available, dim outline = spent.
+function slotPips(levels) {
+  const wrap = document.createElement("div");
+  wrap.className = "slots";
+  (levels || []).forEach((s) => {
+    const row = document.createElement("div");
+    row.className = "slot-row";
+    row.title = `Level ${s.level} slots: ${s.remaining}/${s.max}`;
+    const k = document.createElement("span");
+    k.className = "slot-k";
+    k.textContent = "L" + s.level;
+    const pips = document.createElement("span");
+    pips.className = "pips";
+    for (let i = 0; i < s.max; i++) {
+      const p = document.createElement("span");
+      p.className = "pip" + (i < s.remaining ? "" : " spent");
+      pips.appendChild(p);
+    }
+    row.appendChild(k);
+    row.appendChild(pips);
+    wrap.appendChild(row);
+  });
+  return wrap;
+}
+
 /* ── item description tooltip ────────────────────────────── */
 
 const tooltipEl = $("item-tooltip");
@@ -419,8 +444,8 @@ function renderStats(d) {
     if (sp.spells_known && sp.spells_known.length) kids.push(field("Known", sp.spells_known));
     if (sp.spellbook && sp.spellbook.length) kids.push(field("Spellbook", sp.spellbook));
     if (sp.spells_prepared && sp.spells_prepared.length) kids.push(field("Prepared", sp.spells_prepared));
-    if (sp.slots && Object.keys(sp.slots).length) {
-      kids.push(row("Slots", Object.entries(sp.slots).map(([k, v]) => `L${k}:${v}`).join("  ")));
+    if (sp.slot_levels && sp.slot_levels.length) {
+      kids.push(slotPips(sp.slot_levels));
     }
     statsBox.appendChild(card("Spellcasting", kids));
   }

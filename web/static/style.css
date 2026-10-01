@@ -251,6 +251,12 @@ button.wide { width: 100%; margin-top: 10px; }
 .row .v { text-align: right; color: var(--text); font-variant-numeric: tabular-nums; }
 .field { margin-top: 9px; }
 .field-k { font-family: var(--sans); font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted); margin-bottom: 4px; }
+.slots { display: flex; flex-direction: column; gap: 5px; margin-top: 4px; }
+.slot-row { display: flex; align-items: center; gap: 9px; }
+.slot-k { font-family: var(--sans); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); min-width: 18px; }
+.pips { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.pip { width: 11px; height: 11px; border-radius: 50%; background: var(--gold); border: 1px solid var(--gold); }
+.pip.spent { background: transparent; border-color: var(--faint); opacity: 0.7; }
 .hpbar { height: 8px; background: var(--surface-2); border: 1px solid var(--border-soft); border-radius: 999px; overflow: hidden; margin: 2px 0 9px; }
 .hpbar-fill { height: 100%; width: 100%; background: var(--ok); transition: width 0.3s ease; }
 .hpbar-fill.mid { background: var(--gold); }

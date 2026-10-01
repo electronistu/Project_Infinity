@@ -86,14 +86,36 @@
     },
     "others": {}
   },
-  "temporary_hit_points": 0,
-  "level": 2,
-  "total_hit_points": 9,
-  "gold": 524,
-  "xp": 650,
   "consumables": {
     "Crossbow Bolts": 12
   },
+  "features": [
+    "Darkvision",
+    "Fey Ancestry",
+    "Trance",
+    "Elf Weapon Training",
+    "Cantrip",
+    "Spellcasting",
+    "Arcane Recovery",
+    "Criminal Contact",
+    {
+      "name": "Arcane Tradition",
+      "description": "School of Evocation"
+    },
+    {
+      "name": "Evocation Savant (SRD)",
+      "description": "Halve the gold and time to copy an Evocation spell into your spellbook"
+    },
+    {
+      "name": "Sculpt Spells (SRD)",
+      "description": "When you cast an Evocation spell affecting others, choose creatures up to 1 + spell level to automatically succeed their save and take no damage"
+    }
+  ],
+  "temporary_hit_points": 0,
+  "level": 3,
+  "total_hit_points": 13,
+  "xp": 1310,
+  "gold": 609,
   "inventory": [
     "Spellbook",
     "Crowbar",
@@ -117,32 +139,46 @@
     {
       "name": "Sealed Letter",
       "description": "Folded parchment, wax-sealed with a mark \u2014 a fist crushing a serpent; taken from the Zarthus agent"
-    }
-  ],
-  "features": [
-    "Darkvision",
-    "Fey Ancestry",
-    "Trance",
-    "Elf Weapon Training",
-    "Cantrip",
-    "Spellcasting",
-    "Arcane Recovery",
-    "Criminal Contact",
-    {
-      "name": "Arcane Tradition",
-      "description": "School of Evocation"
     },
     {
-      "name": "Evocation Savant (SRD)",
-      "description": "Halve the gold and time to copy an Evocation spell into your spellbook"
+      "name": "Dwarf's Battleaxe",
+      "description": "A notched, well-used battleaxe taken from Hask (1d8 slashing, Versatile (1d10)); the haft is stamped with a small serpent-fist mark"
     },
     {
-      "name": "Sculpt Spells (SRD)",
-      "description": "When you cast an Evocation spell affecting others, choose creatures up to 1 + spell level to automatically succeed their save and take no damage"
+      "name": "Bronze Serpent-Fist Signet",
+      "description": "A heavy bronze token bearing the fist-crushing-serpent of Zarthus \u2014 a pass, not a ring"
+    },
+    {
+      "name": "Salted Hart Room Key",
+      "description": "An iron key to Hask's rented room at the Salted Hart, riverside"
+    },
+    {
+      "name": "Hask's Written Orders",
+      "description": "A folded note in a clerk's hand \u2014 find and kill 'the High Elf who ran the east gate,' bring proof, and report to a factor who lodges at the Salted Hart"
+    },
+    {
+      "name": "Tharrow Ledger",
+      "description": "The factor's account book, listing payments and names bound for the patron at Tharrow \u2014 the key names are written in a cipher"
+    },
+    {
+      "name": "Sealed Brass Message-Tube",
+      "description": "A watertight tube holding a sealed report bound for Tharrow, meant for the first barge's manifest"
+    },
+    {
+      "name": "Servant's Short Sword",
+      "description": "A plain, well-kept short sword (1d6 piercing, Finesse, Light)"
+    },
+    {
+      "name": "Vellin Cray's Signet Ring",
+      "description": "A brass merchant's seal of Zarthus, cut with the serpent-fist \u2014 a key to certain doors, and a rope around certain necks"
+    },
+    {
+      "name": "Factor's Hidden Slip",
+      "description": "A scrap the factor kept in his boot \u2014 a berth number and the hour for the southbound barge to the Tharrow side, passage paid in advance"
     }
   ],
-  "current_hit_points": 9,
-  "hit_dice_count": 2,
+  "current_hit_points": 13,
+  "hit_dice_count": 3,
   "active_effects": [],
   "_active_buff_data": {},
   "spellcasting": {
@@ -155,7 +191,8 @@
       "Poison Spray"
     ],
     "slots": {
-      "1": 3
+      "1": 4,
+      "2": 2
     },
     "spellbook": [
       "Charm Person",
@@ -165,7 +202,9 @@
       "Magic Missile",
       "Sleep",
       "Shield",
-      "Mage Armor"
+      "Mage Armor",
+      "Misty Step",
+      "Invisibility"
     ],
     "spells_prepared": [
       {
@@ -181,7 +220,10 @@
         "name": "Sleep"
       },
       {
-        "name": "Identify"
+        "name": "Invisibility"
+      },
+      {
+        "name": "Misty Step"
       }
     ]
   }

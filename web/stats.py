@@ -60,6 +60,46 @@ def _spell_entries(seq):
     return out
 
 
+def _max_spell_slots(character_class, level):
+    """Max spell slots per level for a class/level, from level_up's tables."""
+    try:
+        from level_up import CASTER_TYPE_MAP, SLOT_TABLES
+    except Exception:  # pragma: no cover - level_up may be off sys.path
+        return {}
+    caster = CASTER_TYPE_MAP.get(str(character_class or ""))
+    if not caster:
+        return {}
+    table = SLOT_TABLES.get(caster) or {}
+    try:
+        level = int(level)
+    except (TypeError, ValueError):
+        return {}
+    return table.get(level, {}) or {}
+
+
+def _slot_levels(slots, character_class, level):
+    """Per-level {level, remaining, max} for the sheet's pip display."""
+    slots = slots if isinstance(slots, dict) else {}
+    max_slots = _max_spell_slots(character_class, level)
+    levels = set()
+    for key in slots:
+        try:
+            levels.add(int(key))
+        except (TypeError, ValueError):
+            continue
+    levels.update(int(k) for k in max_slots)
+    out = []
+    for lvl in sorted(levels):
+        remaining = int(slots.get(str(lvl), 0) or 0)
+        maximum = int(max_slots.get(lvl, 0) or 0)
+        if maximum <= 0:
+            maximum = remaining  # unknown class/level: treat remaining as the max
+        if maximum <= 0:
+            continue
+        out.append({"level": lvl, "remaining": max(0, min(remaining, maximum)), "max": maximum})
+    return out
+
+
 def _parse(val):
     if isinstance(val, str):
         try:
@@ -95,6 +135,7 @@ def build_stats(db_data: dict) -> dict:
     spellcasting = None
     spell_raw = g("spellcasting")
     if isinstance(spell_raw, dict):
+        spell_slots = spell_raw.get("slots", {})
         spellcasting = {
             "ability": str(spell_raw.get("ability", "")).capitalize(),
             "dc": spell_raw.get("dc"),
@@ -103,7 +144,8 @@ def build_stats(db_data: dict) -> dict:
             "spells_known": _spell_entries(spell_raw.get("spells_known", [])),
             "spells_prepared": _spell_entries(spell_raw.get("spells_prepared", [])),
             "spellbook": _spell_entries(spell_raw.get("spellbook", [])),
-            "slots": spell_raw.get("slots", {}),
+            "slots": spell_slots,
+            "slot_levels": _slot_levels(spell_slots, g("character_class"), g("level")),
         }
 
     proficiencies = {

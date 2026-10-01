@@ -88,6 +88,21 @@ def main() -> bool:
     rec("features keep string and dict shapes",
         rendered_name(p["features"][1]) == "Illusion Savant (Lv2)")
 
+    # Spell slots: max comes from level_up's tables, remaining from the DB.
+    def slots_for(cls, level, slots):
+        d = build_stats({"character_class": cls, "level": level,
+                         "spellcasting": {"slots": slots}})["spellcasting"]
+        return [(x["level"], x["remaining"], x["max"]) for x in d["slot_levels"]]
+
+    rec("wizard L3: max from the slot table",
+        slots_for("Wizard", 3, {"1": 3, "2": 2}) == [(1, 3, 4), (2, 2, 2)])
+    rec("warlock pact magic", slots_for("Warlock", 3, {"2": 1}) == [(2, 1, 2)])
+    rec("non-caster -> no slots", slots_for("Fighter", 5, {}) == [])
+    rec("all-spent level still listed",
+        slots_for("Wizard", 3, {"1": 0, "2": 0}) == [(1, 0, 4), (2, 0, 2)])
+    rec("unknown class falls back to remaining",
+        slots_for("Homebrew", 3, {"1": 2}) == [(1, 2, 2)])
+
     # Regression against the real save, if present.
     real = REPO / "output" / "electronistu.player"
     if real.exists():
