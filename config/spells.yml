@@ -34,10 +34,9 @@
   attack_type: attack_roll
   damage_dice: 1d10
   damage_modifier: 0
+  projectiles: 1
+  cantrip_projectile_scaling: true
   damage_type: force
-  cantrip_scaling: true
-  cantrip_scale_dice: 1d10
-  multi_hit: true
   duration: Instantaneous
   requires_concentration: false
   description: A beam of crackling energy streaks toward a creature within range. Multiple beams at higher levels; each is
@@ -341,6 +340,7 @@
 
     '
 - name: Cure Wounds
+  add_spellcasting_mod: true
   level: 1
   school: evocation
   attack_type: automatic
@@ -461,6 +461,7 @@
   description: A flash of light streaks toward a creature. On a hit, the next attack roll made against the target before the
     end of your next turn has advantage.
 - name: Healing Word
+  add_spellcasting_mod: true
   level: 1
   school: evocation
   attack_type: automatic
@@ -530,12 +531,13 @@
   level: 1
   school: evocation
   attack_type: automatic
-  damage_dice: 3d4
-  damage_modifier: 3
+  damage_dice: 1d4
+  damage_modifier: 1
+  projectiles: 3
+  projectiles_per_level: 1
   damage_type: force
   duration: Instantaneous
   requires_concentration: false
-  higher_levels: +1d4+1
   description: You create three glowing darts of magical force. Each dart deals 1d4+1 force damage. The darts all strike simultaneously
     and can target one or multiple creatures.
 - name: Protection from Evil and Good
@@ -1127,6 +1129,7 @@
   description: You craft an illusion so vivid it takes root in the target's mind. It must make an Intelligence save. On failure,
     it sees and feels whatever you imagine and takes 1d6 psychic each turn it interacts with the illusion.
 - name: Prayer of Healing
+  add_spellcasting_mod: true
   level: 2
   school: evocation
   attack_type: automatic
@@ -1183,11 +1186,11 @@
   attack_type: attack_roll
   damage_dice: 2d6
   damage_modifier: 0
+  projectiles: 3
+  projectiles_per_level: 1
   damage_type: fire
-  multi_hit: true
   duration: Instantaneous
   requires_concentration: false
-  higher_levels: +2d6
   description: You create three rays of fire and hurl them at one or more targets. Each ray requires a separate attack roll
     and deals 2d6 fire on hit.
 - name: See Invisibility
@@ -1623,6 +1626,7 @@
     fiends, or undead. Such a creature cannot enter by nonmagical means, has disadvantage on attacks inside, and cannot be
     charmed/frightened/possessed. A trapped creature makes a Charisma save to escape.
 - name: Mass Healing Word
+  add_spellcasting_mod: true
   level: 3
   school: evocation
   attack_type: automatic
@@ -2489,6 +2493,7 @@
     lore about it. If the thing is at hand, the casting time is shorter. Consumes 250 gp of incense, plus four ivory strips
     worth 50 gp each.
 - name: Mass Cure Wounds
+  add_spellcasting_mod: true
   level: 5
   school: evocation
   attack_type: automatic

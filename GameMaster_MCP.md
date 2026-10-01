@@ -110,6 +110,13 @@ directives:
       rule: "Round complete ONLY when ALL combatants have acted."
     kill_aftermath:
       rule: "NPC-vs-NPC and environmental kills may warrant XP at the GM's discretion. Award manually via modify_player_numeric(key='xp')."
+  spells:
+    projectiles:
+      rule: "Multi-projectile spells (Magic Missile, Scorching Ray, Eldritch Blast) resolve each projectile separately. Split them with targets=[{name, darts}]; darts must total the spell's projectile count (base + upcast). Omit darts to send every projectile at a single target."
+      example:
+        player: "I cast Magic Missile — one dart at the first guard, two at the second."
+        call: "resolve_magic(spell_name='Magic Missile', actor='{player_name}', slot_level=1, targets=[{name:'Guard 1', darts:1}, {name:'Guard 2', darts:2}])"
+      note: "Magic Missile darts strike simultaneously — apply all before resolving deaths. register_combatants must be active so HP is tracked."
   content_restrictions:
     srd_compliance:
       policy: STRICT_SRD_ONLY

@@ -6,7 +6,7 @@ import sqlite3
 import os
 import re
 from mcp.server.fastmcp import FastMCP
-from level_up import apply_level_up, CASTER_TYPE_MAP, SLOT_TABLES, FULL_CASTER_SPELL_SLOTS, WARLOCK_SPELL_SLOTS
+from level_up import apply_level_up, CASTER_TYPE_MAP, SLOT_TABLES, FULL_CASTER_SPELL_SLOTS, WARLOCK_SPELL_SLOTS, ABILITY_TO_STAT
 
 try:
     import yaml
@@ -272,6 +272,31 @@ def _parse_and_roll_dice(dice_notation):
         return die_size, rolls, sum(rolls)
     except (ValueError, TypeError):
         return None, [], 0
+
+
+def _caster_spellcasting_mod(cursor) -> int:
+    """The caster's spellcasting ability modifier from the player DB (0 if unknown)."""
+    if cursor is None:
+        return 0
+    sc = _db_val(cursor, "spellcasting", {}) or {}
+    if isinstance(sc, str):
+        try:
+            sc = json.loads(sc)
+        except (json.JSONDecodeError, TypeError):
+            sc = {}
+    stat_key = ABILITY_TO_STAT.get(str(sc.get("ability", "")).lower())
+    if not stat_key:
+        return 0
+    stats = _db_val(cursor, "stats", {}) or {}
+    if isinstance(stats, str):
+        try:
+            stats = json.loads(stats)
+        except (json.JSONDecodeError, TypeError):
+            stats = {}
+    try:
+        return (int(stats.get(stat_key, 10)) - 10) // 2
+    except (TypeError, ValueError):
+        return 0
 
 
 def _apply_hp_change(cursor, delta):
@@ -846,6 +871,10 @@ def update_player_list(key: str, item: str, action: str) -> dict:
                         reverted[entry["field"]] = {"delta": -entry["delta"]}
                     del buff_data_raw[item]
                     _db_set(cursor, "_active_buff_data", buff_data_raw)
+                    # Persist the removal of the effect from the list (the early
+                    # return below would otherwise skip the normal list write).
+                    cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)",
+                                   (key, json.dumps(current_list)))
                     DB_CONNECTION.commit()
                     result_early = {
                         "success": True,
@@ -1986,6 +2015,200 @@ def _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_re
     return result
 
 
+def _resolve_projectile_spell(
+    *, actor, spell_name, spell, count, attack_type, damage_dice, damage_modifier,
+    damage_type, targets, target_name, target_current_hp, target_ac, challenge_rating,
+    is_npc_attack, is_npc_vs_npc, cursor, spell_attack_modifier, advantage, force_crit,
+    result, narrative_parts,
+):
+    """Resolve a multi-projectile spell (Magic Missile / Scorching Ray / Eldritch Blast).
+
+    Each projectile is rolled separately. `attack_type == "automatic"` projectiles
+    never roll to hit and all strike simultaneously; attack-roll projectiles each
+    make their own attack roll. `targets=[{name, darts}]` splits the projectiles
+    (darts must total `count`); without `darts` the spell hits a single target.
+
+    Returns the finished result dict, or an error dict (`success: False`).
+    """
+    # ── 1. Build the (target, darts) distribution ──
+    entries = []
+    if targets:
+        for t in targets:
+            name = t.get("name", "Unknown")
+            chp = t.get("current_hp")
+            if chp is None:
+                chp = _registry_hp(name)
+            ac = t.get("ac")
+            if ac is None:
+                ac = _registry_ac(name)
+            if ac is None:
+                ac = target_ac
+            cr = t.get("challenge_rating")
+            if cr is None:
+                cr = _registry_cr(name)
+            entries.append({
+                "name": name, "darts": t.get("darts"),
+                "current_hp": chp if chp is not None else 0,
+                "ac": ac, "cr": cr, "is_player": bool(t.get("is_player", False)),
+            })
+        if all(e["darts"] is None for e in entries):
+            if len(entries) == 1:
+                entries[0]["darts"] = count
+            else:
+                return {"success": False, "spell_name": spell_name,
+                        "error": f"{spell_name} has {count} projectiles — pass 'darts' per target to split them.",
+                        "expected_projectiles": count}
+        elif any(e["darts"] is None for e in entries):
+            return {"success": False, "spell_name": spell_name,
+                    "error": "'darts' must be provided on every target, or on none.",
+                    "expected_projectiles": count}
+        else:
+            assigned = sum(int(e["darts"]) for e in entries)
+            if assigned != count:
+                return {"success": False, "spell_name": spell_name,
+                        "error": f"Projectiles assigned ({assigned}) must equal the spell's count ({count}).",
+                        "expected_projectiles": count}
+    else:
+        is_player_target = bool(is_npc_attack)
+        name = target_name or ("Player" if is_player_target else "")
+        if is_player_target:
+            chp = target_current_hp
+            if chp is None and cursor:
+                chp = int(_db_val(cursor, "current_hit_points", 0))
+        else:
+            chp = target_current_hp if target_current_hp is not None else _registry_hp(name)
+        cr = challenge_rating if challenge_rating is not None else _registry_cr(name)
+        entries = [{
+            "name": name, "darts": count,
+            "current_hp": chp if chp is not None else 0,
+            "ac": target_ac if target_ac is not None else _registry_ac(name),
+            "cr": cr, "is_player": is_player_target,
+        }]
+
+    # ── 2. Roll every projectile before applying anything (simultaneous) ──
+    total_damage = 0
+    per_dart = []
+    per_target = {}
+    for e in entries:
+        bucket = per_target.setdefault(e["name"], {"damage": 0, "darts": []})
+        for _ in range(int(e["darts"])):
+            detail = {"target": e["name"], "hit": True, "crit": False}
+            if attack_type == "attack_roll":
+                if advantage:
+                    r1 = random.randint(1, 20)
+                    r2 = random.randint(1, 20)
+                    d20 = max(r1, r2)
+                    detail["advantage_rolls"] = [min(r1, r2), max(r1, r2)]
+                else:
+                    d20 = random.randint(1, 20)
+                total_attack = d20 + spell_attack_modifier
+                ac = e["ac"] if e["ac"] is not None else 0
+                nat20 = d20 == 20
+                nat1 = d20 == 1
+                detail.update({"attack_roll": d20, "total_attack": total_attack, "ac": ac})
+                detail["crit"] = nat20 or (force_crit and not nat1)
+                detail["hit"] = nat20 or (not nat1 and total_attack >= ac)
+                if not detail["hit"]:
+                    per_dart.append(detail)
+                    continue
+            die, rolls, raw = _parse_and_roll_dice(damage_dice)
+            if die is None:
+                return {"success": False, "spell_name": spell_name,
+                        "error": f"Invalid damage_dice notation: '{damage_dice}'."}
+            dmg = raw + damage_modifier
+            detail["rolls"] = rolls
+            if detail.get("crit"):
+                crit_rolls = [random.randint(1, die) for _ in range(len(rolls))]
+                dmg += sum(crit_rolls)
+                detail["crit_rolls"] = crit_rolls
+            detail["damage"] = dmg
+            total_damage += dmg
+            bucket["damage"] += dmg
+            bucket["darts"].append(dmg)
+            per_dart.append(detail)
+
+    # ── 3. Apply damage simultaneously, then resolve kills/XP ──
+    total_xp = 0
+    killed_count = 0
+    target_results = []
+    hp_lines = []
+    for e in entries:
+        name = e["name"]
+        dealt = per_target[name]["damage"]
+        if e["is_player"]:
+            tr = {"name": name, "damage": dealt, "darts": per_target[name]["darts"]}
+            if dealt > 0 and cursor:
+                hp_result = _apply_hp_change(cursor, -dealt)
+                tr["hp_change"] = hp_result
+                hp_lines.append(f"{name} HP: {hp_result['hp_status']}")
+            target_results.append(tr)
+            continue
+        chp = e["current_hp"]
+        remaining = chp - dealt
+        killed = chp > 0 and remaining <= 0
+        if name:
+            _registry_update_hp(name, max(remaining, 0))
+        tr = {"name": name, "damage": dealt, "darts": per_target[name]["darts"],
+              "remaining_hp": max(remaining, 0), "killed": killed}
+        max_hp = _registry_max_hp(name) if name else 0
+        display_max = f"/{max_hp}" if max_hp else ""
+        if killed:
+            killed_count += 1
+            if name:
+                _registry_kill(name)
+            hp_lines.append(f"{name} HP: 0{display_max} (KILLED)")
+            if e["cr"] is not None:
+                xp = CR_XP_TABLE.get(e["cr"], 0)
+                if xp > 0:
+                    total_xp += xp
+                    tr["xp_awarded"] = xp
+        else:
+            hp_lines.append(f"{name} HP: {max(remaining, 0)}{display_max}")
+        target_results.append(tr)
+
+    # ── 4. Breakdown narrative ──
+    label = "rays" if attack_type == "attack_roll" else "darts"
+    if attack_type == "attack_roll":
+        bits = []
+        for i, d in enumerate(per_dart, start=1):
+            if d["hit"]:
+                tag = " [CRIT]" if d.get("crit") else ""
+                bits.append(f"ray {i}: {d['total_attack']} vs AC {d['ac']} (hit){tag} {d['damage']} {damage_type}".strip())
+            else:
+                bits.append(f"ray {i}: {d['total_attack']} vs AC {d['ac']} (miss)")
+        narrative_parts.append(f"{actor} {spell_name}: {total_damage} — {count} {label} — " + " | ".join(bits))
+    elif len(entries) == 1:
+        vals = per_target[entries[0]["name"]]["darts"]
+        narrative_parts.append(f"{actor} {spell_name}: {total_damage} — {count} darts: " + ", ".join(str(v) for v in vals))
+    else:
+        parts = []
+        for e in entries:
+            vals = per_target[e["name"]]["darts"]
+            plural = "dart" if len(vals) == 1 else "darts"
+            parts.append(f"{e['name']}: {sum(vals)} ({len(vals)} {plural}: " + ", ".join(str(v) for v in vals) + ")")
+        narrative_parts.append(f"{actor} {spell_name}: {total_damage} — " + ", ".join(parts))
+
+    narrative_parts.extend(hp_lines)
+
+    if total_xp > 0 and not is_npc_attack and not is_npc_vs_npc and cursor:
+        xp_result = modify_player_numeric(key="xp", delta=total_xp)
+        result["xp_awarded"] = total_xp
+        result["xp_result"] = xp_result
+        narrative_parts.append(f"Total XP Awarded: {total_xp}")
+        if xp_result.get("level_up"):
+            narrative_parts.append(xp_result["level_up_summary"])
+
+    result.update({
+        "projectiles": count,
+        "per_projectile": per_dart,
+        "damage_total": total_damage,
+        "damage_type": damage_type,
+        "targets": target_results,
+        "killed_count": killed_count,
+    })
+    return result
+
+
 @mcp.tool()
 def resolve_magic(
     spell_name: str,
@@ -2054,6 +2277,10 @@ def resolve_magic(
         HP pool (Sleep/Color Spray): {"name": str, "current_hp": int}
         Saving throw (Fireball/etc.): {"name": str, "current_hp": int, "save_modifier": int, "challenge_rating": float}
           Add {"is_player": True} to auto-apply damage to player HP in the DB.
+        Projectiles (Magic Missile / Scorching Ray / Eldritch Blast): {"name": str, "darts": int}
+          'darts' must be given on every target and total the spell's projectile count
+          (3 for Magic Missile at 1st level, +1 per upcast level). Omit 'darts' (or omit
+          'targets') to send every projectile at a single target.
 
     PROJECT-SPECIFIC BEHAVIORS:
     1. Slot validation happens BEFORE dice are rolled. Empty slots return an error with available slots.
@@ -2067,6 +2294,9 @@ def resolve_magic(
     7. Temporary HP on the player is drained before real HP when is_npc_attack=True.
     8. Scrolls above caster's available slot level trigger an ability check (d20 + spellcasting mod vs DC 10 + spell level).
        On failure, scroll is wasted and spell does not take effect.
+    9. Multi-projectile spells resolve each projectile separately: automatic spells (Magic Missile)
+       never roll to hit and strike simultaneously; attack-roll spells (Scorching Ray, Eldritch Blast)
+       roll a separate attack per projectile. 'darts' splits them across targets.
 
     EXAMPLES:
     resolve_magic(spell_name='Fireball', actor='{player_name}',
@@ -2408,6 +2638,28 @@ def resolve_magic(
 
     is_crit = False
 
+    # ── PROJECTILE SPELLS (Magic Missile / Scorching Ray / Eldritch Blast) ──
+    if spell and (spell.get("projectiles") or spell.get("cantrip_projectile_scaling")) and not sp_healing:
+        if spell.get("cantrip_projectile_scaling"):
+            projectile_count = 1 + sum(1 for lvl in (5, 11, 17) if character_level >= lvl)
+        else:
+            projectile_count = (int(spell.get("projectiles", 0))
+                                + int(spell.get("projectiles_per_level", 0)) * max(0, (computed_slot or 0) - sp_level))
+        proj = _resolve_projectile_spell(
+            actor=actor, spell_name=spell_name, spell=spell, count=projectile_count,
+            attack_type=sp_attack_type, damage_dice=sp_damage_dice, damage_modifier=sp_damage_modifier,
+            damage_type=sp_damage_type, targets=targets, target_name=target_name,
+            target_current_hp=target_current_hp, target_ac=target_ac, challenge_rating=challenge_rating,
+            is_npc_attack=is_npc_attack, is_npc_vs_npc=is_npc_vs_npc, cursor=cursor,
+            spell_attack_modifier=spell_attack_modifier, advantage=advantage, force_crit=force_crit,
+            result=result, narrative_parts=narrative_parts,
+        )
+        if proj.get("success") is False:
+            return proj
+        return _finalize_spell_result(proj, narrative_parts, sp_duration, sp_buffs,
+                                      sp_requires_concentration,
+                                      is_npc_attack or is_npc_vs_npc, is_npc_vs_npc)
+
     # ── ATTACK ROLL ──
     if sp_attack_type == "attack_roll":
         if advantage:
@@ -2489,7 +2741,11 @@ def resolve_magic(
         heal_die_size, heal_rolls, heal_raw = _parse_and_roll_dice(final_dice)
         if heal_die_size is None:
             return {"success": False, "error": f"Invalid damage_dice notation: '{final_dice}'. Use format 'XdY' (e.g., '2d6')."}
-        total_healing = heal_raw + final_mod
+        ability_bonus = 0
+        if spell and spell.get("add_spellcasting_mod"):
+            ability_bonus = _caster_spellcasting_mod(cursor)
+        heal_mod = final_mod + ability_bonus
+        total_healing = heal_raw + heal_mod
 
         if sp_flat_healing and total_healing == 0:
             heal_narrative = f"{actor} {spell_name} Healing: full HP restore"
@@ -2543,8 +2799,8 @@ def resolve_magic(
 
         if heal_rolls:
             heal_rolls_str = " + ".join(str(r) for r in heal_rolls)
-            if final_mod != 0:
-                heal_narrative = f"{actor} {spell_name} Healing: {total_healing} ({heal_rolls_str} + {final_mod})"
+            if heal_mod != 0:
+                heal_narrative = f"{actor} {spell_name} Healing: {total_healing} ({heal_rolls_str} + {heal_mod})"
             else:
                 heal_narrative = f"{actor} {spell_name} Healing: {total_healing} ({heal_rolls_str})"
         else:
@@ -2667,11 +2923,11 @@ def resolve_magic(
                 base_str = " + ".join(str(r) for r in primary_rolls)
                 if final_mod != 0:
                     narrative_parts.append(
-                        f"{actor} {spell_name} {label}: {primary_damage} ({base_str} + {crit_rolls_str} + {final_mod}) [CRIT]"
+                        f"{actor} {spell_name} {label}: {primary_damage} ({final_dice}: {base_str} + {crit_rolls_str}, {final_mod:+d}) [CRIT]"
                     )
                 else:
                     narrative_parts.append(
-                        f"{actor} {spell_name} {label}: {primary_damage} ({base_str} + {crit_rolls_str}) [CRIT]"
+                        f"{actor} {spell_name} {label}: {primary_damage} ({final_dice}: {base_str} + {crit_rolls_str}) [CRIT]"
                     )
             else:
                 narrative_parts.append(
@@ -2683,9 +2939,9 @@ def resolve_magic(
             if primary_rolls:
                 base_str = " + ".join(str(r) for r in primary_rolls)
                 if final_mod != 0:
-                    narrative_parts.append(f"{actor} {spell_name} {label}: {primary_damage} ({base_str} + {final_mod})")
+                    narrative_parts.append(f"{actor} {spell_name} {label}: {primary_damage} ({final_dice}: {base_str}, {final_mod:+d})")
                 else:
-                    narrative_parts.append(f"{actor} {spell_name} {label}: {primary_damage} ({base_str})")
+                    narrative_parts.append(f"{actor} {spell_name} {label}: {primary_damage} ({final_dice}: {base_str})")
             else:
                 narrative_parts.append(f"{actor} {spell_name} {label}: {primary_damage}")
 
