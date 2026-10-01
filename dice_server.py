@@ -750,6 +750,39 @@ def modify_player_numeric(key: str, delta: int) -> dict:
         return {"success": False, "error": f"Error modifying numeric value: {str(e)}", "key": key}
 
 
+_DEFAULT_REPUTATION_FACTION = "misc"
+
+
+def _resolve_reputation_bucket(data, path_in_obj):
+    """Resolve a `reputation.<kingdom>[.<faction>]` path to a writable list.
+
+    Reputation is stored as `{kingdom: {faction: [entries]}}`. A missing faction
+    under an *existing* kingdom is auto-created; targeting a kingdom alone uses
+    the `_DEFAULT_REPUTATION_FACTION` bucket. Unknown kingdoms are never created,
+    so a typo in the kingdom name still fails.
+
+    Returns `(list_or_None, resolved_path_in_obj)`.
+    """
+    if not isinstance(data, dict):
+        return None, path_in_obj
+    parts = path_in_obj.split('.')
+    kingdom = parts[0] if parts else ''
+    if not kingdom or kingdom not in data or not isinstance(data[kingdom], dict):
+        return None, path_in_obj
+    if len(parts) == 1:
+        parts = [kingdom, _DEFAULT_REPUTATION_FACTION]
+    if len(parts) != 2 or not parts[1]:
+        return None, path_in_obj
+    faction = parts[1]
+    bucket = data[kingdom].get(faction)
+    if bucket is None:
+        bucket = []
+        data[kingdom][faction] = bucket
+    elif not isinstance(bucket, list):
+        return None, path_in_obj
+    return bucket, f"{kingdom}.{faction}"
+
+
 @mcp.tool()
 def update_player_list(key: str, item: str, action: str) -> dict:
     """
@@ -766,7 +799,9 @@ def update_player_list(key: str, item: str, action: str) -> dict:
     2. Removing from active_effects auto-reverts any stat deltas applied by that effect.
     3. CONSUMABLES: NEVER use this tool for consumable quantities — use modify_player_numeric(key='consumables.ITEM', delta=N) instead.
     4. Reputation: use key='reputation.KINGDOM.FACTION' with lowercase kingdom/faction names and no apostrophes.
-       Each entry is a 'Title: Description' pair.
+       Each entry is a 'Title: Description' pair. A missing FACTION under an existing kingdom is
+       created automatically; a bare 'reputation.KINGDOM' writes to the 'misc' bucket. Unknown
+       kingdoms are rejected — never invent a kingdom name.
 
     EXAMPLES:
     update_player_list(key='inventory', item='Dagger: A rusty blade (1d4 piercing, Finesse, Light, Thrown (range 20/60))', action='add')
@@ -795,7 +830,12 @@ def update_player_list(key: str, item: str, action: str) -> dict:
             current_list = get_nested_value(data, path_in_obj)
 
             if current_list is None or not isinstance(current_list, list):
-                return {"success": False, "error": f"Key '{key}' not found or is not a list.", "available_nested_keys": list(data.keys()), "key": key}
+                resolved = None
+                if action == "add" and root_key == "reputation":
+                    resolved, path_in_obj = _resolve_reputation_bucket(data, path_in_obj)
+                if resolved is None:
+                    return {"success": False, "error": f"Key '{key}' not found or is not a list.", "available_nested_keys": list(data.keys()), "key": key}
+                current_list = resolved
         else:
             cursor.execute("SELECT value FROM player WHERE key = ?", (key,))
             row = cursor.fetchone()

@@ -52,8 +52,9 @@ class InventoryListTest(H.EngineCase):
 
 
 class ReputationListTest(H.EngineCase):
-    # The engine requires the nested kingdom/faction path to already exist.
-    player_factory = staticmethod(lambda: H.make_player(reputation={"eldoria": {"guard": []}}))
+    # Kingdoms must exist (never invented), but a missing faction under an
+    # existing kingdom is created, and a bare kingdom uses the 'misc' bucket.
+    player_factory = staticmethod(lambda: H.make_player(reputation={"eldoria": {"guard": []}, "others": {}}))
 
     def test_add_reputation_entry(self):
         r = H.ds.update_player_list("reputation.eldoria.guard", "Saved a patrol: earned their trust", "add")
@@ -61,9 +62,27 @@ class ReputationListTest(H.EngineCase):
         entry = H.dbv("reputation")["eldoria"]["guard"]
         self.assertIn({"name": "Saved a patrol", "description": "earned their trust"}, entry)
 
-    def test_missing_faction_path_is_rejected(self):
-        r = H.ds.update_player_list("reputation.nowhere.void", "X: Y", "add")
-        self.assertFalse(r["success"])
+    def test_missing_faction_under_existing_kingdom_is_created(self):
+        r = H.ds.update_player_list("reputation.eldoria.spies", "Bought a secret: paid in coin", "add")
+        self.assertTrue(r["success"])
+        self.assertIn({"name": "Bought a secret", "description": "paid in coin"},
+                      H.dbv("reputation")["eldoria"]["spies"])
+
+    def test_bare_kingdom_uses_default_bucket(self):
+        r = H.ds.update_player_list("reputation.others",
+                                    "Awakened Convert: a willing pawn", "add")
+        self.assertTrue(r["success"])
+        self.assertIn({"name": "Awakened Convert", "description": "a willing pawn"},
+                      H.dbv("reputation")["others"]["misc"])
+
+    def test_unknown_kingdom_path_is_rejected(self):
+        # An unknown kingdom is never invented, bare or with a faction.
+        self.assertFalse(H.ds.update_player_list("reputation.nowhere.void", "X: Y", "add")["success"])
+        self.assertFalse(H.ds.update_player_list("reputation.nowhere", "X: Y", "add")["success"])
+
+    def test_remove_from_bare_kingdom_path_is_rejected(self):
+        # 'remove' must not auto-create a bucket; the bare path is a dict.
+        self.assertFalse(H.ds.update_player_list("reputation.others", "Awakened Convert", "remove")["success"])
 
 
 class PreparedCapacityTest(H.EngineCase):

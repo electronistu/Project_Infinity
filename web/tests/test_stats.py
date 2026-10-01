@@ -159,6 +159,15 @@ def main() -> bool:
     rec("active_effects: dict entry matched to buff_data by name",
         ae2[0]["rows"] == [{"field": "armor_class", "value": "+5"}])
 
+    # Reputation: the engine auto-creates a faction bucket for a bare kingdom;
+    # the sheet must render category/faction/entries either way.
+    rep = build_stats({"reputation": {
+        "others": {"misc": [{"name": "Awakened Convert", "description": "a willing pawn"}]},
+    }})["reputation"]
+    rec("reputation: auto-created bucket renders",
+        len(rep) == 1 and rep[0]["category"] == "Others" and rep[0]["faction"] == "Misc"
+        and rep[0]["entries"][0]["name"] == "Awakened Convert")
+
     # Regression against the real save, if present.
     real = REPO / "output" / "electronistu.player"
     if real.exists():

@@ -91,6 +91,7 @@ function scrollToBottom(force) {
 /* ── small DOM builders ───────────────────────────────────── */
 
 function addPlayer(text) {
+  finalizeTurnBubble();
   const el = document.createElement("div");
   el.className = "msg player";
   el.innerHTML = `<div class="msg-head">You</div><div class="msg-body"></div>`;
@@ -123,7 +124,10 @@ function addTimeline(entry) {
   scrollToBottom();
 }
 
-function createBubble(label) {
+/* One GM bubble per turn (not per assistant message): a turn can span several
+   model rounds (tool calls, thinking-only retries, resumes), all of which nest
+   into this single bubble so the player sees one "Game Master" heading. */
+function createTurnBubble(label) {
   const el = document.createElement("div");
   el.className = "msg gm";
   const head = document.createElement("div");
@@ -132,24 +136,64 @@ function createBubble(label) {
   const think = document.createElement("details");
   think.className = "thinking";
   think.innerHTML = `<summary>thinking</summary><div class="thinking-body"></div>`;
-  const body = document.createElement("div");
-  body.className = "msg-body";
+  const flow = document.createElement("div");
+  flow.className = "msg-flow";
   el.appendChild(head);
   el.appendChild(think);
-  el.appendChild(body);
+  el.appendChild(flow);
   transcript.appendChild(el);
   scrollToBottom(true);
-  return { el, body, think, thinkBody: think.querySelector(".thinking-body"), raw: "", thinking: "" };
+  return {
+    el,
+    think,
+    thinkBody: think.querySelector(".thinking-body"),
+    flow,
+    thinking: "",
+    seg: null,      // current narrative .msg-body
+    segRaw: "",     // its raw markdown source
+    hasNarrative: false,
+  };
 }
 
-function addToolCall(name, args) {
+function beginSegment(tb) {
+  if (!tb.seg) {
+    tb.seg = document.createElement("div");
+    tb.seg.className = "msg-body";
+    tb.flow.appendChild(tb.seg);
+    tb.segRaw = "";
+  }
+  return tb.seg;
+}
+
+function endSegment(tb) {
+  if (!tb.seg) return;
+  tb.seg.innerHTML = mdToHtml(tb.segRaw);
+  tb.seg = null;
+  tb.segRaw = "";
+}
+
+function finalizeTurnBubble() {
+  const tb = state.cur;
+  if (!tb) return;
+  endSegment(tb);
+  if (!tb.thinking.trim()) tb.think.remove();
+  if (!tb.hasNarrative && !tb.thinking.trim()) {
+    // Nothing the toggles could show except bare tool calls: keep those at the
+    // top level (for a tools-on player) and drop the empty shell.
+    tb.flow.querySelectorAll(".tool-block").forEach((block) => transcript.insertBefore(block, tb.el));
+    tb.el.remove();
+  }
+  state.cur = null;
+}
+
+function addToolCall(name, args, parent) {
   const el = document.createElement("div");
   el.className = "tool-block";
   el.innerHTML =
     `<div class="tool-head">tool · ${escapeHtml(name)}</div>` +
     `<pre class="tool-args">${escapeHtml(JSON.stringify(args || {}))}</pre>` +
     `<pre class="tool-result"></pre>`;
-  transcript.appendChild(el);
+  (parent || transcript).appendChild(el);
   scrollToBottom();
   return el;
 }
@@ -580,14 +624,17 @@ function handleEvent(evt) {
       state.turn = evt.turn || 0;
       updateTurn();
       state.activeSaveName = (evt.world || "").replace(/\.wwf$/i, "");
+      state.cur = null;
       addSystem(`Session ready · ${evt.tools ? evt.tools.length : 0} engine tools · ${evt.model}`);
       break;
 
     case "assistant_start":
       if (evt.label === "timeline" || evt.label === "sync") {
         state.cur = null; // not shown as chat; timeline surfaces via its own event
-      } else {
-        state.cur = createBubble(evt.label);
+      } else if (!state.cur) {
+        // One GM bubble per turn: continuation rounds (tool calls, thinking-only
+        // retries, resumes) reuse the current bubble instead of opening a new one.
+        state.cur = createTurnBubble(evt.label);
       }
       break;
 
@@ -600,24 +647,28 @@ function handleEvent(evt) {
 
     case "narrative_delta":
       if (state.cur) {
-        state.cur.raw += evt.text;
-        state.cur.body.textContent = stripTokens(state.cur.raw);
+        const tb = state.cur;
+        beginSegment(tb);
+        tb.segRaw += evt.text;
+        if (!tb.hasNarrative && stripTokens(tb.segRaw).trim()) {
+          tb.hasNarrative = true;
+          tb.el.classList.add("has-narrative");
+        }
+        tb.seg.textContent = stripTokens(tb.segRaw);
       }
       scrollToBottom();
       break;
 
     case "assistant_end":
-      if (state.cur) {
-        state.cur.body.innerHTML = mdToHtml(state.cur.raw);
-        if (!state.cur.thinking.trim()) state.cur.think.remove();
-        if (!stripTokens(state.cur.raw).trim() && !state.cur.thinking.trim()) state.cur.el.remove();
-        state.cur = null;
-      }
+      // One round of the turn is done; render its narrative segment but keep
+      // the turn bubble open for later rounds (tools / the final answer).
+      if (state.cur) endSegment(state.cur);
       scrollToBottom();
       break;
 
     case "tool_call":
-      state.lastTool = addToolCall(evt.name, evt.arguments);
+      if (state.cur) endSegment(state.cur);
+      state.lastTool = addToolCall(evt.name, evt.arguments, state.cur ? state.cur.flow : transcript);
       break;
 
     case "tool_result":
@@ -636,6 +687,7 @@ function handleEvent(evt) {
       break;
 
     case "awakening_end":
+      finalizeTurnBubble();
       state.ready = true;
       setStatus("Awaiting your action");
       updateComposer();
@@ -643,6 +695,7 @@ function handleEvent(evt) {
       break;
 
     case "turn_end":
+      finalizeTurnBubble();
       if (evt.turn != null) { state.turn = evt.turn; updateTurn(); }
       setStatus("Awaiting your action");
       if (state.lastCommandType === "action") requestStats();

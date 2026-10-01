@@ -146,6 +146,7 @@ main { position: relative; flex: 1; display: grid; grid-template-columns: 1fr; m
 .msg-head { font-family: var(--sans); font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.6px; margin-bottom: 7px; }
 .msg.gm { background: var(--surface); border: 1px solid var(--border-soft); border-left: 3px solid var(--accent); }
 .msg.gm .msg-head { color: var(--accent-text); }
+.msg-flow { display: flex; flex-direction: column; gap: 10px; width: 100%; }
 .msg.player { align-self: flex-end; width: auto; max-width: 80%; background: var(--surface-2); border: 1px solid var(--border); border-right: 3px solid var(--info); }
 .msg.player .msg-head { color: var(--info); }
 .msg-body p { margin: 0 0 10px; }
@@ -162,6 +163,10 @@ details.thinking > summary { cursor: pointer; color: var(--faint); font-family: 
 .thinking-body { width: 100%; color: var(--muted); font-family: var(--mono); font-size: 12px; white-space: pre-wrap; margin-top: 6px;
                  max-height: 240px; overflow: auto; }
 .transcript:not(.show-thinking) details.thinking { display: none; }
+/* Intermediary GM rounds (thinking and/or tool calls only) carry no "Game Master"
+   header; they disappear entirely while the thinking toggle is off. */
+.msg.gm:not(.has-narrative) .msg-head { display: none; }
+.transcript:not(.show-thinking) .msg.gm:not(.has-narrative) { display: none; }
 
 .tool-block { width: 100%; border: 1px dashed var(--border); border-radius: var(--radius-sm); padding: 8px 12px;
               font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
