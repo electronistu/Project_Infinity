@@ -5,12 +5,11 @@ venv/
 __pycache__/
 *.pyc
 
-# Ignore all generated world-weave files...
+# Ignore generated save files (legacy *.wwf included)...
 *.wwf
 *.player
 *.timeline
 # ...but keep the bundled example save.
-!electronistu.wwf
 !electronistu.player
 !electronistu.timeline
 *.kate-swp

@@ -49,10 +49,9 @@ Useful flags: `--host`, `--port`, `--reload` (auto-restart on code changes), `--
 
 On the start screen, choose **Create character**. The in-browser **Character Forge** walks you through the full SRD 5.1 creation flow — race, class, background, point-buy stats, skills, spells, and starting equipment. On completion it writes into `output/`:
 
-- `yourcharacter.wwf` — the world (kingdoms, NPCs, guilds, history)
 - `yourcharacter.player` — your character: stats, inventory, spells, and what they are wearing and wielding
 
-A third file, `yourcharacter.timeline`, is created the first time you save.
+A second file, `yourcharacter.timeline`, is created the first time you save. The world itself — its history and kingdoms — is fixed for every save, defined in [`config/world.yml`](config/world.yml).
 
 ### 6. Play
 
@@ -115,11 +114,10 @@ Images are cached per save under `output/images/{stem}/` and regenerate only whe
 
 ### Saving and loading
 
-**There is no autosave — progress persists only when you save.** Saving is **in place**: the game writes the world's own files and never renames them, because a world's images live under a folder keyed to its name. A save:
+**There is no autosave — progress persists only when you save.** Saving is **in place**: the game writes the save's own files and never renames them, because a save's images live under a folder keyed to its name. A save:
 
 - rewrites your character (`.player`) with the current state,
-- appends a session **timeline** (`.timeline`) — the GM's concise summary of everything that happened since your last save (key events, NPCs met, loose plot threads),
-- leaves the world (`.wwf`) exactly as it was created.
+- appends a session **timeline** (`.timeline`) — the GM's concise summary of everything that happened since your last save (key events, NPCs met, loose plot threads).
 
 Loading that save injects the timeline, so the story continues coherently. Your saves are listed on the start screen and in the **Load** picker, and can be deleted from there.
 
@@ -157,10 +155,22 @@ What that buys you:
 Under the hood:
 
 - **The engine is authoritative.** The game runs as a local **MCP (Model Context Protocol)** server with an in-memory SQLite database initialized from your `.player` file. Every mechanical action is a verified tool call that returns a result the GM must respect. The GM's personality, combat rules, and constraints live in [`GameMaster_MCP.md`](GameMaster_MCP.md), loaded as the system prompt.
-- **Session startup.** Four steps bring the world to life: the GM protocol is loaded, your `.wwf` world is injected, the character is dumped from the database, and only then is the opening scene narrated.
 - **Dice & checks.** `perform_check` rolls `d20 + modifier` vs a DC with natural-20/1 criticals. `roll_dice` supports any notation (e.g. `3d6+2`) and must be used for every random magnitude.
 - **State authority.** `modify_player_numeric` and `update_player_list` manage all numeric and list state, with HP clamped to `[0, max]` and status tags (Healthy → Unconscious). Reaching 0 HP triggers death saves.
 - **Phased resolution.** To keep complex turns accurate, the GM resolves all mechanics first (pausing with a sync token), and only then writes the narrative — so results are mechanically correct before the story is told.
+
+### What the Game Master sees
+
+The GM is an AI, so everything it "knows" has to be handed to it. A session starts by loading, in order:
+
+- **The GM protocol** ([`GameMaster_MCP.md`](GameMaster_MCP.md)) — its rules, combat and narration discipline, and (when images are on) the scene-imagery instructions.
+- **The world** — the shared history and the four kingdoms with their capitals, relations and guilds, from [`config/world.yml`](config/world.yml). This *is* the world; there is no per-save world file.
+- **The save's timeline** (`{stem}.timeline`) — the GM's own summary of everything that happened before this session, so a long campaign stays coherent.
+- **The known image places** (when images are on) — every place already drawn for this save, as a `kingdom → area → location → sublocation` tree, each with its short description and its **main NPC** — for example *The Drowned Lantern → Common Room — low-ceilinged, peat fire · main NPC: Maera, a one-eared, broad-shouldered barkeep*. The GM reuses these exact names, so a place reads and looks the same whenever you return.
+
+The character is then pulled live from the engine's database — stats, HP, inventory, equipped gear (with the derived armour-class breakdown) and the carrying/encumbrance block — and the opening scene is narrated.
+
+During play the GM also receives the result of **every tool call** — the dice, the mechanics, and the `narrative_format` it must weave into prose — and, of course, the player's own input. The engine is the only source of numbers; the GM cannot invent any of them.
 
 ### Storyline image continuity
 
@@ -205,6 +215,7 @@ illustrations consistent across the whole campaign.
 | Client | Vanilla JS / HTML / CSS (no build step) |
 | Data validation | Pydantic |
 | Config | YAML |
+| World | Static scaffold in `config/world.yml` (fixed history + kingdoms) |
 | Game Master models | Ollama Cloud, Google Gemini *(optional)* |
 | Images *(optional)* | Google Gemini image models, cached per save |
 

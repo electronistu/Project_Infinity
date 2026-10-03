@@ -76,13 +76,12 @@ async def main() -> int:
         return {"generated": True}
 
     server_mod.image_service.ensure_portrait = _fake_ensure_portrait
-    (OUTPUT_DIR / "_portraittest.wwf").write_text("x", encoding="utf-8")
+    (OUTPUT_DIR / "_portraittest.player").write_text("x", encoding="utf-8")
 
     class _FakeSession:
         def __init__(self):
-            self.active_wwf = str(OUTPUT_DIR / "_scenetest.wwf")
+            self.active_name = "_scenetest"
             self.player_path = None
-            self.wwf_path = None
 
     server_mod.manager._sessions["scenetest"] = _FakeSession()
     server_mod.manager._meta["scenetest"] = {}
@@ -268,7 +267,7 @@ async def main() -> int:
 
             # Portrait regenerate accepts a live player sheet (no .player needed).
             r = await c.post("/api/portrait", json={
-                "wwf": "_portraittest.wwf", "force": True,
+                "save": "_portraittest.player", "force": True,
                 "player": {"race": "Human", "character_class": "Fighter", "level": 10,
                            "inventory": ["Longsword"]},
             })
@@ -278,7 +277,7 @@ async def main() -> int:
                 and portrait_seen.get("force") is True,
                 f"status={r.status_code} seen={portrait_seen}")
             r = await c.post("/api/portrait", json={
-                "wwf": "_portraittest.wwf",
+                "save": "_portraittest.player",
                 "player": {"race": "Human"},
             })
             rec("POST portrait live body needs no .player file", r.status_code == 200)
@@ -287,13 +286,13 @@ async def main() -> int:
             rec("static Cache-Control no-store", "no-store" in (r.headers.get("cache-control") or ""),
                 r.headers.get("cache-control"))
 
-            for suffix in (".wwf", ".player", ".timeline"):
+            for suffix in (".player", ".timeline", ".wwf"):
                 Path(f"{DEL}{suffix}").write_text("x", encoding="utf-8")
             img_dir = OUTPUT_DIR / "images" / "_deltest"
             img_dir.mkdir(parents=True, exist_ok=True)
             (img_dir / "portrait.jpg").write_bytes(b"\xff\xd8\xff\xe0" + b"x" * 8)
             saves2 = (await c.get("/api/worlds")).json()["saves"]
-            entry = next((s for s in saves2 if s["file"] == "_deltest.wwf"), None)
+            entry = next((s for s in saves2 if s["file"] == "_deltest.player"), None)
             rec("portrait URL uses the real extension",
                 entry is not None and entry.get("portrait") == "/api/portraits/_deltest.jpg", str(entry))
             rp = await c.get("/api/portraits/_deltest.jpg")
@@ -304,18 +303,20 @@ async def main() -> int:
             rec("portrait_modified is a timestamp", isinstance(pm1, (int, float)), str(pm1))
             os.utime(img_dir / "portrait.jpg", (float(pm1) + 5, float(pm1) + 5))
             saves3 = (await c.get("/api/worlds")).json()["saves"]
-            entry3 = next((s for s in saves3 if s["file"] == "_deltest.wwf"), None)
+            entry3 = next((s for s in saves3 if s["file"] == "_deltest.player"), None)
             rec("portrait_modified changes when the portrait is rewritten",
                 entry3 is not None and entry3.get("portrait_modified") != pm1,
                 f"{pm1} -> {(entry3 or {}).get('portrait_modified')}")
-            r = await c.delete("/api/worlds/_deltest.wwf")
+            r = await c.delete("/api/worlds/_deltest.player")
             body = r.json()
             rec("DELETE temp save", r.status_code == 200 and len(body.get("removed", [])) == 4, str(body))
-            rec("files removed", not Path(f"{DEL}.wwf").exists() and not Path(f"{DEL}.player").exists())
+            rec("files removed", not Path(f"{DEL}.player").exists()
+                and not Path(f"{DEL}.timeline").exists()
+                and not Path(f"{DEL}.wwf").exists())
             rec("image dir removed", not img_dir.exists())
 
-            rec("DELETE unknown -> 404", (await c.delete("/api/worlds/nope.wwf")).status_code == 404)
-            rec("DELETE non-.wwf -> 400", (await c.delete("/api/worlds/nofile")).status_code == 400)
+            rec("DELETE unknown -> 404", (await c.delete("/api/worlds/nope.player")).status_code == 404)
+            rec("DELETE non-.player -> 400", (await c.delete("/api/worlds/nofile")).status_code == 400)
     finally:
         srv.should_exit = True
         try:
@@ -334,7 +335,7 @@ async def main() -> int:
         server_mod.scene_service.generate_action = real_scene_action
         server_mod.image_service.available = real_portrait_available
         server_mod.image_service.ensure_portrait = real_ensure_portrait
-        (OUTPUT_DIR / "_portraittest.wwf").unlink(missing_ok=True)
+        (OUTPUT_DIR / "_portraittest.player").unlink(missing_ok=True)
         server_mod.manager._sessions.pop("scenetest", None)
         server_mod.manager._meta.pop("scenetest", None)
 

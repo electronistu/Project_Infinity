@@ -59,7 +59,7 @@ async def _dump_player(player_path):
 
 
 def _build_temp_save():
-    """Generate a brand-new world + character; return (stem, wwf, player, timeline)."""
+    """Generate a brand-new save; return (stem, player, timeline)."""
     from forge.config_loader import load_config
     from forge.character_creator import create_debug_character
     from web.creation import _generate_world
@@ -67,11 +67,11 @@ def _build_temp_save():
     config = load_config()
     gen = _generate_world(config, create_debug_character(config), OUTPUT)
     stem = gen["slug"]
-    return stem, OUTPUT / gen["wwf"], OUTPUT / gen["player"], OUTPUT / f"{stem}.timeline"
+    return stem, OUTPUT / gen["player"], OUTPUT / f"{stem}.timeline"
 
 
 async def functional() -> bool:
-    stem, wwf, player, timeline = _build_temp_save()
+    stem, player, timeline = _build_temp_save()
 
     # Seed a legacy timeline: a previous session already recorded 19 turns.
     timeline.write_text(
@@ -86,7 +86,7 @@ async def functional() -> bool:
     session = GameSession(base_dir=REPO, model=MODEL, context_window=1_048_576, temperature=1.0)
     ok = False
     try:
-        await session.start(wwf)
+        await session.start(player)
         turn_done = False
         async for evt in session.events():
             t = evt["type"]
@@ -116,7 +116,7 @@ async def functional() -> bool:
         ok &= got_saved and got_timeline
         ok &= not saved_before_manual
         ok &= session.turn_counter == 20 and session.last_timeline_turn == 20
-        ok &= wwf.exists() and player.exists() and tl.exists()
+        ok &= player.exists() and tl.exists()
         ok &= continued
         ok &= "Mechanical Changes" not in text
         # Save is in place: the seeded world is rewritten, never renamed away.
@@ -132,7 +132,7 @@ async def functional() -> bool:
             await session.close()
         except Exception:  # noqa: BLE001
             pass
-        for path in [wwf, player, timeline]:
+        for path in [player, timeline]:
             path.unlink(missing_ok=True)
     return bool(ok)
 

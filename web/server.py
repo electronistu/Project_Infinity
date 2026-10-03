@@ -8,7 +8,7 @@ Endpoints
 GET    /api/health
 GET    /api/worlds
 GET    /api/models
-POST   /api/sessions            {wwf, model?, temperature?, think?}
+POST   /api/sessions            {save, model?, temperature?, think?}
 GET    /api/sessions/{id}
 DELETE /api/sessions/{id}
 WS     /ws/{id}
@@ -30,6 +30,7 @@ from pydantic import BaseModel
 from .creation import CreationManager
 from .icons import IconService, all_icon_keys, slugify_key, spell_detail
 from .images import ImageError, ImageService, SceneService, image_mime
+from forge.world import render_world_text  # noqa: E402
 from .models import (
     DEFAULT_ICON_MODEL,
     DEFAULT_IMAGE_MODEL,
@@ -92,7 +93,7 @@ async def no_cache_static(request, call_next):
 def _world_names() -> list[str]:
     if not OUTPUT_DIR.exists():
         return []
-    return sorted(p.name for p in OUTPUT_DIR.glob("*.wwf"))
+    return sorted(p.name for p in OUTPUT_DIR.glob("*.player"))
 
 
 _ALLOWED_IMAGE_EXTS = {"png", "jpg", "jpeg", "webp"}
@@ -106,7 +107,7 @@ def _portrait_url(stem: str) -> str | None:
 
 
 def _portrait_mtime(stem: str) -> float | None:
-    """The portrait file's mtime — changes on regenerate, unlike the .wwf mtime."""
+    """The portrait file's mtime — changes on regenerate, unlike the save mtime."""
     found = image_service.portrait_file(stem)
     if not found:
         return None
@@ -118,7 +119,7 @@ def _portrait_mtime(stem: str) -> float | None:
 
 def _world_list() -> list[dict]:
     entries = []
-    paths = sorted(OUTPUT_DIR.glob("*.wwf")) if OUTPUT_DIR.exists() else []
+    paths = sorted(OUTPUT_DIR.glob("*.player")) if OUTPUT_DIR.exists() else []
     for path in paths:
         entry = {
             "file": path.name,
@@ -129,21 +130,19 @@ def _world_list() -> list[dict]:
             "portrait": _portrait_url(path.stem),
             "portrait_modified": _portrait_mtime(path.stem),
         }
-        player = path.with_suffix(".player")
-        if player.exists():
-            try:
-                data = json.loads(player.read_text(encoding="utf-8"))
-                entry["character"] = data.get("name")
-                entry["class"] = data.get("character_class")
-                entry["level"] = data.get("level")
-            except Exception:  # noqa: BLE001
-                pass
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            entry["character"] = data.get("name")
+            entry["class"] = data.get("character_class")
+            entry["level"] = data.get("level")
+        except Exception:  # noqa: BLE001
+            pass
         entries.append(entry)
     return entries
 
 
 class CreateSessionBody(BaseModel):
-    wwf: str
+    save: str
     model: str | None = None
     temperature: float | None = None
     think: bool | None = None
@@ -151,7 +150,7 @@ class CreateSessionBody(BaseModel):
 
 
 class PortraitBody(BaseModel):
-    wwf: str
+    save: str
     force: bool = False
     model: str | None = None
     # Optional live sheet (dump_player_db snapshot); when present it is used
@@ -215,22 +214,22 @@ async def worlds():
 @app.delete("/api/worlds/{filename}")
 async def delete_world(filename: str):
     name = Path(filename).name
-    if name != filename or not name.lower().endswith(".wwf"):
-        raise HTTPException(status_code=400, detail="invalid world file")
-    wwf = OUTPUT_DIR / name
-    if not wwf.exists():
-        raise HTTPException(status_code=404, detail="unknown world")
-    stem = wwf.with_suffix("")
-    targets = [wwf, Path(f"{stem}.player"), Path(f"{stem}.timeline")]
+    if name != filename or not name.lower().endswith(".player"):
+        raise HTTPException(status_code=400, detail="invalid save file")
+    save = OUTPUT_DIR / name
+    if not save.exists():
+        raise HTTPException(status_code=404, detail="unknown save")
+    stem = save.with_suffix("")
+    targets = [save, Path(f"{stem}.timeline"), Path(f"{stem}.wwf")]
     removed = []
     for target in targets:
         if target.exists():
             target.unlink()
             removed.append(target.name)
-    image_dir = OUTPUT_DIR / "images" / wwf.stem
+    image_dir = OUTPUT_DIR / "images" / save.stem
     if image_dir.is_dir():
         shutil.rmtree(image_dir, ignore_errors=True)
-        removed.append(f"images/{wwf.stem}")
+        removed.append(f"images/{save.stem}")
     return {"deleted": name, "removed": removed}
 
 
@@ -241,31 +240,31 @@ async def images_status():
 
 @app.post("/api/portrait")
 async def generate_portrait(body: PortraitBody):
-    name = Path(body.wwf).name
-    if name != body.wwf or not name.lower().endswith(".wwf"):
-        raise HTTPException(status_code=400, detail="invalid world file")
-    wwf = OUTPUT_DIR / name
-    if not wwf.exists():
-        raise HTTPException(status_code=404, detail="unknown world")
+    name = Path(body.save).name
+    if name != body.save or not name.lower().endswith(".player"):
+        raise HTTPException(status_code=400, detail="invalid save file")
+    save = OUTPUT_DIR / name
+    if not save.exists():
+        raise HTTPException(status_code=404, detail="unknown save")
     if not image_service.available():
         raise HTTPException(status_code=503, detail="image generation is not configured (set GEMINI_API_KEY)")
     model = _image_model_or_400(body.model)
     if body.player is not None:
         player = body.player
     else:
-        player_path = wwf.with_suffix(".player")
+        player_path = save
         if not player_path.exists():
-            raise HTTPException(status_code=404, detail="no character data for this world")
+            raise HTTPException(status_code=404, detail="no character data for this save")
         try:
             player = json.loads(player_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             raise HTTPException(status_code=500, detail="could not read character data")
     async with _portrait_lock:
         try:
-            result = await asyncio.to_thread(image_service.ensure_portrait, wwf.stem, player, body.force, model)
+            result = await asyncio.to_thread(image_service.ensure_portrait, save.stem, player, body.force, model)
         except ImageError as exc:
             raise HTTPException(status_code=exc.status, detail=str(exc))
-    return {"portrait": _portrait_url(wwf.stem), **result}
+    return {"portrait": _portrait_url(save.stem), **result}
 
 
 @app.get("/api/icons/index")
@@ -368,11 +367,11 @@ async def get_portrait(filename: str):
     return FileResponse(path, media_type=image_mime(path), headers={"Cache-Control": "no-store"})
 
 
-def _world_brief(wwf_text: str) -> str:
+def _world_brief(world_text: str) -> str:
     """The first couple of world-history lines, for scene continuity."""
     lines: list[str] = []
     in_history = False
-    for raw in (wwf_text or "").splitlines():
+    for raw in (world_text or "").splitlines():
         stripped = raw.strip()
         if stripped.startswith("history:"):
             in_history = True
@@ -399,13 +398,7 @@ def _scene_context(session) -> tuple[dict, str]:
             player = json.loads(player_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             player = {}
-    world = ""
-    wwf = Path(session.wwf_path) if session.wwf_path else None
-    if wwf and wwf.exists():
-        try:
-            world = _world_brief(wwf.read_text(encoding="utf-8"))
-        except OSError:
-            world = ""
+    world = _world_brief(render_world_text())
     return player, world
 
 
@@ -436,7 +429,7 @@ async def generate_scene(body: SceneBody):
     main_npc = " ".join(str(body.main_npc or "").split())[:300]
     seed_change = " ".join(str(body.seed_change or "").split())[:400]
     model = _image_model_or_400(body.model)
-    stem = Path(session.active_wwf).stem if session.active_wwf else ""
+    stem = session.active_name or ""
     if not stem:
         raise HTTPException(status_code=400, detail="session has no active save")
     player, world = _scene_context(session)
@@ -489,17 +482,17 @@ async def models():
 
 @app.post("/api/sessions")
 async def create_session(body: CreateSessionBody):
-    if body.wwf not in _world_names():
-        raise HTTPException(status_code=404, detail=f"unknown world: {body.wwf}")
+    if body.save not in _world_names():
+        raise HTTPException(status_code=404, detail=f"unknown save: {body.save}")
     if body.model and resolve_model(body.model) is None:
         raise HTTPException(status_code=400, detail=f"unknown model: {body.model}")
     sid, session = await manager.create(
-        body.wwf, model=body.model, temperature=body.temperature, think=body.think,
+        body.save, model=body.model, temperature=body.temperature, think=body.think,
         scene_images=body.scene_images,
     )
     return {
         "session_id": sid,
-        "world": body.wwf,
+        "world": body.save,
         "model": session.model,
         "context_window": session.context_window,
     }

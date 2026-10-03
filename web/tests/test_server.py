@@ -86,12 +86,12 @@ def _build_temp_save():
     config = load_config()
     gen = _generate_world(config, create_debug_character(config), out)
     stem = gen["slug"]
-    return out / gen["wwf"], out / gen["player"], out / f"{stem}.timeline"
+    return out / gen["player"], out / f"{stem}.timeline"
 
 
 async def main() -> int:
-    temp_wwf, temp_player, temp_timeline = _build_temp_save()
-    world = temp_wwf.name
+    temp_player, temp_timeline = _build_temp_save()
+    world = temp_player.name
     config = uvicorn.Config(app, host="127.0.0.1", port=PORT, log_level="warning")
     server = uvicorn.Server(config)
     server_task = asyncio.create_task(server.serve())
@@ -121,7 +121,7 @@ async def main() -> int:
             rec("GET /api/models", any(m["id"] == "deepseek-v4.1-flash:cloud" for m in models),
                 f"{len(models)} models")
 
-            r = await client.post("/api/sessions", json={"wwf": world, "temperature": 1.0,
+            r = await client.post("/api/sessions", json={"save": world, "temperature": 1.0,
                                                        "scene_images": True})
             rec("POST /api/sessions", r.status_code == 200, f"HTTP {r.status_code}")
             sid = r.json().get("session_id")
@@ -196,7 +196,7 @@ async def main() -> int:
             await asyncio.wait_for(server_task, timeout=30)
         except (asyncio.TimeoutError, Exception):  # noqa: BLE001
             server_task.cancel()
-        for path in (temp_wwf, temp_player, temp_timeline):
+        for path in (temp_player, temp_timeline):
             path.unlink(missing_ok=True)
 
     print("\n" + "=" * 72)

@@ -9,13 +9,11 @@ Flow
 1. `CreationManager.start()` spawns a worker thread running the Forge.
 2. Handlers call `bridge.take_steps()` to read steps up to the next prompt.
 3. `bridge.submit_answer(value)` feeds the answer back.
-4. On completion the worker also generates the world and writes
-   `output/{slug}.wwf` + `output/{slug}.player`.
+4. On completion the worker also generates the world and writes `output/{slug}.player`.
 """
 
 import contextlib
 import os
-import random
 import sys
 import threading
 import time
@@ -30,14 +28,6 @@ if str(REPO_ROOT) not in sys.path:
 from .naming import slugify, unique_paths  # noqa: E402
 
 PROMPT_TIMEOUT_SECONDS = 900.0
-
-# Copied verbatim from main.py so web-created worlds match Forge worlds.
-WORLD_HISTORY = [
-    "The War of the Ashen Crown, a bitter conflict ignited by Zarthus's expansionism, ended a decade ago in a fragile truce. The cities of Eldoria still bear the scars, and its people have long memories.",
-    "During the war, the Blacksail Archipelago allied with Zarthus, preying on Eldorian shipping lanes. Though the war is over, their piracy continues, a constant thorn in the side of all civilized kingdoms.",
-    "Silverwood's staunch neutrality during the war earned it no friends. Eldoria views them with suspicion for not aiding their cause, while Zarthus holds them in contempt for refusing to bow to their power.",
-    "An uneasy peace now holds between Eldoria and Zarthus. It is not a peace of friendship, but a bitter rivalry of two great powers rebuilding their strength, each waiting for the other to show a sign of weakness.",
-]
 
 _MISSING = object()
 
@@ -331,34 +321,17 @@ def _installed_ui(bridge: CreationBridge):
 # ── worker ────────────────────────────────────────────────────────────────
 
 def _generate_world(config, player_character, output_dir):
-    from forge.population_generator import populate_world
-    from forge.guild_generator import create_guilds
-    from forge.formatter import format_world_to_wwf
-    from forge.models import WorldState
+    from forge.formatter import get_player_json
+    from forge.world import build_kingdoms
 
-    kingdoms = populate_world(config)
-    create_guilds(kingdoms, config)
-
-    all_npcs = []
-    for kingdom in kingdoms:
-        all_npcs.append(kingdom.ruler)
-        for guild in kingdom.guilds:
-            all_npcs.append(guild.leader)
-            all_npcs.append(guild.right_hand)
-    if all_npcs:
-        random.choice(all_npcs).is_walker = True
-
-    world_state = WorldState(
-        player_character=player_character,
-        kingdoms=kingdoms,
-        world_history=list(WORLD_HISTORY),
-    )
-
-    stem, wwf_path, _player_path = unique_paths(output_dir, slugify(player_character.name))
-    format_world_to_wwf(world_state, str(wwf_path))
+    # The world is a static scaffold (config/world.yml). No NPCs are generated:
+    # the GM invents them on the fly. Only the `.player` is written — there is no
+    # `.wwf` any more (see decisions/slim-wwf-drop-npc-generation).
+    kingdoms = build_kingdoms()
+    stem, player_path = unique_paths(output_dir, slugify(player_character.name))
+    Path(player_path).write_text(get_player_json(player_character, kingdoms), encoding="utf-8")
     return {
         "name": player_character.name,
-        "wwf": wwf_path.name,
         "player": f"{stem}.player",
         "slug": stem,
         "character_class": player_character.character_class,

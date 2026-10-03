@@ -1,6 +1,6 @@
 """Character-creation driver: direct bridge + full wizard over HTTP.
 
-1. Direct: auto-answers the bridge, asserts `.wwf`/`.player` naming, auto-suffix
+1. Direct: auto-answers the bridge, asserts `.player` naming, auto-suffix
    on collision, and that the character is playable by the MCP engine.
 2. HTTP: boots the server in-process and drives the real `/api/creation*`
    endpoints end to end (the path the browser wizard uses).
@@ -36,7 +36,7 @@ def slug_prefix(name):
 
 def preclean(name):
     prefix = slug_prefix(name)
-    for pattern in (f"{prefix}*.wwf", f"{prefix}*.player"):
+    for pattern in (f"{prefix}*.player",):
         for path in OUTPUT.glob(pattern):
             path.unlink()
 
@@ -169,19 +169,20 @@ def main() -> int:
     if not ok:
         print(f"  [direct] message: {terminal.get('message') if terminal else None}")
         return 1
-    wwf = OUTPUT / terminal["wwf"]
     player = OUTPUT / terminal["player"]
-    created += [wwf, player]
+    created += [player]
     data = json.loads(player.read_text(encoding="utf-8"))
-    ok &= wwf.exists() and player.exists() and data.get("name") == DIRECT_NAME
-    print(f"  [direct] {wwf.name} + {player.name} | {data.get('race')} {data.get('character_class')} "
+    ok &= player.exists() and data.get("name") == DIRECT_NAME
+    ok &= not (OUTPUT / f"{terminal['slug']}.wwf").exists()  # no .wwf any more
+    ok &= bool(data.get("reputation"))  # world scaffold seeds reputation
+    print(f"  [direct] {player.name} | {data.get('race')} {data.get('character_class')} "
           f"HP {data.get('current_hit_points')} AC {data.get('armor_class')}")
 
     terminal2, _ = run_bridge_creation(DIRECT_NAME)
-    created += [OUTPUT / terminal2["wwf"], OUTPUT / terminal2["player"]]
+    created += [OUTPUT / terminal2["player"]]
     ok &= terminal2["slug"] == "test_hero_2"
     print(f"  [direct] collision stem: {terminal2['slug']}")
-    ok &= not wwf.name.endswith("_weave.wwf")
+    ok &= not player.name.endswith("_weave.player")
 
     sheet = check_playable(player)
     ok &= sheet.get("name") == DIRECT_NAME
@@ -196,11 +197,10 @@ def main() -> int:
     ok &= bool(terminal3) and terminal3["type"] == "done"
     print(f"\n  [http] terminal={terminal3 and terminal3.get('type')} prompts={prompts3}")
     if terminal3 and terminal3.get("type") == "done":
-        wwf3 = OUTPUT / terminal3["wwf"]
         player3 = OUTPUT / terminal3["player"]
-        created += [wwf3, player3]
-        ok &= wwf3.exists() and player3.exists()
-        print(f"  [http] {wwf3.name} + {player3.name}")
+        created += [player3]
+        ok &= player3.exists()
+        print(f"  [http] {player3.name}")
 
     for path in created:
         try:

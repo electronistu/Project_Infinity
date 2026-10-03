@@ -1156,7 +1156,7 @@ function handleEvent(evt) {
       updateCtxMeter(0, state.contextWindow);
       state.turn = evt.turn || 0;
       updateTurn();
-      state.activeSaveName = (evt.world || "").replace(/\.wwf$/i, "");
+      state.activeSaveName = (evt.world || "").replace(/\.player$/i, "");
       state.cur = null;
       updateSheetPortrait();
       addSystem(`Session ready · ${evt.tools ? evt.tools.length : 0} engine tools · ${evt.model}`);
@@ -1259,7 +1259,7 @@ function handleEvent(evt) {
 
     case "saved":
       state.activeSaveName = evt.name || state.activeSaveName;
-      addSystem(`Saved to ${evt.wwf || (evt.name + ".wwf")}`);
+      addSystem(`Saved to ${evt.save || (evt.name + ".player")}`);
       loadWorlds().catch(() => {});
       if (state.endAfterSave) { state.endAfterSave = false; finishEnd(); }
       break;
@@ -1314,7 +1314,7 @@ function showStartError(msg) {
   el.classList.remove("hidden");
 }
 
-async function startSession(wwf) {
+async function startSession(save) {
   const model = $("model-select").value;
   const temperature = parseFloat($("temp-input").value);
   if (state.sessionId) {
@@ -1328,15 +1328,15 @@ async function startSession(wwf) {
   const res = await fetch("/api/sessions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ wwf, model, temperature, think: true, scene_images: !!state.imagesEnabled }),
+    body: JSON.stringify({ save, model, temperature, think: true, scene_images: !!state.imagesEnabled }),
   });
   if (!res.ok) throw new Error("HTTP " + res.status + " — " + (await res.text()));
   const data = await res.json();
   state.sessionId = data.session_id;
   state.model = data.model;
   state.contextWindow = data.context_window || 0;
-  state.activeSaveName = (data.world || wwf).replace(/\.wwf$/i, "");
-  $("world-label").textContent = data.world || wwf;
+  state.activeSaveName = (data.world || save).replace(/\.player$/i, "");
+  $("world-label").textContent = data.world || save;
   $("model-label").textContent = data.model || model;
   $("ctx-label").textContent = `context 0 / ${fmtNum(state.contextWindow)}`;
   updateCtxMeter(0, state.contextWindow);
@@ -1347,11 +1347,11 @@ async function startSession(wwf) {
 
 async function begin() {
   $("begin").disabled = true;
-  const wwf = $("world-select").value;
-  const wanted = confirmPortrait(wwf);
+  const save = $("world-select").value;
+  const wanted = confirmPortrait(save);
   try {
-    await startSession(wwf);
-    if (wanted) generatePortrait(wwf);
+    await startSession(save);
+    if (wanted) generatePortrait(save);
   } catch (err) {
     $("begin").disabled = false;
     $("start-overlay").classList.remove("hidden");
@@ -1437,7 +1437,7 @@ function worldByFile(file) {
 }
 
 /* Cache-buster for portrait URLs: the portrait file's mtime changes on
-   regenerate, whereas the .wwf mtime does not. */
+   regenerate, whereas the save mtime does not. */
 function portraitBust(w) {
   return encodeURIComponent((w && (w.portrait_modified || w.modified)) || 0);
 }
@@ -1551,7 +1551,7 @@ function updateSheetPortrait() {
   const img = $("sheet-portrait-img");
   const regen = $("portrait-regen");
   const stem = state.activeSaveName;
-  const w = stem ? worldByFile(stem + ".wwf") : null;
+  const w = stem ? worldByFile(stem + ".player") : null;
   if (!state.connected || !w || !w.portrait) {
     panel.classList.add("hidden");
     img.removeAttribute("src");
@@ -1567,15 +1567,15 @@ function updateSheetPortrait() {
   }
 }
 
-function confirmPortrait(wwf) {
-  if (!wwf || !state.imagesEnabled || !state.imageStatus.available) return false;
-  const w = worldByFile(wwf);
+function confirmPortrait(save) {
+  if (!save || !state.imagesEnabled || !state.imageStatus.available) return false;
+  const w = worldByFile(save);
   if (w && w.portrait) return false;
   const label = (w && w.character) ? w.character : "this character";
   return window.confirm(`Generate a portrait for ${label}?\nThis contacts Google Gemini and takes a few seconds.`);
 }
 
-async function generatePortrait(wwf) {
+async function generatePortrait(save) {
   const panel = $("start-portrait");
   if (panel) {
     panel.classList.add("busy");
@@ -1587,7 +1587,7 @@ async function generatePortrait(wwf) {
     const res = await fetch("/api/portrait", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ wwf, model: state.imageModel || undefined }),
+      body: JSON.stringify({ save, model: state.imageModel || undefined }),
     });
     if (!res.ok) {
       let detail = "HTTP " + res.status;
@@ -1640,14 +1640,14 @@ async function regeneratePortrait() {
   const stem = state.activeSaveName;
   if (!stem) return;
   const btn = $("portrait-regen");
-  const wwf = stem.toLowerCase().endsWith(".wwf") ? stem : stem + ".wwf";
+  const save = stem.toLowerCase().endsWith(".player") ? stem : stem + ".player";
   if (btn) { btn.disabled = true; btn.classList.add("busy"); }
   setStatus("repainting portrait…");
   try {
     const res = await fetch("/api/portrait", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ wwf, force: true, player: portraitPlayerPayload(), model: state.imageModel || undefined }),
+      body: JSON.stringify({ save, force: true, player: portraitPlayerPayload(), model: state.imageModel || undefined }),
     });
     if (!res.ok) {
       let detail = "HTTP " + res.status;
@@ -1671,7 +1671,7 @@ function openSave() {
   if (!state.connected) { addError("Not connected to a session."); return; }
   // Save is in place: the world's own name owns its images, so it is never
   // renamed here (a new stem would orphan output/images/{stem}/).
-  $("save-target").textContent = state.activeSaveName ? `${state.activeSaveName}.wwf` : "—";
+  $("save-target").textContent = state.activeSaveName ? `${state.activeSaveName}.player` : "—";
   $("save-error").classList.add("hidden");
   $("save-overlay").classList.remove("hidden");
 }
@@ -1744,7 +1744,7 @@ async function loadGame(file) {
 
 async function deleteWorld(file) {
   if (!file) return;
-  if (!window.confirm(`Delete "${file}"?\nThis removes the .wwf, .player and .timeline. It cannot be undone.`)) return;
+  if (!window.confirm(`Delete "${file}"?\nThis removes the .player and .timeline. It cannot be undone.`)) return;
   try {
     const res = await fetch(`/api/worlds/${encodeURIComponent(file)}`, { method: "DELETE" });
     if (!res.ok) throw new Error("HTTP " + res.status + " — " + (await res.text()));
@@ -2095,14 +2095,14 @@ async function finishCreate(terminal) {
   if (terminal.type === "done") {
     const ok = document.createElement("div");
     ok.className = "wizard-done";
-    ok.textContent = `Forged ${terminal.name} — ${terminal.race} ${terminal.character_class} L${terminal.level} → ${terminal.wwf}`;
+    ok.textContent = `Forged ${terminal.name} — ${terminal.race} ${terminal.character_class} L${terminal.level} → ${terminal.player}`;
     $("create-transcript").appendChild(ok);
     const worlds = await loadWorlds();
-    if (worlds.includes(terminal.wwf)) $("world-select").value = terminal.wwf;
+    if (worlds.includes(terminal.player)) $("world-select").value = terminal.player;
     updateStartPortrait();
     $("start-error").classList.add("hidden");
     setTimeout(closeCreate, 1100);
-    if (confirmPortrait(terminal.wwf)) setTimeout(() => generatePortrait(terminal.wwf), 1200);
+    if (confirmPortrait(terminal.player)) setTimeout(() => generatePortrait(terminal.player), 1200);
   } else if (terminal.type === "cancelled") {
     showCreateError("Creation cancelled.");
   } else {
@@ -2191,7 +2191,7 @@ async function init() {
     const worlds = await Promise.all([loadWorlds(), loadModels()]).then((r) => r[0]);
     if (!worlds.length) {
       $("begin").disabled = true;
-      showStartError("No .wwf worlds found in output/. Forge a new character.");
+      showStartError("No saves found in output/. Forge a new character.");
     }
   } catch (err) {
     showStartError("Could not reach the server: " + err);

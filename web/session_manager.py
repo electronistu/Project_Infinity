@@ -38,7 +38,7 @@ class SessionManager:
 
     # ── CRUD ──────────────────────────────────────────────────────────────
 
-    async def create(self, wwf: str, model: str | None = None,
+    async def create(self, save: str, model: str | None = None,
                      temperature: float | None = None, think=None,
                      scene_images: bool = False):
         model_id = model or DEFAULT_MODEL
@@ -61,10 +61,10 @@ class SessionManager:
         self._meta[sid] = {
             "created": time.time(),
             "last": time.time(),
-            "world": wwf,
+            "world": save,
             "model": model_id,
         }
-        await session.start(wwf)
+        await session.start(save)
         return sid, session
 
     def get(self, sid: str) -> GameSession | None:

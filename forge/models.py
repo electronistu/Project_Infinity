@@ -195,8 +195,8 @@ class PlayerCharacter(BaseEntity):
 
 class Guild(BaseModel):
     name: str
-    leader: NPC
-    right_hand: NPC
+    leader: Optional[NPC] = None
+    right_hand: Optional[NPC] = None
     reports_to: Optional[str] = None
 
 class Location(BaseModel):
@@ -210,13 +210,7 @@ class Kingdom(BaseModel):
     name: str
     capital: str
     alignment: str
-    ruler: NPC
+    ruler: Optional[NPC] = None
     locations: List[Location] = []
     guilds: List[Guild] = []
     relations: Dict[str, str] = {} # Will be updated by UFP engine
-
-class WorldState(BaseModel):
-    player_character: PlayerCharacter
-    kingdoms: List[Kingdom]
-# Note: Creatures are now part of Locations, not a separate top-level list
-    world_history: List[str] = [] # For L.I.C. Engine

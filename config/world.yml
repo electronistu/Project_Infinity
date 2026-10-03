@@ -1,0 +1,88 @@
+# Static world scaffold for Project Infinity.
+#
+# The world is the same for every save: one shared history and a fixed set of
+# kingdoms. The GM invents NPCs on the fly, so no NPCs (rulers, guild leaders)
+# are generated here — only the political scaffold, which the engine injects
+# into the GM at awakening.
+#
+# `reports_to: ruler` marks guilds that answer to the kingdom's ruler (the Guard).
+
+history:
+  - >-
+    The War of the Ashen Crown, a bitter conflict ignited by Zarthus's expansionism,
+    ended a decade ago in a fragile truce. The cities of Eldoria still bear the scars,
+    and its people have long memories.
+  - >-
+    During the war, the Blacksail Archipelago allied with Zarthus, preying on Eldorian
+    shipping lanes. Though the war is over, their piracy continues, a constant thorn in
+    the side of all civilized kingdoms.
+  - >-
+    Silverwood's staunch neutrality during the war earned it no friends. Eldoria views
+    them with suspicion for not aiding their cause, while Zarthus holds them in contempt
+    for refusing to bow to their power.
+  - >-
+    An uneasy peace now holds between Eldoria and Zarthus. It is not a peace of friendship,
+    but a bitter rivalry of two great powers rebuilding their strength, each waiting for
+    the other to show a sign of weakness.
+
+kingdoms:
+  - name: Eldoria
+    capital: Eldoria City
+    align: Lawful Good
+    relations:
+      Zarthus: Rivalry
+      Silverwood: Suspicion
+      Blacksail Archipelago: Raiding
+    guilds:
+      - name: Eldoria Guard
+        reports_to: ruler
+      - name: Eldoria Mage
+      - name: Eldoria Assassin
+      - name: Eldoria Merchant
+      - name: Eldoria Thief
+      - name: Eldoria Alchemist's League
+      - name: Eldoria Order of Scribes
+
+  - name: Zarthus
+    capital: Zarthus City
+    align: Lawful Evil
+    relations:
+      Eldoria: Rivalry
+      Silverwood: Contempt
+      Blacksail Archipelago: Alliance
+    guilds:
+      - name: Zarthus Guard
+        reports_to: ruler
+      - name: Zarthus Mage
+      - name: Zarthus Assassin
+      - name: Zarthus Merchant
+      - name: Zarthus Thief
+      - name: Zarthus Alchemist's League
+
+  - name: Silverwood
+    capital: Silverwood City
+    align: True Neutral
+    relations:
+      Eldoria: Suspicion
+      Zarthus: Contempt
+      Blacksail Archipelago: Raiding
+    guilds:
+      - name: Silverwood Guard
+        reports_to: ruler
+      - name: Silverwood Mage
+      - name: Silverwood Assassin
+      - name: Silverwood Merchant
+      - name: Silverwood Thief
+      - name: Silverwood Alchemist's League
+      - name: Silverwood Ranger's Conclave
+
+  - name: Blacksail Archipelago
+    capital: Blacksail Archipelago City
+    align: Chaotic Evil
+    relations:
+      Eldoria: Raiding
+      Zarthus: Alliance
+      Silverwood: Raiding
+    guilds:
+      - name: Blacksail Archipelago Assassin
+      - name: Blacksail Archipelago Thief

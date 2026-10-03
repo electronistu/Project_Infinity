@@ -1,7 +1,7 @@
-"""Filename helpers for web-created worlds/characters.
+"""Filename helpers for web-created saves.
 
-Convention (web-only): `output/{slug}.wwf` + `output/{slug}.player`, no `_weave`.
-The CLI Forge keeps its own naming; this module is never used by it.
+Convention (web-only): a save is `output/{slug}.player` (+ `{slug}.timeline`);
+there is no `.wwf` file any more. The world scaffold is static (config/world.yml).
 """
 
 import re
@@ -25,14 +25,13 @@ def slugify(name: str) -> str:
 
 
 def unique_paths(output_dir, slug: str):
-    """Return (stem, wwf_path, player_path), auto-suffixing _2, _3, ... on collision."""
+    """Return (stem, player_path), auto-suffixing _2, _3, ... on collision."""
     output_dir = Path(output_dir)
     base = slugify(slug)
     n = 1
     while True:
         stem = base if n == 1 else f"{base}_{n}"
-        wwf = output_dir / f"{stem}.wwf"
         player = output_dir / f"{stem}.player"
-        if not wwf.exists() and not player.exists():
-            return stem, wwf, player
+        if not player.exists() and not (output_dir / f"{stem}.timeline").exists():
+            return stem, player
         n += 1

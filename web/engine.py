@@ -36,6 +36,7 @@ from mcp.client.stdio import stdio_client  # noqa: E402
 from ollama import AsyncClient  # noqa: E402
 
 from .images import known_scene_places  # noqa: E402
+from forge.world import render_world_text  # noqa: E402
 from .ollama_stream import stream_chat  # noqa: E402
 from .stats import build_stats  # noqa: E402
 
@@ -201,11 +202,9 @@ class GameSession:
         # Set at session start; gates the GM's scene-imagery instructions + tool.
         self.scene_images = bool(scene_images)
 
-        self.wwf_path: Path | None = None
         self.player_path: str | None = None
         self.timeline_path: str | None = None
         self.active_name: str | None = None
-        self.active_wwf: str | None = None
 
         self.messages: list[dict] = []
         self.tools_schema: list[dict] = []
@@ -229,20 +228,18 @@ class GameSession:
 
     # ── public API ────────────────────────────────────────────────────────
 
-    async def start(self, wwf_path) -> None:
-        path = Path(wwf_path)
+    async def start(self, save_path) -> None:
+        path = Path(save_path)
         if not path.is_absolute():
             candidate = self.base_dir / path
             if not candidate.exists():
-                # Allow callers to pass just the .wwf filename (lives in output/).
+                # Allow callers to pass just the save filename (lives in output/).
                 candidate = self.base_dir / OUTPUT_DIR / path
             path = candidate.resolve()
-        self.wwf_path = path
         stem = os.path.splitext(str(path))[0]
         self.player_path = stem + ".player"
         self.timeline_path = stem + ".timeline"
         self.active_name = os.path.splitext(os.path.basename(str(path)))[0]
-        self.active_wwf = str(path)
         self._task = asyncio.create_task(self._run())
 
     async def events(self):
@@ -335,8 +332,7 @@ class GameSession:
 
                     with open(self.base_dir / LOCK_FILE, "r", encoding="utf-8") as f:
                         lock_content = f.read()
-                    with open(self.wwf_path, "r", encoding="utf-8") as f:
-                        key_content = f.read()
+                    key_content = render_world_text()
                     existing_timeline = load_timeline(self.timeline_path)
                     # Continue turn numbering where the loaded timeline left off.
                     self.turn_counter = self.last_timeline_turn = _max_timeline_turn(existing_timeline)
@@ -375,7 +371,7 @@ class GameSession:
 
                     await self._emit({
                         "type": "ready",
-                        "world": os.path.basename(self.wwf_path),
+                        "world": f"{self.active_name}.player",
                         "player": os.path.basename(self.player_path),
                         "model": self.model,
                         "provider": self.provider,
@@ -476,10 +472,6 @@ class GameSession:
 
     # ── save / load support ───────────────────────────────────────────────
 
-    def _save_paths(self, stem: str):
-        out = self.base_dir / OUTPUT_DIR
-        return (out / f"{stem}.wwf", str(out / f"{stem}.player"), str(out / f"{stem}.timeline"))
-
     async def _collect_player_save(self) -> dict:
         text = await self._call_tool_text("dump_player_db", {})
         try:
@@ -535,7 +527,7 @@ class GameSession:
             "name": self.active_name,
             "player": os.path.basename(self.player_path),
             "timeline": os.path.basename(self.timeline_path) if self.timeline_path else None,
-            "wwf": os.path.basename(self.active_wwf) if self.active_wwf else None,
+            "save": f"{self.active_name}.player" if self.active_name else None,
         }
         await self._emit(info)
         return info
