@@ -84,7 +84,7 @@ The Google entries appear only when `GEMINI_API_KEY` is set; they use the same k
 Image generation is **opt-in** and **cached** — nothing is drawn unless you ask for it. Tick **images** on the start screen (or in the Load dialog) to enable:
 
 - **Character portrait** — a head-and-shoulders portrait of your character, shown on the start screen and the character sheet. The **↻** button on the sheet repaints it from the character's current level and gear.
-- **Storyline scenes** — the GM attaches one cinematic 16:9 illustration to a turn's narrative at pivotal moments. A location's previous picture is fed back in as a reference, so a place stays visually consistent when you return.
+- **Storyline scenes** — the GM attaches one cinematic 16:9 illustration to a turn's narrative. Each place keeps a hidden reference image: the illustration chains from it, so a place and its regulars stay consistent when you return (see [How It Works](#how-it-works)).
 - **Sheet icons** — the shared, cross-character icon library used by the character sheet (items, spells, skills, abilities, conditions, and more).
 
 Two pickers choose the models that draw them (both require `GEMINI_API_KEY`):
@@ -152,6 +152,7 @@ What that buys you:
 - **Rest, Recovery & Leveling** — short and long rests auto-apply hit dice, slot recovery, Arcane Recovery, and effect clearing per SRD 5.1; crossing an XP threshold auto-applies HP, proficiency, hit dice, and spell-slot progression.
 - **Reputation That Persists** — your standing with every guild is stored in your `.player` as `title: description` entries, so the GM can reference your deeds in the opening scene and throughout later sessions.
 - **A Timeline, Not a Transcript** — saving records the GM's summary of the story so far, which is injected on load to keep a long campaign coherent.
+- **Illustrations That Remember** — places, their light, and their regulars stay consistent across a whole campaign. Every scene is anchored to a hidden reference of the place, so a tavern never grows a new room and its barkeep never changes face.
 
 Under the hood:
 
@@ -160,6 +161,37 @@ Under the hood:
 - **Dice & checks.** `perform_check` rolls `d20 + modifier` vs a DC with natural-20/1 criticals. `roll_dice` supports any notation (e.g. `3d6+2`) and must be used for every random magnitude.
 - **State authority.** `modify_player_numeric` and `update_player_list` manage all numeric and list state, with HP clamped to `[0, max]` and status tags (Healthy → Unconscious). Reaching 0 HP triggers death saves.
 - **Phased resolution.** To keep complex turns accurate, the GM resolves all mechanics first (pausing with a sync token), and only then writes the narrative — so results are mechanically correct before the story is told.
+
+### Storyline image continuity
+
+When **images** are on, the GM narrates with an illustration — and the engine keeps those
+illustrations consistent across the whole campaign.
+
+- **A place has an address.** Each scene is declared as `kingdom → area → location →
+  sublocation` (e.g. *Kingdom of Eldoria → Eldoria City → The Drowned Lantern → Common Room*).
+  `area` is whatever fits — a city, a town, or a border region. The GM names a place once,
+  when it is first drawn, and reuses those exact names afterwards.
+- **Every place gets a hidden "seed".** The first time you enter a place, the engine also
+  draws an **establishing view** of it — empty, with no people or creatures, just the
+  atmosphere. This seed is **never shown to you**; it is the place's visual anchor and it is
+  permanent, so it survives between sessions.
+- **Moments chain from the seed.** The picture you see is the **action** image. The first one
+  in a place is drawn from its seed plus your character's portrait; each later one is drawn
+  from the **previous action image** plus the portrait. So a room keeps its layout and its
+  light as the scene evolves.
+- **Leaving and returning.** Step out of a room but stay in the building, and the chain picks
+  up where it left off. Leave the whole **location**, and its action images are discarded —
+  but the seed stays. Come back later and the place begins again from its seed, exactly as it
+  was first drawn.
+- **Permanent changes.** If a place changes for good — it burns down, a wall collapses — the
+  GM can regenerate its seed from the original, so later visits reflect the change. Passing
+  conditions (a fire tonight, a storm) stay in the action image instead.
+- **Who is on stage.** The GM lists every NPC and creature present, with a name and a look, so
+  the illustrator draws the right people — a described woman is drawn as a woman, not a
+  default. A place's **main NPC** (its smith, its innkeeper) is recorded with the seed, helpers
+  and all, and reused across sessions.
+- **Time and weather are explicit.** The GM declares the time of day and the weather, and the
+  engine feeds them to the illustrator — a night scene is dark, a rain-soaked street is wet.
 
 ---
 

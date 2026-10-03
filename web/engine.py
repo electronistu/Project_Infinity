@@ -35,7 +35,7 @@ from mcp import ClientSession, StdioServerParameters  # noqa: E402
 from mcp.client.stdio import stdio_client  # noqa: E402
 from ollama import AsyncClient  # noqa: E402
 
-from .images import known_scene_locations  # noqa: E402
+from .images import known_scene_places  # noqa: E402
 from .ollama_stream import stream_chat  # noqa: E402
 from .stats import build_stats  # noqa: E402
 
@@ -134,6 +134,33 @@ _SCENE_BLOCK = re.compile(
 _SCENE_MARKERS = re.compile(r"(?m)^[ \t]*<!-- SCENE:(?:ON|END) -->[ \t]*\n?")
 
 
+def _scene_key(location, sublocation) -> tuple[str, str]:
+    """Slug pair identifying a (location, sublocation) place."""
+    def _s(text) -> str:
+        return re.sub(r"[^a-z0-9]+", "-", str(text or "").lower()).strip("-")
+    return _s(location), _s(sublocation)
+
+
+def format_known_places(places: list[dict]) -> str:
+    """A kingdom -> area -> location -> sublocation tree for the awakening priming."""
+    lines: list[str] = []
+    last_k = last_a = last_l = None
+    for p in places:
+        if p["kingdom"] != last_k:
+            lines.append(f"- {p['kingdom'] or '(unknown kingdom)'}")
+            last_k, last_a, last_l = p["kingdom"], None, None
+        if p["area"] != last_a:
+            lines.append(f"    - {p['area'] or '(unknown area)'}")
+            last_a, last_l = p["area"], None
+        if p["location"] != last_l:
+            lines.append(f"        - {p['location']}")
+            last_l = p["location"]
+        desc = f" — {p['description']}" if p["description"] else ""
+        npc = f" · main NPC: {p['main_npc']}" if p.get("main_npc") else ""
+        lines.append(f"            - {p['sublocation'] or '(whole place)'}{desc}{npc}")
+    return "\n".join(lines)
+
+
 def render_protocol(text: str, scene_images: bool) -> str:
     """Strip the scene markers; drop the enclosed rules when scenes are off."""
     if scene_images:
@@ -194,6 +221,11 @@ class GameSession:
         self._evt_q: asyncio.Queue = asyncio.Queue()
         self._task: asyncio.Task | None = None
         self._scene_requested_turn = False
+        # Known seeded places: (location_slug, sublocation_slug) -> (kingdom, area). A new
+        # place must supply `establishing` before its seed is accepted.
+        self._scene_places: dict[tuple[str, str], tuple[str, str]] = {}
+        self._scene_rejected = False
+        self._scene_rejected_place: tuple[str, str] | None = None
 
     # ── public API ────────────────────────────────────────────────────────
 
@@ -321,17 +353,23 @@ class GameSession:
                         })
 
                     if self.scene_images:
-                        locations = known_scene_locations(self.base_dir / OUTPUT_DIR, self.active_name)
-                        if locations:
+                        places = known_scene_places(self.base_dir / OUTPUT_DIR, self.active_name)
+                        self._scene_places = {
+                            _scene_key(p["location"], p["sublocation"]): (p["kingdom"], p["area"])
+                            for p in places
+                        }
+                        if places:
                             body = (
-                                "KNOWN IMAGE LOCATIONS (reuse the exact name whenever the scene is in "
-                                "the same place; only use a new name for a genuinely new place):\n"
-                                + "\n".join(f"- {loc}" for loc in locations)
+                                "KNOWN IMAGE PLACES (reuse these exact kingdom / area / location / "
+                                "sublocation names; only invent a new name for a genuinely new place, "
+                                "and request its seed with `establishing` only when it is not listed "
+                                "here):\n" + format_known_places(places)
                             )
                         else:
                             body = (
-                                "KNOWN IMAGE LOCATIONS: none recorded yet. Choose a precise, stable "
-                                "location name (the room or spot, not the building or district)."
+                                "KNOWN IMAGE PLACES: none recorded yet. On entering a place, declare "
+                                "its `kingdom` and `area` and request its seed with `establishing` (a "
+                                "short, people-free description) together with the action image."
                             )
                         self.messages.append({"role": "system", "content": body})
 
@@ -637,14 +675,15 @@ class GameSession:
                 return "The GM pauses, deep in thought..."
 
             if tool_calls:
+                self._scene_rejected = False
                 for tc in tool_calls:
                     await self._execute_tool(tc)
                 names = {(tc.get("function") or {}).get("name") for tc in tool_calls}
-                if content and names <= NARRATIVE_PHASE_TOOLS:
-                    # Prose + a narrative-phase tool (request_scene_image) is the
-                    # turn's final response: the image call ends the turn. Without
-                    # this the loop asks for another round and the GM re-narrates
-                    # the whole turn (the duplicate-answer bug).
+                if content and names <= NARRATIVE_PHASE_TOOLS and not self._scene_rejected:
+                    # Prose + an accepted narrative-phase tool (request_scene_image) is
+                    # the turn's final response: the image call ends the turn. A rejected
+                    # scene call (missing seed) keeps looping so the GM can re-call with
+                    # `establishing`.
                     return content
                 continue
 
@@ -654,41 +693,66 @@ class GameSession:
             return content
 
     async def _ensure_scene_image(self, narrative: str) -> None:
-        """Guarantee one scene image per turn: one quiet corrective round for the
-        GM to author the call, else an engine fallback built from the narrative."""
+        """Guarantee one scene image per turn: a quiet corrective round for the
+        GM to author the call (asking for `establishing` when the seed is missing),
+        else an engine fallback built from the narrative."""
         if not self.scene_images or self._scene_requested_turn:
             return
-        await self._run_role(
-            "SYSTEM: This turn is missing its required request_scene_image (the imagery rule). "
-            "Emit ONLY the request_scene_image tool call now — no narrative — with the exact "
-            "location of the scene and the most vivid moment you just narrated.",
-            "scene-fix",
-            quiet=True,
-        )
+        rejected = self._scene_rejected_place
+        if rejected:
+            location, sublocation = rejected
+            where = f'{location} — {sublocation}' if sublocation else location
+            nudge = (
+                "SYSTEM: this turn's request_scene_image was rejected because the place has no "
+                f"establishing view yet. Emit ONLY request_scene_image again for \"{where}\", "
+                "this time WITH `establishing` = a short, empty description of the place (no "
+                "people, creatures or animals), plus the action `description`."
+            )
+        else:
+            nudge = (
+                "SYSTEM: This turn is missing its required request_scene_image (the imagery rule). "
+                "Emit ONLY the request_scene_image tool call now — no narrative — with the exact "
+                "location and sublocation, plus `establishing` if this place has no establishing "
+                "view yet."
+            )
+        self._scene_rejected_place = None
+        await self._run_role(nudge, "scene-fix", quiet=True)
         if self._scene_requested_turn:
             return
         self._scene_requested_turn = True
+        kingdom, area, location, sublocation = self._match_known_place(narrative)
         await self._emit({
             "type": "scene_request", "kind": "auto",
             "description": narrative or "",
-            "location": self._match_known_location(narrative),
+            "kingdom": kingdom, "area": area,
+            "location": location, "sublocation": sublocation,
+            "time_of_day": "", "weather": "", "characters": {},
+            "establishing": "", "main_npc": "", "seed_change": "",
             "turn": self.turn_counter,
         })
 
-    def _match_known_location(self, narrative: str) -> str:
-        """Longest known location name that actually appears in the narrative."""
+    def _match_known_place(self, narrative: str) -> tuple[str, str, str, str]:
+        """Best known (kingdom, area, location, sublocation) appearing in the narrative."""
         text = str(narrative or "").lower()
         if not text:
-            return ""
+            return "", "", "", ""
         try:
-            locations = known_scene_locations(self.base_dir / OUTPUT_DIR, self.active_name or "")
+            places = known_scene_places(self.base_dir / OUTPUT_DIR, self.active_name or "")
         except Exception:  # noqa: BLE001 - never fail a turn over location recovery
-            return ""
-        best = ""
-        for loc in locations:
-            if loc and loc.lower() in text and len(loc) > len(best):
-                best = loc
+            return "", "", "", ""
+        best, score = ("", "", "", ""), -1
+        for p in places:
+            loc, sub = p["location"], p["sublocation"]
+            if loc and loc.lower() in text:
+                s = len(loc) + (len(sub) if sub and sub.lower() in text else 0)
+                if s > score:
+                    best, score = (p["kingdom"], p["area"], loc,
+                                   sub if (sub and sub.lower() in text) else ""), s
         return best
+
+    def _match_known_location(self, narrative: str) -> str:
+        """Longest known location name that actually appears in the narrative."""
+        return self._match_known_place(narrative)[2]
 
     async def _execute_tool(self, tool_call: dict) -> None:
         fn = tool_call.get("function", {})
@@ -704,24 +768,70 @@ class GameSession:
             # `caption` was dropped from the tool; tolerate a stale model that still sends it.
             args.pop("caption", None)
         await self._emit({"type": "tool_call", "name": name, "arguments": args})
-        try:
-            result = await self.session.call_tool(name, arguments=args)
-            text = "\n".join(b.text for b in result.content if hasattr(b, "text"))
-            is_error = bool(getattr(result, "isError", False))
-        except Exception as e:  # noqa: BLE001
-            text = f"Tool error: {type(e).__name__}: {e}"
-            is_error = True
+        warning = self._scene_seed_warning(args) if name == SCENE_TOOL else None
+        if warning is not None:
+            text, is_error = warning, True
+            self._scene_rejected = True
+            self._scene_rejected_place = (str(args.get("location") or ""), str(args.get("sublocation") or ""))
+        else:
+            self._scene_rejected = False
+            try:
+                result = await self.session.call_tool(name, arguments=args)
+                text = "\n".join(b.text for b in result.content if hasattr(b, "text"))
+                is_error = bool(getattr(result, "isError", False))
+            except Exception as e:  # noqa: BLE001
+                text = f"Tool error: {type(e).__name__}: {e}"
+                is_error = True
         await self._emit({"type": "tool_result", "name": name, "text": text, "is_error": is_error})
         self.messages.append({"role": "tool", "content": text, "name": name})
-        if name == SCENE_TOOL and self.scene_images and not self._scene_requested_turn:
+        if name == SCENE_TOOL and self.scene_images and warning is None and not self._scene_requested_turn:
             self._scene_requested_turn = True
+            location = str(args.get("location") or "")
+            sublocation = str(args.get("sublocation") or "")
+            kingdom = str(args.get("kingdom") or "")
+            area = str(args.get("area") or "")
+            if str(args.get("establishing") or "") or str(args.get("seed_change") or ""):
+                self._scene_places[_scene_key(location, sublocation)] = (kingdom, area)
+            elif not kingdom and not area:
+                kingdom, area = self._scene_places.get(_scene_key(location, sublocation), ("", ""))
             await self._emit({
                 "type": "scene_request", "kind": "story",
                 "description": str(args.get("description") or ""),
                 "mood": str(args.get("mood") or ""),
-                "location": str(args.get("location") or ""),
+                "kingdom": kingdom, "area": area,
+                "location": location, "sublocation": sublocation,
+                "time_of_day": str(args.get("time_of_day") or ""),
+                "weather": str(args.get("weather") or ""),
+                "characters": args.get("characters") if isinstance(args.get("characters"), dict) else {},
+                "establishing": str(args.get("establishing") or ""),
+                "main_npc": str(args.get("main_npc") or ""),
+                "seed_change": str(args.get("seed_change") or ""),
                 "turn": self.turn_counter,
             })
+
+    def _scene_seed_warning(self, args: dict) -> str | None:
+        """Reject a new-place scene call that is missing its establishing view.
+
+        The GM asks for the seed once per place; re-requesting an existing seed is
+        harmless (the server is idempotent)."""
+        if not self.scene_images:
+            return None
+        location = str(args.get("location") or "").strip()
+        sublocation = str(args.get("sublocation") or "").strip()
+        if not location:
+            return None  # no place -> portrait-only action, nothing to seed
+        if str(args.get("establishing") or "").strip() or str(args.get("seed_change") or "").strip():
+            return None
+        if _scene_key(location, sublocation) in self._scene_places:
+            return None
+        where = f"{location} — {sublocation}" if sublocation else location
+        return (
+            f'WARNING: no establishing view exists yet for "{where}". This is a NEW place, so '
+            "request its seed: call request_scene_image again with `establishing` = a short "
+            "description of the place (empty and unpopulated — no people, creatures or animals), "
+            "plus the same action `description`. The establishing view is generated once and is "
+            "never shown to the player."
+        )
 
     async def _call_tool_text(self, name: str, args: dict) -> str:
         result = await self.session.call_tool(name, arguments=args)

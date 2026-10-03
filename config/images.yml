@@ -44,35 +44,65 @@ portrait_guard: >-
   invent any garment, armour, weapon, hood, cloak, hat, helmet or accessory, and never
   depict gear that is not described.
 
-# ── Storyline scene images (session-only, in-memory; 16:9 cinematic) ──
+# ── Storyline scene images (16:9 cinematic) ──
+# Two images per place: a hidden, permanent, EMPTY establishing "seed" per
+# (location, sublocation), and a visible "action" image chained from the seed then
+# from the place's previous action. The seed is never shown to the player.
 scene_aspect_ratio: "16:9"
 scene_max_side: 1024
-# Scene prompt template. Placeholders: {description} {race} {class} {gear}
-# {world} {mood}. The locked `style:` above is appended.
+
+# Hidden establishing "seed" prompt. Placeholders: {location} {sublocation}
+# {establishing} {world} (and {change} when regenerating after a permanent change).
+scene_seed: >-
+  An establishing / bird's-eye view of {address_line}. {establishing}
+  World setting: {world}. Empty and unpopulated — no people, no creatures, no animals,
+  no protagonist. Atmospheric, strong sense of place, painterly detail. No text, letters,
+  numbers, runes, watermarks, logos, borders or user-interface elements.
+scene_seed_guard: >-
+  The scene must contain no person, no creature and no animal of any kind — an empty place.
+scene_seed_change: >-
+  Apply this permanent change to the place: {change}. Keep the architecture, layout, colours
+  and everything else consistent with the attached image.
+
+# Visible action prompt. Placeholders: {location_line} {description} {race} {class} {gear}
+# {world} {location} {sublocation} {mood}. The locked `style:` above is appended.
 scene: >-
   {location_line} A cinematic widescreen illustration of this moment: {description}
-  The protagonist is a {race} {class}. {gear} Location: {location}. World setting: {world}.
-  Mood: {mood}. Wide establishing composition, dramatic atmospheric lighting, sense of place
-  and depth, painterly detail. No text, letters, numbers, runes, watermarks,
-  logos, borders or user-interface elements.
-# Reference images (the previous portrait / a location image) are input tokens;
+  The protagonist is a {race} {class}. {gear} Location: {address_line}. World
+  setting: {world}. {atmosphere_line} {characters_line} Mood: {mood}. Wide establishing
+  composition, dramatic atmospheric lighting, sense of place and depth, painterly detail. No
+  text, letters, numbers, runes, watermarks, logos, borders or user-interface elements.
+# Explicit time/weather from the GM's `time_of_day` / `weather` fields; a part is
+# omitted when the field is empty.
+scene_time_line: "Time of day: {time_of_day}."
+scene_weather_line: "Weather: {weather}."
+# Cast list from the GM's `characters` dict (one bullet per entry); the guard is
+# appended when any character is listed.
+scene_characters_line: >-
+  Characters present (render each exactly as described; add no one else):
+scene_characters_guard: >-
+  Render every listed character exactly as described — a described woman must not be drawn as
+  a man — and add no character who is not listed.
+# Attached when the action is seeded from the place's hidden establishing view.
+scene_action_from_seed: >-
+  Attached references: (1) the empty establishing view of {location} — {sublocation}: place the
+  scene in exactly this space, keeping its architecture, colours, layout and atmosphere;
+  (2) the protagonist's portrait — place that same character in the scene as the central figure.
+# Attached when the action continues from the place's previous action image.
+scene_action_chain: >-
+  Attached references: (1) the immediately preceding moment in this same place — keep the space,
+  layout and atmosphere continuous and show what happens next, updating the action, time of day
+  and any changes; (2) the protagonist's portrait — place that same character in the scene as
+  the central figure.
+
+# Reference images (the seed / previous action / portrait) are input tokens;
 # keep them small and cap the model's resolution budget for them.
 ref_max_side: 512
 ref_media_resolution: "MEDIA_RESOLUTION_MEDIUM"
-# Appended to a scene prompt when a previous image of the same location is fed
-# back in as a reference ({location} is substituted).
-scene_reference_line: >-
-  Use the attached image as the established look of {location}: keep its architecture,
-  colours, layout and atmosphere consistent unless the description says otherwise.
 # Used when only the protagonist's portrait is attached as a reference.
 scene_portrait_reference_line: >-
   The attached portrait is the protagonist — place that same character in the scene as the
   central figure, in the described action and pose; keep the same face, hair colour and build.
-# Used when both a location image and the portrait are attached.
-scene_reference_both: >-
-  Attached references: (1) the established look of {location} — keep its architecture, colours
-  and layout consistent unless the description says otherwise; (2) the protagonist's portrait —
-  place that same character in the scene as the central figure.
 # Always appended when the portrait is attached: stop the GM's text from
 # overriding the portrait's appearance OR adding gear the character does not have.
 scene_protagonist_guard: >-

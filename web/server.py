@@ -179,7 +179,16 @@ class SceneBody(BaseModel):
     description: str
     mood: str = ""
     kind: str = "story"
+    kingdom: str = ""
+    area: str = ""
     location: str = ""
+    sublocation: str = ""
+    time_of_day: str = ""
+    weather: str = ""
+    characters: dict[str, str] = {}
+    establishing: str = ""
+    main_npc: str = ""
+    seed_change: str = ""
     model: str | None = None
 
 
@@ -411,7 +420,21 @@ async def generate_scene(body: SceneBody):
     if not description:
         raise HTTPException(status_code=400, detail="description required")
     mood = " ".join(str(body.mood or "").split())[:120]
+    kingdom = " ".join(str(body.kingdom or "").split())[:80]
+    area = " ".join(str(body.area or "").split())[:80]
     location = " ".join(str(body.location or "").split())[:120]
+    sublocation = " ".join(str(body.sublocation or "").split())[:120]
+    time_of_day = " ".join(str(body.time_of_day or "").split())[:60]
+    weather = " ".join(str(body.weather or "").split())[:120]
+    characters: dict[str, str] = {}
+    if isinstance(body.characters, dict):
+        for key, value in list(body.characters.items())[:20]:
+            k = " ".join(str(key or "").split())[:80]
+            if k:
+                characters[k] = " ".join(str(value or "").split())[:160]
+    establishing = " ".join(str(body.establishing or "").split())[:400]
+    main_npc = " ".join(str(body.main_npc or "").split())[:300]
+    seed_change = " ".join(str(body.seed_change or "").split())[:400]
     model = _image_model_or_400(body.model)
     stem = Path(session.active_wwf).stem if session.active_wwf else ""
     if not stem:
@@ -421,7 +444,11 @@ async def generate_scene(body: SceneBody):
         try:
             result = await asyncio.to_thread(
                 scene_service.ensure_scene, stem, player, world,
-                description, mood, location, model,
+                description=description, mood=mood, kingdom=kingdom, area=area,
+                location=location, sublocation=sublocation,
+                time_of_day=time_of_day, weather=weather, characters=characters,
+                establishing=establishing, main_npc=main_npc,
+                seed_change=seed_change, model=model,
             )
         except ImageError as exc:
             raise HTTPException(status_code=exc.status, detail=str(exc))

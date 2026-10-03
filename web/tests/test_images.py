@@ -17,7 +17,8 @@ sys.path.insert(0, str(REPO))
 from PIL import Image as PILImage  # noqa: E402
 
 from web.images import (  # noqa: E402
-    ImageService, SceneService, known_scene_locations, _gear_line, _veterancy_line,
+    ImageService, SceneService, known_scene_places, known_scene_locations,
+    _gear_line, _veterancy_line,
 )
 
 RESULTS = []
@@ -240,21 +241,25 @@ def main() -> bool:
         rec("first portrait has no reference", first_parts == 1)
         rec("regeneration feeds the previous portrait", second_parts == 2)
 
-        # ── storyline scenes (16:9, session-only bytes) ──
-        sc = SceneService()
-        # ── storyline scenes (16:9, per-save disk, location continuity) ──
+        # ── storyline scenes: hidden seed + chained action (16:9, per-save disk) ──
         sc = SceneService()
         rec("scene service uses 16:9", sc.aspect_ratio == "16:9")
-        sp = sc.scene_prompt(PLAYER, "a city of brass and ash", "standing before a forge at dusk", "tense")
-        rec("scene prompt includes the moment", "forge at dusk" in sp)
-        rec("scene prompt includes race/class", "High Elf" in sp and "Wizard" in sp)
-        rec("scene prompt includes the world brief", "brass" in sp)
-        rec("scene prompt includes the mood", "tense" in sp)
+        ap = sc.action_prompt(PLAYER, "a city of brass and ash", "standing before a forge at dusk",
+                              "tense", kingdom="Kingdom of Eldoria", area="Eldoria City",
+                              location="Hask's Smithy", sublocation="the forge", ref_kind="seed")
+        rec("action prompt includes the moment", "forge at dusk" in ap)
+        rec("action prompt includes race/class", "High Elf" in ap and "Wizard" in ap)
+        rec("action prompt includes the world brief", "brass" in ap)
+        rec("action prompt includes the mood", "tense" in ap)
+        rec("action prompt names the full address",
+            all(x in ap for x in ("Hask's Smithy", "the forge", "Eldoria City", "Kingdom of Eldoria")), ap[:200])
+        rec("action prompt carries the seed reference line",
+            "empty establishing view" in ap and "central figure" in ap)
         clothed = {"race": "High Elf", "character_class": "Wizard",
                    "equipped": {"armor": None, "hands": [None, None],
                                 "worn": ["Dark Common Clothes"]},
                    "inventory": ["Spellbook", "Crowbar", "Dark Common Clothes"]}
-        cp = sc.scene_prompt(clothed, "world", "desc", "mood")
+        cp = sc.action_prompt(clothed, "world", "desc", "mood", kingdom="K", area="A", location="Loc", sublocation="sub", ref_kind="portrait")
         rec("scene gear line comes from the equipped set",
             "Wearing Dark Common Clothes." in cp and "Crowbar" not in cp and "Spellbook" not in cp, cp)
         rec("carried (inventory) items are never described",
@@ -270,30 +275,42 @@ def main() -> bool:
         rec("portrait prompt carries the equipped gear and the no-invention guard",
             "Wearing Dark Common Clothes." in svc.portrait_prompt(clothed)
             and "nothing more" in svc.portrait_prompt(clothed))
-        rec("scene prompt forbids rendered text", "no text" in sp.lower())
-        with_loc = sc.scene_prompt(PLAYER, "world", "desc", "mood", "Hask's Smithy", has_location_ref=True)
-        rec("scene prompt names the location", "Hask's Smithy" in with_loc)
-        rec("scene reference line only when a location reference is used",
-            "established look of Hask's Smithy" in with_loc
-            and "established look" not in sc.scene_prompt(PLAYER, "world", "desc", "mood", "Hask's Smithy"))
-        both = sc.scene_prompt(PLAYER, "world", "desc", "mood", "Hask's Smithy",
-                               has_location_ref=True, has_portrait_ref=True)
-        rec("combined reference prompt names both references",
-            "Attached references" in both and "portrait" in both.lower())
+        rec("action prompt forbids rendered text", "no text" in ap.lower())
+        tod = sc.action_prompt(PLAYER, "world", "desc", "mood", location="Loc", sublocation="sub",
+                               ref_kind="chain", time_of_day="deep night", weather="heavy rain")
+        rec("action prompt states the explicit time and weather",
+            "Time of day: deep night." in tod and "Weather: heavy rain." in tod, tod[:120])
+        plain = sc.action_prompt(PLAYER, "w", "d", "m", location="Loc", sublocation="sub")
+        rec("action prompt omits an empty time/weather line",
+            "Time of day:" not in plain and "Weather:" not in plain)
+        only_time = sc.action_prompt(PLAYER, "w", "d", "m", location="Loc", sublocation="sub", time_of_day="dusk")
+        rec("action prompt keeps only the time when weather is empty",
+            "Time of day: dusk." in only_time and "Weather:" not in only_time)
+        cast = sc.action_prompt(PLAYER, "world", "desc", "mood", location="Loc", sublocation="sub",
+                                characters={"three dockhands": "drinking and turning to look",
+                                            "the barkeep — a broad, one-eared woman": "talking"})
+        rec("action prompt lists each character with their action",
+            "Characters present" in cast and "- three dockhands: drinking and turning to look" in cast
+            and "one-eared woman" in cast, cast[:160])
+        rec("action prompt carries the character render guard",
+            "must not be drawn as a man" in cast)
+        rec("action prompt omits the character line when the cast is empty",
+            "Characters present" not in plain)
+        chain = sc.action_prompt(PLAYER, "world", "desc", "mood", location="Loc", sublocation="sub", ref_kind="chain")
+        rec("chain reference line continues the previous moment",
+            "immediately preceding moment" in chain and "central figure" in chain)
         guard = "appearance is fixed by the attached portrait"
-        rec("protagonist guard appears only with a portrait ref",
-            guard in sc.scene_prompt(PLAYER, "w", "d", "m", "Loc", has_portrait_ref=True)
-            and guard not in sc.scene_prompt(PLAYER, "w", "d", "m", "Loc", has_location_ref=True)
-            and guard not in sc.scene_prompt(PLAYER, "w", "d", "m", "Loc"))
-        single_portrait = sc.scene_prompt(PLAYER, "w", "d", "m", "Loc", has_portrait_ref=True)
-        rec("scene prompt places the protagonist as the central figure",
-            "central figure" in single_portrait and "protagonist" in single_portrait.lower())
-        rec("combined prompt places the protagonist as the central figure",
-            "central figure" in both)
-        sc._generate_bytes = lambda prompt, aspect_ratio=None, refs=None, ref_media_resolution=None, model=None: _PNG  # type: ignore[assignment]
-        rec("generate_scene returns bytes", sc.generate_scene(PLAYER, "world", "moment", "mood") == _PNG)
+        rec("protagonist guard appears only with a place/portrait reference",
+            guard in ap and guard in chain
+            and guard not in sc.action_prompt(PLAYER, "w", "d", "m", location="Loc", sublocation="sub"))
+        seedp = sc.seed_prompt("a city of brass and ash", "Hask's Smithy", "the forge", "a hot forge")
+        rec("seed prompt is an empty establishing view",
+            "bird's-eye" in seedp and "animals" in seedp.lower())
+        rec("seed prompt names the place and description",
+            "the forge" in seedp and "a hot forge" in seedp)
+        rec("seed prompt carries the empty-place guard", "no person" in seedp.lower())
 
-        # ensure_scene persists one file per location; refs = [location, portrait].
+        # ensure_scene: hidden seed + chained action; cleanup only when leaving the location.
         sc3 = SceneService(tmp)
         captured = []
 
@@ -304,33 +321,69 @@ def main() -> bool:
         sc3._generate_bytes = _scene_bytes  # type: ignore[assignment]
         scene_dir = tmp / "images" / "scenetest" / "scenes"
         portrait_dir = tmp / "images" / "scenetest"
-        sc3.ensure_scene("scenetest", PLAYER, "world", "a forge at dusk", "tense", "Hask's Smithy")
-        rec("scene written to disk", (scene_dir / "hask-smithy.jpg").exists())
-        rec("scene manifest written", (scene_dir / "manifest.json").exists())
-        rec("first scene has no reference", not captured[0][1])
-
+        portrait_dir.mkdir(parents=True, exist_ok=True)
         (portrait_dir / "portrait.jpg").write_bytes(jpeg(1200, 1600))
-        sc3.ensure_scene("scenetest", PLAYER, "world", "the smithy, embers dying", "tense", "Hask's Smithy")
-        refs2 = captured[1][1]
-        rec("revisit attaches location + portrait refs", refs2 is not None and len(refs2) == 2)
-        rec("combined reference prompt mentions both",
-            "Attached references" in captured[1][0] and "portrait" in captured[1][0].lower())
-        rec("references are downscaled to ref_max_side",
-            all(max(PILImage.open(io.BytesIO(d)).size) <= 512 for d, _m in refs2))
-        rec("reference media resolution set",
-            captured[1][2] == "MEDIA_RESOLUTION_MEDIUM")
-        rec("one file per location", len(list(scene_dir.glob("hask-smithy.*"))) == 1)
-        got = sc3.get_scene("scenetest", "hask-smithy")
+        r1 = sc3.ensure_scene("scenetest", PLAYER, "world", description="a forge at dusk",
+                              mood="tense", kingdom="Kingdom of Eldoria", area="Eldoria City",
+                              location="Hask's Smithy", sublocation="the forge",
+                              establishing="a hot forge", main_npc="Gorson — a burly smith",
+                              time_of_day="dusk", weather="light rain",
+                              characters={"three dockhands": "drinking"})
+        rec("first visit creates the seed and seeds the action from it",
+            r1["seed_created"] and r1["used_seed"], str(r1))
+        rec("the hidden seed is generated empty (no references)", not captured[0][1])
+        rec("ensure_scene feeds time/weather into the action prompt",
+            "Time of day: dusk." in captured[1][0] and "Weather: light rain." in captured[1][0])
+        rec("ensure_scene feeds the character cast into the action prompt",
+            "Characters present" in captured[1][0] and "- three dockhands: drinking" in captured[1][0])
+        rec("the first action references seed + portrait",
+            captured[1][1] is not None and len(captured[1][1]) == 2)
+        rec("action references are downscaled to ref_max_side",
+            all(max(PILImage.open(io.BytesIO(d)).size) <= 512 for d, _m in captured[1][1]))
+        rec("reference media resolution set", captured[1][2] == "MEDIA_RESOLUTION_MEDIUM")
+        rec("action written to disk", bool(list(scene_dir.glob("action-*"))))
+        rec("hidden seed written to disk", bool(list(scene_dir.glob("seed-*"))))
+        r2 = sc3.ensure_scene("scenetest", PLAYER, "world", description="embers dying",
+                              location="Hask's Smithy", sublocation="the forge")
+        rec("second action chains from the last action",
+            r2["used_last_action"] and not r2["seed_created"], str(r2))
+        r3 = sc3.ensure_scene("scenetest", PLAYER, "world", description="downstairs",
+                              kingdom="Kingdom of Eldoria", area="Eldoria City",
+                              location="Hask's Smithy", sublocation="common room",
+                              establishing="a low-beamed hall")
+        rec("a new sublocation creates a new seed", r3["seed_created"] and r3["used_seed"], str(r3))
+        r4 = sc3.ensure_scene("scenetest", PLAYER, "world", description="the rafters catch",
+                              kingdom="Kingdom of Eldoria", area="Eldoria City",
+                              location="Hask's Smithy", sublocation="the forge", seed_change="it burned down")
+        rec("seed_change regenerates the seed but keeps the action chain",
+            r4["seed_regenerated"] and r4["used_last_action"], str(r4))
+        r5 = sc3.ensure_scene("scenetest", PLAYER, "world", description="on the road",
+                              kingdom="Borderlands", area="the Eldoria–Silverwood border",
+                              location="Lantern Row", sublocation="")
+        rec("leaving the location deletes its action images",
+            len(list(scene_dir.glob("action-*"))) == 1, str(list(scene_dir.glob("action-*"))))
+        rec("seeds survive leaving the location", len(list(scene_dir.glob("seed-*"))) == 3)
+        slug = r5["action"]["url"].rsplit("/", 1)[-1]
+        got = sc3.get_scene("scenetest", slug)
         rec("get_scene returns bytes + mime", bool(got) and got[1].startswith("image/"))
-        locs = known_scene_locations(tmp, "scenetest")
-        rec("known_scene_locations lists the used location", locs == ["Hask's Smithy"], str(locs))
-        rec("known_scene_locations empty for an unknown save",
-            known_scene_locations(tmp, "nope") == [])
+        places = known_scene_places(tmp, "scenetest")
+        rec("known_scene_places lists seeded places with the full hierarchy",
+            any(p["kingdom"] == "Kingdom of Eldoria" and p["area"] == "Eldoria City"
+                and p["location"] == "Hask's Smithy" and p["sublocation"] == "the forge"
+                and p["description"] == "a hot forge" and p["main_npc"] == "Gorson — a burly smith"
+                for p in places), str(places))
+        rec("seed_change preserved the main NPC",
+            any(p["location"] == "Hask's Smithy" and p["sublocation"] == "the forge"
+                and p["main_npc"] == "Gorson — a burly smith" for p in places))
+        rec("known_scene_places empty for an unknown save", known_scene_places(tmp, "nope") == [])
+        rec("known_scene_locations lists distinct locations",
+            known_scene_locations(tmp, "scenetest") == ["Hask's Smithy", "Lantern Row"],
+            str(known_scene_locations(tmp, "scenetest")))
 
         sc2 = SceneService()
         fake2 = _FakeClient()
         sc2._client_or_raise = lambda: fake2  # type: ignore[assignment]
-        sc2.generate_scene(PLAYER, "world", "a duel on the bridge")
+        sc2.generate_action(PLAYER, "world", "a duel on the bridge", "mood", "Loc", "sub")
         ic2 = getattr(fake2.captured.get("config"), "image_config", None)
         rec("scene aspect_ratio 16:9 sent to the SDK", ic2 is not None and ic2.aspect_ratio == "16:9")
 

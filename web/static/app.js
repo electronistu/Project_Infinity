@@ -561,7 +561,9 @@ function sceneFigure(evt) {
   const fig = document.createElement("figure");
   fig.className = "scene-figure loading";
   const img = document.createElement("img");
-  img.alt = evt.location ? `Scene: ${evt.location}` : "Scene illustration";
+  img.alt = evt.location
+    ? (evt.sublocation ? `Scene: ${evt.location} — ${evt.sublocation}` : `Scene: ${evt.location}`)
+    : "Scene illustration";
   img.decoding = "async";
   fig.appendChild(img);
   return { fig, img };
@@ -585,7 +587,16 @@ async function requestSceneImage(evt, fig, img) {
     description: evt.description || "",
     mood: evt.mood || "",
     kind: evt.kind || "story",
+    kingdom: evt.kingdom || "",
+    area: evt.area || "",
     location: evt.location || "",
+    sublocation: evt.sublocation || "",
+    time_of_day: evt.time_of_day || "",
+    weather: evt.weather || "",
+    characters: evt.characters || {},
+    establishing: evt.establishing || "",
+    main_npc: evt.main_npc || "",
+    seed_change: evt.seed_change || "",
     model: state.imageModel || undefined,
   };
   try {
@@ -597,10 +608,11 @@ async function requestSceneImage(evt, fig, img) {
     let data = {};
     try { data = await res.json(); } catch (e) { /* ignore */ }
     if (!res.ok) throw new Error(data.detail || ("HTTP " + res.status));
+    const action = data.action || data;  // v2 response nests the visible image
     img.onload = () => { fig.classList.remove("loading"); fig.classList.add("loaded"); };
     img.onerror = () => { fig.classList.remove("loading"); fig.classList.add("error"); };
     // `created` changes on every (re)generation, so the image refreshes.
-    img.src = data.url + "?t=" + encodeURIComponent(data.created || Date.now());
+    img.src = action.url + "?t=" + encodeURIComponent(action.created || Date.now());
   } catch (err) {
     fig.classList.remove("loading");
     fig.classList.add("error");

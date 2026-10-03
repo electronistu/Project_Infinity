@@ -935,6 +935,9 @@ def modify_player_numeric(key: str, delta: int) -> dict:
     4. xp: Crossing a level threshold auto-applies ALL numeric level-up changes (level, proficiency, hit dice,
        HP rolls, spell slots, DC, attack modifier). You MUST still manually apply class features,
        cantrips/spells known, ASIs (levels 4/8/12/16/19), and subclass features via update_player_list.
+    5. capacity_multiplier: scales carrying capacity for effects such as enhance ability (Bull's
+       Strength): set it to 2 while the effect is active and back to 1 when it ends; a long rest
+       resets it to 1.
 
     EXAMPLES:
     modify_player_numeric(key='gold', delta=-10)
@@ -1204,6 +1207,9 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
        STR/DEX/CON checks and saves with disadvantage for you). Coins count: 50 coins = 1 lb.
        An add of an unknown item without 'weight' is accepted, counts as 0 lb and comes back
        as 'unweighed_item' with a warning — re-add it with weight=<pounds> to fix the total.
+    6. Removing a worn or wielded item from the inventory auto-unequips it and the result reports
+       'unequipped'. Replacing a weapon or tool means remove + add the replacement with its stats +
+       equip_item — the replacement is NOT auto-equipped.
 
     EXAMPLES:
     update_player_list(key='inventory', item='Dagger: A rusty blade (1d4 piercing, Finesse, Light, Thrown (range 20/60))', action='add')
@@ -1424,8 +1430,10 @@ def equip_item(item: str, action: str = "equip", slot: str | None = None,
     PARAMETERS:
     - item: the item's name exactly as it appears in the inventory
     - action: 'equip' (default) or 'unequip'
-    - slot: optional target — 'main_hand', 'off_hand' or 'armor'. Omit to let the engine choose
-      (armour goes to the armour slot; anything else takes a free hand).
+    - slot: optional target — 'main_hand', 'off_hand', 'armor' or 'worn'. Omit to let the engine
+      choose (armour goes to the armour slot; anything else takes a free hand). Cloaks, boots,
+      gloves, bracers, headwear and rings go to the 'worn' container; clothing (Common Clothes,
+      Vestments, Robes) is worn automatically and listed there.
     - replace: when the slot or the second hand is already taken, set True to stow whatever was
       there instead of being refused. The stowed item stays in the inventory.
     - instant: allow an armour change during combat. By default donning/doffing armour is REFUSED
@@ -1437,11 +1445,15 @@ def equip_item(item: str, action: str = "equip", slot: str | None = None,
        in a hand, and a two-handed weapon needs BOTH hands to attack with, so equipping one
        requires the other hand to be free (or replace=True).
     2. Equipping recomputes armour_class from the equipped set and returns it before → after, plus
-       the SRD time_cost for armour/shields.
+       the SRD time_cost for armour/shields. Worn armour replaces the unarmoured formula; heavy
+       armour adds no Dexterity at all (and no penalty for a negative one). Only one suit of armour
+       and one shield benefit a creature (a second shield is held but confers nothing).
     3. Unequipping never drops the item: it stays in the inventory.
     4. The item must already be in the inventory (update_player_list); this tool only moves it.
     5. The result carries the derived 'equipment' block (hands, hands_free, base_ac, ac_breakdown,
-       warnings) — narrate the visible gear from it.
+       warnings).
+    6. The in-combat refusal checks the registry: a fight whose hostiles are all dead no longer
+       counts as combat, so armour may be changed.
 
     EXAMPLES:
     equip_item(item='Chain Mail')
@@ -1719,8 +1731,8 @@ def dump_player_db() -> dict:
 
     The dump includes a derived `_carrying` block (SRD 5.1 carrying capacity, encumbrance
     status and effective speed) and a derived `_equipment` block (worn armour, hands,
-    hands free, and the armour-class breakdown) so you can narrate gear without extra
-    calls. Both are computed, never saved: the save file does not contain them.
+    hands free, and the armour-class breakdown). Both are computed, never saved: the
+    save file does not contain them.
     """
     global DB_CONNECTION
     if DB_CONNECTION is None:
@@ -1750,30 +1762,85 @@ def dump_player_db() -> dict:
 
 
 @mcp.tool()
-def request_scene_image(description: str, mood: str = "", location: str = "") -> dict:
-    """Request a storyline illustration of an important moment.
+def request_scene_image(description: str, kingdom: str = "", area: str = "",
+                        location: str = "", sublocation: str = "",
+                        time_of_day: str = "", weather: str = "",
+                        characters: dict[str, str] | None = None,
+                        establishing: str = "", main_npc: str = "",
+                        seed_change: str = "", mood: str = "") -> dict:
+    """Request a storyline illustration of the turn's moment. Emit exactly one per
+    narrative turn, attached to the narrative prose (the system prompt's imagery
+    protocol says when).
 
-    Call this ONLY for pivotal moments worth remembering (a new location, a
-    dramatic revelation, a duel or combat climax, a striking vista) — at most
-    ONE per turn, and rarely. Always pass a short, stable `location` name for
-    the place shown (e.g. 'Hask & Daughters Smithy', 'The Broken Wheel'); reusing
-    the same location keeps the place visually consistent when the player
-    returns. ALWAYS put the protagonist IN the frame as the main subject, and
-    refer to the player/main character as 'the protagonist' (the image prompt
-    maps the attached portrait onto that word); say what the protagonist is
-    doing, but NEVER describe their physical appearance (face, hair, build,
-    race, clothing) — the portrait is attached automatically. Describe clothing,
-    armour, weapons and accessories ONLY from what they actually have equipped
-    (check `_equipment` in your latest dump_player_db if unsure): never invent a
-    hood, hooded cloak, cowl, hat, helmet, armour or other item they do not
-    have, and never write 'hooded'/'cloaked'/'armoured' unless it is equipped.
-    Never frame the shot as an empty room. This does not change game state and
-    the engine does not wait for the picture; it is rendered and shown with your
-    narrative.
+    TWO IMAGES PER PLACE. On entering a NEW location/sublocation, ask for its
+    establishing view too by filling `establishing`; the engine then makes an empty
+    'seed' image (never shown to the player) and the action image seeded from it.
+    Afterwards only the action image is produced, each one seeded from the place's
+    previous action. Only ask for a seed when the place is NOT already in the KNOWN
+    IMAGE PLACES list; if a new place's seed is missing the tool returns a WARNING and
+    you must call again with `establishing`.
+
+    PARAMETERS:
+    - description: the ACTION only — what the protagonist and any NPCs do, and any notable
+      transient event (e.g. the place is on fire). Put the time of day/night in `time_of_day`
+      and the weather in `weather`, NOT here. Do NOT re-describe the place's architecture;
+      the seed/previous action carries it.
+    - kingdom: the realm the place lies in. Declare it ONLY when creating the seed (together
+      with `establishing`); otherwise omit it and reuse the known place. Reuse the exact known
+      name.
+    - area: the city, town, settlement or general region within the kingdom — whatever fits
+      (e.g. 'Eldoria City', 'Millbrook', 'the Eldoria–Silverwood border'). Declare it ONLY when
+      creating the seed (together with `establishing`). Reuse the exact known name.
+    - location: the place (building, street or area). Reuse the exact known name.
+    - sublocation: the exact room or spot within it ("" for an open place). Reuse the exact
+      known name; a different room is a different place.
+    - time_of_day: the time of day or night, e.g. 'dawn', 'midday', 'dusk', 'deep night'. Fed
+      to the image generator so the lighting is right.
+    - weather: the weather or conditions, e.g. 'heavy rain', 'dense fog', 'clear skies',
+      'a howling blizzard'. Fed to the image generator.
+    - characters: a dict of EVERY NPC/creature on stage -> what they are doing or how they
+      act toward the protagonist. The KEY carries the identity and any salient look (gender,
+      build, a distinguishing feature) so the artist cannot swap them; the VALUE carries the
+      action. Use EXACT counts, never 'a few' (e.g. 'three dockhands'), and reuse the same key
+      wording across turns so the cast stays continuous. Exclude the protagonist (their
+      portrait is attached). Example: {'three dockhands': 'hunched over cheap ale, turning to
+      look at the protagonist', 'the barkeep — a broad, one-eared woman': 'talking with the
+      protagonist across the bar'}.
+    - establishing: a short description of the place, given ONLY when its seed does not
+      exist yet. It must be empty and unpopulated — no people, creatures or animals.
+    - main_npc: the place's main NPC, given at seed creation — name, physical appearance and any
+      helpers / aides / partners (e.g. "Gorson — a burly, grey-bearded smith with a burn-scarred
+      left hand; two apprentices"). Leave "" if the place has no main NPC. Declared ONLY when
+      creating the seed; reuse the exact same NPC (and look) in the action `characters` whenever
+      they are present.
+    - seed_change: a PERMANENT change to the place (e.g. 'it burned down'). Regenerates the
+      hidden seed from the original; the current action still chains from the last action,
+      and the new seed is used the next time the player enters after leaving.
+    - mood: a short mood word for the light/atmosphere.
+
+    ALWAYS put the protagonist IN the frame as the main subject, and refer to the
+    player/main character as 'the protagonist' (the image prompt maps the attached
+    portrait onto that word): say where the protagonist is and what they are doing,
+    but NEVER describe their physical appearance (face, hair, build, race,
+    clothing) — the portrait is attached automatically. Describe clothing, armour,
+    weapons and accessories ONLY from what they actually have equipped (check
+    `_equipment` in your latest dump_player_db if unsure): never invent a hood,
+    hooded cloak, cowl, hat, helmet, armour or other item they do not have, and
+    never write 'hooded'/'cloaked'/'armoured' unless it is equipped. Never frame
+    the shot as an empty room.
+
+    This does not change game state and the engine does not wait for the picture;
+    it is rendered and shown with your narrative.
     """
     return {
         "status": "requested",
+        "kingdom": kingdom or "",
+        "area": area or "",
         "location": location or "",
+        "sublocation": sublocation or "",
+        "characters": len(characters) if isinstance(characters, dict) else 0,
+        "main_npc": main_npc or "",
+        "seed_requested": bool(establishing or seed_change),
         "note": ("The illustration will appear with your narrative. Do NOT mention "
                  "this tool or its result in the Mechanics block."),
     }
@@ -2081,7 +2148,6 @@ def roll_dice(dice_notation: str, modifier: int = 0, actor: str = "{player_name}
 
     RULES:
     - Use this for "how much?" scenarios only. For success/failure checks, use perform_check.
-    - Include the 'narrative_format' field from the response verbatim when disclosing results.
 
     EXAMPLES:
     roll_dice(actor='Senna', dice_notation='3d4', modifier=3)
@@ -2142,7 +2208,6 @@ def perform_check(modifier: int, dc: int, check_name: str = "Check", actor: str 
     RULES:
     - For weapon/unarmed attacks, use resolve_attack instead.
     - For spell attacks, use resolve_magic.
-    - Include the 'narrative_format' field from the response verbatim when disclosing results.
 
     PROJECT-SPECIFIC BEHAVIORS:
     1. HEAVILY ENCUMBERED (SRD 5.1 variant): if the player carries more than 10x STR, this check is
@@ -2830,8 +2895,7 @@ def resolve_attack(
        the roll from the equipped item (ability + proficiency + magic bonuses, damage from its
        dice/base). If the item is not in hand the attack is REFUSED without a roll: the result has
        success=false, error='item_not_equipped' (or 'item_not_carried' / 'weapon_stats_unknown'),
-       turn_lost=true and a gm_instruction. Tell the player the attack failed and that the turn is
-       spent, then move on. Never roll the action anyway.
+       turn_lost=true and a gm_instruction.
     6. A Versatile weapon uses its two-handed damage die while the other hand is free. A one-handed
        Ammunition weapon (hand crossbow, sling, blowgun) cannot be fired while the other hand holds
        something — it needs a free hand to load (error 'cannot_reload').
@@ -2840,6 +2904,8 @@ def resolve_attack(
        and a critical hit against a helpless target in melee. Damage against a registered NPC is
        adjusted by its declared resistances/immunities/vulnerabilities and reported as
        'damage_modified'.
+    8. A player attacking in armour/shields they are not proficient with rolls at disadvantage
+       (reported in 'disadvantage_sources').
 
     EXAMPLES:
     resolve_attack(actor='{player_name}', weapon='Longsword', target_ac=13,
@@ -3739,9 +3805,13 @@ def resolve_magic(
     11. FREE HAND (SRD 5.1 components): a player spell with somatic (S) or material (M) components
        cannot be cast with both hands occupied — the engine REFUSES it before any dice or slot use
        (success=false, error='both_hands_occupied', turn_lost=true, gm_instruction; no slot spent).
-       Tell the player why and that the turn is spent, then move on. A spell with only V needs no
-       hand. Components come from config/components.yml, else the components='...' you pass (use it
-       for homebrew/custom spells); an unknown spell is treated as V,S,M.
+       A spell with only V needs no hand. Components come from config/components.yml, else the
+       components='...' you pass (use it for homebrew/custom spells); an unknown spell is treated as
+       V,S,M.
+    12. ARMOUR PROFICIENCY (SRD 5.1): a player wearing armour they are not proficient with cannot
+       cast ANY spell — refused before any roll or slot use (success=false,
+       error='armor_not_proficient', turn_lost=true; no slot spent). The armour's type must be in
+       armor_proficiencies ('Light armor', 'Medium armor', 'Heavy armor', 'Shields'); a shield counts.
 
     EXAMPLES:
     resolve_magic(spell_name='Fireball', actor='{player_name}',
