@@ -1,10 +1,17 @@
 {
   "name": "Electronistu",
+  "level": 1,
+  "xp": 0,
+  "gold": 85,
   "character_class": "Wizard",
   "race": "High Elf",
   "background": "Criminal",
   "alignment": "Chaotic Neutral",
   "gender": "Male",
+  "armor_class": 13,
+  "current_hit_points": 5,
+  "total_hit_points": 5,
+  "hit_dice_count": 1,
   "hit_dice_size": 6,
   "speed": 30,
   "stats": {
@@ -17,11 +24,11 @@
   },
   "proficiency_bonus": 2,
   "skills": [
-    "Deception",
-    "Stealth",
     "Investigation",
-    "Perception",
-    "Arcana"
+    "Arcana",
+    "Stealth",
+    "Deception",
+    "Perception"
   ],
   "saves": [
     "Intelligence",
@@ -29,15 +36,15 @@
   ],
   "armor_proficiencies": [],
   "weapon_proficiencies": [
+    "Quarterstaff",
     "Longbow",
-    "Darts",
-    "Slings",
-    "Longsword",
-    "Light crossbows",
-    "Shortbow",
+    "Dagger",
+    "Dart",
     "Shortsword",
-    "Quarterstaffs",
-    "Daggers"
+    "Longsword",
+    "Shortbow",
+    "Sling",
+    "Light Crossbow"
   ],
   "tool_proficiencies": [
     "Dice Set",
@@ -56,23 +63,24 @@
     "Cantrip",
     "Spellcasting",
     "Arcane Recovery",
-    "Criminal Contact",
-    {
-      "name": "Arcane Tradition",
-      "description": "School of Evocation"
-    },
-    {
-      "name": "Evocation Savant (SRD)",
-      "description": "Halve the gold and time to copy an Evocation spell into your spellbook"
-    },
-    {
-      "name": "Sculpt Spells (SRD)",
-      "description": "When you cast an Evocation spell affecting others, choose creatures up to 1 + spell level to automatically succeed their save and take no damage"
-    }
+    "Criminal Contact"
   ],
-  "level": 3,
-  "total_hit_points": 13,
-  "temporary_hit_points": 0,
+  "inventory": [
+    "Spellbook",
+    "Crowbar",
+    "Dark Common Clothes"
+  ],
+  "equipped": {
+    "armor": null,
+    "hands": [
+      null,
+      null
+    ],
+    "worn": [
+      "Dark Common Clothes"
+    ]
+  },
+  "consumables": {},
   "reputation": {
     "eldoria": {
       "ruler": [],
@@ -80,12 +88,7 @@
       "mage": [],
       "assassin": [],
       "merchant": [],
-      "thief": [
-        {
-          "name": "Quiet Client",
-          "description": "Made guild contact under a wine-merchant guise and fenced clean goods without names or trouble; known as a reliable, discreet seller"
-        }
-      ],
+      "thief": [],
       "alchemists league": [],
       "order of scribes": []
     },
@@ -115,131 +118,31 @@
     },
     "others": {}
   },
-  "armor_class": 15,
-  "xp": 2610,
-  "inventory": [
-    "Spellbook",
-    "Crowbar",
-    "Dark Common Clothes",
-    {
-      "name": "Magic Dagger (+1)",
-      "description": "A worn, chipped steel dagger with a leather grip gone shiny with use; cold to the touch and faintly humming. Genuinely enchanted (+1 to attack and damage rolls; counts as magical)"
-    },
-    {
-      "name": "Hand Crossbow",
-      "description": "A compact crossbow taken from the Zarthus agent (1d6 piercing, Ammunition, Light, Loading, range 30/120)"
-    },
-    {
-      "name": "Sealed Letter",
-      "description": "Folded parchment, wax-sealed with a mark \u2014 a fist crushing a serpent; taken from the Zarthus agent"
-    },
-    {
-      "name": "Dwarf's Battleaxe",
-      "description": "A notched, well-used battleaxe taken from Hask (1d8 slashing, Versatile (1d10)); the haft is stamped with a small serpent-fist mark"
-    },
-    {
-      "name": "Salted Hart Room Key",
-      "description": "An iron key to Hask's rented room at the Salted Hart, riverside"
-    },
-    {
-      "name": "Hask's Written Orders",
-      "description": "A folded note in a clerk's hand \u2014 find and kill 'the High Elf who ran the east gate,' bring proof, and report to a factor who lodges at the Salted Hart"
-    },
-    {
-      "name": "Tharrow Ledger",
-      "description": "The factor's account book, listing payments and names bound for the patron at Tharrow \u2014 the key names are written in a cipher"
-    },
-    {
-      "name": "Sealed Brass Message-Tube",
-      "description": "A watertight tube holding a sealed report bound for Tharrow, meant for the first barge's manifest"
-    },
-    {
-      "name": "Vellin Cray's Signet Ring",
-      "description": "A brass merchant's seal of Zarthus, cut with the serpent-fist \u2014 a key to certain doors, and a rope around certain necks"
-    },
-    {
-      "name": "Factor's Hidden Slip",
-      "description": "A scrap the factor kept in his boot \u2014 a berth number and the hour for the southbound barge to the Tharrow side, passage paid in advance"
-    },
-    {
-      "name": "Bracers of Defense",
-      "description": "Scorched steel bracers from a battle-mage's kit; +2 AC while wearing no armor and using no shield (worn)"
-    },
-    {
-      "name": "Cloak of Elvenkind",
-      "description": "Shadowsilk cloak; advantage on Dexterity (Stealth) checks to hide, and disadvantage on Wisdom (Perception) checks to spot the wearer (worn)"
-    },
-    {
-      "name": "Nab's Knife",
-      "description": "A cheap, well-used fighting knife (dagger, 1d4 piercing, Finesse, Light, Thrown)."
-    },
-    {
-      "name": "The Grey's Hand Crossbow",
-      "description": "A compact, well-kept hand crossbow pulled from the river (1d6 piercing, Ammunition, Light, Loading, range 30/120)."
-    },
-    {
-      "name": "Grey Traveling Coat",
-      "description": "A fine grey wool coat with hidden pockets, taken from the Grey's body (common clothes)."
-    },
-    {
-      "name": "The Grey's Sealed Commission",
-      "description": "A folded, wax-sealed document carried in the Grey's coat \u2014 his written orders for this job, naming his employer and his target."
-    }
-  ],
-  "consumables": {
-    "Crossbow Bolts": 12,
-    "Potion of Healing": 1,
-    "Basic Poison": 1
-  },
-  "gold": 77,
-  "current_hit_points": 13,
-  "hit_dice_count": 3,
-  "active_effects": [],
-  "_active_buff_data": {},
   "spellcasting": {
     "ability": "intelligence",
     "dc": 13,
     "attack_modifier": 5,
     "cantrips": [
-      "Mage Hand",
-      "Minor Illusion",
-      "Poison Spray"
+      "Chill Touch",
+      "Poison Spray",
+      "True Strike"
     ],
     "slots": {
-      "1": 4,
-      "2": 2
+      "1": 2
     },
     "spellbook": [
-      "Charm Person",
       "Detect Magic",
       "Disguise Self",
+      "False Life",
       "Identify",
       "Magic Missile",
-      "Sleep",
-      "Shield",
-      "Mage Armor",
-      "Misty Step",
-      "Invisibility"
+      "Sleep"
     ],
     "spells_prepared": [
-      {
-        "name": "Detect Magic"
-      },
-      {
-        "name": "Disguise Self"
-      },
-      {
-        "name": "Magic Missile"
-      },
-      {
-        "name": "Sleep"
-      },
-      {
-        "name": "Invisibility"
-      },
-      {
-        "name": "Misty Step"
-      }
+      "Disguise Self",
+      "False Life",
+      "Magic Missile",
+      "Sleep"
     ]
   }
 }

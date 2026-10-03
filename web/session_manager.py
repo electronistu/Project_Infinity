@@ -39,10 +39,12 @@ class SessionManager:
     # ── CRUD ──────────────────────────────────────────────────────────────
 
     async def create(self, wwf: str, model: str | None = None,
-                     temperature: float | None = None, think=None):
+                     temperature: float | None = None, think=None,
+                     scene_images: bool = False):
         model_id = model or DEFAULT_MODEL
         spec = resolve_model(model_id)
         context = spec["context"] if spec else 1_048_576
+        provider = (spec.get("provider") if spec else None) or "ollama"
         temp = DEFAULT_TEMPERATURE if temperature is None else float(temperature)
 
         session = GameSession(
@@ -51,6 +53,8 @@ class SessionManager:
             context_window=context,
             temperature=temp,
             think=think,
+            scene_images=scene_images,
+            provider=provider,
         )
         sid = uuid.uuid4().hex
         self._sessions[sid] = session
@@ -82,6 +86,7 @@ class SessionManager:
             "session_id": sid,
             "world": meta.get("world"),
             "model": session.model,
+            "provider": session.provider,
             "context_window": session.context_window,
             "context_tokens": session.current_context_tokens,
             "turn_counter": session.turn_counter,

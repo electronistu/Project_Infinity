@@ -121,7 +121,8 @@ async def main() -> int:
             rec("GET /api/models", any(m["id"] == "deepseek-v4.1-flash:cloud" for m in models),
                 f"{len(models)} models")
 
-            r = await client.post("/api/sessions", json={"wwf": world, "temperature": 1.0})
+            r = await client.post("/api/sessions", json={"wwf": world, "temperature": 1.0,
+                                                       "scene_images": True})
             rec("POST /api/sessions", r.status_code == 200, f"HTTP {r.status_code}")
             sid = r.json().get("session_id")
             rec("session id returned", bool(sid), str(sid))
@@ -142,6 +143,13 @@ async def main() -> int:
             rec("WS streaming (narrative deltas)", deltas > 0, f"{deltas} deltas")
             rec("awakening MCP tool result", any(e["type"] == "tool_result" for e in sink),
                 str([e["name"] for e in sink if e["type"] == "tool_result"]))
+            rec("WS events carry the owning session id",
+                bool(sink) and all(e.get("session_id") == sid for e in sink),
+                str([e.get("session_id") for e in sink[:3]]))
+            ready = next((e for e in sink if e.get("type") == "ready"), None)
+            rec("ready lists the scene-image tool",
+                bool(ready) and "request_scene_image" in (ready.get("tools") or []),
+                str((ready or {}).get("tools")))
 
             # 2) Action turn with a forced tool call
             sink2: list = []
@@ -152,6 +160,8 @@ async def main() -> int:
             rec("action MCP tool result", any(e["type"] == "tool_result" for e in sink2),
                 str([e["name"] for e in sink2 if e["type"] == "tool_result"]))
             rec("action streamed narrative", any(e["type"] == "narrative_delta" for e in sink2))
+            rec("scene_request fired for the action turn",
+                any(e.get("type") == "scene_request" for e in sink2))
 
             # 3) Slash commands
             sink3: list = []
@@ -159,6 +169,8 @@ async def main() -> int:
             got = await recv_until(ws, lambda e: e["type"] == "stats", 60, sink3)
             has_stats = got is not None and isinstance(got.get("data"), dict) and bool(got["data"])
             rec("slash /stats", has_stats)
+            rec("stats event carries the session id",
+                got is not None and got.get("session_id") == sid)
 
             sink4: list = []
             await ws.send(json.dumps({"type": "slash", "command": "/help"}))

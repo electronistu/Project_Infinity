@@ -14,3 +14,9 @@ __pycache__/
 !electronistu.player
 !electronistu.timeline
 *.kate-swp
+
+# Local secrets (Gemini API key for image generation)
+.env
+
+# Generated character images / icons (cached assets)
+output/images/

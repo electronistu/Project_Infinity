@@ -1,0 +1,229 @@
+# SRD 5.1 equipment weights (pounds), used for carrying capacity / encumbrance.
+#
+# Source: System Reference Document 5.1 (CC-BY-4.0) — Armor, Weapons, Adventuring
+# Gear, Tools and Equipment Packs tables. One entry per item; `aliases` catch the
+# SRD's alternate spellings (e.g. "Crossbow, light" vs the project's "Light
+# Crossbow"). Matching is exact-after-normalising (case, punctuation, quantities,
+# parentheses, leading article) — deliberately NOT fuzzy, so unknown homebrew loot
+# falls through and the GM declares its weight. A trailing plural is folded onto the
+# singular key (the Forge stores "Two Daggers" as consumables.Daggers).
+#
+# `per:` marks an SRD *bundle* line (20 arrows weigh 1 lb). A count in the player's
+# `consumables` map is a number of UNITS, so the bundle size is divided out there;
+# as an inventory item the line weighs its full bundle weight.
+#
+# Packs are the sum of their SRD contents (the SRD prices packs but gives no pack
+# weight); the sum is noted per entry so it can be audited.
+
+# ── Weapons (SRD Weapons table) ────────────────────────────────────────────────
+- {name: Club, weight: 2}
+- {name: Dagger, weight: 1}
+- {name: Greatclub, weight: 10}
+- {name: Handaxe, weight: 2}
+- {name: Javelin, weight: 2}
+- {name: Light Hammer, weight: 2}
+- {name: Mace, weight: 4}
+- {name: Quarterstaff, weight: 4}
+- {name: Sickle, weight: 2}
+- {name: Spear, weight: 3}
+- {name: Light Crossbow, weight: 5, aliases: [Crossbow light, Crossbow, light]}
+- {name: Dart, weight: 0.25}
+- {name: Shortbow, weight: 2}
+- {name: Sling, weight: 0}
+- {name: Battleaxe, weight: 4}
+- {name: Flail, weight: 2}
+- {name: Glaive, weight: 6}
+- {name: Greataxe, weight: 7}
+- {name: Greatsword, weight: 6}
+- {name: Halberd, weight: 6}
+- {name: Lance, weight: 6}
+- {name: Longsword, weight: 3}
+- {name: Maul, weight: 10}
+- {name: Morningstar, weight: 4}
+- {name: Pike, weight: 18}
+- {name: Rapier, weight: 2}
+- {name: Scimitar, weight: 3}
+- {name: Shortsword, weight: 2}
+- {name: Trident, weight: 4}
+- {name: War Pick, weight: 2}
+- {name: Warhammer, weight: 2}
+- {name: Whip, weight: 3}
+- {name: Blowgun, weight: 1}
+- {name: Hand Crossbow, weight: 3, aliases: [Crossbow hand, Crossbow, hand]}
+- {name: Heavy Crossbow, weight: 18, aliases: [Crossbow heavy, Crossbow, heavy]}
+- {name: Longbow, weight: 2}
+- {name: Net, weight: 3}
+
+# ── Armor and shields (SRD Armor table) ────────────────────────────────────────
+- {name: Padded Armor, weight: 8, aliases: [Padded]}
+- {name: Leather Armor, weight: 10, aliases: [Leather, Leather Tunic]}
+- {name: Studded Leather Armor, weight: 13, aliases: [Studded Leather]}
+- {name: Hide Armor, weight: 12, aliases: [Hide]}
+- {name: Chain Shirt, weight: 20}
+- {name: Scale Mail, weight: 45}
+- {name: Breastplate, weight: 20}
+- {name: Half Plate Armor, weight: 40, aliases: [Half Plate]}
+- {name: Ring Mail, weight: 40}
+- {name: Chain Mail, weight: 55}
+- {name: Splint Armor, weight: 60, aliases: [Splint]}
+- {name: Plate Armor, weight: 65, aliases: [Plate]}
+- {name: Shield, weight: 6, aliases: [Wooden Shield]}
+
+# ── Adventuring gear (SRD Adventuring Gear table) ──────────────────────────────
+- {name: Abacus, weight: 2}
+- {name: Acid (vial), weight: 1, aliases: [Acid]}
+- {name: Alchemist's Fire (flask), weight: 1, aliases: [Alchemist's Fire]}
+- {name: Arrows (20), weight: 1, per: 20, aliases: [Arrow, Arrows]}
+- {name: Blowgun Needles (50), weight: 1, per: 50, aliases: [Blowgun Needles]}
+- {name: Crossbow Bolts (20), weight: 1.5, per: 20, aliases: [Crossbow Bolt, Crossbow Bolts, Bolts]}
+- {name: Sling Bullets (20), weight: 1.5, per: 20, aliases: [Sling Bullets]}
+- {name: Antitoxin (vial), weight: 0, aliases: [Antitoxin]}
+- {name: Arcane Focus (Crystal), weight: 1, aliases: [Crystal]}
+- {name: Arcane Focus (Orb), weight: 3, aliases: [Orb]}
+- {name: Arcane Focus (Rod), weight: 2, aliases: [Rod]}
+- {name: Arcane Focus (Staff), weight: 4, aliases: [Arcane Focus]}
+- {name: Arcane Focus (Wand), weight: 1, aliases: [Wand]}
+- {name: Backpack, weight: 5}
+- {name: Ball Bearings (bag of 1,000), weight: 2, aliases: [Ball Bearings]}
+- {name: Barrel, weight: 70}
+- {name: Basket, weight: 2}
+- {name: Bedroll, weight: 7}
+- {name: Bell, weight: 0}
+- {name: Blanket, weight: 3}
+- {name: Block and Tackle, weight: 5}
+- {name: Book, weight: 5, aliases: [Book of Lore]}
+- {name: Bottle (glass), weight: 2}
+- {name: Bucket, weight: 2}
+- {name: Caltrops (bag of 20), weight: 2, aliases: [Caltrops]}
+- {name: Candle, weight: 0}
+- {name: Case (crossbow bolt), weight: 1, aliases: [Case Crossbow Bolt]}
+- {name: Case (map or scroll), weight: 1, aliases: [Case Map or Scroll]}
+- {name: Chain (10 feet), weight: 10, aliases: [Chain]}
+- {name: Chalk (1 piece), weight: 0, aliases: [Chalk]}
+- {name: Chest, weight: 25}
+- {name: Climber's Kit, weight: 12}
+- {name: Common Clothes, weight: 3, aliases: [Clothes common, Clothes, common, Dark Common Clothes]}
+- {name: Costume Clothes, weight: 4, aliases: [Clothes costume, Clothes, costume]}
+- {name: Fine Clothes, weight: 6, aliases: [Clothes fine, Clothes, fine]}
+- {name: Traveler's Clothes, weight: 4, aliases: [Clothes traveler's, Clothes, traveler's]}
+- {name: Component Pouch, weight: 2}
+- {name: Crowbar, weight: 5}
+- {name: Druidic Focus (Sprig of Mistletoe), weight: 0, aliases: [Sprig of Mistletoe, Druidic Focus]}
+- {name: Totem, weight: 0}
+- {name: Druidic Focus (Wooden Staff), weight: 4, aliases: [Wooden Staff]}
+- {name: Druidic Focus (Yew Wand), weight: 1, aliases: [Yew Wand]}
+- {name: Fishing Tackle, weight: 4}
+- {name: Flask or Tankard, weight: 1}
+- {name: Grappling Hook, weight: 4}
+- {name: Hammer, weight: 3}
+- {name: Sledge Hammer, weight: 10}
+- {name: Healer's Kit, weight: 3}
+- {name: Holy Symbol (Amulet), weight: 1, aliases: [Holy Symbol, Amulet]}
+- {name: Holy Symbol (Emblem), weight: 0, aliases: [Emblem]}
+- {name: Holy Symbol (Reliquary), weight: 2, aliases: [Reliquary]}
+- {name: Holy Water (flask), weight: 1, aliases: [Holy Water]}
+- {name: Hourglass, weight: 1}
+- {name: Hunting Trap, weight: 25}
+- {name: Ink (1 ounce bottle), weight: 0, aliases: [Ink, Bottle of Ink, Bottle of Black Ink]}
+- {name: Ink Pen, weight: 0, aliases: [Quill]}
+- {name: Jug or Pitcher, weight: 4}
+- {name: Ladder (10-foot), weight: 25, aliases: [Ladder]}
+- {name: Lamp, weight: 1}
+- {name: Bullseye Lantern, weight: 2, aliases: [Lantern bullseye, Lantern, bullseye]}
+- {name: Hooded Lantern, weight: 2, aliases: [Lantern hooded, Lantern, hooded]}
+- {name: Lock, weight: 1}
+- {name: Magnifying Glass, weight: 0}
+- {name: Manacles, weight: 6}
+- {name: Mess Kit, weight: 1}
+- {name: Steel Mirror, weight: 0.5, aliases: [Mirror steel, Mirror, steel]}
+- {name: Oil (flask), weight: 1, aliases: [Oil]}
+- {name: Paper (one sheet), weight: 0, aliases: [Paper]}
+- {name: Parchment (one sheet), weight: 0, aliases: [Parchment]}
+- {name: Perfume (vial), weight: 0, aliases: [Perfume]}
+- {name: Miner's Pick, weight: 10}
+- {name: Piton, weight: 0.25}
+- {name: Basic Poison (vial), weight: 0, aliases: [Poison basic, Poison, basic]}
+- {name: Pole (10-foot), weight: 7, aliases: [Pole]}
+- {name: Iron Pot, weight: 10, aliases: [Pot iron, Pot, iron]}
+- {name: Potion of Healing, weight: 0.5}
+- {name: Pouch, weight: 1}
+- {name: Quiver, weight: 1}
+- {name: Portable Ram, weight: 35}
+- {name: Rations (1 day), weight: 2, aliases: [Rations]}
+- {name: Robes, weight: 4}
+- {name: Hempen Rope (50 feet), weight: 10, aliases: [Rope hempen, Rope, Rope (50 feet)]}
+- {name: Silk Rope (50 feet), weight: 5, aliases: [Rope silk, silk]}
+- {name: Sack, weight: 0.5}
+- {name: Merchant's Scale, weight: 3}
+- {name: Sealing Wax, weight: 0}
+- {name: Shovel, weight: 5}
+- {name: Signal Whistle, weight: 0}
+- {name: Signet Ring, weight: 0}
+- {name: Soap, weight: 0}
+- {name: Spellbook, weight: 3}
+- {name: Iron Spikes (10), weight: 5, aliases: [Spikes iron, Spikes, iron]}
+- {name: Spyglass, weight: 1}
+- {name: Tent (two-person), weight: 20, aliases: [Tent]}
+- {name: Tinderbox, weight: 1}
+- {name: Torch, weight: 1}
+- {name: Vial, weight: 0}
+- {name: Waterskin, weight: 5}
+- {name: Whetstone, weight: 1}
+
+# ── Character-creation flavour items (no SRD gear-table weight; negligible) ────
+# These are granted by backgrounds/classes but are not on the SRD Adventuring Gear
+# table. They are listed at 0 lb so they are never reported as unweighed; the GM
+# still declares a weight for anything heavier the fiction produces.
+- {name: Insignia of Rank, weight: 0}
+- {name: Trophy from a Fallen Enemy, weight: 0}
+- {name: Letter from a Dead Colleague, weight: 0}
+- {name: Small Knife, weight: 0}
+
+# ── Tools (SRD Tools table) ─────────────────────────────────────────────────────
+- {name: Alchemist's Supplies, weight: 8}
+- {name: Brewer's Supplies, weight: 9}
+- {name: Calligrapher's Supplies, weight: 5}
+- {name: Carpenter's Tools, weight: 6}
+- {name: Cartographer's Tools, weight: 6}
+- {name: Cobbler's Tools, weight: 5}
+- {name: Cook's Utensils, weight: 8}
+- {name: Glassblower's Tools, weight: 5}
+- {name: Jeweler's Tools, weight: 2}
+- {name: Leatherworker's Tools, weight: 5}
+- {name: Mason's Tools, weight: 8}
+- {name: Painter's Supplies, weight: 5}
+- {name: Potter's Tools, weight: 3}
+- {name: Smith's Tools, weight: 8}
+- {name: Tinker's Tools, weight: 10}
+- {name: Weaver's Tools, weight: 5}
+- {name: Woodcarver's Tools, weight: 5}
+- {name: Disguise Kit, weight: 3}
+- {name: Forgery Kit, weight: 5}
+- {name: Dice Set, weight: 0, aliases: [Bone Dice Set]}
+- {name: Incense (1 block), weight: 0, aliases: [Incense, Stick of Incense, Sticks of Incense]}
+- {name: Playing Card Set, weight: 0}
+- {name: Herbalism Kit, weight: 3}
+- {name: Bagpipes, weight: 6}
+- {name: Drum, weight: 3}
+- {name: Dulcimer, weight: 10}
+- {name: Flute, weight: 1}
+- {name: Lute, weight: 2}
+- {name: Lyre, weight: 2}
+- {name: Horn, weight: 2}
+- {name: Pan Flute, weight: 2}
+- {name: Shawm, weight: 1}
+- {name: Viol, weight: 1}
+- {name: Navigator's Tools, weight: 2}
+- {name: Poisoner's Kit, weight: 2}
+- {name: Thieves' Tools, weight: 1}
+- {name: Vestments, weight: 4}
+- {name: Prayer Book, weight: 5}
+
+# ── Equipment packs = sum of the SRD's listed contents ─────────────────────────
+- {name: Explorer's Pack, weight: 59}      # backpack 5 + bedroll 7 + mess kit 1 + tinderbox 1 + 10 torches 10 + 10 rations 20 + waterskin 5 + hempen rope 10
+- {name: Dungeoneer's Pack, weight: 61.5}  # backpack 5 + crowbar 5 + hammer 3 + 10 pitons 2.5 + 10 torches 10 + tinderbox 1 + 10 rations 20 + waterskin 5 + hempen rope 10
+- {name: Burglar's Pack, weight: 47.5}     # backpack 5 + ball bearings 2 + bell 0 + 5 candles 0 + crowbar 5 + hammer 3 + 10 pitons 2.5 + hooded lantern 2 + 2 oil 2 + 5 rations 10 + tinderbox 1 + waterskin 5 + hempen rope 10
+- {name: Priest's Pack, weight: 22}        # backpack 5 + blanket 3 + 10 candles 0 + tinderbox 1 + alms box 0 + 2 incense 0 + censer 0 + vestments 4 + 2 rations 4 + waterskin 5
+- {name: Scholar's Pack, weight: 10}       # backpack 5 + book of lore 5 + ink 0 + ink pen 0 + 10 parchment 0 + sand 0 + small knife 0
+- {name: Diplomat's Pack, weight: 36}      # chest 25 + 2 map/scroll cases 2 + fine clothes 6 + ink 0 + ink pen 0 + lamp 1 + 2 oil 2 + 5 paper 0 + perfume 0 + sealing wax 0 + soap 0
+- {name: Entertainer's Pack, weight: 38}   # backpack 5 + bedroll 7 + 2 costumes 8 + 5 candles 0 + 5 rations 10 + waterskin 5 + disguise kit 3

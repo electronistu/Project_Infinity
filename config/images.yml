@@ -1,0 +1,124 @@
+# Image generation config for Project Infinity (web client).
+#
+# Provider: Google Gemini (Nano Banana family) via google-genai.
+# Images are ONE-OFF CACHED ASSETS (character portrait now; stat/item icons
+# later) — never real-time scene illustration. Each save gets its own folder
+# under output/images/{stem}/ and an asset is regenerated only on request or
+# when the source fields it was built from change.
+#
+# Use GA model ids only. The `-preview` ids were retired 2026-06-25;
+# `gemini-2.5-flash-image` retires 2026-10-02. Lite is 1K-only.
+#
+# `model` is the DEFAULT for in-story images (character portrait + storyline
+# scenes): scenes feed a location reference plus the portrait, and Nano Banana 2
+# handles multiple references far better than Lite. `icon_model` is the DEFAULT
+# for sheet icons (single subject, no references) where Lite is cheapest.
+model: gemini-3.1-flash-image
+icon_model: gemini-3.1-flash-lite-image
+aspect_ratio: "3:4"
+image_size: "1K"
+
+# Locked art direction so every asset in a save looks like it belongs to one
+# game. Gemini will happily render text, so forbid it explicitly.
+style: >-
+  Painterly dark-fantasy illustration in the style of a tabletop RPG sourcebook:
+  muted candlelit palette (umber, oxblood, tarnished brass), soft oil-brush
+  texture, grounded and gritty, naturalistic proportions, dramatic soft
+  side-lighting, shallow depth of field. Absolutely no text, letters, numbers,
+  runes, watermarks, logos, borders or user-interface elements.
+
+# Portrait prompt template. {alignment} {gender} {race} {class} {gear}
+# {background_line} are filled from the character's .player data.
+portrait: >-
+  {reference_line} Head-and-shoulders character portrait of a {alignment} {gender} {race}
+  {class}. {level_line} {gear} {background_line} Single subject, centred, facing the viewer,
+  plain dark background, no other people.
+
+# Portraits render at up to ~260px; 512 keeps them sharp and ~4x smaller.
+portrait_max_side: 512
+
+# Always appended to a portrait prompt: the subject wears exactly the gear listed
+# ({gear} comes from the character's equipped set), and nothing may be invented.
+portrait_guard: >-
+  The subject wears and wields exactly the equipment listed, nothing more — do not add or
+  invent any garment, armour, weapon, hood, cloak, hat, helmet or accessory, and never
+  depict gear that is not described.
+
+# ── Storyline scene images (session-only, in-memory; 16:9 cinematic) ──
+scene_aspect_ratio: "16:9"
+scene_max_side: 1024
+# Scene prompt template. Placeholders: {description} {race} {class} {gear}
+# {world} {mood}. The locked `style:` above is appended.
+scene: >-
+  {location_line} A cinematic widescreen illustration of this moment: {description}
+  The protagonist is a {race} {class}. {gear} Location: {location}. World setting: {world}.
+  Mood: {mood}. Wide establishing composition, dramatic atmospheric lighting, sense of place
+  and depth, painterly detail. No text, letters, numbers, runes, watermarks,
+  logos, borders or user-interface elements.
+# Reference images (the previous portrait / a location image) are input tokens;
+# keep them small and cap the model's resolution budget for them.
+ref_max_side: 512
+ref_media_resolution: "MEDIA_RESOLUTION_MEDIUM"
+# Appended to a scene prompt when a previous image of the same location is fed
+# back in as a reference ({location} is substituted).
+scene_reference_line: >-
+  Use the attached image as the established look of {location}: keep its architecture,
+  colours, layout and atmosphere consistent unless the description says otherwise.
+# Used when only the protagonist's portrait is attached as a reference.
+scene_portrait_reference_line: >-
+  The attached portrait is the protagonist — place that same character in the scene as the
+  central figure, in the described action and pose; keep the same face, hair colour and build.
+# Used when both a location image and the portrait are attached.
+scene_reference_both: >-
+  Attached references: (1) the established look of {location} — keep its architecture, colours
+  and layout consistent unless the description says otherwise; (2) the protagonist's portrait —
+  place that same character in the scene as the central figure.
+# Always appended when the portrait is attached: stop the GM's text from
+# overriding the portrait's appearance OR adding gear the character does not have.
+scene_protagonist_guard: >-
+  The protagonist's appearance is fixed by the attached portrait — do not restate or
+  alter their face, hair, build or clothing from the text; depict the scene around them.
+  The protagonist wears only the equipment shown in that portrait: ignore or omit any
+  garment, armour, weapon or accessory the text names that the portrait does not show,
+  and never add a hood, hooded cloak, cowl, hat, helmet or armour that is not in it.
+
+# ── Shared icon library (cross-character, committed under assets/icons/) ──
+icon_max_side: 256
+# The dark character-sheet card colour. Icons are generated and post-processed
+# to this EXACT background so their subjects appear to float on the dark sheet;
+# the sheet cards already use --surface #1e1a13.
+icon_background: "#1E1A13"
+# Auto-fit: scale the subject so its longest side fills this fraction of the
+# frame (generated art tends to sit small in a sea of background).
+icon_fill: 0.92
+icon_style: >-
+  Flat codex emblem on a dark ground: bold uniform pale-bone linework, limited
+  palette of warm bone highlights, umber mid-tones and a single ember-red accent,
+  set on a flat solid #1E1A13 background that exactly matches the dark character
+  sheet; the subject contrasts strongly with that background. High contrast,
+  legible at 64 pixels. No gradients, no glow, no drop shadows, no paper grain,
+  no text, no letters, no numbers, no runes, no watermarks, no frame. A single
+  centred subject.
+
+# Per-kind icon prompt templates. Placeholders: {name} {detail}
+icon:
+  weapon: "A single {name}, shown whole and upright. {detail}"
+  armor: "A piece of {name}, front view. {detail}"
+  tool: "A single {name}, laid out neatly. {detail}"
+  skill: "An emblem for the '{name}' skill. {detail}"
+  language: "A script sigil representing the {name} language."
+  spell: "A magical sigil for the spell '{name}'. {detail}"
+  school: "A heraldic emblem for the school of {name}."
+  feature: "An emblem for the trait '{name}'. {detail}"
+  damage: "A symbol for {name} damage."
+  condition: "A symbol for the '{name}' condition."
+  item: "A single {name}. {detail}"
+  kingdom: "A heraldic crest for the realm of {name}."
+  faction: "A heraldic sigil for the {name} faction."
+  race: "A heraldic emblem for the {name} people."
+  class: "A heraldic emblem for the {name} class."
+  background: "A heraldic emblem for the {name} background."
+  alignment: "An emblem for the {name} alignment."
+  ability: "An emblem representing the {name} ability score."
+  save: "A warded shield emblem for the {name} saving throw."
+  stat: "An emblem for the game stat '{name}'."

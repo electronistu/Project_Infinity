@@ -36,34 +36,3 @@ def unique_paths(output_dir, slug: str):
         if not wwf.exists() and not player.exists():
             return stem, wwf, player
         n += 1
-
-
-# ── user-chosen save names (web save/load) ────────────────────────────────
-
-_WINDOWS_RESERVED = {
-    "con", "prn", "aux", "nul",
-    *(f"com{i}" for i in range(1, 10)),
-    *(f"lpt{i}" for i in range(1, 10)),
-}
-_INVALID_FILENAME = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
-MAX_SAVE_STEM = 80
-
-
-def sanitize_save_name(name: str, extension: str = ".wwf"):
-    """Return (stem, filename) for a player-chosen save name.
-
-    Preserves case and spaces; replaces only filesystem-invalid characters;
-    forces the extension; guards Windows reserved device names.
-    """
-    raw = (name or "").strip()
-    if raw.lower().endswith(extension.lower()):
-        raw = raw[: -len(extension)]
-    raw = _INVALID_FILENAME.sub("_", raw)
-    raw = re.sub(r"\s+", " ", raw).strip(" .")
-    if not raw:
-        raw = "save"
-    if raw.lower() in _WINDOWS_RESERVED:
-        raw = f"{raw}_save"
-    if len(raw) > MAX_SAVE_STEM:
-        raw = raw[:MAX_SAVE_STEM].strip(" .")
-    return raw, f"{raw}{extension}"

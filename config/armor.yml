@@ -1,0 +1,35 @@
+# SRD 5.1 armour and shields — the equipped-items model's armour catalog.
+#
+# Source: System Reference Document 5.1 (CC-BY-4.0), "Armor" table.
+# One entry per SRD line; `aliases` catch this project's Forge spellings
+# ("Leather Tunic" for Leather Armor, "Padded" for Padded Armor, ...). Matching is
+# exact-after-normalising (case, punctuation, quantities, parentheses, leading
+# article) — the same rule as config/weights.yml, deliberately NOT fuzzy.
+#
+# `ac` is the base armour class; for a shield it is the AC BONUS (+2). `dex_cap`
+# is the most Dexterity the armour lets you add to AC (null = no limit). `type` is
+# one of light | medium | heavy | shield. `strength_req` is the SRD Strength column
+# (informational: with the variant encumbrance rules in use, the SRD says to ignore
+# it, so the engine does not apply a penalty). `stealth_disadvantage` marks armour
+# that imposes disadvantage on Dexterity (Stealth) checks.
+
+# ── Light armour ───────────────────────────────────────────────────────────────
+- {name: Padded Armor, ac: 11, dex_cap: null, type: light, aliases: [Padded], stealth_disadvantage: true}
+- {name: Leather Armor, ac: 11, dex_cap: null, type: light, aliases: [Leather, Leather Tunic]}
+- {name: Studded Leather Armor, ac: 12, dex_cap: null, type: light, aliases: [Studded Leather, Studded Leather Tunic]}
+
+# ── Medium armour ───────────────────────────────────────────────────────────────
+- {name: Hide Armor, ac: 12, dex_cap: 2, type: medium, aliases: [Hide]}
+- {name: Chain Shirt, ac: 13, dex_cap: 2, type: medium}
+- {name: Scale Mail, ac: 14, dex_cap: 2, type: medium, stealth_disadvantage: true}
+- {name: Breastplate, ac: 14, dex_cap: 2, type: medium}
+- {name: Half Plate Armor, ac: 15, dex_cap: 2, type: medium, aliases: [Half Plate], stealth_disadvantage: true}
+
+# ── Heavy armour ────────────────────────────────────────────────────────────────
+- {name: Ring Mail, ac: 14, dex_cap: 0, type: heavy, stealth_disadvantage: true}
+- {name: Chain Mail, ac: 16, dex_cap: 0, type: heavy, strength_req: 13, aliases: [Iron Chainmail], stealth_disadvantage: true}
+- {name: Splint Armor, ac: 17, dex_cap: 0, type: heavy, strength_req: 15, aliases: [Splint], stealth_disadvantage: true}
+- {name: Plate Armor, ac: 18, dex_cap: 0, type: heavy, strength_req: 15, aliases: [Plate], stealth_disadvantage: true}
+
+# ── Shields (ac = the bonus added to the wearer's AC; occupies one hand) ───────
+- {name: Shield, ac: 2, dex_cap: null, type: shield, aliases: [Wooden Shield]}

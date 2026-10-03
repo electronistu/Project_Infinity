@@ -22,7 +22,6 @@ import asyncio
 import json
 import os
 import re
-import shutil
 import sys
 import traceback
 from pathlib import Path
@@ -36,7 +35,7 @@ from mcp import ClientSession, StdioServerParameters  # noqa: E402
 from mcp.client.stdio import stdio_client  # noqa: E402
 from ollama import AsyncClient  # noqa: E402
 
-from .naming import sanitize_save_name  # noqa: E402
+from .images import known_scene_locations  # noqa: E402
 from .ollama_stream import stream_chat  # noqa: E402
 from .stats import build_stats  # noqa: E402
 
@@ -81,6 +80,12 @@ def _max_timeline_turn(text: str) -> int:
     return highest
 
 PAUSE_TOKENS = ("{{_NEED_AN_OTHER_PROMPT}}", "{{_NEED_ANOTHER_PROMPT}}")
+
+# "**END MECHANICS**" on its own line (see GameMaster_MCP.md narrative_phase).
+MECHANICS_MARKER_RE = re.compile(
+    r"^[ \t]*\*{0,2}[ \t]*end(?:\s+of)?\s+mechanics:?[ \t]*\*{0,2}[ \t]*$",
+    re.IGNORECASE | re.MULTILINE,
+)
 MAX_THINKING_RETRIES = 3
 DEFAULT_CONTEXT_WINDOW = 1_048_576
 
@@ -116,9 +121,39 @@ def _tool_schema(tool) -> dict:
     }
 
 
+SCENE_TOOL = "request_scene_image"
+# Tools the GM may attach to narrative prose (the Narrative Phase). A round that
+# carries prose plus only these tools is the turn's last word: the tool loop must
+# NOT run another model round, or the GM re-narrates the whole turn.
+NARRATIVE_PHASE_TOOLS = frozenset({SCENE_TOOL})
+# Scene-imagery instructions live in GameMaster_MCP.md between these markers;
+# they are sent to the GM only when storyline image generation is enabled.
+_SCENE_BLOCK = re.compile(
+    r"(?ms)^[ \t]*<!-- SCENE:ON -->.*?^[ \t]*<!-- SCENE:END -->[ \t]*\n?"
+)
+_SCENE_MARKERS = re.compile(r"(?m)^[ \t]*<!-- SCENE:(?:ON|END) -->[ \t]*\n?")
+
+
+def render_protocol(text: str, scene_images: bool) -> str:
+    """Strip the scene markers; drop the enclosed rules when scenes are off."""
+    if scene_images:
+        return _SCENE_MARKERS.sub("", text or "")
+    return _SCENE_BLOCK.sub("", text or "")
+
+
+def filter_tools(tools: list[dict], scene_images: bool) -> list[dict]:
+    """Hide the scene-image tool from the GM unless storyline images are on."""
+    if scene_images:
+        return list(tools)
+    return [t for t in tools if (t.get("function") or {}).get("name") != SCENE_TOOL]
+
+
 def _clean_sync_tokens(text: str) -> str:
     for token in PAUSE_TOKENS:
         text = text.replace(token, "")
+    # The GM's mechanics-block terminator is protocol, not prose — drop it from any
+    # summary (e.g. a timeline entry) so it can never surface to the player.
+    text = MECHANICS_MARKER_RE.sub("", text)
     return text.strip()
 
 
@@ -127,19 +162,21 @@ class GameSession:
 
     def __init__(self, base_dir, model: str, context_window: int = DEFAULT_CONTEXT_WINDOW,
                  temperature: float = 1.0, think=None, verbose: bool = False,
-                 debug: bool = False):
+                 debug: bool = False, scene_images: bool = False, provider: str = "ollama"):
         self.base_dir = Path(base_dir)
         self.model = model
+        self.provider = provider or "ollama"
         self.context_window = context_window
         self.temperature = temperature
         self.think = think
         self.verbose = verbose
         self.debug = debug
+        # Set at session start; gates the GM's scene-imagery instructions + tool.
+        self.scene_images = bool(scene_images)
 
         self.wwf_path: Path | None = None
         self.player_path: str | None = None
         self.timeline_path: str | None = None
-        self.original_stem: str | None = None
         self.active_name: str | None = None
         self.active_wwf: str | None = None
 
@@ -152,9 +189,11 @@ class GameSession:
 
         self.session: ClientSession | None = None
         self._client: AsyncClient | None = None
+        self._gemini = None  # GeminiChat, created lazily for gemini-provider models
         self._cmd_q: asyncio.Queue = asyncio.Queue()
         self._evt_q: asyncio.Queue = asyncio.Queue()
         self._task: asyncio.Task | None = None
+        self._scene_requested_turn = False
 
     # ── public API ────────────────────────────────────────────────────────
 
@@ -170,8 +209,7 @@ class GameSession:
         stem = os.path.splitext(str(path))[0]
         self.player_path = stem + ".player"
         self.timeline_path = stem + ".timeline"
-        self.original_stem = os.path.splitext(os.path.basename(str(path)))[0]
-        self.active_name = self.original_stem
+        self.active_name = os.path.splitext(os.path.basename(str(path)))[0]
         self.active_wwf = str(path)
         self._task = asyncio.create_task(self._run())
 
@@ -188,8 +226,8 @@ class GameSession:
     async def submit_slash(self, command: str) -> None:
         await self._cmd_q.put({"type": "slash", "command": command})
 
-    async def submit_save(self, name=None) -> None:
-        await self._cmd_q.put({"type": "save", "name": name})
+    async def submit_save(self) -> None:
+        await self._cmd_q.put({"type": "save"})
 
     async def resume(self) -> None:
         await self._cmd_q.put({"type": "resume"})
@@ -226,6 +264,21 @@ class GameSession:
     def _options(self) -> dict:
         return {"temperature": self.temperature, "num_ctx": self.context_window}
 
+    def _stream(self, messages, tools):
+        """Return an async iterator of normalized events for the active provider."""
+        if self.provider == "gemini":
+            if self._gemini is None:
+                from .gemini_stream import GeminiChat  # local import keeps Ollama-only setups working
+                self._gemini = GeminiChat(os.environ.get("GEMINI_API_KEY") or "")
+            return self._gemini.stream(
+                messages, self.model, tools=tools,
+                temperature=self.temperature, think=self.think,
+            )
+        return stream_chat(
+            self._client, self.model, messages, tools,
+            self._options(), think=self.think,
+        )
+
     async def _run(self) -> None:
         devnull = None
         errlog = sys.stderr
@@ -243,8 +296,10 @@ class GameSession:
                     self.session = session
                     await session.initialize()
                     listing = await session.list_tools()
-                    self.tools_schema = [_tool_schema(t) for t in listing.tools]
-                    self._client = AsyncClient()
+                    tools = [_tool_schema(t) for t in listing.tools]
+                    self.tools_schema = filter_tools(tools, self.scene_images)
+                    if self.provider != "gemini":
+                        self._client = AsyncClient()
 
                     with open(self.base_dir / LOCK_FILE, "r", encoding="utf-8") as f:
                         lock_content = f.read()
@@ -254,7 +309,7 @@ class GameSession:
                     # Continue turn numbering where the loaded timeline left off.
                     self.turn_counter = self.last_timeline_turn = _max_timeline_turn(existing_timeline)
 
-                    self.messages = [{"role": "system", "content": lock_content}]
+                    self.messages = [{"role": "system", "content": render_protocol(lock_content, self.scene_images)}]
                     if existing_timeline:
                         self.messages.append({
                             "role": "system",
@@ -265,19 +320,38 @@ class GameSession:
                             ),
                         })
 
+                    if self.scene_images:
+                        locations = known_scene_locations(self.base_dir / OUTPUT_DIR, self.active_name)
+                        if locations:
+                            body = (
+                                "KNOWN IMAGE LOCATIONS (reuse the exact name whenever the scene is in "
+                                "the same place; only use a new name for a genuinely new place):\n"
+                                + "\n".join(f"- {loc}" for loc in locations)
+                            )
+                        else:
+                            body = (
+                                "KNOWN IMAGE LOCATIONS: none recorded yet. Choose a precise, stable "
+                                "location name (the room or spot, not the building or district)."
+                            )
+                        self.messages.append({"role": "system", "content": body})
+
                     await self._emit({
                         "type": "ready",
                         "world": os.path.basename(self.wwf_path),
                         "player": os.path.basename(self.player_path),
                         "model": self.model,
+                        "provider": self.provider,
                         "context_window": self.context_window,
                         "turn": self.turn_counter,
                         "tools": [t["function"]["name"] for t in self.tools_schema],
                     })
 
                     # ── Awakening: WWF -> tools -> sync token -> resume -> opening scene ──
+                    # (The opening illustration is requested by the GM itself, in
+                    # the awakening tool batch — see GameMaster_MCP.md.)
                     await self._emit({"type": "busy", "value": True})
                     awakening = await self._run_role(key_content, "awakening")
+                    await self._ensure_scene_image(awakening or "")
                     await self._emit({"type": "awakening_end", "text": awakening or ""})
                     await self._emit({"type": "busy", "value": False})
 
@@ -319,14 +393,16 @@ class GameSession:
             finally:
                 await self._emit({"type": "busy", "value": False})
         elif kind == "save":
-            await self._handle_save_command(cmd.get("name"))
+            await self._handle_save_command()
         elif kind == "close":
             await self._cmd_q.put(None)
 
     async def _handle_action(self, text: str) -> None:
         await self._emit({"type": "busy", "value": True})
+        self._scene_requested_turn = False  # at most one illustration per turn
         try:
             result = await self._run_role(text, "turn")
+            await self._ensure_scene_image(result or "")
             self.turn_counter += 1
             await self._emit({"type": "turn_end", "text": result or "", "turn": self.turn_counter})
         finally:
@@ -351,7 +427,7 @@ class GameSession:
             finally:
                 await self._emit({"type": "busy", "value": False})
         elif cmd == "/save":
-            await self._handle_save_command(None)
+            await self._handle_save_command()
         elif cmd == "/quit":
             await self._emit({"type": "notice", "title": "Quit", "text": "Closing connection to the void..."})
             await self._cmd_q.put(None)
@@ -394,6 +470,11 @@ class GameSession:
                     db_data[field] = current_val - delta
         db_data["active_effects"] = []
         db_data["_active_buff_data"] = {}
+        # `_carrying` and `_equipment` are derived (SRD 5.1 carrying rules and the
+        # equipped-items model) — never persist them: they are recomputed wherever
+        # they are needed.
+        db_data.pop("_carrying", None)
+        db_data.pop("_equipment", None)
         return db_data
 
     def _write_player_atomic(self, db_data: dict, player_path: str) -> None:
@@ -401,19 +482,6 @@ class GameSession:
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(db_data, f, indent=2)
         os.replace(tmp, player_path)
-
-    def _rebind_save(self, stem: str) -> None:
-        wwf, player, timeline = self._save_paths(stem)
-        if stem != self.original_stem:
-            if not wwf.exists() and self.wwf_path and Path(self.wwf_path).exists():
-                shutil.copy2(self.wwf_path, wwf)
-            if (self.timeline_path and os.path.exists(self.timeline_path)
-                    and os.path.abspath(self.timeline_path) != os.path.abspath(timeline)):
-                shutil.copy2(self.timeline_path, timeline)
-        self.active_name = stem
-        self.active_wwf = str(wwf)
-        self.player_path = player
-        self.timeline_path = timeline
 
     async def _save_to_active(self):
         if self.session is None or not self.player_path:
@@ -438,9 +506,19 @@ class GameSession:
         """Tool-free, one-off model call for a summary; does not touch history."""
         messages = self.messages + [{"role": "user", "content": prompt}]
         parts: list[str] = []
-        async for evt in stream_chat(
-            self._client, self.model, messages, None, self._options(), think=self.think,
-        ):
+        if self.provider == "gemini":
+            if self._gemini is None:
+                from .gemini_stream import GeminiChat
+                self._gemini = GeminiChat(os.environ.get("GEMINI_API_KEY") or "")
+            events = self._gemini.stream(
+                messages, self.model, tools=None,
+                temperature=self.temperature, think=self.think, persist=False,
+            )
+        else:
+            events = stream_chat(
+                self._client, self.model, messages, None, self._options(), think=self.think,
+            )
+        async for evt in events:
             if evt["type"] == "narrative_delta":
                 parts.append(evt["text"])
             elif evt["type"] == "error":
@@ -464,15 +542,17 @@ class GameSession:
             return entry
         return None
 
-    async def _handle_save_command(self, name) -> None:
-        if name:
-            stem, _filename = sanitize_save_name(name)
-            if stem != self.active_name:
-                self._rebind_save(stem)
+    async def _handle_save_command(self) -> None:
+        """Save in place: the session writes the world's own files (never renames).
+
+        Renaming was dropped when images arrived: portraits and scenes live in
+        `output/images/{stem}/`, keyed to the world name, so a new stem would
+        orphan them.
+        """
         await self._summarize_timeline(self.turn_counter)
         await self._save_to_active()
 
-    async def _run_role(self, role_content, label: str) -> str:
+    async def _run_role(self, role_content, label: str, quiet: bool = False) -> str:
         """Append a message and run the streaming tool loop, auto-resuming pauses."""
         if isinstance(role_content, str):
             self.messages.append({"role": "user", "content": role_content})
@@ -480,7 +560,7 @@ class GameSession:
             self.messages.append(role_content)
 
         while True:
-            result = await self._chat_with_tools(label)
+            result = await self._chat_with_tools(label, quiet=quiet)
             if result == "__SYSTEM_PAUSE__":
                 await self._emit({"type": "paused"})
                 self.messages.append({"role": "user", "content": "{{_CONTINUE_EXECUTION}}"})
@@ -488,26 +568,30 @@ class GameSession:
                 continue
             return result
 
-    async def _stream_assistant(self, label: str):
-        """Stream one assistant message; emit deltas; append it to history."""
-        await self._emit({"type": "assistant_start", "label": label})
+    async def _stream_assistant(self, label: str, quiet: bool = False):
+        """Stream one assistant message; emit deltas; append it to history.
+
+        `quiet` suppresses narrative/thinking output (used for the scene-image
+        corrective round, whose only visible effect is the tool call itself).
+        """
+        if not quiet:
+            await self._emit({"type": "assistant_start", "label": label})
         content_parts: list[str] = []
         thinking_parts: list[str] = []
         tool_calls: list[dict] = []
         prompt_eval = 0
         malformed = False
 
-        async for evt in stream_chat(
-            self._client, self.model, self.messages, self.tools_schema,
-            self._options(), think=self.think,
-        ):
+        async for evt in self._stream(self.messages, self.tools_schema):
             et = evt["type"]
             if et == "thinking_delta":
                 thinking_parts.append(evt["text"])
-                await self._emit({"type": "thinking_delta", "text": evt["text"]})
+                if not quiet:
+                    await self._emit({"type": "thinking_delta", "text": evt["text"]})
             elif et == "narrative_delta":
                 content_parts.append(evt["text"])
-                await self._emit({"type": "narrative_delta", "text": evt["text"]})
+                if not quiet:
+                    await self._emit({"type": "narrative_delta", "text": evt["text"]})
             elif et == "tool_calls":
                 tool_calls.extend(evt["calls"])
             elif et == "done":
@@ -522,7 +606,8 @@ class GameSession:
             self.current_context_tokens = prompt_eval
         await self._emit({"type": "context", "tokens": self.current_context_tokens,
                           "window": self.context_window})
-        await self._emit({"type": "assistant_end", "text": content, "thinking": thinking})
+        if not quiet:
+            await self._emit({"type": "assistant_end", "text": content, "thinking": thinking})
 
         entry = {"role": "assistant", "content": content or ""}
         if tool_calls:
@@ -532,9 +617,9 @@ class GameSession:
         self.messages.append(entry)
         return content, thinking, tool_calls, malformed
 
-    async def _chat_with_tools(self, label: str) -> str:
+    async def _chat_with_tools(self, label: str, quiet: bool = False) -> str:
         while True:
-            content, thinking, tool_calls, malformed = await self._stream_assistant(label)
+            content, thinking, tool_calls, malformed = await self._stream_assistant(label, quiet=quiet)
             if malformed:
                 return "The GM stumbles over their words... (malformed response)"
 
@@ -543,7 +628,7 @@ class GameSession:
             while thinking_only and retries < MAX_THINKING_RETRIES:
                 retries += 1
                 self.messages.append({"role": "user", "content": "Continue"})
-                content, thinking, tool_calls, malformed = await self._stream_assistant("continue")
+                content, thinking, tool_calls, malformed = await self._stream_assistant("continue", quiet=quiet)
                 if malformed:
                     return "The GM stumbles over their words... (malformed response)"
                 thinking_only = bool(thinking and not content and not tool_calls)
@@ -554,6 +639,13 @@ class GameSession:
             if tool_calls:
                 for tc in tool_calls:
                     await self._execute_tool(tc)
+                names = {(tc.get("function") or {}).get("name") for tc in tool_calls}
+                if content and names <= NARRATIVE_PHASE_TOOLS:
+                    # Prose + a narrative-phase tool (request_scene_image) is the
+                    # turn's final response: the image call ends the turn. Without
+                    # this the loop asks for another round and the GM re-narrates
+                    # the whole turn (the duplicate-answer bug).
+                    return content
                 continue
 
             if any(token in (content or "") for token in PAUSE_TOKENS):
@@ -561,10 +653,56 @@ class GameSession:
 
             return content
 
+    async def _ensure_scene_image(self, narrative: str) -> None:
+        """Guarantee one scene image per turn: one quiet corrective round for the
+        GM to author the call, else an engine fallback built from the narrative."""
+        if not self.scene_images or self._scene_requested_turn:
+            return
+        await self._run_role(
+            "SYSTEM: This turn is missing its required request_scene_image (the imagery rule). "
+            "Emit ONLY the request_scene_image tool call now — no narrative — with the exact "
+            "location of the scene and the most vivid moment you just narrated.",
+            "scene-fix",
+            quiet=True,
+        )
+        if self._scene_requested_turn:
+            return
+        self._scene_requested_turn = True
+        await self._emit({
+            "type": "scene_request", "kind": "auto",
+            "description": narrative or "",
+            "location": self._match_known_location(narrative),
+            "turn": self.turn_counter,
+        })
+
+    def _match_known_location(self, narrative: str) -> str:
+        """Longest known location name that actually appears in the narrative."""
+        text = str(narrative or "").lower()
+        if not text:
+            return ""
+        try:
+            locations = known_scene_locations(self.base_dir / OUTPUT_DIR, self.active_name or "")
+        except Exception:  # noqa: BLE001 - never fail a turn over location recovery
+            return ""
+        best = ""
+        for loc in locations:
+            if loc and loc.lower() in text and len(loc) > len(best):
+                best = loc
+        return best
+
     async def _execute_tool(self, tool_call: dict) -> None:
         fn = tool_call.get("function", {})
         name = fn.get("name", "")
         args = fn.get("arguments", {}) or {}
+        if isinstance(args, str):
+            try:
+                args = json.loads(args)
+            except (json.JSONDecodeError, TypeError):
+                args = {}
+        args = args if isinstance(args, dict) else {}
+        if name == SCENE_TOOL:
+            # `caption` was dropped from the tool; tolerate a stale model that still sends it.
+            args.pop("caption", None)
         await self._emit({"type": "tool_call", "name": name, "arguments": args})
         try:
             result = await self.session.call_tool(name, arguments=args)
@@ -575,6 +713,15 @@ class GameSession:
             is_error = True
         await self._emit({"type": "tool_result", "name": name, "text": text, "is_error": is_error})
         self.messages.append({"role": "tool", "content": text, "name": name})
+        if name == SCENE_TOOL and self.scene_images and not self._scene_requested_turn:
+            self._scene_requested_turn = True
+            await self._emit({
+                "type": "scene_request", "kind": "story",
+                "description": str(args.get("description") or ""),
+                "mood": str(args.get("mood") or ""),
+                "location": str(args.get("location") or ""),
+                "turn": self.turn_counter,
+            })
 
     async def _call_tool_text(self, name: str, args: dict) -> str:
         result = await self.session.call_tool(name, arguments=args)

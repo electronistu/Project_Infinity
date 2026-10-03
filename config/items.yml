@@ -1,0 +1,58 @@
+# Canonical SHARED item catalog -> assets/icons/item/*.
+#
+# Matched EXACTLY (by `name` or `aliases`, after normalising case/quantities/
+# punctuation). Broad keywords are deliberately NOT used: a specific or modified
+# item ("Magic Dagger (+1)", "Potion of Invisibility") never collapses onto a
+# generic icon — it falls through to a per-item key generated later at runtime.
+#
+# Covers every possible starting-equipment item (auto-derived from
+# classes.yml/backgrounds.yml as a safety net) plus common gear. Weapons, armour
+# and tools are intentionally absent here: they reuse weapon/*, armor/* and
+# tool/* via exact name match.
+- {key: potion-of-healing, name: Potion of Healing}
+- {key: spellbook, name: Spellbook}
+- {key: crowbar, name: Crowbar, aliases: [a crowbar]}
+- {key: common-clothes, name: Common Clothes, aliases: [a set of common clothes, set of common clothes]}
+- {key: dark-common-clothes, name: Dark Common Clothes, aliases: [a set of dark common clothes including a hood]}
+- {key: vestments, name: Vestments}
+- {key: holy-symbol, name: Holy Symbol, aliases: [a holy symbol]}
+- {key: prayer-book, name: Prayer Book, aliases: [a prayer book, prayer book or prayer wheel]}
+- {key: explorer-s-pack, name: Explorer's Pack}
+- {key: dungeoneer-s-pack, name: Dungeoneer's Pack}
+- {key: burglar-s-pack, name: Burglar's Pack}
+- {key: priest-s-pack, name: Priest's Pack}
+- {key: scholar-s-pack, name: Scholar's Pack}
+- {key: diplomat-s-pack, name: Diplomat's Pack}
+- {key: entertainer-s-pack, name: Entertainer's Pack}
+- {key: iron-pot, name: Iron Pot, aliases: [an iron pot]}
+- {key: shovel, name: Shovel, aliases: [a shovel]}
+- {key: small-knife, name: Small Knife, aliases: [a small knife]}
+- {key: quill, name: Quill, aliases: [a quill]}
+- {key: bottle-of-black-ink, name: Bottle of Black Ink, aliases: [a bottle of black ink]}
+- {key: bone-dice-set, name: Bone Dice Set, aliases: [a set of bone dice or deck of cards, bone dice]}
+- {key: insignia-of-rank, name: Insignia of Rank, aliases: [an insignia of rank]}
+- {key: trophy-from-a-fallen-enemy, name: Trophy from a Fallen Enemy, aliases: [a trophy taken from a fallen enemy]}
+- {key: letter-from-a-dead-colleague, name: Letter from a Dead Colleague}
+- {key: druidic-focus, name: Druidic Focus}
+- {key: arcane-focus, name: Arcane Focus}
+- {key: component-pouch, name: Component Pouch}
+- {key: belt-pouch, name: Belt Pouch, aliases: [a belt pouch containing 10 gp, a belt pouch containing 15 gp]}
+- {key: incense, name: Sticks of Incense, aliases: [5 sticks of incense, 5 sticks of incense, incense]}
+- {key: artisan-s-tools, name: Artisan's Tools, aliases: [a set of artisan's tools, a set of artisan's tools (one of your choice)]}
+- {key: rations, name: Rations, aliases: [a day of rations, one day of rations]}
+- {key: rope, name: Rope, aliases: [hempen rope, 50 feet of hempen rope]}
+- {key: torch, name: Torch}
+- {key: waterskin, name: Waterskin}
+- {key: bedroll, name: Bedroll}
+- {key: tinderbox, name: Tinderbox}
+- {key: lamp, name: Lamp}
+- {key: oil-flask, name: Oil Flask, aliases: [flask of oil]}
+- {key: manacles, name: Manacles}
+- {key: hunting-trap, name: Hunting Trap}
+- {key: fishing-tackle, name: Fishing Tackle}
+- {key: gemstone, name: Gemstone}
+- {key: map, name: Map}
+- {key: mirror, name: Mirror, aliases: [a mirror]}
+- {key: pipe, name: Pipe}
+- {key: perfume, name: Perfume}
+- {key: spell-scroll, name: Spell Scroll, aliases: [scroll]}

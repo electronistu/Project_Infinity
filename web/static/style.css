@@ -146,7 +146,26 @@ main { position: relative; flex: 1; display: grid; grid-template-columns: 1fr; m
 .msg-head { font-family: var(--sans); font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.6px; margin-bottom: 7px; }
 .msg.gm { background: var(--surface); border: 1px solid var(--border-soft); border-left: 3px solid var(--accent); }
 .msg.gm .msg-head { color: var(--accent-text); }
-.msg-flow { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.msg-flow { display: flow-root; width: 100%; }
+.msg-flow > * + * { margin-top: 10px; }
+/* A right-floated scene figure lets the narrative wrap to its left, and keeps
+   the mechanics panel's gold left band clear of the float (it lives at x = 0). */
+.scene-figure { float: right; width: 42%; max-width: 420px; margin: 2px 0 14px 18px;
+  padding: 0; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface-2); overflow: hidden; }
+.scene-figure img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover;
+  background: linear-gradient(100deg, var(--surface-2) 30%, var(--border-soft) 50%, var(--surface-2) 70%);
+  background-size: 220% 100%; opacity: 0; transition: opacity .35s ease; }
+.scene-figure.loading img { animation: scene-sheen 1.4s ease-in-out infinite; }
+.scene-figure.loaded img { opacity: 1; }
+.scene-figure.error { border-color: var(--danger); }
+.scene-figure .scene-retry { margin: 8px 9px; font-family: var(--mono); font-size: 11px;
+  background: transparent; color: var(--accent-text); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 2px 8px; cursor: pointer; }
+@keyframes scene-sheen { 0% { background-position: 120% 0; } 100% { background-position: -120% 0; } }
+@media (max-width: 620px) {
+  .scene-figure { float: none; width: 100%; max-width: none; margin: 0 0 12px; }
+}
 .msg.player { align-self: flex-end; width: auto; max-width: 80%; background: var(--surface-2); border: 1px solid var(--border); border-right: 3px solid var(--info); }
 .msg.player .msg-head { color: var(--info); }
 .msg-body p { margin: 0 0 10px; }
@@ -168,7 +187,7 @@ details.thinking > summary { cursor: pointer; color: var(--faint); font-family: 
 .msg.gm:not(.has-narrative) .msg-head { display: none; }
 .transcript:not(.show-thinking) .msg.gm:not(.has-narrative) { display: none; }
 
-.tool-block { width: 100%; border: 1px dashed var(--border); border-radius: var(--radius-sm); padding: 8px 12px;
+.tool-block { clear: both; width: 100%; border: 1px dashed var(--border); border-radius: var(--radius-sm); padding: 8px 12px;
               font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
 .tool-block .tool-head { color: var(--info); }
 .tool-block pre { width: 100%; margin: 4px 0 0; white-space: pre-wrap; word-break: break-word; color: var(--muted); }
@@ -182,6 +201,8 @@ details.thinking > summary { cursor: pointer; color: var(--faint); font-family: 
                          letter-spacing: 1.4px; margin-bottom: 6px; }
 .mechanics ul { margin: 0; padding-left: 18px; }
 .mechanics li { margin: 2px 0; }
+/* multi-line narrative_format lines inside the block (not list items) */
+.mechanics .mech-line { margin: 2px 0 2px 18px; }
 
 .system { width: 100%; font-family: var(--mono); font-size: 11.5px; color: var(--faint); border-left: 2px solid var(--border); padding: 3px 10px; }
 .timeline-note { width: 100%; font-family: var(--mono); font-size: 11.5px; color: var(--gold); background: var(--surface);
@@ -215,16 +236,20 @@ button.wide { width: 100%; margin-top: 10px; }
 
 .statusbar { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
 .status { font-family: var(--mono); font-size: 11px; color: var(--faint); white-space: nowrap; }
+.status.on { color: var(--accent-text); }
 .ctx-meter { flex: 1; height: 4px; background: var(--surface-2); border-radius: 999px; overflow: hidden; border: 1px solid var(--border-soft); }
 .ctx-fill { height: 100%; width: 0%; background: var(--info); transition: width 0.3s ease; }
 
 .item-tooltip {
-  position: fixed; z-index: 60; max-width: min(340px, 90vw);
-  background: var(--surface-2); color: var(--text); border: 1px solid var(--border);
+  position: fixed; z-index: 60; max-width: min(300px, 90vw);
+  background: var(--surface); color: var(--text); border: 1px solid var(--border);
   border-left: 3px solid var(--gold); border-radius: var(--radius-sm);
   padding: 8px 10px; font-family: var(--serif); font-size: 13px; line-height: 1.45;
   box-shadow: var(--shadow); pointer-events: none; white-space: pre-line;
 }
+.tooltip-icon { width: 100%; max-width: 256px; height: auto; display: block; border-radius: 6px; margin-bottom: 8px; }
+.tooltip-name { font-weight: 700; }
+.tooltip-desc { color: var(--muted); }
 .tag.has-desc { cursor: help; border-color: var(--accent); }
 
 /* ── stats cards ─────────────────────────────────────────── */
@@ -254,6 +279,20 @@ button.wide { width: 100%; margin-top: 10px; }
 .row { display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; padding: 2px 0; }
 .row .k { color: var(--muted); }
 .row .v { text-align: right; color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* shared sheet icons (additive) */
+.chip-icon { width: 64px; height: 64px; object-fit: cover; margin-right: 4px; vertical-align: middle; }
+.row-icon { width: 40px; height: 40px; object-fit: cover; margin-right: 6px; vertical-align: middle; }
+.tag.icon-only { background: transparent; border-color: transparent; padding: 0; margin: 4px 8px 4px 0; cursor: help; }
+.tag.icon-only .chip-icon { margin-right: 0; }
+
+/* consumables & stats: icon-only tiles with a value/count badge (icons float) */
+.consumable-tiles, .stat-tiles { display: flex; flex-wrap: wrap; gap: 10px; }
+.consumable-tile, .stat-tile { position: relative; display: inline-flex; cursor: help; }
+.tile-icon { width: 64px; height: 64px; object-fit: cover; display: block; }
+.tile-count { position: absolute; right: 2px; bottom: 2px; background: #2a2318; color: #f0e9da;
+  border-radius: 999px; font-family: var(--mono); font-size: 11px;
+  line-height: 1; padding: 3px 6px; font-variant-numeric: tabular-nums; }
 .field { margin-top: 9px; }
 .field-k { font-family: var(--sans); font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted); margin-bottom: 4px; }
 .slots { display: flex; flex-direction: column; gap: 5px; margin-top: 4px; }
@@ -273,6 +312,39 @@ button.wide { width: 100%; margin-top: 10px; }
 .ability .a-m { font-family: var(--mono); font-size: 11px; color: var(--info); }
 .tag { display: inline-block; font-family: var(--mono); font-size: 11px; color: var(--text); background: var(--surface-2);
        border: 1px solid var(--border-soft); border-radius: var(--radius-sm); padding: 1px 7px; margin: 2px 3px 2px 0; }
+
+/* carrying capacity line in the Inventory card (SRD 5.1 encumbrance) */
+.carry-line { display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+              font-family: var(--mono); font-size: 12.5px; color: var(--text);
+              background: var(--surface-2); border: 1px solid var(--border-soft); border-radius: var(--radius-sm);
+              padding: 4px 8px; margin-bottom: 8px; cursor: help; }
+.carry-load { font-variant-numeric: tabular-nums; }
+.carry-status { font-family: var(--sans); font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted); }
+.carry-line.is-encumbered { border-color: var(--info); }
+.carry-line.is-encumbered .carry-status { color: var(--info); }
+.carry-line.is-heavily_encumbered { border-color: var(--danger); }
+.carry-line.is-heavily_encumbered .carry-status { color: var(--danger); }
+
+/* prepared spells: a quiet accent marker inside the spellbook (never a second
+   list); icon-only chips get a corner dot instead, since their chip is bare */
+.tag.is-prepared { border-left: 2px solid var(--accent); padding-left: 6px; }
+.tag.icon-only.is-prepared { border-left: 1px solid transparent; padding-left: 0; position: relative; }
+.tag.icon-only.is-prepared::after { content: ""; position: absolute; left: 3px; bottom: 3px; width: 9px; height: 9px;
+       border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 1px #1e1a13; }
+
+/* equipped items: the same quiet accent marker as prepared spells, but inside the
+   Inventory list (never a second list); icon-only chips get a corner dot instead */
+.tag.is-equipped { border-left: 2px solid var(--accent); padding-left: 6px; }
+.tag.icon-only.is-equipped { border-left: 1px solid transparent; padding-left: 0; position: relative; }
+.tag.icon-only.is-equipped::after { content: ""; position: absolute; left: 3px; bottom: 3px; width: 9px; height: 9px;
+       border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 1px #1e1a13; }
+
+/* a spellbook that is no longer in the inventory: still listed, but unusable */
+.field.unavailable .field-k { color: var(--danger); }
+.field.unavailable .tag { opacity: 0.4; filter: grayscale(1); cursor: not-allowed; }
+.field.unavailable .tag.is-prepared { border-left-color: var(--muted); }
+.field.unavailable .tag.icon-only.is-prepared::after { background: var(--muted); }
+.field-note { margin-top: 5px; font-family: var(--sans); font-size: 11px; color: var(--muted); }
 
 /* ── overlays ────────────────────────────────────────────── */
 .overlay {
@@ -348,6 +420,9 @@ button.wide { width: 100%; margin-top: 10px; }
 .dialog-card h1 { margin: 0 0 6px; font-size: 20px; }
 .dialog-card p { margin: 0 0 8px; font-size: 13px; }
 .dialog-card code { font-family: var(--mono); font-size: 12px; color: var(--accent-text); }
+.save-target { margin: 10px 0 0; font-family: var(--mono); font-size: 12.5px; color: var(--muted);
+               background: var(--surface-2); border: 1px solid var(--border-soft); border-radius: var(--radius-sm);
+               padding: 7px 9px; word-break: break-all; }
 .dialog-card label { display: block; margin: 10px 0 0; font-family: var(--sans); font-size: 11px; color: var(--muted);
                      text-transform: uppercase; letter-spacing: 1.2px; }
 .dialog-card input[type="text"] { width: 100%; margin-top: 5px; background: var(--surface); color: var(--text);
@@ -355,12 +430,54 @@ button.wide { width: 100%; margin-top: 10px; }
 .dialog-card input[type="text"]:focus { outline: none; border-color: var(--accent); }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--border); }
 .load-list { display: flex; flex-direction: column; gap: 8px; max-height: 60vh; overflow-y: auto; margin-top: 6px; }
-.load-item { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left; width: 100%;
+.load-item { display: flex; flex-direction: row; align-items: center; gap: 10px; text-align: left; width: 100%;
   background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm);
-  padding: 10px 12px; cursor: pointer; }
+  padding: 8px 10px; cursor: pointer; }
 .load-item:hover { border-color: var(--accent); }
+.load-thumb { width: 40px; height: 52px; object-fit: cover; border-radius: 5px; border: 1px solid var(--border);
+  background: var(--surface-2); flex: 0 0 auto; }
+.load-thumb.empty { border-style: dashed; }
+.load-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .load-file { font-family: var(--mono); font-size: 13px; color: var(--text); }
 .load-meta { font-family: var(--sans); font-size: 11.5px; color: var(--muted); }
+
+/* image generation: opt-in toggle + cached portrait panels (additive) */
+.images-chk { display: flex; align-items: center; gap: 7px; width: 100%; margin-top: 14px; cursor: pointer;
+  text-transform: none; letter-spacing: 0; font-family: var(--sans); font-size: 12px; color: var(--muted); }
+.images-chk input { width: auto; margin: 0; accent-color: var(--accent); }
+.images-chk:has(input:disabled) { opacity: .55; cursor: not-allowed; }
+
+/* image-generation model pickers (story/portrait vs icons) */
+.model-row { display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 12px;
+  text-transform: none; letter-spacing: 0; font-family: var(--sans); font-size: 12px; color: var(--muted); }
+.model-row select { flex: 1; min-width: 0; }
+.model-row:has(select:disabled) { opacity: .55; }
+
+/* character-sheet mode (icons / generate on the fly / text only) */
+.sheet-mode { margin: 14px 0 0; padding: 10px 12px; border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm); background: var(--surface); }
+.sheet-mode legend { padding: 0 4px; font-family: var(--sans); font-size: 10px; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--muted); }
+.sheet-mode .chk { display: flex; align-items: center; gap: 7px; margin: 6px 0 0; width: 100%;
+  text-transform: none; letter-spacing: 0; font-family: var(--sans); font-size: 12px; color: var(--muted); }
+.sheet-mode .chk input { width: auto; margin: 0; accent-color: var(--accent); }
+.start-portrait { display: flex; align-items: center; gap: 12px; margin-top: 14px;
+  border: 1px solid var(--border-soft); border-radius: var(--radius-sm); background: var(--surface); padding: 10px; }
+.start-portrait img { width: 72px; height: 96px; object-fit: cover; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--surface-2); display: block; }
+.start-portrait .portrait-meta { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.start-portrait.busy { opacity: .65; animation: portrait-pulse 1.4s ease-in-out infinite; }
+@keyframes portrait-pulse { 50% { opacity: .4; } }
+.sheet-portrait { position: relative; margin-bottom: 12px; }
+.sheet-portrait img { width: 100%; max-height: 260px; object-fit: cover; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: var(--surface); display: block; }
+/* Regenerate-portrait control (sidebar). */
+.portrait-regen { position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  font-size: 15px; line-height: 1; color: var(--text); border-radius: 999px;
+  border: 1px solid var(--border); background: color-mix(in srgb, var(--surface) 82%, transparent); }
+.portrait-regen:hover { border-color: var(--accent); color: var(--accent-text); }
+.portrait-regen.busy { opacity: .55; cursor: progress; }
 
 /* world row + delete controls (additive) */
 .world-row { display: flex; gap: 8px; margin-top: 5px; }

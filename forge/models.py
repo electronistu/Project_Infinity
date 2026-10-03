@@ -2,7 +2,7 @@
 # Version 2.1 - Full D&D 5e Compliance with Equipment Options
 
 from pydantic import BaseModel, Field
-from typing import List, Dict, Tuple, Optional, Literal
+from typing import List, Dict, Tuple, Optional, Literal, Any
 
 # --- Core Attribute Models ---
 
@@ -173,6 +173,9 @@ class PlayerCharacter(BaseEntity):
     skills: List[Skill] = []
     saving_throws: List[Skill] = []
     equipment: Equipment = Field(default_factory=Equipment)
+    # What is worn/wielded: {"armor": name|None, "hands": [main, off]} (SRD 5.1 has
+    # no slots — only hands). Derived AC is computed from this, not the inventory.
+    equipped: Dict[str, Any] = Field(default_factory=dict)
     features_and_traits: List[SpecialAbility] = []
     perks: List[str] = [] # Consolidating perks here
     gold: int = 0

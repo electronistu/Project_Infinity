@@ -12,6 +12,7 @@ from typing import Optional, List, Dict
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from level_up import FULL_CASTER_SPELL_SLOTS, HALF_CASTER_SPELL_SLOTS, WARLOCK_SPELL_SLOTS
+import equipment  # SRD 5.1 equipped-items model (armour catalog, hands, AC)
 from . import ui
 from .class_spells import (
     get_available_cantrips, get_available_level1_spells,
@@ -53,24 +54,11 @@ ARTISAN_TOOLS = [
     "Smith's Tools", "Tinker's Tools", "Weaver's Tools", "Woodcarver's Tools"
 ]
 
-ARMOR_DATA = {
-    "Padded": {"ac": 11, "dex_cap": None, "type": "light"},
-    "Leather Tunic": {"ac": 11, "dex_cap": None, "type": "light"},
-    "Leather Armor": {"ac": 11, "dex_cap": None, "type": "light"},
-    "Studded Leather Tunic": {"ac": 12, "dex_cap": None, "type": "light"},
-    "Studded Leather Armor": {"ac": 12, "dex_cap": None, "type": "light"},
-    "Hide": {"ac": 12, "dex_cap": 2, "type": "medium"},
-    "Scale Mail": {"ac": 14, "dex_cap": 2, "type": "medium"},
-    "Breastplate": {"ac": 14, "dex_cap": 2, "type": "medium"},
-    "Half Plate": {"ac": 15, "dex_cap": 2, "type": "medium"},
-    "Iron Chainmail": {"ac": 16, "dex_cap": 0, "type": "heavy"},
-    "Chain Mail": {"ac": 16, "dex_cap": 0, "type": "heavy"},
-    "Chain Shirt": {"ac": 13, "dex_cap": 2, "type": "medium"},
-    "Splint": {"ac": 17, "dex_cap": 0, "type": "heavy"},
-    "Plate": {"ac": 18, "dex_cap": 0, "type": "heavy"},
-}
-
-SHIELD_NAMES = {"Shield", "Wooden Shield"}
+# SRD 5.1 armour catalog + shields now live in config/armor.yml (shared with the
+# engine and the web sheet via `equipment.py`). These two names are kept as the
+# project's existing spellings so `classify_item` and older callers keep working.
+ARMOR_DATA = equipment.ARMOR_DATA
+SHIELD_NAMES = equipment.SHIELD_NAMES
 
 def build_weapon_data(weapons: List[Weapon]) -> dict:
     weapon_data = {}
@@ -340,46 +328,23 @@ def split_compound_items(item_name: str, weapon_data: dict = None) -> List[Item]
             items.append(Item(name=part, item_type=item_type))
     return items
 
+def _stats_dict(stats: "Stats") -> dict:
+    return {"str": stats.strength, "dex": stats.dexterity, "con": stats.constitution,
+            "int": stats.intelligence, "wis": stats.wisdom, "cha": stats.charisma}
+
+
 def calculate_ac(stats: Stats, character_class: str, inventory: list, fighting_style: str = None) -> int:
-    dex_mod = calculate_modifier(stats.dexterity)
-    con_mod = calculate_modifier(stats.constitution)
-    wis_mod = calculate_modifier(stats.wisdom)
+    """Armour class for a starting character, computed from what they will wear.
 
-    candidates = []
-
-    for item in inventory:
-        if item.name in ARMOR_DATA:
-            armor_info = ARMOR_DATA[item.name]
-            if armor_info["dex_cap"] is not None:
-                effective_dex = min(dex_mod, armor_info["dex_cap"])
-            else:
-                effective_dex = dex_mod
-            effective_ac = armor_info["ac"] + effective_dex
-            candidates.append(effective_ac)
-
-    has_shield = any(item.name in SHIELD_NAMES for item in inventory)
-
-    unarmored_classes = {"Barbarian", "Monk"}
-    if character_class == "Barbarian":
-        candidates.append(10 + dex_mod + con_mod)
-    elif character_class == "Monk":
-        candidates.append(10 + dex_mod + wis_mod)
-    
-    if not candidates:
-        candidates.append(10 + dex_mod)
-
-    ac = max(candidates)
-
-    if has_shield:
-        if character_class == "Monk":
-            pass
-        else:
-            ac += 2
-
-    if fighting_style == "Defense" and any(item.name in ARMOR_DATA for item in inventory):
-        ac += 1
-
-    return ac
+    Delegates to the shared equipped-items model (`equipment.py`) so the Forge, the
+    dice engine and the character sheet can never disagree. The best armour in the
+    inventory is worn and a shield is held (unless the chosen weapon needs two
+    hands); a spare suit in the pack no longer sets the AC.
+    """
+    names = [getattr(item, "name", None) or str(item) for item in (inventory or [])]
+    features = ["Fighting Style: Defense"] if fighting_style == "Defense" else []
+    equipped = equipment.pick_starting_equipped(names)
+    return equipment.armor_class(_stats_dict(stats), character_class, equipped, features, names)
 
 def roll_starting_gold(dice_notation: str) -> int:
     match = re.match(r'(\d+)d(\d+)', dice_notation)
@@ -434,6 +399,7 @@ def create_debug_character(config: Config) -> PlayerCharacter:
             SpecialAbility(name="Second Wind", description="Regain 1d10+level HP as bonus action."),
         ],
         equipment=debug_equipment,
+        equipped=equipment.pick_starting_equipped(debug_equipment.inventory),
         gold=100,
         consumables={},
     )
@@ -831,10 +797,14 @@ def create_character(config: Config) -> PlayerCharacter:
         spell_attack_modifier = calculate_modifier(player_stats.dict()[spellcasting_ability]) + proficiency_bonus
 
     fs_name = fighting_style.name if fighting_style else None
+    equipped = equipment.pick_starting_equipped(player_equipment.inventory)
+    feature_names = [f.name for f in features_and_traits]
     if fs_name == "Defense":
-        armor_class = calculate_ac(player_stats, chosen_class.name, player_equipment.inventory, fighting_style="Defense")
-    else:
-        armor_class = calculate_ac(player_stats, chosen_class.name, player_equipment.inventory)
+        feature_names.append("Fighting Style: Defense")
+    armor_class = equipment.armor_class(
+        _stats_dict(player_stats), chosen_class.name, equipped, feature_names,
+        player_equipment.inventory,
+    )
 
     con_mod = calculate_modifier(player_stats.constitution)
     hit_points = chosen_class.hit_die + con_mod
@@ -871,6 +841,7 @@ def create_character(config: Config) -> PlayerCharacter:
         features_and_traits=features_and_traits,
         languages=languages,
         equipment=player_equipment,
+        equipped=equipped,
         gold=player_gold,
         consumables=player_consumables,
         spellcasting_ability=spellcasting_ability,

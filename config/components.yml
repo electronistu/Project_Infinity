@@ -1,0 +1,327 @@
+# SRD 5.1 spell components (V = verbal, S = somatic, M = material).
+#
+# Used by resolve_magic's free-hand check: S needs a free hand; M is satisfied by a free hand
+# (a component pouch) or a held focus, which can be the same hand as the somatic one. V-only
+# spells need no hand at all. Spells absent here are treated as needing a hand (V,S,M) and the
+# GM can override per cast with components='...' — the same "catalog + GM declaration" pattern
+# as weight= on update_player_list.
+#
+# Generated from the SRD 5.1 spell list (CC-BY-4.0).
+- {name: Acid Arrow, components: VSM}
+- {name: Acid Splash, components: VS}
+- {name: Aid, components: VSM}
+- {name: Alarm, components: VSM}
+- {name: Alter Self, components: VS}
+- {name: Animal Friendship, components: VSM}
+- {name: Animal Messenger, components: VSM}
+- {name: Animal Shapes, components: VS}
+- {name: Animate Dead, components: VSM}
+- {name: Animate Objects, components: VS}
+- {name: Antilife Shell, components: VS}
+- {name: Antimagic Field, components: VSM}
+- {name: Antipathy/Sympathy, components: VSM}
+- {name: Arcane Eye, components: VSM}
+- {name: Arcane Lock, components: VSM}
+- {name: Arcanist's Magic Aura, components: VSM}
+- {name: Astral Projection, components: VSM}
+- {name: Augury, components: VSM}
+- {name: Awaken, components: VSM}
+- {name: Bane, components: VSM}
+- {name: Banishment, components: VSM}
+- {name: Barkskin, components: VSM}
+- {name: Beacon of Hope, components: VS}
+- {name: Bestow Curse, components: VS}
+- {name: Bigby's Hand, components: VSM}
+- {name: Blade Barrier, components: VS}
+- {name: Bless, components: VSM}
+- {name: Blight, components: VS}
+- {name: Blindness/Deafness, components: V}
+- {name: Blink, components: VS}
+- {name: Blur, components: V}
+- {name: Branding Smite, components: V}
+- {name: Burning Hands, components: VS}
+- {name: Call Lightning, components: VS}
+- {name: Calm Emotions, components: VS}
+- {name: Chain Lightning, components: VSM}
+- {name: Charm Person, components: VS}
+- {name: Chill Touch, components: VS}
+- {name: Circle of Death, components: VSM}
+- {name: Clairvoyance, components: VSM}
+- {name: Clone, components: VSM}
+- {name: Cloudkill, components: VS}
+- {name: Color Spray, components: VSM}
+- {name: Command, components: V}
+- {name: Commune, components: VSM}
+- {name: Commune with Nature, components: VS}
+- {name: Comprehend Languages, components: VSM}
+- {name: Compulsion, components: VS}
+- {name: Cone of Cold, components: VSM}
+- {name: Confusion, components: VSM}
+- {name: Conjure Animals, components: VS}
+- {name: Conjure Celestial, components: VS}
+- {name: Conjure Elemental, components: VSM}
+- {name: Conjure Fey, components: VS}
+- {name: Conjure Minor Elementals, components: VS}
+- {name: Conjure Woodland Beings, components: VSM}
+- {name: Contact Other Plane, components: V}
+- {name: Contagion, components: VS}
+- {name: Contingency, components: VSM}
+- {name: Continual Flame, components: VSM}
+- {name: Control Water, components: VSM}
+- {name: Control Weather, components: VSM}
+- {name: Counterspell, components: S}
+- {name: Create Food and Water, components: VS}
+- {name: Create or Destroy Water, components: VSM}
+- {name: Create Undead, components: VSM}
+- {name: Creation, components: VSM}
+- {name: Cure Wounds, components: VS}
+- {name: Dancing Lights, components: VSM}
+- {name: Darkness, components: VM}
+- {name: Darkvision, components: VSM}
+- {name: Daylight, components: VS}
+- {name: Death Ward, components: VS}
+- {name: Delayed Blast Fireball, components: VSM}
+- {name: Demiplane, components: S}
+- {name: Detect Evil and Good, components: VS}
+- {name: Detect Magic, components: VS}
+- {name: Detect Poison and Disease, components: VSM}
+- {name: Detect Thoughts, components: VSM}
+- {name: Dimension Door, components: V}
+- {name: Disguise Self, components: VS}
+- {name: Disintegrate, components: VSM}
+- {name: Dispel Evil and Good, components: VSM}
+- {name: Dispel Magic, components: VS}
+- {name: Divination, components: VSM}
+- {name: Divine Favor, components: VS}
+- {name: Divine Word, components: V}
+- {name: Dominate Beast, components: VS}
+- {name: Dominate Monster, components: VS}
+- {name: Dominate Person, components: VS}
+- {name: Drawmij's Instant Summons, components: VSM}
+- {name: Dream, components: VSM}
+- {name: Druidcraft, components: VS}
+- {name: Earthquake, components: VSM}
+- {name: Eldritch Blast, components: VS}
+- {name: Enhance Ability, components: VSM}
+- {name: Enlarge/Reduce, components: VSM}
+- {name: Entangle, components: VS}
+- {name: Enthrall, components: VS}
+- {name: Etherealness, components: VS}
+- {name: Evard's Black Tentacles, components: VSM}
+- {name: Expeditious Retreat, components: VS}
+- {name: Eyebite, components: VS}
+- {name: Fabricate, components: VS}
+- {name: Faerie Fire, components: V}
+- {name: False Life, components: VSM}
+- {name: Fear, components: VSM}
+- {name: Feather Fall, components: VM}
+- {name: Feeblemind, components: VSM}
+- {name: Find Familiar, components: VSM}
+- {name: Find Steed, components: VS}
+- {name: Find the Path, components: VSM}
+- {name: Find Traps, components: VS}
+- {name: Finger of Death, components: VS}
+- {name: Fire Bolt, components: VS}
+- {name: Fire Shield, components: VSM}
+- {name: Fire Storm, components: VS}
+- {name: Fireball, components: VSM}
+- {name: Flame Blade, components: VSM}
+- {name: Flame Strike, components: VSM}
+- {name: Flaming Sphere, components: VSM}
+- {name: Flesh to Stone, components: VSM}
+- {name: Floating Disk, components: VSM}
+- {name: Fly, components: VSM}
+- {name: Fog Cloud, components: VS}
+- {name: Forbiddance, components: VSM}
+- {name: Forcecage, components: VSM}
+- {name: Foresight, components: VSM}
+- {name: Freedom of Movement, components: VSM}
+- {name: Gaseous Form, components: VSM}
+- {name: Gate, components: VSM}
+- {name: Geas, components: V}
+- {name: Gentle Repose, components: VSM}
+- {name: Giant Insect, components: VS}
+- {name: Glibness, components: V}
+- {name: Globe of Invulnerability, components: VSM}
+- {name: Glyph of Warding, components: VSM}
+- {name: Goodberry, components: VSM}
+- {name: Grease, components: VSM}
+- {name: Greater Invisibility, components: VS}
+- {name: Greater Restoration, components: VSM}
+- {name: Guardian of Faith, components: V}
+- {name: Guards and Wards, components: VSM}
+- {name: Guidance, components: VS}
+- {name: Guiding Bolt, components: VS}
+- {name: Gust of Wind, components: VSM}
+- {name: Hallow, components: VSM}
+- {name: Hallucinatory Terrain, components: VSM}
+- {name: Harm, components: VS}
+- {name: Haste, components: VSM}
+- {name: Heal, components: VS}
+- {name: Healing Word, components: V}
+- {name: Heat Metal, components: VSM}
+- {name: Hellish Rebuke, components: VS}
+- {name: Heroes' Feast, components: VSM}
+- {name: Heroism, components: VS}
+- {name: Hold Monster, components: VSM}
+- {name: Hold Person, components: VSM}
+- {name: Holy Aura, components: VSM}
+- {name: Hunter's Mark, components: V}
+- {name: Hypnotic Pattern, components: SM}
+- {name: Ice Storm, components: VSM}
+- {name: Identify, components: VSM}
+- {name: Illusory Script, components: SM}
+- {name: Imprisonment, components: VSM}
+- {name: Incendiary Cloud, components: VS}
+- {name: Inflict Wounds, components: VS}
+- {name: Insect Plague, components: VSM}
+- {name: Invisibility, components: VSM}
+- {name: Jump, components: VSM}
+- {name: Knock, components: V}
+- {name: Legend Lore, components: VSM}
+- {name: Leomund's Secret Chest, components: VSM}
+- {name: Leomund's Tiny Hut, components: VSM}
+- {name: Lesser Restoration, components: VS}
+- {name: Levitate, components: VSM}
+- {name: Light, components: VM}
+- {name: Lightning Bolt, components: VSM}
+- {name: Locate Animals or Plants, components: VSM}
+- {name: Locate Creature, components: VSM}
+- {name: Locate Object, components: VSM}
+- {name: Longstrider, components: VSM}
+- {name: Mage Armor, components: VSM}
+- {name: Mage Hand, components: VS}
+- {name: Magic Circle, components: VSM}
+- {name: Magic Jar, components: VSM}
+- {name: Magic Missile, components: VS}
+- {name: Magic Mouth, components: VSM}
+- {name: Magic Weapon, components: VS}
+- {name: Magnificent Mansion, components: VSM}
+- {name: Major Image, components: VSM}
+- {name: Mass Cure Wounds, components: VS}
+- {name: Mass Heal, components: VS}
+- {name: Mass Healing Word, components: V}
+- {name: Mass Suggestion, components: VM}
+- {name: Maze, components: VS}
+- {name: Meld into Stone, components: VS}
+- {name: Mending, components: VSM}
+- {name: Message, components: VSM}
+- {name: Meteor Swarm, components: VS}
+- {name: Mind Blank, components: VS}
+- {name: Minor Illusion, components: SM}
+- {name: Mirage Arcane, components: VS}
+- {name: Mirror Image, components: VS}
+- {name: Mislead, components: S}
+- {name: Misty Step, components: V}
+- {name: Modify Memory, components: VS}
+- {name: Moonbeam, components: VSM}
+- {name: Mordenkainen's Faithful Hound, components: VSM}
+- {name: Mordenkainen's Private Sanctum, components: VSM}
+- {name: Mordenkainen's Sword, components: VSM}
+- {name: Move Earth, components: VSM}
+- {name: Nondetection, components: VSM}
+- {name: Otiluke's Freezing Sphere, components: VSM}
+- {name: Otiluke's Resilient Sphere, components: VSM}
+- {name: Otto's Irresistible Dance, components: V}
+- {name: Pass Without Trace, components: VSM}
+- {name: Passwall, components: VSM}
+- {name: Phantasmal Killer, components: VS}
+- {name: Phantom Steed, components: VS}
+- {name: Planar Ally, components: VS}
+- {name: Planar Binding, components: VSM}
+- {name: Plane Shift, components: VSM}
+- {name: Plant Growth, components: VS}
+- {name: Poison Spray, components: VS}
+- {name: Polymorph, components: VSM}
+- {name: Power Word Kill, components: V}
+- {name: Power Word Stun, components: V}
+- {name: Prayer of Healing, components: V}
+- {name: Prestidigitation, components: VS}
+- {name: Prismatic Spray, components: VS}
+- {name: Prismatic Wall, components: VS}
+- {name: Produce Flame, components: VS}
+- {name: Programmed Illusion, components: VSM}
+- {name: Project Image, components: VSM}
+- {name: Protection from Energy, components: VS}
+- {name: Protection from Evil and Good, components: VSM}
+- {name: Protection from Poison, components: VS}
+- {name: Purify Food and Drink, components: VS}
+- {name: Raise Dead, components: VSM}
+- {name: Ray of Enfeeblement, components: VS}
+- {name: Ray of Frost, components: VS}
+- {name: Regenerate, components: VSM}
+- {name: Reincarnate, components: VSM}
+- {name: Remove Curse, components: VS}
+- {name: Resistance, components: VSM}
+- {name: Resurrection, components: VSM}
+- {name: Reverse Gravity, components: VSM}
+- {name: Revivify, components: VSM}
+- {name: Rope Trick, components: VSM}
+- {name: Sacred Flame, components: VS}
+- {name: Sanctuary, components: VSM}
+- {name: Scorching Ray, components: VS}
+- {name: Scrying, components: VSM}
+- {name: See Invisibility, components: VSM}
+- {name: Seeming, components: VS}
+- {name: Sending, components: VSM}
+- {name: Sequester, components: VSM}
+- {name: Shapechange, components: VSM}
+- {name: Shatter, components: VSM}
+- {name: Shield, components: VS}
+- {name: Shield of Faith, components: VSM}
+- {name: Shillelagh, components: VSM}
+- {name: Shocking Grasp, components: VS}
+- {name: Silence, components: VS}
+- {name: Silent Image, components: VSM}
+- {name: Simulacrum, components: VSM}
+- {name: Sleep, components: VSM}
+- {name: Sleet Storm, components: VSM}
+- {name: Slow, components: VSM}
+- {name: Spare the Dying, components: VS}
+- {name: Speak with Animals, components: VS}
+- {name: Speak with Dead, components: VSM}
+- {name: Speak with Plants, components: VS}
+- {name: Spider Climb, components: VSM}
+- {name: Spike Growth, components: VSM}
+- {name: Spirit Guardians, components: VSM}
+- {name: Spiritual Weapon, components: VS}
+- {name: Stinking Cloud, components: VSM}
+- {name: Stone Shape, components: VSM}
+- {name: Stoneskin, components: VSM}
+- {name: Storm of Vengeance, components: VS}
+- {name: Suggestion, components: VM}
+- {name: Sunbeam, components: VSM}
+- {name: Sunburst, components: VSM}
+- {name: Symbol, components: VSM}
+- {name: Tasha's Hideous Laughter, components: VSM}
+- {name: Telekinesis, components: VS}
+- {name: Teleport, components: V}
+- {name: Teleportation Circle, components: VM}
+- {name: Thaumaturgy, components: V}
+- {name: Thunderwave, components: VS}
+- {name: Time Stop, components: V}
+- {name: Tongues, components: VM}
+- {name: Transport via Plants, components: VS}
+- {name: Tree Stride, components: VS}
+- {name: True Polymorph, components: VSM}
+- {name: True Resurrection, components: VSM}
+- {name: True Seeing, components: VSM}
+- {name: True Strike, components: S}
+- {name: Unseen Servant, components: VSM}
+- {name: Vampiric Touch, components: VS}
+- {name: Vicious Mockery, components: V}
+- {name: Wall of Fire, components: VSM}
+- {name: Wall of Force, components: VSM}
+- {name: Wall of Ice, components: VSM}
+- {name: Wall of Stone, components: VSM}
+- {name: Wall of Thorns, components: VSM}
+- {name: Warding Bond, components: VSM}
+- {name: Water Breathing, components: VSM}
+- {name: Water Walk, components: VSM}
+- {name: Web, components: VSM}
+- {name: Weird, components: VS}
+- {name: Wind Walk, components: VSM}
+- {name: Wind Wall, components: VSM}
+- {name: Wish, components: V}
+- {name: Word of Recall, components: V}
+- {name: Zone of Truth, components: VS}

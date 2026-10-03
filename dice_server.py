@@ -8,6 +8,9 @@ import re
 from mcp.server.fastmcp import FastMCP
 from level_up import apply_level_up, CASTER_TYPE_MAP, SLOT_TABLES, FULL_CASTER_SPELL_SLOTS, WARLOCK_SPELL_SLOTS, ABILITY_TO_STAT
 
+import carrying  # local SRD 5.1 carrying capacity / encumbrance rules
+import equipment  # local SRD 5.1 equipped-items model (armour, hands, derived AC)
+
 try:
     import yaml
 except ImportError:
@@ -201,7 +204,15 @@ def init_player_db(player_file_path: str) -> str:
         cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", ("active_effects", "[]"))
         cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", ("_active_buff_data", "{}"))
         cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", ("temporary_hit_points", "0"))
+        cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", ("capacity_multiplier", "1"))
         DB_CONNECTION.commit()
+
+        # A character file that records what is equipped gets its armour class from
+        # that set (the Forge writes the first consistent pair). Payloads without an
+        # `equipped` value keep whatever `armor_class` they carry.
+        if isinstance(data.get("equipped"), dict):
+            _recompute_armor_class(cursor)
+            DB_CONNECTION.commit()
 
         return f"Database initialized with player data from {player_file_path}."
     except Exception as e:
@@ -217,6 +228,331 @@ def _db_val(cursor, key, default=None):
         return json.loads(row[0])
     except (json.JSONDecodeError, TypeError):
         return row[0]
+
+
+# ── carrying capacity / encumbrance (SRD 5.1 variant) ──────────────────────
+
+def _carry_get(cursor):
+    """A `get(key, default)` reader over the player DB, as carrying.py expects."""
+    return lambda key, default=None: _db_val(cursor, key, default)
+
+
+def _carry_block(cursor) -> dict:
+    """Derived carrying state (never persisted: it is stripped before saving)."""
+    return carrying.carry_state(_carry_get(cursor))
+
+
+# ── equipped items / derived armour class (SRD 5.1) ───────────────────────────
+
+def _equipment_block(cursor) -> dict:
+    """Derived equipped-items state (never persisted: stripped before saving)."""
+    return equipment.equipment_state(_carry_get(cursor))
+
+
+def _recompute_armor_class(cursor) -> int | None:
+    """Set `armor_class` from the equipped set. No-op without an `equipped` value.
+
+    The Forge writes the first consistent pair; from then on every equip/unequip
+    recomputes it here, so the sheet and the engine can never disagree with what
+    the character is actually wearing. Temporary effects still layer on top via
+    `modify_player_numeric(key='armor_class', ...)`.
+    """
+    if not isinstance(_db_val(cursor, "equipped", None), dict):
+        return None
+    ac = _equipment_block(cursor)["base_ac"]
+    _db_set(cursor, "armor_class", ac)
+    return ac
+
+
+def _clear_equipped(cursor, name) -> bool:
+    """Drop an item from the equipped set (it left the inventory). True if changed.
+
+    Keeps `equipped` from dangling on a name that is no longer carried, and recomputes
+    the armour class from what remains.
+    """
+    equipped = _db_val(cursor, "equipped", None)
+    if not isinstance(equipped, dict):
+        return False
+    changed = False
+    if equipped.get("armor") == name:
+        equipped["armor"] = None
+        changed = True
+    hands = equipped.get("hands")
+    if isinstance(hands, list):
+        hands = (list(hands) + [None, None])[:2]
+        for index, held in enumerate(hands):
+            if held == name:
+                hands[index] = None
+                changed = True
+        equipped["hands"] = hands
+    worn = equipped.get("worn")
+    if isinstance(worn, list) and name in worn:
+        equipped["worn"] = [w for w in worn if w != name]
+        changed = True
+    if changed:
+        _db_set(cursor, "equipped", equipped)
+        _recompute_armor_class(cursor)
+    return changed
+
+
+WORN_KINDS = {"cloak", "boots", "gloves", "bracers", "headwear", "ring"}
+
+
+def _is_worn_slot(item, declared) -> bool:
+    """True when equipping should put the item in the `worn` container rather than a hand.
+
+    5e has no slots, but clothing, cloaks, boots, gloves, bracers, headwear and rings are worn
+    rather than held — they need somewhere to live so attunement and pairing rules have something
+    to bind to.
+    """
+    if equipment.is_weapon(item) or equipment.is_shield(item) or equipment.is_armor(item):
+        return False
+    kind = str((declared or {}).get("kind") or "").strip().lower()
+    return kind in WORN_KINDS or equipment.is_clothing(item)
+
+
+def _in_active_combat() -> bool:
+    """True while the combat registry holds a living non-player combatant.
+
+    Donning or doffing armour takes minutes, so it cannot happen mid-fight; shields take one
+    action and are always allowed. A registry whose enemies are all dead no longer counts.
+    """
+    for entry in (_COMBAT_REGISTRY or {}).values():
+        if isinstance(entry, dict) and not entry.get("is_player") and not entry.get("killed"):
+            return True
+    return False
+
+
+def _blocked_action(cursor, error: str, reason: str, item: str | None = None,
+                    narrative: str = "") -> dict:
+    """A refused player action (SRD 5.1 equipped items): the action is spent.
+
+    The engine does not track whose turn it is, so the turn loss is signalled here for the Game
+    Master to apply: tell the player why the action failed and move on. No dice are rolled.
+    """
+    return {
+        "success": False,
+        "error": error,
+        "reason": reason,
+        "item": item,
+        "turn_lost": True,
+        "action_consumed": True,
+        "gm_instruction": ("Tell the player the action is wasted and why — the turn is spent. "
+                           "Move on to the next combatant."),
+        "equipment": _equipment_block(cursor),
+        "narrative_format": narrative or f"Action wasted — {reason}",
+    }
+
+
+def _ability_mod(score) -> int:
+    try:
+        return (int(score) - 10) // 2
+    except (TypeError, ValueError):
+        return 0
+
+
+def _is_light_melee(name, inventory) -> bool:
+    """True for a light melee weapon (SRD two-weapon fighting needs one in each hand)."""
+    entry = next((e for e in (inventory or []) if isinstance(e, dict) and e.get("name") == name), {})
+    base = entry.get("base")
+    wpn = equipment.weapon_entry(name, base) or {}
+    props = [str(p).lower() for p in equipment.properties_for(name, base, entry)]
+    return bool(wpn.get("melee", True)) and any(p.startswith("light") for p in props)
+
+
+def _derive_weapon_attack(cursor, weapon: str, inventory: list, hands_free: int = 1,
+                          off_hand: bool = False) -> dict:
+    """Derived attack/damage for a player's equipped weapon (SRD 5.1).
+
+    The item's declared stats (damage_dice/damage_type/attack_bonus/damage_bonus) win over its SRD
+    archetype (`base` or its own name). Ability: Finesse -> the better of STR/DEX, otherwise a melee
+    weapon uses STR and a ranged one DEX. Proficiency adds the proficiency bonus (and a warning
+    when the character is not proficient, SRD: no bonus). A Versatile weapon uses its two-handed die
+    while the other hand is free, and an off-hand (two-weapon fighting) attack takes no ability
+    modifier to damage unless that modifier is negative. Magic bonuses apply only while the item is
+    attuned / its pair is complete.
+    """
+    entry = next((e for e in inventory if isinstance(e, dict) and e.get("name") == weapon), {})
+    base = entry.get("base")
+    wpn = equipment.weapon_entry(weapon, base) or {}
+    props = [str(p) for p in equipment.properties_for(weapon, base, entry)]
+    low = [p.lower() for p in props]
+    melee = bool(wpn.get("melee", True))
+    stats = _db_val(cursor, "stats", {}) or {}
+    str_mod = _ability_mod(stats.get("str", 10))
+    dex_mod = _ability_mod(stats.get("dex", 10))
+    if any("finesse" in p for p in low):
+        ability, ability_mod = (("dexterity", dex_mod) if dex_mod >= str_mod else ("strength", str_mod))
+    elif melee:
+        ability, ability_mod = "strength", str_mod
+    else:
+        ability, ability_mod = "dexterity", dex_mod
+
+    proficiencies = {str(p).strip().lower() for p in (_db_val(cursor, "weapon_proficiencies", []) or [])}
+    category = str(wpn.get("category") or "").lower()
+    proficient = (not proficiencies
+                  or f"{category} weapons" in proficiencies
+                  or weapon.strip().lower() in proficiencies)
+    prof_bonus = int(_db_val(cursor, "proficiency_bonus", 2) or 2)
+
+    # Magic bonuses: attunement / paired-item gating.
+    equipped = _db_val(cursor, "equipped", {}) or {}
+    equipped_names = ([equipped.get("armor")] if equipped.get("armor") else []) \
+        + [h for h in (equipped.get("hands") or []) if h]
+    suppressed = equipment.bonus_suppressed_reason(weapon, inventory,
+                                                   _db_val(cursor, "attuned", []) or [],
+                                                   equipped_names)
+    attack_bonus = int(entry.get("attack_bonus") or 0) if suppressed is None else 0
+    damage_bonus = int(entry.get("damage_bonus") or 0) if suppressed is None else 0
+
+    # Damage dice: a declared value wins; a Versatile weapon uses its two-handed die with a free hand.
+    declared_dice = entry.get("damage_dice")
+    damage_dice = declared_dice or wpn.get("damage")
+    versatile_die = None
+    for prop in props:
+        if prop.lower().startswith("versatile"):
+            match = re.search(r"(\d+d\d+)", prop)
+            if match:
+                versatile_die = match.group(1)
+    if not declared_dice and versatile_die and hands_free >= 1:
+        damage_dice = versatile_die
+
+    damage_modifier = ability_mod + damage_bonus
+    if off_hand:
+        # Two-weapon fighting: no ability modifier on the bonus attack's damage unless negative.
+        damage_modifier = min(ability_mod, 0) + damage_bonus
+
+    return {
+        "attack_modifier": ability_mod + (prof_bonus if proficient else 0) + attack_bonus,
+        "damage_dice": str(damage_dice) if damage_dice else None,
+        "damage_modifier": damage_modifier,
+        "damage_type": entry.get("damage_type") or wpn.get("damage_type") or "",
+        "ability": ability,
+        "ability_modifier": ability_mod,
+        "proficient": proficient,
+        "melee": melee,
+        "properties": props,
+        "two_handed": any("two-handed" in p for p in low),
+        "light_melee": melee and any(p.startswith("light") for p in low),
+        "versatile_die": versatile_die,
+        "bonus_suppressed": suppressed,
+    }
+
+
+def _covers_material(cursor, held_names) -> bool:
+    """True when a held item covers a spell's material components (focus or component pouch).
+
+    A Cleric's or Paladin's holy symbol can be borne on a shield, so their shield counts as a focus.
+    """
+    if any(equipment.is_focus(name) for name in held_names or []):
+        return True
+    character_class = str(_db_val(cursor, "character_class", "") or "")
+    if character_class in ("Cleric", "Paladin"):
+        return any(equipment.is_shield(name) for name in held_names or [])
+    return False
+
+
+_SPELL_COMPONENTS = None
+
+
+def _spell_components() -> dict:
+    """{normalized spell name: 'VSM'} from config/components.yml (cached).
+
+    The SRD 5.1 components per spell. A spell missing from the table is treated as needing a
+    hand (V,S,M) and the Game Master can override per cast with components='...'.
+    """
+    global _SPELL_COMPONENTS
+    if _SPELL_COMPONENTS is None:
+        table = {}
+        try:
+            path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                "config", "components.yml")
+            if yaml is not None and os.path.exists(path):
+                with open(path, encoding="utf-8") as handle:
+                    for entry in yaml.safe_load(handle) or []:
+                        if isinstance(entry, dict) and entry.get("name"):
+                            table[carrying.normalize(entry["name"])] = \
+                                str(entry.get("components") or "").upper()
+        except Exception:  # noqa: BLE001 - a missing/!broken catalog means "no components known"
+            table = {}
+        _SPELL_COMPONENTS = table
+    return _SPELL_COMPONENTS
+
+
+def _roll_d20(advantage: bool = False, disadvantage: bool = False):
+    """5e d20 with advantage/disadvantage, which cancel each other out.
+
+    Returns ``(d20, rolls, mode, cancelled)``: `rolls` is the pair for the
+    narrative, `mode` is "advantage"/"disadvantage"/None.
+    """
+    if advantage and disadvantage:
+        return random.randint(1, 20), None, None, True
+    if advantage or disadvantage:
+        r1, r2 = random.randint(1, 20), random.randint(1, 20)
+        if advantage:
+            return max(r1, r2), [r1, r2], "advantage", False
+        return min(r1, r2), [r1, r2], "disadvantage", False
+    return random.randint(1, 20), None, None, False
+
+
+def _is_player_actor(cursor, actor) -> bool:
+    """True when `actor` refers to the player (the '{player_name}' placeholder or their name)."""
+    if actor == "{player_name}":
+        return True
+    if DB_CONNECTION is None or cursor is None:
+        return False
+    name = _db_val(cursor, "name", None)
+    return bool(name) and actor == name
+
+
+def _encumbrance(cursor, is_player: bool, ability=None):
+    """(disadvantage?, sources) from heavy encumbrance for a player actor.
+
+    SRD 5.1 variant: heavily encumbered imposes disadvantage on attack rolls, on
+    ability checks and on saving throws that use Strength, Dexterity or
+    Constitution. Non-player actors are never affected.
+    """
+    if not is_player or DB_CONNECTION is None:
+        return False, []
+    return carrying.heavy_encumbrance(_carry_get(cursor), ability)
+
+
+def _armor_disadvantage(cursor, is_player: bool, ability=None):
+    """(disadvantage?, sources) from wearing armour/shields the player is not proficient with.
+
+    SRD 5.1: disadvantage on any STR or DEX ability check, saving throw or attack roll
+    (spellcasting is refused separately). Non-player actors are never affected.
+    """
+    if not is_player or DB_CONNECTION is None:
+        return False, []
+    state = _equipment_block(cursor)
+    if state.get("armor_proficient", True):
+        return False, []
+    if ability is not None:
+        key = str(ability).strip().lower()[:3]
+        if key not in ("str", "dex"):
+            return False, []
+    sources = state.get("proficiency_sources") or ["not proficient with worn armour"]
+    return True, sources
+
+
+def _roll_disadvantage(cursor, is_player: bool, ability=None):
+    """(disadvantage?, sources) merging every source: heavy encumbrance and non-proficient armour."""
+    heavy, heavy_sources = _encumbrance(cursor, is_player, ability)
+    armor, armor_sources = _armor_disadvantage(cursor, is_player, ability)
+    sources = []
+    for source in [*heavy_sources, *armor_sources]:
+        if source not in sources:
+            sources.append(source)
+    return bool(heavy or armor), sources
+
+
+def _encumbrance_note(result: dict, sources: list, cancelled: bool = False) -> None:
+    """Disclose where the disadvantage came from (and an eaten advantage)."""
+    if sources:
+        result["disadvantage_sources"] = list(sources)
+    if cancelled:
+        result["advantage_cancelled"] = True
 
 
 def _db_set(cursor, key, value):
@@ -495,6 +831,28 @@ def get_max_prepared_spells(cursor) -> int | None:
 
     modifier = (stat_val - 10) // 2
     return max(modifier + level, 1)
+
+
+def _has_spellbook_item(cursor) -> bool:
+    """True when the character's spellbook is (still) in their inventory."""
+    inventory = _db_val(cursor, "inventory", []) or []
+    if not isinstance(inventory, list):
+        return False
+    for entry in inventory:
+        name = entry.get("name", "") if isinstance(entry, dict) else entry
+        if "spellbook" in str(name).lower():
+            return True
+    return False
+
+
+def _needs_spellbook(cursor) -> bool:
+    """True for a caster whose spell list lives in a spellbook (wizard-style).
+
+    Prepared casters (Cleric/Druid/Paladin) have no spellbook list, so they are
+    never gated on the item.
+    """
+    sc = _db_val(cursor, "spellcasting", {}) or {}
+    return bool(sc.get("spellbook")) if isinstance(sc, dict) else False
 
 
 def build_prepared_spells_info(cursor) -> dict | None:
@@ -784,7 +1142,21 @@ def _resolve_reputation_bucket(data, path_in_obj):
 
 
 @mcp.tool()
-def update_player_list(key: str, item: str, action: str) -> dict:
+def update_player_list(key: str, item: str, action: str, weight: float | None = None,
+                       base: str | None = None,
+                       damage_dice: str | None = None,
+                       damage_type: str | None = None,
+                       properties: list[str] | None = None,
+                       ac: int | None = None,
+                       dex_cap: int | None = None,
+                       strength_req: int | None = None,
+                       ac_bonus: int | None = None,
+                       attack_bonus: int | None = None,
+                       damage_bonus: int | None = None,
+                       attunement: bool | None = None,
+                       attunement_by: str | None = None,
+                       kind: str | None = None,
+                       pair: bool | None = None) -> dict:
     """
     Adds or removes an item from a player list.
 
@@ -792,6 +1164,29 @@ def update_player_list(key: str, item: str, action: str) -> dict:
     - key: dotted path to the list (e.g. 'inventory', 'spellcasting.spells_known', 'reputation.eldoria.guard')
     - item: for add — 'Name: Description' (description optional); for remove — name ONLY (never include the description)
     - action: 'add' or 'remove'
+    - weight: (inventory adds only) the item's weight in POUNDS, e.g. weight=2.5. Declare it for
+      anything the SRD weight catalog does not know — magic items, loot, homebrew gear (see
+      behaviour 5). SRD items are already weighed, so leave it out for those.
+    - base: (inventory adds only) the SRD archetype an invented item is built on, e.g.
+      base='Dagger' for 'Voidfang, a magic dagger'. It supplies properties, hands, weight and AC
+      for anything the catalogs do not know.
+    - damage_dice / damage_type / properties: a weapon's combat stats (e.g. damage_dice='1d4',
+      damage_type='piercing', properties=['Finesse', 'Light', 'Thrown']).
+    - ac / dex_cap / strength_req: an armour's stats (e.g. ac=16, dex_cap=0, strength_req=13).
+    - ac_bonus / attack_bonus / damage_bonus: magic bonuses, declared explicitly (never parsed
+      from a '+1' in the name). They apply only while the item is ATTUNED (set attunement=True) and,
+      for a paired item, only while both halves are worn.
+    - attunement: True when the item's magic requires attunement (SRD: at most 3 attuned items, one
+      of each kind). attunement_by optionally names a restriction (class, creature type).
+    - kind: the slot family for the one-of-each-kind rule — 'armor', 'cloak', 'boots', 'gloves',
+      'bracers', 'headwear', 'ring', 'other'.
+    - pair: True when this entry is ONE HALF of a paired item (boots, bracers, gauntlets, gloves).
+      Add both halves as separate inventory entries sharing the same `base`; a single half grants no
+      bonus (SRD: paired items confer no benefit unless both are worn).
+
+    DECLARE FULL COMBAT STATS FOR INVENTED ITEMS: the engine derives attack rolls, damage and
+    armour class from these fields, so a weapon without damage and no known `base` cannot be used
+    to attack. Declare `base`, the damage/ac fields and any bonuses in the same add.
 
     PROJECT-SPECIFIC BEHAVIORS:
     1. Prepared casters: capacity enforced on spells_prepared (max = spellcasting_ability_mod + level).
@@ -802,10 +1197,18 @@ def update_player_list(key: str, item: str, action: str) -> dict:
        Each entry is a 'Title: Description' pair. A missing FACTION under an existing kingdom is
        created automatically; a bare 'reputation.KINGDOM' writes to the 'misc' bucket. Unknown
        kingdoms are rejected — never invent a kingdom name.
+    5. INVENTORY WEIGHT (SRD 5.1): every inventory change returns a 'carrying' block
+       (carried, capacity, push_drag_lift, thresholds, status, speed, unweighed). Variant
+       encumbrance is enforced: above 5x STR you are ENCUMBERED (speed -10 ft); above 10x STR
+       you are HEAVILY ENCUMBERED (speed -20 ft, and the engine rolls attack rolls and
+       STR/DEX/CON checks and saves with disadvantage for you). Coins count: 50 coins = 1 lb.
+       An add of an unknown item without 'weight' is accepted, counts as 0 lb and comes back
+       as 'unweighed_item' with a warning — re-add it with weight=<pounds> to fix the total.
 
     EXAMPLES:
     update_player_list(key='inventory', item='Dagger: A rusty blade (1d4 piercing, Finesse, Light, Thrown (range 20/60))', action='add')
     update_player_list(key='inventory', item='Dagger', action='remove')          ← name only, NOT 'Dagger: A rusty blade...'
+    update_player_list(key='inventory', item='Void Crystal: a humming shard of black glass', action='add', weight=2.5)
     update_player_list(key='spellcasting.spells_known', item='Shield', action='remove')
     update_player_list(key='spellcasting.spells_prepared', item='Fireball', action='add')
     update_player_list(key='reputation.eldoria.guard', item='Hero of the City: After defending the city from a dragon attack, {player_name} is a well known hero among people of Eldoria', action='add')
@@ -849,14 +1252,32 @@ def update_player_list(key: str, item: str, action: str) -> dict:
                 current_list = [row[0]]
 
         is_prepared_spells = (key == "spellcasting.spells_prepared")
+        added_name = None
+        removed_equipped = False
 
         if action == "add":
             name = item
             desc = ""
             if ":" in item:
                 name, desc = [p.strip() for p in item.split(":", 1)]
+            added_name = name
 
             new_entry = {"name": name, "description": desc} if (desc or ":" in item) else name
+            declared = {}
+            if key == "inventory":
+                if weight is not None:
+                    declared["weight"] = float(weight)
+                for field, value in (("base", base), ("damage_dice", damage_dice),
+                                     ("damage_type", damage_type), ("properties", properties),
+                                     ("ac", ac), ("dex_cap", dex_cap),
+                                     ("strength_req", strength_req), ("ac_bonus", ac_bonus),
+                                     ("attack_bonus", attack_bonus), ("damage_bonus", damage_bonus),
+                                     ("attunement", attunement), ("attunement_by", attunement_by),
+                                     ("kind", kind), ("pair", pair)):
+                    if value is not None:
+                        declared[field] = value
+            if declared:
+                new_entry = {"name": name, "description": desc, **declared}
 
             exists = any((isinstance(e, dict) and e.get("name") == name) or e == name for e in current_list)
             if exists:
@@ -898,6 +1319,10 @@ def update_player_list(key: str, item: str, action: str) -> dict:
                         available.append(str(e))
                 return {"success": False, "error": "not_found", "key": key, "item": item,
                         "action": action, "current_items": available}
+
+            if key == "inventory":
+                # The item left the pack, so it cannot stay worn or wielded.
+                removed_equipped = _clear_equipped(cursor, item)
 
             if key == "active_effects":
                 buff_data_raw = _db_val(cursor, "_active_buff_data", {})
@@ -956,15 +1381,346 @@ def update_player_list(key: str, item: str, action: str) -> dict:
             if info is not None:
                 result["spells_prepared_info"] = info
 
+        if key == "inventory":
+            result["carrying"] = _carry_block(cursor)
+            result["equipment"] = _equipment_block(cursor)
+            if action == "remove" and removed_equipped:
+                result["unequipped"] = item
+                result["note"] = (f"{item} was worn or wielded, so it was unequipped when it left the "
+                                  f"inventory. If you replaced it with a new item, call equip_item "
+                                  f"on the replacement — it is not auto-equipped.")
+            added_base = None
+            added_entry = next((e for e in current_list
+                                 if isinstance(e, dict) and e.get("name") == (added_name or item)), None)
+            if isinstance(added_entry, dict):
+                added_base = added_entry.get("base")
+            if added_base and not (equipment.is_armor(added_base)
+                                   or equipment.is_weapon(added_base)):
+                result["unknown_base"] = added_base
+                result["warning"] = (
+                    f"Unknown base archetype '{added_base}' — it is stored as given, but the engine "
+                    f"cannot derive hands, weight or combat stats from it. Use an SRD weapon or "
+                    f"armour name, or declare the stats explicitly."
+                )
+            elif (action == "add" and weight is None and added_name
+                    and carrying.weight_for(added_name, base=added_base) is None):
+                result["unweighed_item"] = added_name
+                result["warning"] = (
+                    f"'{added_name}' is not in the SRD weight catalog and no weight was given, so it "
+                    f"counts as 0 lb. Re-add it with weight=<pounds> so carrying capacity stays accurate."
+                )
+
         return result
     except Exception as e:
         return {"success": False, "error": f"Error updating list: {str(e)}", "key": key}
 
 
 @mcp.tool()
+def equip_item(item: str, action: str = "equip", slot: str | None = None,
+               replace: bool = False, instant: bool = False) -> dict:
+    """
+    Equips or unequips something the character is carrying (SRD 5.1: one suit of armour, two hands).
+
+    PARAMETERS:
+    - item: the item's name exactly as it appears in the inventory
+    - action: 'equip' (default) or 'unequip'
+    - slot: optional target — 'main_hand', 'off_hand' or 'armor'. Omit to let the engine choose
+      (armour goes to the armour slot; anything else takes a free hand).
+    - replace: when the slot or the second hand is already taken, set True to stow whatever was
+      there instead of being refused. The stowed item stays in the inventory.
+    - instant: allow an armour change during combat. By default donning/doffing armour is REFUSED
+      while a fight is running (SRD: light 1 min, medium 5 min, heavy 10 min to don) — use instant=True
+      only for magic or a GM call. Shields take one action and are always allowed.
+
+    PROJECT-SPECIFIC BEHAVIORS:
+    1. 5e has NO equipment slots — only two hands plus one suit of armour. A shield is an item held
+       in a hand, and a two-handed weapon needs BOTH hands to attack with, so equipping one
+       requires the other hand to be free (or replace=True).
+    2. Equipping recomputes armour_class from the equipped set and returns it before → after, plus
+       the SRD time_cost for armour/shields.
+    3. Unequipping never drops the item: it stays in the inventory.
+    4. The item must already be in the inventory (update_player_list); this tool only moves it.
+    5. The result carries the derived 'equipment' block (hands, hands_free, base_ac, ac_breakdown,
+       warnings) — narrate the visible gear from it.
+
+    EXAMPLES:
+    equip_item(item='Chain Mail')
+    equip_item(item='Shield')
+    equip_item(item='Greatsword', replace=True)
+    equip_item(item='Longsword', slot='off_hand')
+    equip_item(item='Shield', action='unequip')
+    """
+    global DB_CONNECTION
+    if DB_CONNECTION is None:
+        return {"success": False, "error": "Database not initialized."}
+    try:
+        cursor = DB_CONNECTION.cursor()
+        action = str(action or "equip").strip().lower()
+        if action not in ("equip", "unequip"):
+            return {"success": False, "error": "invalid_action", "action": action,
+                    "reason": "Use action='equip' or action='unequip'."}
+
+        inventory = _db_val(cursor, "inventory", []) or []
+        names = [(e.get("name") if isinstance(e, dict) else str(e)) for e in inventory]
+        if item not in names:
+            return {"success": False, "error": "not_in_inventory", "item": item,
+                    "reason": f"'{item}' is not in the inventory — add it with "
+                              f"update_player_list first.",
+                    "current_items": names}
+        declared = next((e for e in inventory if isinstance(e, dict) and e.get("name") == item), {})
+        base = declared.get("base")
+
+        equipped = _db_val(cursor, "equipped", None)
+        if not isinstance(equipped, dict):
+            equipped = {"armor": None, "hands": [None, None]}
+        hands = equipped.get("hands")
+        hands = (list(hands) + [None, None])[:2] if isinstance(hands, list) else [None, None]
+        worn_raw = equipped.get("worn")
+        worn = [str(w) for w in worn_raw if w] if isinstance(worn_raw, list) else []
+        before = int(_db_val(cursor, "armor_class", 10) or 10)
+        is_armor_item = equipment.is_armor(item, base)
+        is_shield_item = equipment.is_shield(item, base)
+
+        # SRD 5.1 "Getting Into and Out of Armor": minutes for armour, one action for a shield.
+        time_cost = equipment.don_time(item, base, doff=(action == "unequip"))
+        if is_armor_item and not instant and _in_active_combat():
+            verb = "doff" if action == "unequip" else "don"
+            return _blocked_action(
+                cursor, "cannot_change_armor_in_combat",
+                f"{verb}ning {item} takes {time_cost} — impossible in the middle of a fight.",
+                item,
+                f"{item} was not {verb}ned — it takes {time_cost} and the party is in combat. "
+                f"The action is spent.")
+
+        if action == "unequip":
+            where = None
+            if equipped.get("armor") == item:
+                equipped["armor"] = None
+                where = "worn"
+            if item in worn:
+                worn = [w for w in worn if w != item]
+                where = where or "worn"
+            for index, held in enumerate(hands):
+                if held == item:
+                    hands[index] = None
+                    where = where or ("main hand" if index == 0 else "off hand")
+            if where is None:
+                return {"success": False, "error": "not_equipped", "item": item,
+                        "reason": f"'{item}' is not currently worn or wielded.",
+                        "equipment": _equipment_block(cursor)}
+            equipped["hands"] = hands
+            equipped["worn"] = worn
+            _db_set(cursor, "equipped", equipped)
+            after = _recompute_armor_class(cursor)
+            block = _equipment_block(cursor)
+            label = "stowed" if where == "worn" else f"hand freed ({where})"
+            return {
+                "success": True, "action": "unequip", "item": item,
+                "equipped": equipped, "armor_class_before": before, "armor_class_after": after,
+                "equipment": block, "warnings": block.get("warnings", []),
+                "time_cost": time_cost,
+                "narrative_format": f"{item} {label} — AC {before} → {after}"
+                                    + (f" ({time_cost})" if time_cost else ""),
+            }
+
+        target = (slot or "").strip().lower() or None
+        if target not in (None, "main_hand", "off_hand", "armor", "worn"):
+            return {"success": False, "error": "invalid_slot", "slot": slot,
+                    "reason": "Use slot='main_hand', 'off_hand', 'armor' or 'worn' (or omit it)."}
+
+        is_armor = is_armor_item
+        if is_armor:
+            if target not in (None, "armor"):
+                return {"success": False, "error": "invalid_slot", "slot": slot,
+                        "reason": f"'{item}' is armour and can only go in the armour slot."}
+            if equipped.get("armor") == item:
+                return {"success": True, "action": "equip", "item": item, "already_equipped": True,
+                        "equipped": equipped, "armor_class_before": before, "armor_class_after": before,
+                        "equipment": _equipment_block(cursor), "narrative_format":
+                        f"{item} is already worn — AC {before}"}
+            if equipped.get("armor") and not replace:
+                return {"success": False, "error": "armor_slot_occupied", "item": item,
+                        "worn": equipped.get("armor"),
+                        "reason": f"{equipped.get('armor')} is already worn — unequip it first, or "
+                                  f"repeat with replace=True.",
+                        "equipment": _equipment_block(cursor)}
+            equipped["armor"] = item
+            equipped["hands"] = [None if h == item else h for h in hands]
+        else:
+            if target == "armor":
+                return {"success": False, "error": "invalid_slot", "slot": slot,
+                        "reason": f"'{item}' is not armour — use slot='main_hand', 'off_hand' or 'worn'."}
+            if item in hands:
+                return {"success": True, "action": "equip", "item": item, "already_equipped": True,
+                        "equipped": equipped, "armor_class_before": before, "armor_class_after": before,
+                        "equipment": _equipment_block(cursor), "narrative_format":
+                        f"{item} is already held — AC {before}"}
+            if target == "worn" or (target is None and _is_worn_slot(item, declared)):
+                if item in worn:
+                    return {"success": True, "action": "equip", "item": item,
+                            "already_equipped": True, "equipped": equipped,
+                            "armor_class_before": before, "armor_class_after": before,
+                            "equipment": _equipment_block(cursor),
+                            "narrative_format": f"{item} is already worn — AC {before}"}
+                worn.append(item)
+                equipped["worn"] = worn
+                equipped["hands"] = hands
+            else:
+                # A shield prefers the off hand, a weapon the main hand; otherwise the first free one.
+                order = (1, 0) if equipment.is_shield(item, base) else (0, 1)
+                if target == "main_hand":
+                    index = 0
+                elif target == "off_hand":
+                    index = 1
+                else:
+                    index = next((i for i in order if hands[i] is None), None)
+                    if index is None and not replace:
+                        return {"success": False, "error": "no_free_hand", "item": item,
+                                "held": [h for h in hands if h],
+                                "reason": "Both hands are busy — stow or drop something first, or "
+                                          "repeat with replace=True.",
+                                "equipment": _equipment_block(cursor)}
+                    if index is None:
+                        index = order[0]
+                other = 1 - index
+                if equipment.hands_used([item, None], inventory) == 2:
+                    if hands[other] and not replace:
+                        return {"success": False, "error": "two_handed_needs_both_hands", "item": item,
+                                "occupied": hands[other],
+                                "reason": f"{item} needs both hands to attack with, but {hands[other]} "
+                                          f"is in the other hand — free it first, or repeat with "
+                                          f"replace=True.",
+                                "equipment": _equipment_block(cursor)}
+                    hands[other] = None
+                hands[index] = item
+                equipped["hands"] = hands
+
+        _db_set(cursor, "equipped", equipped)
+        after = _recompute_armor_class(cursor)
+        block = _equipment_block(cursor)
+        where = "worn" if (is_armor or item in worn) else ("main hand" if hands[0] == item else "off hand")
+        return {
+            "success": True, "action": "equip", "item": item,
+            "equipped": equipped, "armor_class_before": before, "armor_class_after": after,
+            "equipment": block, "warnings": block.get("warnings", []),
+            "time_cost": time_cost,
+            "narrative_format": f"{item} equipped ({where}) — AC {before} → {after}"
+                                + (f" ({time_cost})" if time_cost else ""),
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Error equipping item: {str(e)}", "item": item}
+
+
+@mcp.tool()
+def attune_item(item: str, action: str = "attune", instant: bool = False) -> dict:
+    """
+    Attunes to (or breaks attunement with) a magic item (SRD 5.1: at most 3, one of each kind).
+
+    PARAMETERS:
+    - item: the item's name exactly as it appears in the inventory
+    - action: 'attune' (default) or 'unattune'
+    - instant: allow it during combat. By default attuning takes a short rest, so it is REFUSED
+      while a fight is running.
+
+    PROJECT-SPECIFIC BEHAVIORS:
+    1. A creature can be attuned to no more than THREE magic items, to no more than one copy of an
+       item, and to only one item of each `kind` (armor, cloak, boots, gloves, bracers, headwear,
+       ring).
+    2. Only items declared with attunement=True can be attuned; their ac_bonus / attack_bonus /
+       damage_bonus apply only while attuned (until then the derived bonuses stay off and the
+       'equipment' block warns 'not_attuned').
+    3. The item must be in the inventory first (update_player_list).
+
+    EXAMPLES:
+    attune_item(item='Voidmail')
+    attune_item(item='Ring of Protection')
+    attune_item(item='Voidmail', action='unattune')
+    """
+    global DB_CONNECTION
+    if DB_CONNECTION is None:
+        return {"success": False, "error": "Database not initialized."}
+    try:
+        cursor = DB_CONNECTION.cursor()
+        action = str(action or "attune").strip().lower()
+        if action not in ("attune", "unattune"):
+            return {"success": False, "error": "invalid_action", "action": action,
+                    "reason": "Use action='attune' or action='unattune'."}
+
+        inventory = _db_val(cursor, "inventory", []) or []
+        names = [(e.get("name") if isinstance(e, dict) else str(e)) for e in inventory]
+        if item not in names:
+            return {"success": False, "error": "not_in_inventory", "item": item,
+                    "reason": f"'{item}' is not in the inventory.", "current_items": names}
+        declared = next((e for e in inventory if isinstance(e, dict) and e.get("name") == item), {})
+        attuned = _db_val(cursor, "attuned", []) or []
+        attuned = [str(a) for a in attuned] if isinstance(attuned, list) else []
+
+        def _declared_kind(name):
+            entry = next((e for e in inventory if isinstance(e, dict) and e.get("name") == name), {})
+            return str(entry.get("kind") or "").strip().lower()
+
+        def _fail(error, reason, **extra):
+            result = {"success": False, "error": error, "item": item, "reason": reason,
+                      "attuned": attuned, "attunement_slots_free": max(0, 3 - len(attuned))}
+            result.update(extra)
+            return result
+
+        if action == "unattune":
+            if item not in attuned:
+                return _fail("not_attuned", f"'{item}' is not attuned.")
+            attuned.remove(item)
+            _db_set(cursor, "attuned", attuned)
+            _recompute_armor_class(cursor)
+            block = _equipment_block(cursor)
+            return {"success": True, "action": "unattune", "item": item, "attuned": attuned,
+                    "attunement_slots_free": max(0, 3 - len(attuned)), "equipment": block,
+                    "warnings": block.get("warnings", []),
+                    "narrative_format": f"Attunement with {item} ends — "
+                                        f"{max(0, 3 - len(attuned))} slot(s) free"}
+
+        if not declared.get("attunement"):
+            return _fail("attunement_not_required",
+                         f"'{item}' does not require attunement (declare attunement=True to change that).")
+        if item in attuned:
+            return {"success": True, "action": "attune", "item": item, "already_attuned": True,
+                    "attuned": attuned, "attunement_slots_free": max(0, 3 - len(attuned)),
+                    "equipment": _equipment_block(cursor),
+                    "narrative_format": f"Already attuned to {item}"}
+        if not instant and _in_active_combat():
+            return _fail("requires_short_rest",
+                         f"Attuning to {item} requires a short rest — not possible during a fight.")
+        if len(attuned) >= 3:
+            return _fail("attunement_full",
+                         "Already attuned to three magic items — break one attunement first.")
+        kind = str(declared.get("kind") or "").strip().lower()
+        if kind and kind != "other":
+            clash = next((a for a in attuned if _declared_kind(a) == kind), None)
+            if clash is not None:
+                return _fail("attunement_kind_conflict",
+                             f"Already attuned to another {kind} ({clash}).",
+                             conflicting_item=clash, kind=kind)
+        attuned.append(item)
+        _db_set(cursor, "attuned", attuned)
+        _recompute_armor_class(cursor)
+        block = _equipment_block(cursor)
+        return {"success": True, "action": "attune", "item": item, "attuned": attuned,
+                "attunement_slots_free": max(0, 3 - len(attuned)), "equipment": block,
+                "warnings": block.get("warnings", []),
+                "narrative_format": f"Attuned to {item} — "
+                                    f"{max(0, 3 - len(attuned))} slot(s) free"}
+    except Exception as e:
+        return {"success": False, "error": f"Error attuning item: {str(e)}", "item": item}
+
+
+@mcp.tool()
 def dump_player_db() -> dict:
     """
     Returns a full dump of the current in-memory player database for state refresh.
+
+    The dump includes a derived `_carrying` block (SRD 5.1 carrying capacity, encumbrance
+    status and effective speed) and a derived `_equipment` block (worn armour, hands,
+    hands free, and the armour-class breakdown) so you can narrate gear without extra
+    calls. Both are computed, never saved: the save file does not contain them.
     """
     global DB_CONNECTION
     if DB_CONNECTION is None:
@@ -985,9 +1741,42 @@ def dump_player_db() -> dict:
             except (json.JSONDecodeError, TypeError):
                 result[key] = value
 
+        result["_carrying"] = _carry_block(cursor)
+        result["_equipment"] = _equipment_block(cursor)
+
         return result
     except Exception as e:
         return {"error": f"Error dumping database: {str(e)}"}
+
+
+@mcp.tool()
+def request_scene_image(description: str, mood: str = "", location: str = "") -> dict:
+    """Request a storyline illustration of an important moment.
+
+    Call this ONLY for pivotal moments worth remembering (a new location, a
+    dramatic revelation, a duel or combat climax, a striking vista) — at most
+    ONE per turn, and rarely. Always pass a short, stable `location` name for
+    the place shown (e.g. 'Hask & Daughters Smithy', 'The Broken Wheel'); reusing
+    the same location keeps the place visually consistent when the player
+    returns. ALWAYS put the protagonist IN the frame as the main subject, and
+    refer to the player/main character as 'the protagonist' (the image prompt
+    maps the attached portrait onto that word); say what the protagonist is
+    doing, but NEVER describe their physical appearance (face, hair, build,
+    race, clothing) — the portrait is attached automatically. Describe clothing,
+    armour, weapons and accessories ONLY from what they actually have equipped
+    (check `_equipment` in your latest dump_player_db if unsure): never invent a
+    hood, hooded cloak, cowl, hat, helmet, armour or other item they do not
+    have, and never write 'hooded'/'cloaked'/'armoured' unless it is equipped.
+    Never frame the shot as an empty room. This does not change game state and
+    the engine does not wait for the picture; it is rendered and shown with your
+    narrative.
+    """
+    return {
+        "status": "requested",
+        "location": location or "",
+        "note": ("The illustration will appear with your narrative. Do NOT mention "
+                 "this tool or its result in the Mechanics block."),
+    }
 
 
 @mcp.tool()
@@ -1182,10 +1971,23 @@ def rest(rest_type: str, prepared_spells: list[str] | None = None) -> dict:
             if effects_cleared:
                 changes["effects_cleared"] = effects_cleared
 
+            # A long rest ends capacity-changing effects (e.g. enhance ability: Bull's Strength).
+            previous_multiplier = _db_val(cursor, "capacity_multiplier", 1)
+            if str(previous_multiplier) not in ("1", "1.0"):
+                _db_set(cursor, "capacity_multiplier", 1)
+                DB_CONNECTION.commit()
+                changes["capacity_multiplier"] = {"old": previous_multiplier, "new": 1}
+
             if prepared_spells is not None:
                 if char_class in PREPARED_CASTER_CLASSES or char_class == "Wizard":
                     max_spells = get_max_prepared_spells(cursor)
-                    if max_spells is not None and len(prepared_spells) > max_spells:
+                    if _needs_spellbook(cursor) and not _has_spellbook_item(cursor):
+                        changes["prepared_spells_error"] = {
+                            "error": "Spellbook missing.",
+                            "hint": "The character's spellbook is not in their inventory; "
+                                    "no spells can be prepared until it is recovered.",
+                        }
+                    elif max_spells is not None and len(prepared_spells) > max_spells:
                         changes["prepared_spells_error"] = {
                             "error": "Too many prepared spells.",
                             "provided": len(prepared_spells),
@@ -1254,6 +2056,7 @@ def rest(rest_type: str, prepared_spells: list[str] | None = None) -> dict:
             hints.append("Monk: Ki points recharge on short rest (level 2+)." if char_class == "Monk" and level >= 2 else None)
             hints.append("Druid: Wild Shape uses recharge on short/long rest." if char_class == "Druid" and level >= 2 else None)
             hints.append("Paladin: Channel Divinity recharges on short/long rest." if char_class == "Paladin" and level >= 3 else None)
+            hints.append("Carrying capacity is back to normal (a capacity-changing effect ended)." if "capacity_multiplier" in changes else None)
             hints.append("No more than one long rest per 24 hours." if True else None)
             hints = [h for h in hints if h is not None]
 
@@ -1320,7 +2123,8 @@ def roll_dice(dice_notation: str, modifier: int = 0, actor: str = "{player_name}
 
 
 @mcp.tool()
-def perform_check(modifier: int, dc: int, check_name: str = "Check", actor: str = "{player_name}") -> dict:
+def perform_check(modifier: int, dc: int, check_name: str = "Check", actor: str = "{player_name}",
+                  ability: str | None = None, grapple: bool = False) -> dict:
     """
     Performs a skill check or saving throw (d20 + modifier vs DC).
 
@@ -1329,21 +2133,52 @@ def perform_check(modifier: int, dc: int, check_name: str = "Check", actor: str 
     - dc: difficulty class to beat
     - check_name: label for the check (e.g. 'Athletics', 'Perception')
     - actor: who is performing the check — character name for player, NPC/creature name for NPCs
+    - ability: (optional) the ability the check uses — 'str', 'dex', 'con', 'int', 'wis' or 'cha'.
+      Pass it for every ability check and save so the engine can apply encumbrance and armour.
+    - grapple: set True when this check is an attempt to GRAPPLE a creature (SRD: it needs at least
+      one free hand). The check is refused, and the action spent, when both hands are full. Do not
+      set it for escaping a grapple — that needs no free hand.
 
     RULES:
     - For weapon/unarmed attacks, use resolve_attack instead.
     - For spell attacks, use resolve_magic.
     - Include the 'narrative_format' field from the response verbatim when disclosing results.
 
-    EXAMPLES:
-    perform_check(actor='Thorin', modifier=5, dc=15, check_name='Athletics')
-    perform_check(actor='Guard Captain', modifier=2, dc=13, check_name='Perception')
-    perform_check(actor='Senna', modifier=1, dc=13, check_name='Deception')
-    """
-    if actor == "{player_name}" and DB_CONNECTION is not None:
-        actor = _db_val(DB_CONNECTION.cursor(), "name", "Player")
+    PROJECT-SPECIFIC BEHAVIORS:
+    1. HEAVILY ENCUMBERED (SRD 5.1 variant): if the player carries more than 10x STR, this check is
+       rolled with disadvantage when `ability` is 'str', 'dex' or 'con'. The response then carries
+       'disadvantage_sources' and both dice in 'disadvantage_rolls'.
+    2. NOT PROFICIENT WITH WORN ARMOUR (SRD 5.1): disadvantage on STR/DEX checks; the response names
+       the source in 'disadvantage_sources'.
+    3. GRAPPLE (grapple=True): refused with turn_lost=true when no hand is free — no roll is made.
+    4. The GM's own granted advantage is not a parameter here — roll the check twice and narrate,
+       or tell the player their encumbrance is costing them.
 
-    roll = random.randint(1, 20)
+    EXAMPLES:
+    perform_check(actor='Thorin', modifier=5, dc=15, check_name='Athletics', ability='str')
+    perform_check(actor='Guard Captain', modifier=2, dc=13, check_name='Perception', ability='wis')
+    perform_check(actor='Senna', modifier=1, dc=13, check_name='Deception', ability='cha')
+    """
+    cursor = DB_CONNECTION.cursor() if DB_CONNECTION is not None else None
+    is_player = _is_player_actor(cursor, actor)
+    if is_player and cursor is not None:
+        actor = _db_val(cursor, "name", "Player")
+
+    # SRD 5.1: a grapple needs a free hand — refuse before rolling anything.
+    if grapple and is_player and cursor is not None:
+        state = _equipment_block(cursor)
+        if state.get("derived_from_equipped") and state.get("hands_free", 2) == 0:
+            return _blocked_action(
+                cursor, "no_free_hand",
+                "Both hands are occupied — a grapple needs at least one free hand.",
+                None, "Grapple failed — both hands are busy. The action is spent.")
+
+    disadvantage, encumbrance_sources = _roll_disadvantage(cursor, is_player, ability)
+    cond_disadvantage, cond_sources = _condition_check_disadvantage(
+        _conditions_for(cursor, actor, is_player=is_player), ability)
+    encumbrance_sources = [*encumbrance_sources, *cond_sources]
+    disadvantage = disadvantage or cond_disadvantage
+    roll, rolls, roll_mode, _cancelled = _roll_d20(disadvantage=disadvantage)
     total = roll + modifier
 
     if roll == 20:
@@ -1356,6 +2191,8 @@ def perform_check(modifier: int, dc: int, check_name: str = "Check", actor: str 
         result = "Failure"
 
     narrative = f"{actor} {check_name}: {total} vs DC {dc} ({result}) ({roll} + {modifier})"
+    if roll_mode:
+        narrative += f" [{roll_mode}]"
 
     response = {
         "actor": actor,
@@ -1367,6 +2204,9 @@ def perform_check(modifier: int, dc: int, check_name: str = "Check", actor: str 
         "outcome": result,
         "narrative_format": narrative,
     }
+    if rolls:
+        response[f"{roll_mode}_rolls"] = rolls
+    _encumbrance_note(response, encumbrance_sources)
 
     return response
 
@@ -1411,41 +2251,325 @@ def _registry_max_hp(target_name: str) -> int:
     return 0
 
 
+# ── stat blocks: saves, attacks, conditions, damage types ────────────────────
+
+ABILITY_KEYS = ("str", "dex", "con", "int", "wis", "cha")
+
+# SRD conditions -> the roll effects the engine applies. `attackers_*_melee/ranged` need to know
+# whether the attack is made at range; `resist_all` is petrified's resistance to all damage.
+CONDITION_EFFECTS = {
+    "blinded": {"self_attack_disadvantage": True, "attackers_advantage": True},
+    "frightened": {"self_attack_disadvantage": True, "self_check_disadvantage": True},
+    "invisible": {"self_attack_advantage": True, "attackers_disadvantage": True},
+    "paralyzed": {"attackers_advantage": True, "auto_fail_str_dex_saves": True, "melee_crit": True},
+    "petrified": {"attackers_advantage": True, "auto_fail_str_dex_saves": True,
+                  "melee_crit": True, "resist_all": True},
+    "stunned": {"attackers_advantage": True, "auto_fail_str_dex_saves": True},
+    "unconscious": {"attackers_advantage": True, "auto_fail_str_dex_saves": True,
+                    "melee_crit": True},
+    "prone": {"self_attack_disadvantage": True, "attackers_advantage_melee": True,
+              "attackers_disadvantage_ranged": True},
+    "restrained": {"self_attack_disadvantage": True, "self_dex_save_disadvantage": True,
+                   "attackers_advantage": True},
+    "poisoned": {"self_attack_disadvantage": True, "self_check_disadvantage": True},
+    "grappled": {},
+    "incapacitated": {},
+    "exhaustion": {},  # tracked; the level table is not applied
+}
+
+
+def _registry_save(target_name: str, ability) -> int | None:
+    """Save modifier for a registry target: per-ability `saves`, else the legacy `save_modifier`."""
+    entry = _COMBAT_REGISTRY.get(target_name)
+    if not entry:
+        return None
+    key = str(ability or "").strip().lower()[:3]
+    saves = entry.get("saves")
+    if isinstance(saves, dict) and key in saves:
+        try:
+            return int(saves[key])
+        except (TypeError, ValueError):
+            pass
+    legacy = entry.get("save_modifier")
+    if legacy is not None:
+        try:
+            return int(legacy)
+        except (TypeError, ValueError):
+            pass
+    return None
+
+
+def _registry_conditions(name) -> set:
+    entry = _COMBAT_REGISTRY.get(name) or {}
+    return {str(c).strip().lower() for c in (entry.get("conditions") or [])}
+
+
+def _player_conditions(cursor) -> set:
+    if cursor is None:
+        return set()
+    return {str(c).strip().lower() for c in (_db_val(cursor, "conditions", []) or [])}
+
+
+def _conditions_for(cursor, name, is_player=False) -> set:
+    if is_player:
+        return _player_conditions(cursor)
+    return _registry_conditions(name)
+
+
+def _condition_attack_effects(attacker_conditions, target_conditions, ranged=False):
+    """(advantage?, disadvantage?, force_crit?, sources) from conditions on both sides."""
+    advantage = disadvantage = force_crit = False
+    sources = []
+    for cond in sorted(attacker_conditions or []):
+        eff = CONDITION_EFFECTS.get(cond, {})
+        if eff.get("self_attack_advantage"):
+            advantage = True
+            sources.append(f"{cond} (attacker)")
+        if eff.get("self_attack_disadvantage"):
+            disadvantage = True
+            sources.append(f"{cond} (attacker)")
+    for cond in sorted(target_conditions or []):
+        eff = CONDITION_EFFECTS.get(cond, {})
+        if eff.get("attackers_advantage"):
+            advantage = True
+            sources.append(f"{cond} (target)")
+        if eff.get("attackers_advantage_melee") and not ranged:
+            advantage = True
+            sources.append(f"{cond} (target)")
+        if eff.get("attackers_disadvantage"):
+            disadvantage = True
+            sources.append(f"{cond} (target)")
+        if eff.get("attackers_disadvantage_ranged") and ranged:
+            disadvantage = True
+            sources.append(f"{cond} (target, ranged)")
+        if eff.get("melee_crit") and not ranged:
+            force_crit = True
+            sources.append(f"{cond} (crit)")
+    return advantage, disadvantage, force_crit, sources
+
+
+def _condition_save_effects(conditions, ability):
+    """(disadvantage?, auto_fail?, sources) for a saving throw."""
+    disadvantage = auto_fail = False
+    sources = []
+    for cond in sorted(conditions or []):
+        eff = CONDITION_EFFECTS.get(cond, {})
+        key = str(ability or "").strip().lower()[:3]
+        if eff.get("auto_fail_str_dex_saves") and key in ("str", "dex"):
+            auto_fail = True
+            sources.append(f"{cond} (auto-fail)")
+        if eff.get("self_dex_save_disadvantage") and key == "dex":
+            disadvantage = True
+            sources.append(f"{cond}")
+    return disadvantage, auto_fail, sources
+
+
+def _condition_check_disadvantage(conditions, ability=None):
+    """(disadvantage?, sources) for an ability check (poisoned/frightened, restrained DEX)."""
+    disadvantage = False
+    sources = []
+    key = str(ability or "").strip().lower()[:3]
+    for cond in sorted(conditions or []):
+        eff = CONDITION_EFFECTS.get(cond, {})
+        if eff.get("self_check_disadvantage"):
+            disadvantage = True
+            sources.append(cond)
+        if eff.get("self_dex_save_disadvantage") and key == "dex":
+            disadvantage = True
+            sources.append(cond)
+    return disadvantage, sources
+
+
+def _apply_damage_modifiers(entry, damage, damage_type) -> tuple[int, str | None]:
+    """SRD 5.1 resistances/immunities/vulnerabilities applied to incoming damage.
+
+    immunity -> 0, resistance -> half (round down), vulnerability -> double; resistance and
+    vulnerability together cancel. Petrified resists all damage. Returns (damage, note).
+    """
+    if entry is None or damage <= 0 or not damage_type:
+        return damage, None
+    dtype = str(damage_type).strip().lower()
+    immunities = [str(x).strip().lower() for x in (entry.get("damage_immunities") or [])]
+    resistances = [str(x).strip().lower() for x in (entry.get("damage_resistances") or [])]
+    vulnerabilities = [str(x).strip().lower() for x in (entry.get("damage_vulnerabilities") or [])]
+    if "all" in immunities or dtype in immunities:
+        return 0, f"immune to {dtype}"
+    if any(CONDITION_EFFECTS.get(c, {}).get("resist_all") for c in (entry.get("conditions") or [])):
+        resistances = [*resistances, dtype]
+    factor = 1.0
+    if "all" in resistances or dtype in resistances:
+        factor *= 0.5
+    if "all" in vulnerabilities or dtype in vulnerabilities:
+        factor *= 2.0
+    if factor == 1.0:
+        return damage, None
+    return int(damage * factor), f"{damage} -> {int(damage * factor)} ({dtype}: x{factor:g})"
+
+
+def _derive_npc_attack(entry, attack_name) -> dict | None:
+    """The declared attack entry whose name matches (case-insensitive)."""
+    wanted = str(attack_name or "").strip().lower()
+    for attack in (entry or {}).get("attacks") or []:
+        if isinstance(attack, dict) and str(attack.get("name") or "").strip().lower() == wanted:
+            return attack
+    return None
+
+
+def _npc_attack_is_ranged(attack) -> bool:
+    if not isinstance(attack, dict):
+        return False
+    props = [str(p).lower() for p in (attack.get("properties") or [])]
+    if any("two-handed" in p for p in props):
+        pass  # a two-handed melee weapon is still melee — range/reach decides
+    if attack.get("range"):
+        return True
+    return any(k in " ".join(props) for k in ("ammunition", "ranged"))
+
+
+def _normalize_combatant(c, add_to_existing=False) -> dict:
+    """Normalize a declared stat block into a registry entry."""
+    max_hp = int(c.get("max_hp", c["hp"]))
+    saves = c.get("saves") if isinstance(c.get("saves"), dict) else {}
+    normalized = {
+        "current_hp": int(c["hp"]),
+        "max_hp": max_hp,
+        "ac": int(c["ac"]),
+        "save_modifier": c.get("save_modifier"),
+        "saves": {k: int(v) for k, v in saves.items()
+                  if k in ABILITY_KEYS and isinstance(v, (int, float))},
+        "challenge_rating": c.get("challenge_rating"),
+        "initiative_modifier": 0 if add_to_existing else int(c.get("initiative_modifier", 0) or 0),
+        "initiative_advantage": bool(c.get("initiative_advantage", False)),
+        "role": str(c.get("role") or "hostile").strip().lower(),
+        "speed": c.get("speed"),
+        "damage_resistances": [str(t).strip().lower() for t in (c.get("damage_resistances") or [])],
+        "damage_immunities": [str(t).strip().lower() for t in (c.get("damage_immunities") or [])],
+        "damage_vulnerabilities": [str(t).strip().lower()
+                                  for t in (c.get("damage_vulnerabilities") or [])],
+        "condition_immunities": [str(t).strip().lower() for t in (c.get("condition_immunities") or [])],
+        "attacks": [a for a in (c.get("attacks") or []) if isinstance(a, dict)],
+        "multiattack": c.get("multiattack", 1),
+        "spellcasting": c.get("spellcasting") if isinstance(c.get("spellcasting"), dict) else None,
+        "traits": [str(t) for t in (c.get("traits") or [])],
+        "conditions": [str(t).strip().lower() for t in (c.get("conditions") or [])],
+        "initiative_roll": 0,
+        "initiative_total": 0,
+        "is_player": False,
+        "killed": False,
+    }
+    return normalized
+
+
+def _player_registry_entry(cursor) -> dict:
+    """The player's registry entry, with saves/speed/spellcasting derived from their sheet."""
+    name = _db_val(cursor, "name", "Player")
+    stats_raw = _db_val(cursor, "stats", {}) or {}
+    if isinstance(stats_raw, str):
+        stats_raw = json.loads(stats_raw)
+    mods = {k: (int(stats_raw.get(k, 10)) - 10) // 2 for k in ABILITY_KEYS}
+    proficient = {str(s).strip().lower()[:3] for s in (_db_val(cursor, "saves", []) or [])}
+    prof_bonus = int(_db_val(cursor, "proficiency_bonus", 2) or 2)
+    saves = {k: mods[k] + (prof_bonus if k in proficient else 0) for k in ABILITY_KEYS}
+    spell_raw = _db_val(cursor, "spellcasting", {}) or {}
+    spellcasting = None
+    if isinstance(spell_raw, dict) and spell_raw.get("dc") is not None:
+        spellcasting = {"ability": spell_raw.get("ability"), "save_dc": spell_raw.get("dc"),
+                        "attack_modifier": spell_raw.get("attack_modifier")}
+    return {
+        "name": name,
+        "current_hp": int(_db_val(cursor, "current_hit_points", 1)),
+        "max_hp": int(_db_val(cursor, "total_hit_points", 1)),
+        "ac": int(_db_val(cursor, "armor_class", 10)),
+        "save_modifier": None,
+        "saves": saves,
+        "challenge_rating": None,
+        "initiative_modifier": mods["dex"],
+        "initiative_advantage": False,
+        "role": "ally",
+        "speed": _db_val(cursor, "speed", 30),
+        "damage_resistances": [],
+        "damage_immunities": [],
+        "damage_vulnerabilities": [],
+        "condition_immunities": [],
+        "attacks": [],
+        "multiattack": 1,
+        "spellcasting": spellcasting,
+        "traits": [],
+        "conditions": sorted(_player_conditions(cursor)),
+        "initiative_roll": 0,
+        "initiative_total": 0,
+        "is_player": True,
+        "killed": False,
+    }
+
+
 @mcp.tool()
 def register_combatants(combatants: list[dict], add_to_existing: bool = False) -> dict:
     """
     Registers all combatants for a battle and rolls initiative for everyone. Player is auto-registered.
 
+    DECLARE EVERY COMBATANT FULLY. You will not be asked for these values again: the engine derives
+    attacks, saves, armour class and damage from this block, so hand it the real stats. Estimate
+    only when the creature genuinely has no stat block.
+
     PARAMETERS:
-    - combatants: list of NPC dicts with fields:
-      - name (str, required): must match target_name in resolve_attack/resolve_magic calls
-      - hp (int, required): starting hit points
-      - ac (int, required): armor class
+    - combatants: list of NPC dicts. Required: `name`, `hp`, `ac`. Everything else optional:
+      - name (str): must match target_name / actor in resolve_attack / resolve_magic calls
+      - hp (int): starting (current) hit points
+      - max_hp (int): maximum, defaults to hp
+      - ac (int): armour class
       - initiative_modifier (int, required unless add_to_existing=True): DEX modifier
-      - challenge_rating (float, optional): CR for XP awards
-      - save_modifier (int, optional, default 0): generic save bonus
-    - add_to_existing (bool, default False): if True, adds to existing registry without wiping it.
-      No initiative rolled for new arrivals. Use for mid-combat reinforcements or forgotten combatants.
-      Existing HP states are preserved.
+      - initiative_advantage (bool): roll initiative with advantage
+      - challenge_rating (float): CR for XP awards
+      - role (str): 'hostile' | 'ally' | 'neutral' (default 'hostile')
+      - speed (int)
+      - saves (dict): one modifier per ability, e.g. {"str": -1, "dex": 2, "con": 0,
+        "int": 0, "wis": -1, "cha": -1} — used for every saving throw the creature makes
+      - save_modifier (int): legacy single save bonus (used only when `saves` is absent)
+      - damage_resistances / damage_immunities / damage_vulnerabilities (list of str): damage types;
+        'all' is allowed. The engine halves/zeroes/doubles incoming damage automatically
+      - condition_immunities (list of str): conditions the creature cannot gain
+      - attacks (list of dicts): each {name, base?, attack_bonus, damage_dice, damage_modifier?,
+        damage_type?, properties?, reach?, range?} — resolve_attack(actor=…, attack=…, …) uses these
+      - multiattack (int or str): how many attacks per Attack action (reported, not enforced)
+      - spellcasting (dict): {ability, save_dc, attack_modifier} for NPC casters
+      - conditions (list of str): starting conditions (blinded, prone, restrained, poisoned, ...)
+      - traits (list of str): free-text special abilities, for reference
+    - add_to_existing (bool, default False): adds to the existing registry without wiping it. No
+      initiative rolled for the arrivals; existing HP/saves/conditions are preserved.
 
     PROJECT-SPECIFIC BEHAVIORS:
-    1. Resolve_attack and resolve_magic auto-lookup target HP from the registry — no need to pass
-       target_current_hp on every call. HP is carried forward between hits automatically.
-    2. Calling this again without add_to_existing overwrites the registry entirely.
+    1. resolve_attack / resolve_magic auto-lookup a target's HP, AC, CR and save modifiers from the
+       registry — you do not need to pass target_current_hp, target_ac or a save every call.
+       HP is carried forward between hits automatically.
+    2. resolve_attack(actor='Goblin', attack='Scimitar', target_name='Borin') derives the NPC's
+       attack bonus and damage from its declared `attacks`. Omit attack= only for an improvised or
+       undeclared action, in which case pass attack_modifier and damage_dice directly.
+    3. Calling this again without add_to_existing overwrites the registry entirely — that is how a
+       fight ends and a new one begins. There is no separate end-combat call.
+    4. Conditions declared here and changed via update_combatant drive advantage/disadvantage, auto
+       failures and critical hits against helpless targets (blinded, prone, restrained, paralyzed,
+       petrified, stunned, unconscious, poisoned, frightened, invisible).
 
     EXAMPLES:
     register_combatants(combatants=[
-        {"name": "Scarred Half-Orc", "hp": 15, "ac": 14, "initiative_modifier": 1,
-         "challenge_rating": 1, "save_modifier": 1},
-        {"name": "Crossbow Bandit 1", "hp": 11, "ac": 12, "initiative_modifier": 2,
-         "challenge_rating": 0.125},
-        {"name": "Kella", "hp": 30, "ac": 15, "initiative_modifier": 2},
-        {"name": "Harlen Dregg", "hp": 30, "ac": 16, "initiative_modifier": 0},
+        {"name": "Goblin", "hp": 7, "ac": 15, "initiative_modifier": 2, "challenge_rating": 0.25,
+         "role": "hostile", "speed": 30,
+         "saves": {"str": -1, "dex": 2, "con": 0, "int": 0, "wis": -1, "cha": -1},
+         "attacks": [
+             {"name": "Scimitar", "attack_bonus": 4, "damage_dice": "1d6", "damage_modifier": 2,
+              "damage_type": "slashing", "reach": 5, "properties": ["Finesse", "Light"]},
+             {"name": "Shortbow", "base": "Shortbow", "attack_bonus": 4, "damage_dice": "1d6",
+              "damage_modifier": 2, "damage_type": "piercing", "range": "80/320"}]},
+        {"name": "Ogre", "hp": 59, "ac": 11, "initiative_modifier": -1, "challenge_rating": 2,
+         "damage_resistances": ["fire"], "multiattack": 1,
+         "attacks": [{"name": "Greatclub", "attack_bonus": 6, "damage_dice": "2d8",
+                      "damage_modifier": 4, "damage_type": "bludgeoning", "reach": 5}]},
     ])
 
     register_combatants(combatants=[
-        {"name": "Guard Reinforce 1", "hp": 11, "ac": 16},
-        {"name": "Guard Reinforce 2", "hp": 11, "ac": 16},
+        {"name": "Guard Reinforce 1", "hp": 11, "ac": 16, "role": "hostile"},
+        {"name": "Guard Reinforce 2", "hp": 11, "ac": 16, "role": "hostile"},
     ], add_to_existing=True)
     """
     global _COMBAT_REGISTRY, DB_CONNECTION
@@ -1457,28 +2581,10 @@ def register_combatants(combatants: list[dict], add_to_existing: bool = False) -
 
     if not add_to_existing and DB_CONNECTION is not None:
         cursor = DB_CONNECTION.cursor()
-        player_name = _db_val(cursor, "name", "Player")
-        stats_raw = _db_val(cursor, "stats", {})
-        if isinstance(stats_raw, str):
-            stats_raw = json.loads(stats_raw)
-        player_dex = int(stats_raw.get("dex", 10))
-        player_init_mod = (player_dex - 10) // 2
-        player_hp = int(_db_val(cursor, "current_hit_points", 1))
-        player_max_hp = int(_db_val(cursor, "total_hit_points", 1))
-        player_ac = int(_db_val(cursor, "armor_class", 10))
-
-        _COMBAT_REGISTRY[player_name] = {
-            "current_hp": player_hp,
-            "max_hp": player_max_hp,
-            "ac": player_ac,
-            "save_modifier": 0,
-            "challenge_rating": None,
-            "initiative_modifier": player_init_mod,
-            "initiative_roll": 0,
-            "initiative_total": 0,
-            "is_player": True,
-            "killed": False,
-        }
+        player = _player_registry_entry(cursor)
+        player_name = player["name"]
+        player_init_mod = player["initiative_modifier"]
+        _COMBAT_REGISTRY[player_name] = player
 
         player_d20 = random.randint(1, 20)
         player_init_total = player_d20 + player_init_mod
@@ -1494,31 +2600,15 @@ def register_combatants(combatants: list[dict], add_to_existing: bool = False) -
 
     for c in combatants:
         name = c["name"]
-        max_hp = c["hp"]
-        ac = c["ac"]
-        cr = c.get("challenge_rating")
-        save_mod = c.get("save_modifier", 0)
-
-        if add_to_existing:
-            init_mod = 0
-        else:
-            init_mod = c["initiative_modifier"]
-
-        _COMBAT_REGISTRY[name] = {
-            "current_hp": max_hp,
-            "max_hp": max_hp,
-            "ac": ac,
-            "save_modifier": save_mod,
-            "challenge_rating": cr,
-            "initiative_modifier": init_mod,
-            "initiative_roll": 0,
-            "initiative_total": 0,
-            "is_player": False,
-            "killed": False,
-        }
+        entry = _normalize_combatant(c, add_to_existing=add_to_existing)
+        init_mod = entry["initiative_modifier"]
+        _COMBAT_REGISTRY[name] = entry
 
         if not add_to_existing:
-            d20 = random.randint(1, 20)
+            if entry.get("initiative_advantage"):
+                d20 = max(random.randint(1, 20), random.randint(1, 20))
+            else:
+                d20 = random.randint(1, 20)
             init_total = d20 + init_mod
             _COMBAT_REGISTRY[name]["initiative_roll"] = d20
             _COMBAT_REGISTRY[name]["initiative_total"] = init_total
@@ -1532,13 +2622,17 @@ def register_combatants(combatants: list[dict], add_to_existing: bool = False) -
 
     registry_summary = []
     for rname, entry in _COMBAT_REGISTRY.items():
-        registry_summary.append({
+        summary = {
             "name": rname,
             "hp": f"{entry['current_hp']}/{entry['max_hp']}",
             "ac": entry["ac"],
             "initiative": entry["initiative_total"],
             "is_player": entry.get("is_player", False),
-        })
+            "role": entry.get("role", "hostile"),
+        }
+        if entry.get("conditions"):
+            summary["conditions"] = entry["conditions"]
+        registry_summary.append(summary)
 
     narrative_parts = [f"Combatants registered ({len(_COMBAT_REGISTRY)} total)."]
 
@@ -1571,12 +2665,111 @@ def register_combatants(combatants: list[dict], add_to_existing: bool = False) -
 
 
 @mcp.tool()
+def update_combatant(name: str, conditions_add: list[str] | None = None,
+                     conditions_remove: list[str] | None = None,
+                     hp_delta: int | None = None, max_hp: int | None = None,
+                     ac: int | None = None) -> dict:
+    """
+    Changes a registered combatant mid-fight: conditions and (NPC) HP / defence.
+
+    PARAMETERS:
+    - name: the combatant exactly as registered
+    - conditions_add / conditions_remove: SRD conditions, e.g. ['prone', 'restrained']. Adding a
+      condition the creature is immune to is refused (reported in 'blocked_conditions').
+    - hp_delta: (NPCs only) signed change; clamped to [0, max_hp], sets 'killed' at 0
+    - max_hp / ac: (NPCs only) correct the declared values
+
+    PROJECT-SPECIFIC BEHAVIORS:
+    1. Conditions drive the engine automatically: blinded/prone/restrained/poisoned/frightened/
+       invisible modify attack rolls, paralyzed/petrified/stunned/unconscious auto-fail STR/DEX
+       saves and are hit critically in melee, petrified resists all damage.
+    2. The player's conditions are stored on their sheet; use modify_player_numeric for player HP.
+    3. There is no end-combat call — declare a new registry with register_combatants when one is
+       needed.
+
+    EXAMPLES:
+    update_combatant(name='Goblin', conditions_add=['prone'])
+    update_combatant(name='Ogre', hp_delta=-13)
+    update_combatant(name='{player_name}', conditions_add=['restrained'])
+    """
+    global DB_CONNECTION
+    entry = _COMBAT_REGISTRY.get(name)
+    if entry is None:
+        return {"success": False, "error": "not_registered", "name": name,
+                "reason": f"'{name}' is not in the combat registry.",
+                "combatants": list(_COMBAT_REGISTRY)}
+    is_player = bool(entry.get("is_player"))
+    notes = []
+    blocked = []
+
+    if is_player:
+        if DB_CONNECTION is None:
+            return {"success": False, "error": "Database not initialized."}
+        cursor = DB_CONNECTION.cursor()
+        current = _player_conditions(cursor)
+        immunities = set()
+    else:
+        current = {str(c).strip().lower() for c in (entry.get("conditions") or [])}
+        immunities = {str(c).strip().lower() for c in (entry.get("condition_immunities") or [])}
+
+    for condition in conditions_add or []:
+        key = str(condition).strip().lower()
+        if not key:
+            continue
+        if key in immunities:
+            blocked.append({"condition": key, "reason": "immune"})
+            continue
+        current.add(key)
+    for condition in conditions_remove or []:
+        current.discard(str(condition).strip().lower())
+    current = sorted(current)
+
+    if is_player:
+        cursor = DB_CONNECTION.cursor()
+        _db_set(cursor, "conditions", current)
+        entry["conditions"] = current
+    else:
+        entry["conditions"] = current
+
+    if hp_delta is not None or max_hp is not None or ac is not None:
+        if is_player:
+            notes.append("Player HP/AC are on the sheet — use modify_player_numeric("
+                         "key='current_hit_points'|'armor_class', delta=…).")
+        else:
+            if max_hp is not None:
+                entry["max_hp"] = max(1, int(max_hp))
+                entry["current_hp"] = min(entry["current_hp"], entry["max_hp"])
+            if ac is not None:
+                entry["ac"] = int(ac)
+            if hp_delta is not None:
+                new_hp = max(0, min(entry["max_hp"], entry["current_hp"] + int(hp_delta)))
+                entry["current_hp"] = new_hp
+                if new_hp == 0:
+                    entry["killed"] = True
+                elif int(hp_delta) > 0:
+                    entry["killed"] = False
+
+    narrative = f"{name}: {entry['current_hp']}/{entry['max_hp']} HP, AC {entry['ac']}"
+    if current:
+        narrative += f" — {', '.join(current)}"
+    if blocked:
+        narrative += f" (immune to {', '.join(b['condition'] for b in blocked)})"
+    return {
+        "success": True, "name": name, "is_player": is_player,
+        "hp": f"{entry['current_hp']}/{entry['max_hp']}", "ac": entry["ac"],
+        "conditions": current, "blocked_conditions": blocked,
+        "note": " ".join(notes) or None,
+        "narrative_format": narrative,
+    }
+
+
+@mcp.tool()
 def resolve_attack(
     actor: str,
-    attack_modifier: int,
-    target_ac: int,
-    damage_dice: str,
-    damage_modifier: int = 0,
+    attack_modifier: int | None = None,
+    target_ac: int | None = None,
+    damage_dice: str | None = None,
+    damage_modifier: int | None = None,
     target_name: str = "",
     target_current_hp: int | None = None,
     challenge_rating: float | None = None,
@@ -1586,16 +2779,36 @@ def resolve_attack(
     is_npc_vs_npc: bool = False,
     advantage: bool = False,
     force_crit: bool = False,
+    weapon: str | None = None,
+    off_hand: bool = False,
+    attack: str | None = None,
+    damage_type: str | None = None,
 ) -> dict:
     """
     Resolves a full weapon/unarmed attack: attack roll, damage, HP application, kill detection, XP award.
 
     PARAMETERS:
     - actor: who is attacking — character name for player, NPC name for NPCs
-    - attack_modifier: bonus to the d20 attack roll
+    - weapon: (player attacks) the item the player attacks with, named exactly as it appears in the
+      inventory. The engine derives attack_modifier, damage dice and damage modifier from it, its
+      SRD archetype (or declared `base`) and the character's stats/proficiency. If it is not in
+      hand the attack is REFUSED (no roll) — the action is spent, see behaviour 11.
+    - attack: (NPC attacks) the name of a declared attack in the NPC's registry entry, e.g.
+      'Scimitar'. The engine derives attack bonus, damage dice, damage modifier and damage type
+      from it (declare a `base` to fill any gap). Refused when the actor is not registered or the
+      attack is not declared.
+    - damage_type: the damage type (e.g. 'fire'). Used for resistances/immunities/vulnerabilities;
+      filled automatically from weapon= or attack= when omitted.
+    - off_hand: set True for the bonus-action attack of TWO-WEAPON FIGHTING. Both hands must hold a
+      different light melee weapon; the damage takes no ability modifier unless it is negative.
+      Refused otherwise (the bonus action is spent).
+    - target_ac: omit it for a target in the combat registry — the engine uses the AC you declared
+      at register_combatants (falls back to 10).
+    - attack_modifier: bonus to the d20 attack roll (omit when passing weapon; an explicit value
+      always wins)
     - target_ac: target's armor class
-    - damage_dice: primary damage dice (e.g. '1d8'), doubled on crit
-    - damage_modifier: flat bonus added to damage (default 0)
+    - damage_dice: primary damage dice (e.g. '1d8'), doubled on crit (omit when passing weapon)
+    - damage_modifier: flat bonus added to damage (omit when passing weapon; an explicit 0 is kept)
     - target_name: optional name for HP lookup via combat registry
     - target_current_hp: optional current HP (auto-looked up from registry if omitted)
     - challenge_rating: optional CR for XP awards (auto-looked up from registry if omitted)
@@ -1613,8 +2826,27 @@ def resolve_attack(
     2. Extra damage dice are NOT doubled on crit. Put everything in damage_dice if you want all dice doubled.
     3. Temporary HP on the player is drained before real HP when is_npc_attack=True.
     4. XP auto-awarded on kill (unless is_npc_vs_npc=True). Uses the CR/XP table internally.
+    5. EQUIPPED WEAPONS (SRD 5.1): pass weapon='<item>' for a player attack and the engine derives
+       the roll from the equipped item (ability + proficiency + magic bonuses, damage from its
+       dice/base). If the item is not in hand the attack is REFUSED without a roll: the result has
+       success=false, error='item_not_equipped' (or 'item_not_carried' / 'weapon_stats_unknown'),
+       turn_lost=true and a gm_instruction. Tell the player the attack failed and that the turn is
+       spent, then move on. Never roll the action anyway.
+    6. A Versatile weapon uses its two-handed damage die while the other hand is free. A one-handed
+       Ammunition weapon (hand crossbow, sling, blowgun) cannot be fired while the other hand holds
+       something — it needs a free hand to load (error 'cannot_reload').
+    7. Conditions on either side drive the roll automatically (blinded, prone, restrained, poisoned,
+       frightened, invisible, paralyzed, petrified, stunned, unconscious): advantage/disadvantage,
+       and a critical hit against a helpless target in melee. Damage against a registered NPC is
+       adjusted by its declared resistances/immunities/vulnerabilities and reported as
+       'damage_modified'.
 
     EXAMPLES:
+    resolve_attack(actor='{player_name}', weapon='Longsword', target_ac=13,
+                   target_name='Goblin', target_current_hp=12, challenge_rating=0.5)
+
+    resolve_attack(actor='Goblin', attack='Scimitar', target_name='{player_name}', is_npc_attack=True)
+
     resolve_attack(actor='{player_name}', attack_modifier=4, target_ac=13,
                    damage_dice='1d8', damage_modifier=2, target_name='Goblin',
                    target_current_hp=12, challenge_rating=0.5)
@@ -1640,17 +2872,133 @@ def resolve_attack(
     try:
         cursor = DB_CONNECTION.cursor()
 
-        if actor == "{player_name}" and DB_CONNECTION is not None:
+        is_player_attacker = (not is_npc_attack and not is_npc_vs_npc) and _is_player_actor(cursor, actor)
+        if is_player_attacker and DB_CONNECTION is not None:
             actor = _db_val(cursor, "name", "Player")
 
-        if advantage:
-            d20_1 = random.randint(1, 20)
-            d20_2 = random.randint(1, 20)
-            d20 = max(d20_1, d20_2)
-            die_label = f"{min(d20_1, d20_2)} / {max(d20_1, d20_2)} → "
-        else:
-            d20 = random.randint(1, 20)
-            die_label = ""
+        # ── derived equipped weapon (SRD 5.1) ───────────────────────────────
+        weapon_info = None
+        equipment_warnings = []
+        if weapon and is_player_attacker:
+            inventory = _db_val(cursor, "inventory", []) or []
+            carried = [(e.get("name") if isinstance(e, dict) else str(e)) for e in inventory]
+            if weapon not in carried:
+                return _blocked_action(
+                    cursor, "item_not_carried", f"{weapon} is not in your inventory.", weapon,
+                    f"Attack wasted — {weapon} is not carried. The action is spent.")
+            state = _equipment_block(cursor)
+            in_hands = [h.get("name") for h in state.get("hands", [])]
+            if weapon not in in_hands:
+                held = ", ".join(h for h in in_hands if h) or "nothing"
+                return _blocked_action(
+                    cursor, "item_not_equipped",
+                    f"{weapon} is not equipped (holding: {held}).", weapon,
+                    f"Attack wasted — {weapon} is not equipped (holding: {held}). The action is spent.")
+            weapon_info = _derive_weapon_attack(cursor, weapon, inventory,
+                                                state.get("hands_free", 1), off_hand)
+            equipment_warnings = state.get("warnings", [])
+            other_held = next((h.get("name") for h in state.get("hands", [])
+                               if h.get("name") and h.get("name") != weapon), None)
+
+            # SRD 5.1 ammunition: a one-handed loading weapon needs a free hand to reload.
+            if (any("ammunition" in str(p).lower() for p in weapon_info["properties"])
+                    and not weapon_info["two_handed"] and state.get("hands_free", 2) == 0):
+                return _blocked_action(
+                    cursor, "cannot_reload",
+                    f"{weapon} needs a free hand to load, but {other_held} occupies it.", weapon,
+                    f"Attack wasted — {weapon} cannot be reloaded while {other_held} is held. "
+                    f"The action is spent.")
+
+            # SRD 5.1 two-weapon fighting: a different light melee weapon in the other hand.
+            if off_hand:
+                if other_held is None:
+                    return _blocked_action(
+                        cursor, "off_hand_needs_another_weapon",
+                        "Two-weapon fighting needs a light melee weapon in the other hand.", weapon,
+                        "Off-hand attack wasted — the other hand is empty. The action is spent.")
+                if not (_is_light_melee(weapon, inventory)
+                        and _is_light_melee(other_held, inventory)):
+                    return _blocked_action(
+                        cursor, "two_weapon_requires_light_melee",
+                        f"Two-weapon fighting needs a light melee weapon in each hand "
+                        f"({weapon} / {other_held}).", weapon,
+                        f"Off-hand attack wasted — {weapon} and {other_held} are not both light "
+                        f"melee weapons. The action is spent.")
+
+        attack_info = None
+        multiattack = None
+        if attack and not is_player_attacker:
+            entry = _COMBAT_REGISTRY.get(actor)
+            if entry is None:
+                return {"success": False, "error": "actor_not_registered",
+                        "reason": f"'{actor}' is not in the combat registry — call "
+                                  f"register_combatants first."}
+            attack_info = _derive_npc_attack(entry, attack)
+            if attack_info is None:
+                return {"success": False, "error": "attack_not_declared", "actor": actor,
+                        "reason": f"'{actor}' has no declared attack named '{attack}'.",
+                        "declared_attacks": [a.get("name") for a in (entry.get("attacks") or [])]}
+            if attack_modifier is None:
+                attack_modifier = attack_info.get("attack_bonus")
+            if damage_dice is None:
+                damage_dice = attack_info.get("damage_dice")
+            if damage_modifier is None:
+                damage_modifier = int(attack_info.get("damage_modifier") or 0)
+            if damage_type is None:
+                damage_type = attack_info.get("damage_type")
+            base = attack_info.get("base")
+            if base and (not damage_dice or not damage_type):
+                archetype = equipment.weapon_entry(base) or {}
+                damage_dice = damage_dice or archetype.get("damage")
+                damage_type = damage_type or archetype.get("damage_type")
+            multiattack = entry.get("multiattack")
+
+        if attack_modifier is None and weapon_info is not None:
+            attack_modifier = weapon_info["attack_modifier"]
+        if damage_dice is None and weapon_info is not None:
+            damage_dice = weapon_info["damage_dice"]
+        if damage_modifier is None:
+            damage_modifier = weapon_info["damage_modifier"] if weapon_info else 0
+        if damage_type is None and weapon_info is not None:
+            damage_type = weapon_info.get("damage_type")
+        if attack_modifier is None:
+            return {"success": False, "error": "attack_modifier_required",
+                    "reason": "Pass attack_modifier, or weapon=/attack= to let the engine derive it."}
+        if not damage_dice:
+            if weapon and is_player_attacker:
+                return _blocked_action(
+                    cursor, "weapon_stats_unknown",
+                    f"No damage is known for {weapon} — declare damage_dice (or a base archetype) "
+                    f"with update_player_list.", weapon,
+                    f"Attack wasted — {weapon} has no known damage. The action is spent.")
+            return {"success": False, "error": "damage_dice_required",
+                    "reason": "Pass damage_dice, or weapon=/attack= for a known weapon."}
+
+        # A registered target's AC comes from its stat block when the caller omits it.
+        if target_ac is None:
+            target_ac = _registry_ac(target_name) if target_name else None
+        if target_ac is None:
+            target_ac = 10
+
+        # SRD 5.1 variant: heavy encumbrance (and armour proficiency) gives disadvantage on
+        # attack rolls; conditions on either side drive it too.
+        ranged = False
+        if weapon_info is not None:
+            ranged = not weapon_info.get("melee", True)
+        elif attack_info is not None:
+            ranged = _npc_attack_is_ranged(attack_info)
+        target_is_player = bool(is_npc_attack)
+        attacker_conditions = _conditions_for(cursor, actor, is_player=is_player_attacker)
+        target_conditions = _conditions_for(cursor, target_name, is_player=target_is_player)
+        cond_adv, cond_dis, cond_crit, cond_sources = _condition_attack_effects(
+            attacker_conditions, target_conditions, ranged)
+        if cond_crit:
+            force_crit = True
+        enc_disadvantage, encumbrance_sources = _roll_disadvantage(cursor, is_player_attacker)
+        encumbrance_sources = [*encumbrance_sources, *cond_sources]
+        d20, advantage_rolls, roll_mode, advantage_cancelled = _roll_d20(
+            advantage=advantage or cond_adv, disadvantage=enc_disadvantage or cond_dis)
+        die_label = f"{min(advantage_rolls)} / {max(advantage_rolls)} → " if advantage_rolls else ""
 
         total_attack = d20 + attack_modifier
 
@@ -1676,10 +3024,16 @@ def resolve_attack(
             outcome = "Failure"
             is_crit = False
 
-        adv_label = " (Advantage)" if advantage else ""
+        adv_label = f" ({roll_mode.capitalize()})" if roll_mode else ""
+
         narrative_parts = []
+        attack_label = ""
+        if weapon and is_player_attacker:
+            attack_label = f" with {weapon}"
+        elif attack_info is not None:
+            attack_label = f" with {attack}"
         narrative_parts.append(
-            f"{actor} Attack{adv_label}: {die_label}{total_attack} vs AC {target_ac} ({outcome}) ({d20} + {attack_modifier})"
+            f"{actor} Attack{attack_label}{adv_label}: {die_label}{total_attack} vs AC {target_ac} ({outcome}) ({d20} + {attack_modifier})"
         )
 
         result = {
@@ -1696,10 +3050,36 @@ def resolve_attack(
             "advantage": advantage,
             "force_crit": force_crit,
         }
-        if advantage:
-            result["advantage_rolls"] = [d20_1, d20_2]
+        if advantage_rolls:
+            result[f"{roll_mode}_rolls"] = advantage_rolls
+        result["disadvantage"] = bool(enc_disadvantage)
+        if weapon_info is not None:
+            result["used_item"] = weapon
+            result["attack_ability"] = weapon_info["ability"]
+            result["proficient"] = weapon_info["proficient"]
+            result["damage_modifier"] = damage_modifier
+            result["damage_dice"] = damage_dice
+            if off_hand:
+                result["two_weapon"] = True
+                result["bonus_action_consumed"] = True
+                result["off_hand_weapon"] = weapon
+            if weapon_info.get("bonus_suppressed"):
+                result["magic_bonus_suppressed"] = weapon_info["bonus_suppressed"]
+            if weapon_info.get("damage_type"):
+                result["damage_type"] = weapon_info["damage_type"]
+            if equipment_warnings:
+                result["equipment_warnings"] = equipment_warnings
+        _encumbrance_note(result, encumbrance_sources, advantage_cancelled)
         if is_forced_crit:
             result["forced_crit"] = True
+        if attack_info is not None:
+            result["used_attack"] = attack
+            result["damage_dice"] = damage_dice
+            result["damage_type"] = damage_type
+            result["multiattack"] = multiattack
+        if attacker_conditions or target_conditions:
+            result["conditions"] = {"attacker": sorted(attacker_conditions),
+                                    "target": sorted(target_conditions)}
 
         if outcome in ("Failure", "Critical Failure"):
             result["damage_total"] = 0
@@ -1763,11 +3143,26 @@ def resolve_attack(
 
         total_damage = primary_damage + extra_damage
 
+        # SRD 5.1 resistances/immunities/vulnerabilities of a registered NPC target.
+        target_entry = _COMBAT_REGISTRY.get(target_name) if target_name else None
+        if not is_npc_attack and target_entry is not None:
+            total_damage, dmg_note = _apply_damage_modifiers(target_entry, total_damage, damage_type)
+            if dmg_note:
+                result["damage_modified"] = dmg_note
+                narrative_parts.append(f"Damage adjusted: {dmg_note} ({target_name})")
+
         result["damage_total"] = total_damage
         result["primary_damage"] = primary_damage
         result["primary_damage_rolls"] = primary_rolls
         result["damage_modifier"] = damage_modifier
         result["primary_die_size"] = primary_die_size
+        if damage_type:
+            result["damage_type"] = damage_type
+        if multiattack is not None:
+            result["multiattack"] = multiattack
+        if attacker_conditions or target_conditions:
+            result["conditions"] = {"attacker": sorted(attacker_conditions),
+                                    "target": sorted(target_conditions)}
 
         if is_npc_attack and total_damage > 0:
             hp_result = _apply_hp_change(cursor, -total_damage)
@@ -2059,7 +3454,7 @@ def _resolve_projectile_spell(
     *, actor, spell_name, spell, count, attack_type, damage_dice, damage_modifier,
     damage_type, targets, target_name, target_current_hp, target_ac, challenge_rating,
     is_npc_attack, is_npc_vs_npc, cursor, spell_attack_modifier, advantage, force_crit,
-    result, narrative_parts,
+    result, narrative_parts, disadvantage=False,
 ):
     """Resolve a multi-projectile spell (Magic Missile / Scorching Ray / Eldritch Blast).
 
@@ -2134,13 +3529,10 @@ def _resolve_projectile_spell(
         for _ in range(int(e["darts"])):
             detail = {"target": e["name"], "hit": True, "crit": False}
             if attack_type == "attack_roll":
-                if advantage:
-                    r1 = random.randint(1, 20)
-                    r2 = random.randint(1, 20)
-                    d20 = max(r1, r2)
-                    detail["advantage_rolls"] = [min(r1, r2), max(r1, r2)]
-                else:
-                    d20 = random.randint(1, 20)
+                d20, dart_rolls, dart_mode, _dart_cancelled = _roll_d20(
+                    advantage=advantage, disadvantage=disadvantage)
+                if dart_rolls:
+                    detail[f"{dart_mode}_rolls"] = dart_rolls
                 total_attack = d20 + spell_attack_modifier
                 ac = e["ac"] if e["ac"] is not None else 0
                 nat20 = d20 == 20
@@ -2253,13 +3645,13 @@ def _resolve_projectile_spell(
 def resolve_magic(
     spell_name: str,
     actor: str = "{player_name}",
-    spell_attack_modifier: int = 0,
-    spell_save_dc: int = 0,
+    spell_attack_modifier: int | None = None,
+    spell_save_dc: int | None = None,
     target_ac: int | None = None,
     target_name: str = "",
     target_current_hp: int | None = None,
     challenge_rating: float | None = None,
-    target_save_modifier: int = 0,
+    target_save_modifier: int | None = None,
     player_save_modifier: int | None = None,
     slot_level: int | None = None,
     is_npc_attack: bool = False,
@@ -2280,6 +3672,7 @@ def resolve_magic(
     advantage: bool = False,
     force_crit: bool = False,
     targets: list[dict] | None = None,
+    components: str | None = None,
 ) -> dict:
     """
     Resolves a full spell: spell slot management, attack/save, damage/healing, HP application, kill detection, XP award.
@@ -2293,8 +3686,12 @@ def resolve_magic(
     - target_name: optional name for HP lookup via combat registry
     - target_current_hp: optional current HP (auto-looked up from registry if omitted)
     - challenge_rating: optional CR for XP awards (auto-looked up from registry if omitted)
-    - target_save_modifier: save bonus for single-target saving_throw spells
-    - player_save_modifier: player's save bonus when is_npc_attack=True with saving throws
+    - target_save_modifier: save bonus for single-target saving_throw spells (omit it for a target
+      in the combat registry — the engine uses its declared saves)
+    - player_save_modifier: player's save bonus when is_npc_attack=True with saving throws (omit it
+      to let the engine derive the player's save from their sheet)
+    - spell_attack_modifier / spell_save_dc: omit for a registered NPC caster — the engine uses the
+      `spellcasting` block you declared at register_combatants
     - slot_level: upcast slot level (defaults to spell's native level)
     - is_npc_attack: NPC casting on player — damage auto-applied to player HP, no slot consumed
     - is_scroll: cast from scroll — no slot consumed, ability check for scrolls above caster level (DMG p.200)
@@ -2334,9 +3731,17 @@ def resolve_magic(
     7. Temporary HP on the player is drained before real HP when is_npc_attack=True.
     8. Scrolls above caster's available slot level trigger an ability check (d20 + spellcasting mod vs DC 10 + spell level).
        On failure, scroll is wasted and spell does not take effect.
-    9. Multi-projectile spells resolve each projectile separately: automatic spells (Magic Missile)
+    9. A spellbook caster (wizard-style) whose Spellbook item is missing from the inventory cannot cast leveled
+       spells (cantrips still work) and cannot prepare spells until the book is recovered.
+    10. Multi-projectile spells resolve each projectile separately: automatic spells (Magic Missile)
        never roll to hit and strike simultaneously; attack-roll spells (Scorching Ray, Eldritch Blast)
        roll a separate attack per projectile. 'darts' splits them across targets.
+    11. FREE HAND (SRD 5.1 components): a player spell with somatic (S) or material (M) components
+       cannot be cast with both hands occupied — the engine REFUSES it before any dice or slot use
+       (success=false, error='both_hands_occupied', turn_lost=true, gm_instruction; no slot spent).
+       Tell the player why and that the turn is spent, then move on. A spell with only V needs no
+       hand. Components come from config/components.yml, else the components='...' you pass (use it
+       for homebrew/custom spells); an unknown spell is treated as V,S,M.
 
     EXAMPLES:
     resolve_magic(spell_name='Fireball', actor='{player_name}',
@@ -2419,6 +3824,62 @@ def resolve_magic(
     else:
         cursor = DB_CONNECTION.cursor() if DB_CONNECTION is not None else None
 
+    # SRD 5.1 variant: a heavily encumbered player rolls spell attacks with
+    # disadvantage (cancelling a GM-granted advantage).
+    is_player_caster = not is_npc_attack and not is_npc_vs_npc
+    # DC / attack bonus: a registered NPC caster supplies its own; the player's comes from the sheet.
+    if is_player_caster and cursor is not None:
+        spell_raw = _db_val(cursor, "spellcasting", {}) or {}
+        if isinstance(spell_raw, dict):
+            if spell_save_dc is None and spell_raw.get("dc") is not None:
+                spell_save_dc = int(spell_raw["dc"])
+            if spell_attack_modifier is None and spell_raw.get("attack_modifier") is not None:
+                spell_attack_modifier = int(spell_raw["attack_modifier"])
+    else:
+        npc_spell = (_COMBAT_REGISTRY.get(actor) or {}).get("spellcasting") or {}
+        if spell_save_dc is None and npc_spell.get("save_dc") is not None:
+            spell_save_dc = int(npc_spell["save_dc"])
+        if spell_attack_modifier is None and npc_spell.get("attack_modifier") is not None:
+            spell_attack_modifier = int(npc_spell["attack_modifier"])
+    spell_save_dc = int(spell_save_dc or 0)
+    spell_attack_modifier = int(spell_attack_modifier or 0)
+    enc_disadvantage, encumbrance_sources = _roll_disadvantage(cursor, is_player_caster)
+
+    # ── armour proficiency, then free-hand check (SRD 5.1) ───────────────────
+    if (cursor is not None and is_player_caster and not is_scroll
+            and _is_player_actor(cursor, actor)):
+        comps = (components or _spell_components().get(carrying.normalize(spell_name)) or "VSM").upper()
+        state = _equipment_block(cursor)
+        # No spellcasting at all while wearing armour you are not proficient with.
+        if not state.get("armor_proficient", True):
+            blocked = _blocked_action(
+                cursor, "armor_not_proficient",
+                "You can't cast spells while wearing armour you lack proficiency with "
+                f"({', '.join(state.get('proficiency_sources') or [])}).", spell_name,
+                f"{spell_name} failed — {actor} wears armour they are not proficient with, so no "
+                f"spell can be cast. The action is spent.")
+            blocked["spell"] = spell_name
+            blocked["note"] = "No spell slot is consumed."
+            return blocked
+        if (("S" in comps or "M" in comps) and state.get("derived_from_equipped")
+                and state.get("hands_free_casting", 2) == 0):
+            # A held focus or component pouch covers M but not S (a hand is still needed).
+            held = [h.get("name") for h in state.get("hands", []) if h.get("name")]
+            focus_ok = "M" in comps and "S" not in comps and _covers_material(cursor, held)
+            if not focus_ok:
+                held_label = ", ".join(held) or "both hands"
+                blocked = _blocked_action(
+                    cursor, "both_hands_occupied",
+                    f"Both hands are occupied ({held_label}) — {spell_name} needs a free hand for its "
+                    f"{'somatic' if 'S' in comps else 'material'} components.",
+                    spell_name,
+                    f"{spell_name} failed — both hands are busy ({held_label}), so the spell cannot "
+                    f"be cast. The action is spent.")
+                blocked["spell"] = spell_name
+                blocked["components"] = comps
+                blocked["note"] = "No spell slot is consumed."
+                return blocked
+
     spell_key = spell_name.lower().strip()
     spell = spells_db.get(spell_key)
 
@@ -2499,6 +3960,21 @@ def resolve_magic(
                     f"item='{lookup_entries[spell_key]}', action='remove') before recasting."
                 ),
             }
+
+    # ── SPELLBOOK CHECK ──
+    # A caster whose spell list lives in a spellbook (wizard-style) cannot cast
+    # leveled spells while the book is missing from the inventory. Cantrips are
+    # memorised and keep working; scrolls carry their own magic.
+    if (DB_CONNECTION is not None and cursor is not None
+            and not is_npc_attack and not is_npc_vs_npc and not is_scroll
+            and sp_level > 0 and _needs_spellbook(cursor) and not _has_spellbook_item(cursor)):
+        return {
+            "success": False,
+            "error": f"Cannot cast {spell_name}: the spellbook is missing.",
+            "spell_name": spell_name,
+            "hint": "The character's spellbook is not in their inventory. "
+                    "Recover it before casting leveled spells.",
+        }
 
     # ── SPELL SLOT MANAGEMENT ──
     is_cantrip = (sp_level == 0)
@@ -2692,24 +4168,23 @@ def resolve_magic(
             target_current_hp=target_current_hp, target_ac=target_ac, challenge_rating=challenge_rating,
             is_npc_attack=is_npc_attack, is_npc_vs_npc=is_npc_vs_npc, cursor=cursor,
             spell_attack_modifier=spell_attack_modifier, advantage=advantage, force_crit=force_crit,
-            result=result, narrative_parts=narrative_parts,
+            result=result, narrative_parts=narrative_parts, disadvantage=enc_disadvantage,
         )
         if proj.get("success") is False:
             return proj
+        if enc_disadvantage:
+            result["disadvantage_sources"] = list(encumbrance_sources)
+            if advantage:
+                result["advantage_cancelled"] = True
         return _finalize_spell_result(proj, narrative_parts, sp_duration, sp_buffs,
                                       sp_requires_concentration,
                                       is_npc_attack or is_npc_vs_npc, is_npc_vs_npc)
 
     # ── ATTACK ROLL ──
     if sp_attack_type == "attack_roll":
-        if advantage:
-            d20_1 = random.randint(1, 20)
-            d20_2 = random.randint(1, 20)
-            d20 = max(d20_1, d20_2)
-            die_label = f"{min(d20_1, d20_2)} / {max(d20_1, d20_2)} → "
-        else:
-            d20 = random.randint(1, 20)
-            die_label = ""
+        d20, advantage_rolls, roll_mode, advantage_cancelled = _roll_d20(
+            advantage=advantage, disadvantage=enc_disadvantage)
+        die_label = f"{min(advantage_rolls)} / {max(advantage_rolls)} → " if advantage_rolls else ""
         total_attack = d20 + spell_attack_modifier
         is_natural_1 = d20 == 1
         is_natural_20 = d20 == 20
@@ -2733,7 +4208,7 @@ def resolve_magic(
             outcome = "Failure"
             is_crit = False
 
-        adv_label = " (Advantage)" if advantage else ""
+        adv_label = f" ({roll_mode.capitalize()})" if roll_mode else ""
         narrative_parts.append(
             f"{actor} {spell_name} Attack{adv_label}: {die_label}{total_attack} vs AC {target_ac} ({outcome}) ({d20} + {spell_attack_modifier})"
         )
@@ -2745,8 +4220,10 @@ def resolve_magic(
         result["outcome"] = outcome
         result["is_crit"] = is_crit
         result["is_natural_20"] = is_natural_20
-        if advantage:
-            result["advantage_rolls"] = [d20_1, d20_2]
+        if advantage_rolls:
+            result[f"{roll_mode}_rolls"] = advantage_rolls
+        result["disadvantage"] = bool(enc_disadvantage)
+        _encumbrance_note(result, encumbrance_sources, advantage_cancelled)
         if is_forced_crit:
             result["forced_crit"] = True
 
@@ -3027,15 +4504,24 @@ def resolve_magic(
             tchp = t.get("current_hp")
             if tchp is None:
                 tchp = _registry_hp(tname) or 0
-            tsave = t.get("save_modifier", 0)
+            tsave = t.get("save_modifier")
+            if tsave is None:
+                tsave = _registry_save(tname, sp_save_type)
+            if tsave is None:
+                tsave = 0
             tcr = t.get("challenge_rating")
             if tcr is None:
                 tcr = _registry_cr(tname)
             is_player = t.get("is_player", False)
 
-            save_d20 = random.randint(1, 20)
+            save_disadvantage, save_sources = _encumbrance(cursor, is_player, sp_save_type)
+            cond_save_dis, auto_fail, cond_save_sources = _condition_save_effects(
+                _conditions_for(cursor, tname, is_player=is_player), sp_save_type)
+            save_disadvantage = save_disadvantage or cond_save_dis
+            save_sources = [*save_sources, *cond_save_sources]
+            save_d20, save_rolls, save_mode, _save_cancelled = _roll_d20(disadvantage=save_disadvantage)
             save_total = save_d20 + tsave
-            save_success = save_total >= spell_save_dc
+            save_success = save_total >= spell_save_dc and not auto_fail
             save_outcome = "Success" if save_success else "Failure"
 
             t_damage = total_damage
@@ -3069,6 +4555,12 @@ def resolve_magic(
                 if sp_no_damage and sp_condition:
                     narrative_parts.append(f"{tname}: Affected — {sp_condition} ({sp_condition_duration})")
 
+            # SRD resistances/immunities/vulnerabilities, after any save halving.
+            if not sp_healing and not is_player and t_damage > 0:
+                t_damage, dmg_note = _apply_damage_modifiers(
+                    _COMBAT_REGISTRY.get(tname), t_damage, sp_damage_type)
+                if dmg_note:
+                    narrative_parts.append(f"{tname} damage adjusted: {dmg_note}")
             remaining = min(tchp + t_damage, _registry_max_hp(tname) or tchp) if sp_healing else tchp - t_damage
             killed = False if sp_healing else (remaining <= 0 if tchp > 0 else False)
 
@@ -3089,6 +4581,12 @@ def resolve_magic(
             tr = {"name": tname, "save_roll": save_d20, "save_modifier": tsave,
                    "save_total": save_total, "save_success": save_success,
                    "damage": t_damage, "remaining_hp": max(0, remaining), "killed": killed}
+            if auto_fail:
+                tr["save_auto_failed"] = True
+            if save_rolls:
+                tr[f"save_{save_mode}_rolls"] = save_rolls
+            if save_sources:
+                tr["disadvantage_sources"] = list(save_sources)
 
             if is_player and t_damage > 0 and cursor:
                 hp_result = _apply_hp_change(cursor, -t_damage)
@@ -3122,11 +4620,26 @@ def resolve_magic(
 
     # ── SINGLE-TARGET SAVING THROW ──
     if sp_attack_type == "saving_throw":
-        save_mod = player_save_modifier if is_npc_attack and player_save_modifier is not None else target_save_modifier
+        if is_npc_attack and player_save_modifier is not None:
+            save_mod = player_save_modifier
+        elif target_save_modifier is not None:
+            save_mod = target_save_modifier
+        else:
+            save_mod = _registry_save(target_name or actor, sp_save_type)
+            if save_mod is None:
+                save_mod = 0
         saver_name = target_name or actor
-        save_d20 = random.randint(1, 20)
+        # The player is the one saving when an NPC casts on them.
+        save_disadvantage, save_sources = _encumbrance(cursor, is_npc_attack, sp_save_type)
+        cond_save_dis, auto_fail, cond_save_sources = _condition_save_effects(
+            _conditions_for(cursor, saver_name, is_player=is_npc_attack), sp_save_type)
+        save_disadvantage = save_disadvantage or cond_save_dis
+        save_sources = [*save_sources, *cond_save_sources]
+        save_d20, save_rolls, save_mode, _save_cancelled = _roll_d20(disadvantage=save_disadvantage)
         save_total = save_d20 + save_mod
-        save_success = save_total >= spell_save_dc
+        save_success = save_total >= spell_save_dc and not auto_fail
+        if auto_fail:
+            save_outcome = "Failure"
 
         result["save_roll"] = save_d20
         result["save_modifier"] = save_mod
@@ -3159,6 +4672,16 @@ def resolve_magic(
                     narrative_parts.append(f"{saver_name} saved — no damage.")
         elif sp_no_damage and sp_condition:
             narrative_parts.append(f"{saver_name}: Affected — {sp_condition} ({sp_condition_duration})")
+        if auto_fail:
+            result["save_auto_failed"] = True
+
+        # SRD resistances/immunities/vulnerabilities of a registered NPC target (not the player).
+        if not is_npc_attack and not sp_healing and total_damage > 0:
+            total_damage, dmg_note = _apply_damage_modifiers(
+                _COMBAT_REGISTRY.get(target_name), total_damage, sp_damage_type)
+            if dmg_note:
+                result["damage_modified"] = dmg_note
+                narrative_parts.append(f"Damage adjusted: {dmg_note} ({target_name})")
 
     result["damage_total"] = total_damage
     result["damage_type"] = sp_damage_type

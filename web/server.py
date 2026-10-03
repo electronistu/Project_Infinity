@@ -16,23 +16,54 @@ WS     /ws/{id}
 
 import asyncio
 import json
+import re
+import shutil
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .creation import CreationManager
-from .models import DEFAULT_MODEL, DEFAULT_TEMPERATURE, list_models, resolve_model
+from .icons import IconService, all_icon_keys, slugify_key, spell_detail
+from .images import ImageError, ImageService, SceneService, image_mime
+from .models import (
+    DEFAULT_ICON_MODEL,
+    DEFAULT_IMAGE_MODEL,
+    DEFAULT_MODEL,
+    DEFAULT_TEMPERATURE,
+    list_image_models,
+    list_models,
+    resolve_image_model,
+    resolve_model,
+)
 from .session_manager import SessionManager
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = REPO_ROOT / "output"
+ASSETS_DIR = REPO_ROOT / "assets"
 
 manager = SessionManager(REPO_ROOT)
 creation_manager = CreationManager(REPO_ROOT, OUTPUT_DIR)
+image_service = ImageService(OUTPUT_DIR)
+scene_service = SceneService(OUTPUT_DIR)
+icon_service = IconService(ASSETS_DIR)
+_portrait_lock = asyncio.Lock()
+_icon_lock = asyncio.Lock()
+_scene_lock = asyncio.Lock()
+MAX_ICON_BATCH = 6
+
+# Kinds the shared icon store may write under. An allowlist keeps an arbitrary
+# client key from picking the directory it writes into (and bounds prompt abuse).
+_ICON_KINDS = {
+    "ability", "alignment", "armor", "background", "class", "condition", "damage",
+    "faction", "feature", "item", "kingdom", "language", "race", "save", "school",
+    "skill", "spell", "stat", "tool", "weapon",
+}
+_ICON_NAME_MAX = 120
 
 
 @asynccontextmanager
@@ -64,6 +95,27 @@ def _world_names() -> list[str]:
     return sorted(p.name for p in OUTPUT_DIR.glob("*.wwf"))
 
 
+_ALLOWED_IMAGE_EXTS = {"png", "jpg", "jpeg", "webp"}
+
+
+def _portrait_url(stem: str) -> str | None:
+    found = image_service.portrait_file(stem)
+    if not found:
+        return None
+    return f"/api/portraits/{stem}.{found[0].suffix.lstrip('.')}"
+
+
+def _portrait_mtime(stem: str) -> float | None:
+    """The portrait file's mtime — changes on regenerate, unlike the .wwf mtime."""
+    found = image_service.portrait_file(stem)
+    if not found:
+        return None
+    try:
+        return found[0].stat().st_mtime
+    except OSError:
+        return None
+
+
 def _world_list() -> list[dict]:
     entries = []
     paths = sorted(OUTPUT_DIR.glob("*.wwf")) if OUTPUT_DIR.exists() else []
@@ -74,6 +126,8 @@ def _world_list() -> list[dict]:
             "class": None,
             "level": None,
             "modified": path.stat().st_mtime,
+            "portrait": _portrait_url(path.stem),
+            "portrait_modified": _portrait_mtime(path.stem),
         }
         player = path.with_suffix(".player")
         if player.exists():
@@ -93,6 +147,49 @@ class CreateSessionBody(BaseModel):
     model: str | None = None
     temperature: float | None = None
     think: bool | None = None
+    scene_images: bool = False
+
+
+class PortraitBody(BaseModel):
+    wwf: str
+    force: bool = False
+    model: str | None = None
+    # Optional live sheet (dump_player_db snapshot); when present it is used
+    # instead of the on-disk .player, so the portrait reflects the current
+    # character (e.g. a higher level) mid-session.
+    player: dict | None = None
+
+
+class IconItem(BaseModel):
+    key: str
+    name: str = ""
+    detail: str = ""
+
+
+class IconsBody(BaseModel):
+    # `items` is the preferred shape (carries the display name for per-item
+    # prompts); `keys` is kept for backward compatibility.
+    keys: list[str] = []
+    items: list[IconItem] = []
+    model: str | None = None
+
+
+class SceneBody(BaseModel):
+    session_id: str
+    description: str
+    mood: str = ""
+    kind: str = "story"
+    location: str = ""
+    model: str | None = None
+
+
+def _image_model_or_400(model: str | None) -> str | None:
+    """Validate an image-model override; None means 'use the service default'."""
+    if not model:
+        return None
+    if resolve_image_model(model) is None:
+        raise HTTPException(status_code=400, detail=f"unknown image model: {model}")
+    return model
 
 
 @app.get("/api/health")
@@ -121,15 +218,245 @@ async def delete_world(filename: str):
         if target.exists():
             target.unlink()
             removed.append(target.name)
+    image_dir = OUTPUT_DIR / "images" / wwf.stem
+    if image_dir.is_dir():
+        shutil.rmtree(image_dir, ignore_errors=True)
+        removed.append(f"images/{wwf.stem}")
     return {"deleted": name, "removed": removed}
+
+
+@app.get("/api/images/status")
+async def images_status():
+    return image_service.status()
+
+
+@app.post("/api/portrait")
+async def generate_portrait(body: PortraitBody):
+    name = Path(body.wwf).name
+    if name != body.wwf or not name.lower().endswith(".wwf"):
+        raise HTTPException(status_code=400, detail="invalid world file")
+    wwf = OUTPUT_DIR / name
+    if not wwf.exists():
+        raise HTTPException(status_code=404, detail="unknown world")
+    if not image_service.available():
+        raise HTTPException(status_code=503, detail="image generation is not configured (set GEMINI_API_KEY)")
+    model = _image_model_or_400(body.model)
+    if body.player is not None:
+        player = body.player
+    else:
+        player_path = wwf.with_suffix(".player")
+        if not player_path.exists():
+            raise HTTPException(status_code=404, detail="no character data for this world")
+        try:
+            player = json.loads(player_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            raise HTTPException(status_code=500, detail="could not read character data")
+    async with _portrait_lock:
+        try:
+            result = await asyncio.to_thread(image_service.ensure_portrait, wwf.stem, player, body.force, model)
+        except ImageError as exc:
+            raise HTTPException(status_code=exc.status, detail=str(exc))
+    return {"portrait": _portrait_url(wwf.stem), **result}
+
+
+@app.get("/api/icons/index")
+async def icons_index():
+    return {"available": icon_service.available(), "icons": icon_service.index()}
+
+
+@app.post("/api/icons")
+async def generate_icons(body: IconsBody):
+    if not icon_service.available():
+        raise HTTPException(status_code=503, detail="image generation is not configured (set GEMINI_API_KEY)")
+    model = _image_model_or_400(body.model)
+    catalog = all_icon_keys()
+
+    def _clean_name(value, fallback):
+        text = " ".join(str(value or "").split())
+        return (text[:_ICON_NAME_MAX].strip() or fallback)
+
+    wanted: list[dict] = []
+    seen: set[str] = set()
+
+    def _add(kind: str, slug: str, name: str, detail: str) -> None:
+        key = f"{kind}/{slug}"
+        if key in seen or len(wanted) >= MAX_ICON_BATCH:
+            return
+        seen.add(key)
+        fallback = catalog.get(key) or slug.replace("-", " ").title()
+        detail = " ".join(str(detail or "").split())[:_ICON_NAME_MAX]
+        if kind == "spell" and not detail:
+            detail = spell_detail(name)
+        wanted.append({"key": key, "kind": kind, "slug": slug,
+                       "name": _clean_name(name, fallback), "detail": detail})
+
+    # Preferred: explicit items with display names (covers per-item keys).
+    for item in body.items:
+        raw = str(item.key or "")
+        kind, sep, slug = raw.partition("/")
+        kind, slug = kind.strip(), slug.strip()
+        if not sep or kind not in _ICON_KINDS or slug != slugify_key(slug) or not slug:
+            continue
+        _add(kind, slug, item.name, item.detail)
+
+    # Backward compatible: bare catalog keys, resolved to their display names.
+    for raw in body.keys:
+        key = str(raw).strip()
+        if key not in catalog:
+            continue
+        kind, _, slug = key.partition("/")
+        if kind not in _ICON_KINDS:
+            continue
+        _add(kind, slug, catalog[key], "")
+
+    generated: list[str] = []
+    failed: list[dict] = []
+    async with _icon_lock:
+        for entry in wanted:
+            try:
+                result = await asyncio.to_thread(
+                    icon_service.ensure, entry["kind"], entry["slug"],
+                    entry["name"], entry["detail"], False, model,
+                )
+            except ImageError as exc:
+                failed.append({"key": entry["key"], "error": str(exc)})
+            except Exception as exc:  # noqa: BLE001 - report, do not abort the batch
+                failed.append({"key": entry["key"], "error": str(exc)})
+            else:
+                if result.get("generated"):
+                    generated.append(result["key"])
+    # Return only the affected keys (the full index can be ~600 KB); the client
+    # merges these into its cached map.
+    icons = {}
+    for entry in wanted:
+        url = icon_service.url_for(entry["kind"], entry["slug"])
+        if url:
+            icons[entry["key"]] = url
+    return {"generated": generated, "failed": failed, "icons": icons}
+
+
+@app.get("/api/icons/{kind}/{slug}")
+async def get_icon(kind: str, slug: str):
+    from .icons import slugify_key  # local import keeps the module graph light
+    if kind != slugify_key(kind) or slug != slugify_key(slug) or not kind or not slug:
+        raise HTTPException(status_code=400, detail="invalid icon key")
+    path = icon_service.icon_path(kind, slug)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="no icon")
+    return FileResponse(path, media_type=image_mime(path), headers={"Cache-Control": "no-store"})
+
+
+@app.get("/api/portraits/{filename}")
+async def get_portrait(filename: str):
+    name = Path(filename).name
+    stem, dot, ext = name.rpartition(".")
+    if (name != filename or not dot or not stem or ".." in name
+            or ext.lower() not in _ALLOWED_IMAGE_EXTS):
+        raise HTTPException(status_code=400, detail="invalid portrait file")
+    path = image_service.image_dir(stem) / f"portrait.{ext.lower()}"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="no portrait")
+    return FileResponse(path, media_type=image_mime(path), headers={"Cache-Control": "no-store"})
+
+
+def _world_brief(wwf_text: str) -> str:
+    """The first couple of world-history lines, for scene continuity."""
+    lines: list[str] = []
+    in_history = False
+    for raw in (wwf_text or "").splitlines():
+        stripped = raw.strip()
+        if stripped.startswith("history:"):
+            in_history = True
+            continue
+        if not in_history:
+            continue
+        if not stripped:
+            continue
+        if stripped.startswith("-"):
+            lines.append(stripped.lstrip("- ").strip())
+            if len(lines) >= 2:
+                break
+        elif stripped.endswith(":"):
+            break
+    return " ".join(lines)[:400]
+
+
+def _scene_context(session) -> tuple[dict, str]:
+    """Character data + a short world brief for the scene prompt."""
+    player: dict = {}
+    player_path = Path(session.player_path) if session.player_path else None
+    if player_path and player_path.exists():
+        try:
+            player = json.loads(player_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            player = {}
+    world = ""
+    wwf = Path(session.wwf_path) if session.wwf_path else None
+    if wwf and wwf.exists():
+        try:
+            world = _world_brief(wwf.read_text(encoding="utf-8"))
+        except OSError:
+            world = ""
+    return player, world
+
+
+@app.post("/api/scene")
+async def generate_scene(body: SceneBody):
+    session = manager.get(body.session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="unknown session")
+    if not scene_service.available():
+        raise HTTPException(status_code=503, detail="image generation is not configured (set GEMINI_API_KEY)")
+    description = " ".join(str(body.description or "").split())[:1200]
+    if not description:
+        raise HTTPException(status_code=400, detail="description required")
+    mood = " ".join(str(body.mood or "").split())[:120]
+    location = " ".join(str(body.location or "").split())[:120]
+    model = _image_model_or_400(body.model)
+    stem = Path(session.active_wwf).stem if session.active_wwf else ""
+    if not stem:
+        raise HTTPException(status_code=400, detail="session has no active save")
+    player, world = _scene_context(session)
+    async with _scene_lock:
+        try:
+            result = await asyncio.to_thread(
+                scene_service.ensure_scene, stem, player, world,
+                description, mood, location, model,
+            )
+        except ImageError as exc:
+            raise HTTPException(status_code=exc.status, detail=str(exc))
+    return result
+
+
+@app.get("/api/scenes/{stem}/{name}")
+async def get_scene(stem: str, name: str):
+    safe = re.compile(r"^[A-Za-z0-9_-]+$")
+    if not safe.match(stem) or not safe.match(name):
+        raise HTTPException(status_code=400, detail="invalid scene key")
+    found = scene_service.get_scene(stem, name)
+    if not found:
+        raise HTTPException(status_code=404, detail="no scene")
+    data, mime = found
+    return Response(content=data, media_type=mime, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/api/models")
 async def models():
+    gemini_ready = image_service.available()
+    entries = []
+    for model in list_models():
+        entry = dict(model)
+        # Gemini models need GEMINI_API_KEY; Ollama Cloud needs nothing local.
+        entry["available"] = entry.get("provider") != "gemini" or gemini_ready
+        entries.append(entry)
     return {
-        "models": list_models(),
+        "models": entries,
         "default": DEFAULT_MODEL,
         "default_temperature": DEFAULT_TEMPERATURE,
+        "image_models": list_image_models(),
+        "default_image_model": DEFAULT_IMAGE_MODEL,
+        "default_icon_model": DEFAULT_ICON_MODEL,
+        "images_available": image_service.available(),
     }
 
 
@@ -141,6 +468,7 @@ async def create_session(body: CreateSessionBody):
         raise HTTPException(status_code=400, detail=f"unknown model: {body.model}")
     sid, session = await manager.create(
         body.wwf, model=body.model, temperature=body.temperature, think=body.think,
+        scene_images=body.scene_images,
     )
     return {
         "session_id": sid,
@@ -180,6 +508,10 @@ async def ws_endpoint(websocket: WebSocket, sid: str):
 
     async def pump_events():
         async for evt in session.events():
+            # Stamp the owning session so the client can drop events that race
+            # in from a session it has already left.
+            if isinstance(evt, dict):
+                evt = {**evt, "session_id": sid}
             await websocket.send_json(evt)
             if evt.get("type") == "closed":
                 break
@@ -201,7 +533,7 @@ async def ws_endpoint(websocket: WebSocket, sid: str):
             elif mtype == "resume":
                 await session.resume()
             elif mtype == "save":
-                await session.submit_save(msg.get("name"))
+                await session.submit_save()
             elif mtype == "sync":
                 await session.submit_slash("/sync")
             elif mtype == "stats":

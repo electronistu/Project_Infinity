@@ -18,6 +18,17 @@ const state = {
   worldsMeta: [],  // enriched /api/worlds entries
   activeSaveName: null,
   endAfterSave: false,
+  imagesEnabled: false,                 // opt-in; portrait + storyline scene images
+  imageStatus: { available: false },    // server capability (/api/images/status)
+  imageModels: [],                      // [{id,label}] offered by /api/models
+  imageModel: "",                       // in-story (portrait + scenes) model id
+  iconModel: "",                        // sheet-icon model id
+  thinkEnabled: false,                  // thinking pane SHOWN (display-only; the model always thinks)
+  iconUrls: {},                         // "kind/slug" -> url for shared sheet icons
+  sheetMode: "icons",                   // "icons" | "generate" | "text"
+  lastStats: null,                      // last rendered sheet (for icon diffing)
+  iconGenBusy: false,                   // one on-the-fly generation run at a time
+  iconGenEpoch: 0,                      // bumped on session change to cancel a run
 };
 
 const $ = (id) => document.getElementById(id);
@@ -42,10 +53,25 @@ function stripTokens(s) {
     .replace(/\{\{_SYNC_DATABASE\}\}/g, "");
 }
 
+/* The GM closes its mechanics block with a protocol marker ("**END MECHANICS**").
+   It is never prose: the markdown renderer uses it to close the panel, and the
+   plain-text surfaces (the streaming preview) strip it so it never reaches the
+   player's narration. */
+const MECH_START_RE = /^\s*\*{0,2}\s*mechanics:?\s*\*{0,2}\s*$/i;
+const MECH_END_RE = /^\s*\*{0,2}\s*end(?:\s+of)?\s+mechanics:?\s*\*{0,2}\s*$/i;
+const MECH_END_RE_G = /^[ \t]*\*{0,2}[ \t]*end(?:\s+of)?\s+mechanics:?[ \t]*\*{0,2}[ \t]*$/gim;
+
+function stripMechanicsMarker(text) {
+  return String(text).replace(MECH_END_RE_G, "");
+}
+
 function fmtNum(n) { return Number(n || 0).toLocaleString(); }
 
 function mdToHtml(raw) {
   const lines = stripTokens(raw).split("\n");
+  // With an explicit END marker the block closes exactly there, so a tool's
+  // multi-line narrative_format (and any trailing narrative list) stays inside.
+  const explicitMech = lines.some((rawLine) => MECH_END_RE.test(rawLine));
   const out = [];
   let inList = false;
   let inMech = false;
@@ -55,7 +81,12 @@ function mdToHtml(raw) {
     let line = escapeHtml(rawLine)
       .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
       .replace(/\*([^*]+)\*/g, "<em>$1</em>");
-    if (/^\s*\*{0,2}\s*mechanics:?\s*\*{0,2}\s*$/i.test(rawLine)) {
+    // The end marker is protocol, never rendered; it just closes the panel.
+    if (MECH_END_RE.test(rawLine)) {
+      closeList(); closeMech();
+      continue;
+    }
+    if (MECH_START_RE.test(rawLine)) {
       closeList(); closeMech();
       out.push('<div class="mechanics"><div class="mech-title">Mechanics</div>');
       inMech = true;
@@ -64,6 +95,12 @@ function mdToHtml(raw) {
     if (/^\s*[-*]\s+/.test(rawLine)) {
       if (!inList) { out.push("<ul>"); inList = true; }
       out.push("<li>" + line.replace(/^\s*[-*]\s+/, "") + "</li>");
+      continue;
+    }
+    if (inMech && explicitMech) {
+      // Everything up to the marker belongs to the panel (blank lines included).
+      closeList();
+      if (rawLine.trim() !== "") out.push('<div class="mech-line">' + line + "</div>");
       continue;
     }
     closeList();
@@ -172,12 +209,27 @@ function endSegment(tb) {
   tb.segRaw = "";
 }
 
+/* The model always thinks; this only shows/hides the thinking panes */
+function updateThinkingLabel() {
+  const el = $("thinking-label");
+  if (!el) return;
+  el.textContent = state.thinkEnabled ? "thinking on" : "thinking off";
+  el.classList.toggle("on", state.thinkEnabled);
+}
+
 function finalizeTurnBubble() {
   const tb = state.cur;
   if (!tb) return;
   endSegment(tb);
-  if (!tb.thinking.trim()) tb.think.remove();
-  if (!tb.hasNarrative && !tb.thinking.trim()) {
+  const hasThinking = !!tb.thinking.trim();
+  if (hasThinking) {
+    console.debug(`[thinking] captured ${tb.thinking.length} chars this turn`);
+  } else if (state.thinkEnabled) {
+    // Keep the pane visible so an empty turn is obvious rather than silent.
+    tb.thinkBody.textContent = "(no thinking this turn)";
+  }
+  if (!hasThinking && !state.thinkEnabled) tb.think.remove();
+  if (!tb.hasNarrative && !hasThinking && !state.thinkEnabled) {
     // Nothing the toggles could show except bare tool calls: keep those at the
     // top level (for a tools-on player) and drop the empty shell.
     tb.flow.querySelectorAll(".tool-block").forEach((block) => transcript.insertBefore(block, tb.el));
@@ -303,14 +355,21 @@ function card(title, children) {
   return c;
 }
 
-function row(k, v, desc) {
+function row(k, v, desc, iconKey) {
   const d = document.createElement("div");
   d.className = "row";
   const kk = document.createElement("span");
   kk.className = "k";
-  kk.textContent = k;
-  if (desc) {
-    kk.setAttribute("data-desc", desc);
+  const icon = iconImg(iconKey, "row-icon");
+  const iconUrl = (state.sheetMode === "text" || !iconKey) ? null : state.iconUrls[iconKey];
+  if (icon) kk.appendChild(icon);
+  kk.appendChild(document.createTextNode(k));
+  if (iconUrl || desc) {
+    if (iconUrl) {
+      kk.setAttribute("data-icon", iconUrl);
+      kk.setAttribute("data-name", (v === null || v === undefined || v === "") ? String(k) : String(v));
+    }
+    if (desc) kk.setAttribute("data-desc", desc);
     kk.setAttribute("tabindex", "0");
     kk.setAttribute("aria-describedby", "item-tooltip");
   }
@@ -322,14 +381,291 @@ function row(k, v, desc) {
   return d;
 }
 
+/* Shared sheet icon: an <img> when the server says the key exists, else null
+   (callers fall back to plain text — no broken images). */
+function iconImg(iconKey, cls) {
+  if (state.sheetMode === "text") return null;
+  const url = iconKey ? state.iconUrls[iconKey] : null;
+  if (!url) return null;
+  const img = document.createElement("img");
+  img.className = cls || "chip-icon";
+  img.src = url;
+  img.alt = "";
+  img.loading = "lazy";
+  img.decoding = "async";
+  return img;
+}
+
+async function loadIconIndex() {
+  try {
+    const data = await fetch("/api/icons/index").then((r) => r.json());
+    state.iconUrls = (data && data.icons) || {};
+  } catch (e) {
+    state.iconUrls = {};
+  }
+}
+
+/* ── character-sheet mode + on-the-fly icon generation ─────── */
+
+const SHEET_MODE_KEY = "infinity.sheet.mode";
+
+function loadSheetMode() {
+  let mode = "icons";
+  try { mode = localStorage.getItem(SHEET_MODE_KEY) || "icons"; } catch (e) { /* ignore */ }
+  return (mode === "generate" || mode === "text") ? mode : "icons";
+}
+
+function applySheetModeUI() {
+  document.querySelectorAll(".sheet-mode-input").forEach((el) => {
+    el.checked = (el.value === state.sheetMode);
+  });
+}
+
+function initSheetMode() {
+  state.sheetMode = loadSheetMode();
+  applySheetModeUI();
+}
+
+function sessionActive() {
+  return !!(state.sessionId && state.connected && state.ready);
+}
+
+function setSheetMode(mode) {
+  state.sheetMode = (mode === "generate" || mode === "text") ? mode : "icons";
+  try { localStorage.setItem(SHEET_MODE_KEY, state.sheetMode); } catch (e) { /* ignore */ }
+  applySheetModeUI();
+  if (sessionActive() && state.lastStats) {
+    renderStats(state.lastStats);
+    if (state.sheetMode === "generate") autoGenerateIcons(state.lastStats);
+  }
+}
+
+/* Every {name, icon} entry a sheet carries that has no cached icon yet. */
+function collectIconItems(node, out) {
+  if (Array.isArray(node)) {
+    node.forEach((n) => collectIconItems(n, out));
+    return out;
+  }
+  if (node && typeof node === "object") {
+    if (node.icon && node.name && !state.iconUrls[node.icon]) {
+      const key = node.icon;
+      if (!out.has(key)) {
+        out.set(key, { key, name: String(node.name), detail: node.icon_detail || "" });
+      }
+    }
+    Object.keys(node).forEach((k) => collectIconItems(node[k], out));
+  }
+  return out;
+}
+
+function missingIconItems(d) {
+  const out = collectIconItems(d, new Map());
+  const add = (key, name) => {
+    if (key && name && !state.iconUrls[key] && !out.has(key)) {
+      out.set(key, { key, name: String(name), detail: "" });
+    }
+  };
+  // Consumables are a {name: count} map with a parallel {name: key} icon map.
+  const icons = (d && d.consumable_icons) || {};
+  Object.keys(icons).forEach((name) => add(icons[name], name));
+  // Reputation carries kingdom_icon/faction_icon rather than a single icon.
+  ((d && d.reputation) || []).forEach((r) => {
+    add(r.faction_icon, r.faction);
+    add(r.kingdom_icon, r.category);
+  });
+  return Array.from(out.values());
+}
+
+async function postIcons(items) {
+  const res = await fetch("/api/icons", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ items, model: state.iconModel || undefined }),
+  });
+  let data = {};
+  try { data = await res.json(); } catch (e) { /* ignore */ }
+  if (!res.ok) throw new Error(data.detail || "HTTP " + res.status);
+  return data;
+}
+
+async function autoGenerateIcons(d) {
+  if (!sessionActive()) return;
+  if (state.sheetMode !== "generate" || state.iconGenBusy) return;
+  if (!state.imageStatus.available) return;
+  const items = missingIconItems(d);
+  if (!items.length) return;
+
+  // Tie this run to the session it started in; cancel it if that changes.
+  const epoch = state.iconGenEpoch;
+  const sid = state.sessionId;
+  const character = (d && d.character && d.character.name) ? d.character.name : state.activeSaveName;
+  const cancelled = () => epoch !== state.iconGenEpoch || sid !== state.sessionId
+    || state.sheetMode !== "generate" || !state.imageStatus.available || !sessionActive();
+
+  state.iconGenBusy = true;
+  let queue = items.slice();
+  let generated = 0;
+  setStatus(`generating ${items.length} icon${items.length > 1 ? "s" : ""}…`);
+
+  try {
+    while (queue.length) {
+      if (cancelled()) break;
+      const batch = queue.splice(0, 6);
+      let data;
+      try {
+        data = await postIcons(batch);
+      } catch (err) {
+        if (cancelled()) break;
+        if (window.confirm(`Icon generation failed:\n${err.message}\n\nRetry?`)) {
+          queue = batch.concat(queue);
+          continue;
+        }
+        addError("Icon generation cancelled: " + String(err.message || err));
+        break;
+      }
+      state.iconUrls = Object.assign({}, state.iconUrls, data.icons || {});
+      generated += (data.generated || []).length;
+      if (cancelled()) break;
+      const failed = data.failed || [];
+      if (failed.length) {
+        const byKey = {};
+        batch.forEach((b) => { byKey[b.key] = b; });
+        const again = failed.map((f) => byKey[f.key]).filter(Boolean);
+        const err = (failed[0] && failed[0].error) || "unknown error";
+        if (window.confirm(`Icon generation failed for ${failed.length} item(s):\n${err}\n\nRetry?`)) {
+          queue = again.concat(queue);
+          continue;
+        }
+        addError("Icon generation cancelled.");
+        break;
+      }
+    }
+  } finally {
+    state.iconGenBusy = false;
+  }
+
+  if (cancelled()) {
+    if (state.ready) setStatus("Awaiting your action");
+    return;
+  }
+  if (generated && state.lastStats) renderStats(state.lastStats);
+  if (generated) {
+    addSystem(`Generated ${generated} icon${generated > 1 ? "s" : ""} for ${character || "this character"}.`);
+  }
+  if (state.ready) setStatus("Awaiting your action");
+}
+
+/* ── storyline scene images (session-only; opt-in) ─────────── */
+
+function sceneFigure(evt) {
+  const fig = document.createElement("figure");
+  fig.className = "scene-figure loading";
+  const img = document.createElement("img");
+  img.alt = evt.location ? `Scene: ${evt.location}` : "Scene illustration";
+  img.decoding = "async";
+  fig.appendChild(img);
+  return { fig, img };
+}
+
+function attachSceneFigure(fig) {
+  if (state.cur) {
+    // Reserve the float at the top of the turn so the narrative wraps around it.
+    state.cur.flow.insertBefore(fig, state.cur.flow.firstChild);
+    state.cur.hasNarrative = true;
+    state.cur.el.classList.add("has-narrative");
+  } else {
+    transcript.appendChild(fig);
+  }
+  scrollToBottom(true);
+}
+
+async function requestSceneImage(evt, fig, img) {
+  const payload = {
+    session_id: evt.session_id || state.sessionId,
+    description: evt.description || "",
+    mood: evt.mood || "",
+    kind: evt.kind || "story",
+    location: evt.location || "",
+    model: state.imageModel || undefined,
+  };
+  try {
+    const res = await fetch("/api/scene", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    let data = {};
+    try { data = await res.json(); } catch (e) { /* ignore */ }
+    if (!res.ok) throw new Error(data.detail || ("HTTP " + res.status));
+    img.onload = () => { fig.classList.remove("loading"); fig.classList.add("loaded"); };
+    img.onerror = () => { fig.classList.remove("loading"); fig.classList.add("error"); };
+    // `created` changes on every (re)generation, so the image refreshes.
+    img.src = data.url + "?t=" + encodeURIComponent(data.created || Date.now());
+  } catch (err) {
+    fig.classList.remove("loading");
+    fig.classList.add("error");
+    const retry = document.createElement("button");
+    retry.type = "button";
+    retry.className = "scene-retry";
+    retry.textContent = "retry";
+    retry.onclick = () => {
+      retry.remove();
+      fig.classList.remove("error");
+      fig.classList.add("loading");
+      requestSceneImage(evt, fig, img);
+    };
+    fig.appendChild(retry);
+    addError("Scene image: " + String(err.message || err));
+  }
+}
+
+function maybeGenerateScene(evt) {
+  if (!evt || !(evt.description || "").trim()) return;
+  if (!state.imagesEnabled || !state.imageStatus.available) return;
+  const { fig, img } = sceneFigure(evt);
+  attachSceneFigure(fig);
+  requestSceneImage(evt, fig, img);
+}
+
 function descTag(item) {
   const name = typeof item === "string" ? item : (item && item.name) ? item.name : JSON.stringify(item);
   const desc = (item && typeof item === "object" && item.description) ? item.description : "";
+  const weightLb = (item && typeof item === "object" && typeof item.weight === "number") ? item.weight : null;
+  // Weights ride along in the tooltip so the sheet stays quiet about it.
+  const tip = [desc, weightLb === null ? "" : `${weightLb} lb`].filter(Boolean).join(" · ");
+  const iconKey = (item && typeof item === "object" && item.icon) ? item.icon : null;
+  const prepared = !!(item && typeof item === "object" && item.prepared);
+  const equipped = !!(item && typeof item === "object" && item.equipped);
+  const slotLabel = equipped ? (item.slot || "Equipped") : "";
   const s = document.createElement("span");
-  s.className = "tag" + (desc ? " has-desc" : "");
-  s.textContent = name;
+  const icon = iconImg(iconKey, "chip-icon");
+  if (icon) {
+    // Icon-only chip: the image is the whole label; its tooltip shows the full
+    // icon plus the name and description.
+    s.className = "tag has-desc icon-only" + (prepared ? " is-prepared" : "")
+      + (equipped ? " is-equipped" : "");
+    s.appendChild(icon);
+    s.setAttribute("data-icon", state.iconUrls[iconKey]);
+    s.setAttribute("data-name", equipped ? `${name} · ${slotLabel}` : name);
+    if (tip) s.setAttribute("data-desc", tip);
+    s.setAttribute("tabindex", "0");
+    s.setAttribute("aria-describedby", "item-tooltip");
+    s.setAttribute("aria-label", prepared ? `${name} (prepared)`
+      : (equipped ? `${name} (${slotLabel.toLowerCase()})` : name));
+    return s;
+  }
+  s.className = "tag" + (tip ? " has-desc" : "") + (prepared ? " is-prepared" : "")
+    + (equipped ? " is-equipped" : "");
+  s.appendChild(document.createTextNode(name));
+  if (prepared || equipped) {
+    // The accent marker is the visual cue; the tooltip names it.
+    s.setAttribute("data-name", prepared ? "Prepared" : slotLabel);
+    s.setAttribute("tabindex", "0");
+    s.setAttribute("aria-describedby", "item-tooltip");
+    s.setAttribute("aria-label", prepared ? `${name} (prepared)` : `${name} (${slotLabel.toLowerCase()})`);
+  }
   if (desc) {
-    s.setAttribute("data-desc", desc);
+    s.setAttribute("data-desc", tip);
     s.setAttribute("tabindex", "0");
     s.setAttribute("aria-describedby", "item-tooltip");
   }
@@ -342,7 +678,117 @@ function tagList(items) {
   return d;
 }
 
+/* Consumable as an icon-only tile with a count badge (text chip until an icon
+   exists, so nothing is lost). */
+function consumableTile(name, count, iconKey) {
+  const img = iconImg(iconKey, "tile-icon");
+  if (!img) return descTag({ name: `${name} ×${count}` });
+  const tile = document.createElement("div");
+  tile.className = "consumable-tile";
+  tile.appendChild(img);
+  const badge = document.createElement("span");
+  badge.className = "tile-count";
+  badge.textContent = String(count);
+  tile.appendChild(badge);
+  tile.setAttribute("data-icon", state.iconUrls[iconKey]);
+  tile.setAttribute("data-name", name);
+  tile.setAttribute("tabindex", "0");
+  tile.setAttribute("aria-describedby", "item-tooltip");
+  tile.setAttribute("aria-label", `${name} (${count})`);
+  return tile;
+}
+
+/* Icon-only tile with a value badge (stats, ability scores, HP/AC/…). */
+function valueTile(name, value, iconKey, tip) {
+  const img = iconImg(iconKey, "tile-icon");
+  if (!img) return row(name, value);
+  const tile = document.createElement("div");
+  tile.className = "stat-tile";
+  tile.appendChild(img);
+  const badge = document.createElement("span");
+  badge.className = "tile-count";
+  badge.textContent = (value === null || value === undefined || value === "") ? "—" : String(value);
+  tile.appendChild(badge);
+  tile.setAttribute("data-icon", state.iconUrls[iconKey]);
+  tile.setAttribute("data-name", tip || name);
+  tile.setAttribute("tabindex", "0");
+  tile.setAttribute("aria-describedby", "item-tooltip");
+  tile.setAttribute("aria-label", `${name} ${value}`);
+  return tile;
+}
+
+function tileRow(tiles) {
+  const d = document.createElement("div");
+  d.className = "stat-tiles";
+  (tiles || []).forEach((t) => d.appendChild(t));
+  return d;
+}
+
 // A labelled group of chips (small label above, chips with hover tooltips below).
+/* Carrying capacity (SRD 5.1): load, encumbrance status and the penalties it
+   currently applies. Native `title` is safe here — the custom tooltip only
+   binds to [data-icon]/[data-name]/[data-desc] elements. */
+function carryLine(carry) {
+  if (!carry) return null;
+  const label = carry.status === "heavily_encumbered" ? "Heavily encumbered"
+    : carry.status === "encumbered" ? "Encumbered" : "Unencumbered";
+  const wrap = document.createElement("div");
+  wrap.className = "carry-line" + (carry.status === "unencumbered" ? "" : " is-" + carry.status);
+  const load = document.createElement("span");
+  load.className = "carry-load";
+  load.textContent = `${carry.carried} / ${carry.capacity} lb`;
+  const status = document.createElement("span");
+  status.className = "carry-status";
+  status.textContent = label;
+  wrap.appendChild(load);
+  wrap.appendChild(status);
+  const bits = [
+    `Encumbered at ${carry.thresholds.encumbered} lb, heavily encumbered at ${carry.thresholds.heavily_encumbered} lb`,
+    `Push, drag or lift ${carry.push_drag_lift} lb`,
+  ];
+  if (carry.speed_penalty) bits.push(`Speed ${carry.speed_penalty} ft slower`);
+  if (carry.status === "heavily_encumbered") {
+    bits.push("Disadvantage on STR/DEX/CON checks, attack rolls and saving throws");
+  }
+  if (carry.capacity_multiplier && carry.capacity_multiplier !== 1) {
+    bits.push(`Capacity ×${carry.capacity_multiplier} (effect)`);
+  }
+  if (carry.coin_weight) bits.push(`Includes ${carry.coin_weight} lb of coins`);
+  if (carry.unweighed && carry.unweighed.length) {
+    bits.push(`${carry.unweighed.length} item(s) with no known weight`);
+  }
+  wrap.title = bits.join(" · ");
+  return wrap;
+}
+
+// Equipped items (SRD 5.1): what the two hands hold and what is worn. Sits
+// beside the carrying line in the Inventory card. The tooltip is about HANDS
+// only — the armour-class derivation belongs on the Armor Class tile.
+function handsLine(equip) {
+  if (!equip || !equip.derived_from_equipped) return null;
+  const main = equip.main_hand || null;
+  const off = equip.off_hand || null;
+  const wrap = document.createElement("div");
+  wrap.className = "carry-line";
+  const load = document.createElement("span");
+  load.className = "carry-load";
+  load.textContent = (main || off) ? `Hands: ${main || "—"} · ${off || "—"}` : "Hands: both free";
+  const status = document.createElement("span");
+  status.className = "carry-status";
+  status.textContent = equip.armor ? equip.armor : "No armour";
+  wrap.appendChild(load);
+  wrap.appendChild(status);
+  const free = equip.hands_free;
+  const bits = [
+    `Main hand: ${main || "free"}`,
+    `Off hand: ${off || "free"}`,
+    free === 0 ? "Both hands busy — no free hand" : `${free} hand${free === 1 ? "" : "s"} free`,
+  ];
+  (equip.warnings || []).forEach((w) => bits.push(w.message || w.code));
+  wrap.title = bits.join(" · ");
+  return wrap;
+}
+
 function field(label, items) {
   const wrap = document.createElement("div");
   wrap.className = "field";
@@ -383,12 +829,34 @@ function slotPips(levels) {
 
 const tooltipEl = $("item-tooltip");
 let tooltipTarget = null;
+const TIP_SEL = "[data-icon],[data-name],[data-desc]";
 
 function showTooltip(target) {
-  const text = target.getAttribute("data-desc");
-  if (!text) return;
+  const url = target.getAttribute("data-icon");
+  const name = target.getAttribute("data-name");
+  const desc = target.getAttribute("data-desc");
+  if (!url && !name && !desc) return;
   tooltipTarget = target;
-  tooltipEl.textContent = text;
+  tooltipEl.innerHTML = "";
+  if (url) {
+    const img = document.createElement("img");
+    img.className = "tooltip-icon";
+    img.src = url;
+    img.alt = "";
+    tooltipEl.appendChild(img);
+  }
+  if (name) {
+    const n = document.createElement("div");
+    n.className = "tooltip-name";
+    n.textContent = name;
+    tooltipEl.appendChild(n);
+  }
+  if (desc) {
+    const d = document.createElement("div");
+    d.className = "tooltip-desc";
+    d.textContent = desc;
+    tooltipEl.appendChild(d);
+  }
   tooltipEl.classList.remove("hidden");
   positionTooltip(target);
 }
@@ -408,20 +876,20 @@ function hideTooltip() {
 }
 function bindTooltips(container) {
   container.addEventListener("pointerover", (e) => {
-    const el = e.target.closest("[data-desc]");
+    const el = e.target.closest(TIP_SEL);
     if (el) showTooltip(el);
   });
   container.addEventListener("pointerout", (e) => {
-    const el = e.target.closest("[data-desc]");
+    const el = e.target.closest(TIP_SEL);
     if (el && !el.contains(e.relatedTarget)) hideTooltip();
   });
   container.addEventListener("focusin", (e) => {
-    const el = e.target.closest("[data-desc]");
+    const el = e.target.closest(TIP_SEL);
     if (el) showTooltip(el);
   });
   container.addEventListener("focusout", hideTooltip);
   container.addEventListener("click", (e) => {
-    const el = e.target.closest("[data-desc]");
+    const el = e.target.closest(TIP_SEL);
     if (!el) { hideTooltip(); return; }
     if (tooltipTarget === el && !tooltipEl.classList.contains("hidden")) hideTooltip();
     else showTooltip(el);
@@ -449,45 +917,79 @@ function renderStats(d) {
     return;
   }
   const c = d.character || {};
+  $("sheet-title").textContent = c.name || "Character";
   statsBox.appendChild(card("Character", [
-    row("Name", c.name), row("Race", c.race, c.race_desc), row("Class", c.character_class, c.character_class_desc),
-    row("Level", c.level), row("Background", c.background, c.background_desc), row("Alignment", c.alignment),
-    row("Gold", c.gold), row("XP", c.xp),
+    tagList([
+      { name: c.race, description: c.race_desc, icon: c.race_icon },
+      { name: c.character_class, description: c.character_class_desc, icon: c.class_icon },
+      { name: c.background, description: c.background_desc, icon: c.background_icon },
+      { name: c.alignment, description: "", icon: c.alignment_icon },
+    ]),
+    tileRow([
+      valueTile("Level", c.level, c.level_icon, `Level ${c.level}`),
+      valueTile("Gold", c.gold, c.gold_icon, `Gold ${c.gold}`),
+      valueTile("Experience", c.xp, c.xp_icon, `Experience ${c.xp}`),
+    ]),
   ]));
 
   const cb = d.combat || {};
   const prof = (cb.proficiency_bonus === null || cb.proficiency_bonus === undefined || cb.proficiency_bonus === "")
     ? "—" : "+" + cb.proficiency_bonus;
-  const combat = [
-    row("HP", `${cb.hp_current}/${cb.hp_max}`),
-    row("AC", cb.armor_class), row("Speed", cb.speed),
-    row("Proficiency", prof), row("Hit Dice", `${cb.hit_dice_count}d${cb.hit_dice_size}`),
+  const combatTiles = [
+    valueTile("Hit Points", `${cb.hp_current}/${cb.hp_max}`, cb.hp_icon, `Hit Points ${cb.hp_current}/${cb.hp_max}`),
+    valueTile("Armor Class", cb.armor_class, cb.ac_icon,
+      cb.ac_breakdown || `Armor Class ${cb.armor_class}`),
+    valueTile("Speed", cb.speed, cb.speed_icon,
+      cb.speed_penalty
+        ? `Speed ${cb.speed} ft — base ${cb.speed_base} ft, −${cb.speed_penalty} ft from encumbrance`
+        : `Speed ${cb.speed} ft`),
+    valueTile("Proficiency", prof, cb.proficiency_icon, `Proficiency Bonus ${prof}`),
+    valueTile("Hit Dice", `${cb.hit_dice_count}d${cb.hit_dice_size}`, cb.hit_dice_icon,
+      `Hit Dice ${cb.hit_dice_count}d${cb.hit_dice_size}`),
   ];
-  if (cb.temporary_hit_points) combat.push(row("Temp HP", cb.temporary_hit_points));
-  statsBox.appendChild(card("Combat", [hpBar(cb.hp_current, cb.hp_max), ...combat]));
+  if (cb.temporary_hit_points) {
+    combatTiles.push(valueTile("Temporary Hit Points", cb.temporary_hit_points, cb.temp_hp_icon,
+      `Temporary Hit Points ${cb.temporary_hit_points}`));
+  }
+  statsBox.appendChild(card("Combat", [hpBar(cb.hp_current, cb.hp_max), tileRow(combatTiles)]));
 
   if (d.stats && d.stats.length) {
-    const grid = document.createElement("div");
-    grid.className = "abilities";
-    d.stats.forEach((a) => {
-      const el = document.createElement("div");
-      el.className = "ability";
-      el.innerHTML = `<div class="a-k">${escapeHtml(a.key)}</div>` +
-        `<div class="a-v">${escapeHtml(String(a.value))}</div>` +
-        `<div class="a-m">${escapeHtml(String(a.modifier == null ? "" : a.modifier))}</div>`;
-      grid.appendChild(el);
+    const tiles = d.stats.map((a) => {
+      const label = a.name || a.key;
+      const mod = (a.modifier === null || a.modifier === undefined || a.modifier === "") ? "" : ` (${a.modifier})`;
+      return valueTile(label, a.value, a.icon, `${label} ${a.value}${mod}`);
     });
-    statsBox.appendChild(card("Ability Scores", [grid]));
+    statsBox.appendChild(card("Ability Scores", [tileRow(tiles)]));
   }
 
   const sp = d.spellcasting;
   if (sp) {
-    const kids = [row("Ability", sp.ability), row("Save DC", sp.dc),
-                  row("Attack", sp.attack_modifier == null ? "—" : "+" + sp.attack_modifier)];
+    const kids = [
+      descTag({ name: sp.ability, description: "", icon: sp.ability_icon }),
+      tileRow([
+        valueTile("Spell Save DC", sp.dc, sp.dc_icon, `Spell Save DC ${sp.dc}`),
+        valueTile("Spell Attack", sp.attack_modifier == null ? "—" : "+" + sp.attack_modifier, sp.attack_icon,
+          `Spell Attack ${sp.attack_modifier == null ? "—" : "+" + sp.attack_modifier}`),
+      ]),
+    ];
     if (sp.cantrips && sp.cantrips.length) kids.push(field("Cantrips", sp.cantrips));
     if (sp.spells_known && sp.spells_known.length) kids.push(field("Known", sp.spells_known));
-    if (sp.spellbook && sp.spellbook.length) kids.push(field("Spellbook", sp.spellbook));
-    if (sp.spells_prepared && sp.spells_prepared.length) kids.push(field("Prepared", sp.spells_prepared));
+    if (sp.spellbook && sp.spellbook.length) {
+      // One list: prepared spells are marked, never repeated in a second field.
+      // Prepared casters have no spellbook at all, so the same list is labelled
+      // "Prepared" for them. A missing spellbook item greys the whole list.
+      const label = sp.has_spellbook ? "Spellbook" : "Prepared";
+      const book = field(sp.spellbook_missing ? `${label} — unavailable` : label, sp.spellbook);
+      if (sp.spellbook_missing) {
+        book.classList.add("unavailable");
+        const note = document.createElement("div");
+        note.className = "field-note";
+        note.textContent = "The spellbook is missing from the inventory — " +
+          "these spells cannot be used until it is recovered.";
+        book.appendChild(note);
+      }
+      kids.push(book);
+    }
     if (sp.slot_levels && sp.slot_levels.length) {
       kids.push(slotPips(sp.slot_levels));
     }
@@ -504,25 +1006,42 @@ function renderStats(d) {
   if (p.languages && p.languages.length) profKids.push(field("Languages", p.languages));
   if (profKids.length) statsBox.appendChild(card("Proficiencies", profKids));
 
-  if (d.inventory && d.inventory.length) statsBox.appendChild(card("Inventory", [tagList(d.inventory)]));
+  if (d.inventory && d.inventory.length) {
+    const kids = [carryLine(d.carrying), handsLine(d.equipment), tagList(d.inventory)].filter(Boolean);
+    statsBox.appendChild(card("Inventory", kids));
+  }
   if (d.consumables && Object.keys(d.consumables).length) {
-    statsBox.appendChild(card("Consumables", Object.entries(d.consumables).map(([k, v]) => row(k, v))));
+    const icons = d.consumable_icons || {};
+    const tiles = document.createElement("div");
+    tiles.className = "consumable-tiles";
+    Object.entries(d.consumables).forEach(([k, v]) => tiles.appendChild(consumableTile(k, v, icons[k])));
+    statsBox.appendChild(card("Consumables", [tiles]));
   }
   if (d.active_effects && d.active_effects.length) {
     const kids = [];
     d.active_effects.forEach((e) => {
-      kids.push(row(e.name, "", e.description || ""));
+      kids.push(row(e.name, "", e.description || "", e.icon));
       (e.rows || []).forEach((r) => kids.push(row("  " + r.field, r.value)));
     });
     statsBox.appendChild(card("Active Effects", kids));
   }
   if (d.reputation && d.reputation.length) {
-    const kids = [];
+    const wrap = document.createElement("div");
     d.reputation.forEach((r) => {
-      kids.push(row(`${r.category} · ${r.faction}`, ""));
-      (r.entries || []).forEach((en) => kids.push(row("  " + ((en && en.name) || en), "", (en && en.description) || "")));
+      const entries = (r.entries || []).map((en) => {
+        const nm = (en && en.name) ? en.name : String(en);
+        return nm + ((en && en.description) ? " — " + en.description : "");
+      }).join("\n");
+      const factionUrl = r.faction_icon ? state.iconUrls[r.faction_icon] : null;
+      const kingdomUrl = r.kingdom_icon ? state.iconUrls[r.kingdom_icon] : null;
+      wrap.appendChild(descTag({
+        name: `${r.category} · ${r.faction}`,
+        description: entries,
+        // Prefer a generated faction icon; fall back to the realm crest.
+        icon: (factionUrl && r.faction_icon) || (kingdomUrl && r.kingdom_icon) || r.faction_icon || r.kingdom_icon,
+      }));
     });
-    statsBox.appendChild(card("Reputation", kids));
+    statsBox.appendChild(card("Reputation", [wrap]));
   }
 }
 
@@ -613,6 +1132,8 @@ function submitInput() {
 /* ── event handling ───────────────────────────────────────── */
 
 function handleEvent(evt) {
+  // Drop events that raced in from a session we have already left.
+  if (evt && evt.session_id && evt.session_id !== state.sessionId) return;
   switch (evt.type) {
     case "ready":
       state.model = evt.model;
@@ -625,6 +1146,7 @@ function handleEvent(evt) {
       updateTurn();
       state.activeSaveName = (evt.world || "").replace(/\.wwf$/i, "");
       state.cur = null;
+      updateSheetPortrait();
       addSystem(`Session ready · ${evt.tools ? evt.tools.length : 0} engine tools · ${evt.model}`);
       break;
 
@@ -642,6 +1164,8 @@ function handleEvent(evt) {
       if (state.cur) {
         state.cur.thinking += evt.text;
         state.cur.thinkBody.textContent = state.cur.thinking;
+        state.cur.hadThinking = true;
+        if (state.thinkEnabled) state.cur.think.open = true;
       }
       break;
 
@@ -650,11 +1174,13 @@ function handleEvent(evt) {
         const tb = state.cur;
         beginSegment(tb);
         tb.segRaw += evt.text;
-        if (!tb.hasNarrative && stripTokens(tb.segRaw).trim()) {
+        // Never let the protocol marker reach the streaming preview.
+        const visible = stripMechanicsMarker(stripTokens(tb.segRaw));
+        if (!tb.hasNarrative && visible.trim()) {
           tb.hasNarrative = true;
           tb.el.classList.add("has-narrative");
         }
-        tb.seg.textContent = stripTokens(tb.segRaw);
+        tb.seg.textContent = visible;
       }
       scrollToBottom();
       break;
@@ -702,7 +1228,13 @@ function handleEvent(evt) {
       break;
 
     case "stats":
+      state.lastStats = evt.data;
       renderStats(evt.data);
+      autoGenerateIcons(evt.data);
+      break;
+
+    case "scene_request":
+      maybeGenerateScene(evt);
       break;
 
     case "notice":
@@ -715,7 +1247,7 @@ function handleEvent(evt) {
 
     case "saved":
       state.activeSaveName = evt.name || state.activeSaveName;
-      addSystem(`Saved as ${evt.wwf || (evt.name + ".wwf")}`);
+      addSystem(`Saved to ${evt.wwf || (evt.name + ".wwf")}`);
       loadWorlds().catch(() => {});
       if (state.endAfterSave) { state.endAfterSave = false; finishEnd(); }
       break;
@@ -753,7 +1285,12 @@ function connect() {
   const proto = location.protocol === "https:" ? "wss" : "ws";
   const ws = new WebSocket(`${proto}://${location.host}/ws/${state.sessionId}`);
   state.ws = ws;
-  ws.onopen = () => { state.connected = true; setConn("connected", "on"); updateComposer(); setStatus("Loading…"); };
+  ws.onopen = () => {
+    state.connected = true;
+    setConn("connected", "on");
+    updateComposer();
+    setStatus("Loading…");
+  };
   ws.onclose = () => { state.connected = false; setConn("disconnected", "off"); updateComposer(); setStatus("Disconnected"); };
   ws.onerror = () => setConn("error", "err");
   ws.onmessage = (e) => { try { handleEvent(JSON.parse(e.data)); } catch (err) { console.error(err); } };
@@ -773,11 +1310,13 @@ async function startSession(wwf) {
   }
   if (state.ws) { try { state.ws.close(); } catch (e) { /* ignore */ } state.ws = null; }
   state.connected = false; state.ready = false; state.busy = false;
+  state.lastStats = null;      // drop the previous character's sheet
+  state.iconGenEpoch += 1;     // cancel any in-flight generation run
   transcript.innerHTML = "";
   const res = await fetch("/api/sessions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ wwf, model, temperature }),
+    body: JSON.stringify({ wwf, model, temperature, think: true, scene_images: !!state.imagesEnabled }),
   });
   if (!res.ok) throw new Error("HTTP " + res.status + " — " + (await res.text()));
   const data = await res.json();
@@ -796,8 +1335,11 @@ async function startSession(wwf) {
 
 async function begin() {
   $("begin").disabled = true;
+  const wwf = $("world-select").value;
+  const wanted = confirmPortrait(wwf);
   try {
-    await startSession($("world-select").value);
+    await startSession(wwf);
+    if (wanted) generatePortrait(wwf);
   } catch (err) {
     $("begin").disabled = false;
     $("start-overlay").classList.remove("hidden");
@@ -827,6 +1369,7 @@ async function loadWorlds() {
   const hasWorlds = files.length > 0;
   $("world-delete").disabled = !hasWorlds;
   $("begin").disabled = !hasWorlds;
+  updateStartPortrait();
   return files;
 }
 
@@ -837,37 +1380,295 @@ async function loadModels() {
   (m.models || []).forEach((x) => {
     const o = document.createElement("option");
     o.value = x.id; o.textContent = x.label || x.id;
+    if (x.available === false) { o.disabled = true; o.textContent += " — needs GEMINI_API_KEY"; }
     if (x.id === m.default) o.selected = true;
     sel.appendChild(o);
   });
   $("temp-input").value = (m.default_temperature != null) ? m.default_temperature : 1.0;
+
+  state.imageModels = m.image_models || [];
+  const imageDefault = m.default_image_model || "";
+  const iconDefault = m.default_icon_model || "";
+  document.querySelectorAll(".image-model-select").forEach((el) => {
+    el.innerHTML = "";
+    state.imageModels.forEach((x) => {
+      const o = document.createElement("option");
+      o.value = x.id; o.textContent = x.label || x.id;
+      el.appendChild(o);
+    });
+    el.dataset.default = imageDefault;
+  });
+  document.querySelectorAll(".icon-model-select").forEach((el) => {
+    el.innerHTML = "";
+    state.imageModels.forEach((x) => {
+      const o = document.createElement("option");
+      o.value = x.id; o.textContent = x.label || x.id;
+      el.appendChild(o);
+    });
+    el.dataset.default = iconDefault;
+  });
+  const pick = (id, fallback) => (id && state.imageModels.some((x) => x.id === id)) ? id : fallback;
+  state.imageModel = pick(state.imageModel, imageDefault);
+  state.iconModel = pick(state.iconModel, iconDefault);
+  applyModelSelects();
+}
+
+/* ── image generation (opt-in; cached portraits) ─────────── */
+
+const IMAGES_KEY = "infinity.images.enabled";
+const IMAGE_MODEL_KEY = "infinity.image.model";
+const ICON_MODEL_KEY = "infinity.icon.model";
+const LEGACY_SCENES_KEY = "infinity.scenes.enabled";
+
+function worldByFile(file) {
+  return (state.worldsMeta || []).find((w) => w.file === file) || null;
+}
+
+/* Cache-buster for portrait URLs: the portrait file's mtime changes on
+   regenerate, whereas the .wwf mtime does not. */
+function portraitBust(w) {
+  return encodeURIComponent((w && (w.portrait_modified || w.modified)) || 0);
+}
+
+function loadImagesPref() {
+  // The old "story images" key was merged into this single option.
+  let on = false;
+  try {
+    on = localStorage.getItem(IMAGES_KEY) === "on"
+      || localStorage.getItem(LEGACY_SCENES_KEY) === "on";
+    localStorage.setItem(IMAGES_KEY, on ? "on" : "off");
+    localStorage.removeItem(LEGACY_SCENES_KEY);
+  } catch (e) { return on; }
+  return on;
+}
+
+function loadModelPref(key) {
+  try { return localStorage.getItem(key) || ""; } catch (e) { return ""; }
+}
+
+function setModelPref(key, value) {
+  try {
+    if (value) localStorage.setItem(key, value);
+    else localStorage.removeItem(key);
+  } catch (e) { /* ignore */ }
+}
+
+function applyImagesToggles() {
+  document.querySelectorAll(".images-toggle").forEach((el) => {
+    el.checked = !!state.imagesEnabled;
+    el.disabled = !state.imageStatus.available;
+    const label = el.closest("label");
+    if (label) {
+      label.title = state.imageStatus.available
+        ? "Paint the character portrait and illustrate the story's key moments"
+        : "Image generation unavailable — set GEMINI_API_KEY on the server";
+    }
+  });
+  document.querySelectorAll('.sheet-mode-input[value="generate"]').forEach((el) => {
+    el.disabled = !state.imageStatus.available;
+    const label = el.closest("label");
+    if (label) {
+      label.title = state.imageStatus.available
+        ? "Generate a shared icon for anything the GM adds, and reuse it across characters"
+        : "Icon generation unavailable — set GEMINI_API_KEY on the server";
+    }
+  });
+  applyModelSelects();
+}
+
+function applyModelSelects() {
+  document.querySelectorAll(".image-model-select").forEach((el) => {
+    if (state.imageModel) el.value = state.imageModel;
+    el.disabled = !state.imageStatus.available;
+  });
+  document.querySelectorAll(".icon-model-select").forEach((el) => {
+    if (state.iconModel) el.value = state.iconModel;
+    el.disabled = !state.imageStatus.available;
+  });
+}
+
+function setImagesEnabled(on) {
+  state.imagesEnabled = !!on;
+  try { localStorage.setItem(IMAGES_KEY, state.imagesEnabled ? "on" : "off"); } catch (e) { /* ignore */ }
+  applyImagesToggles();
+}
+
+function setImageModel(value) {
+  state.imageModel = value || "";
+  setModelPref(IMAGE_MODEL_KEY, state.imageModel);
+  applyModelSelects();
+}
+
+function setIconModel(value) {
+  state.iconModel = value || "";
+  setModelPref(ICON_MODEL_KEY, state.iconModel);
+  applyModelSelects();
+}
+
+async function initImages() {
+  state.imagesEnabled = loadImagesPref();
+  state.imageModel = loadModelPref(IMAGE_MODEL_KEY);
+  state.iconModel = loadModelPref(ICON_MODEL_KEY);
+  try {
+    state.imageStatus = await fetch("/api/images/status").then((r) => r.json());
+  } catch (e) {
+    state.imageStatus = { available: false };
+  }
+  applyImagesToggles();
+}
+
+function updateStartPortrait() {
+  const panel = $("start-portrait");
+  const img = $("start-portrait-img");
+  const meta = $("start-portrait-meta");
+  const w = worldByFile($("world-select").value);
+  if (w && w.portrait) {
+    img.src = w.portrait + "?t=" + portraitBust(w);
+    img.alt = (w.character || "Character") + " portrait";
+    meta.textContent = [w.character, w.class, w.level != null ? "L" + w.level : ""].filter(Boolean).join(" · ");
+    panel.classList.remove("hidden");
+  } else {
+    panel.classList.add("hidden");
+    img.removeAttribute("src");
+    meta.textContent = "";
+  }
+}
+
+function updateSheetPortrait() {
+  const panel = $("sheet-portrait");
+  const img = $("sheet-portrait-img");
+  const regen = $("portrait-regen");
+  const stem = state.activeSaveName;
+  const w = stem ? worldByFile(stem + ".wwf") : null;
+  if (!state.connected || !w || !w.portrait) {
+    panel.classList.add("hidden");
+    img.removeAttribute("src");
+    if (regen) regen.hidden = true;
+    return;
+  }
+  img.onerror = () => panel.classList.add("hidden");
+  img.src = w.portrait + "?t=" + portraitBust(w);
+  panel.classList.remove("hidden");
+  if (regen) {
+    regen.hidden = !state.imageStatus.available;
+    regen.disabled = false;
+  }
+}
+
+function confirmPortrait(wwf) {
+  if (!wwf || !state.imagesEnabled || !state.imageStatus.available) return false;
+  const w = worldByFile(wwf);
+  if (w && w.portrait) return false;
+  const label = (w && w.character) ? w.character : "this character";
+  return window.confirm(`Generate a portrait for ${label}?\nThis contacts Google Gemini and takes a few seconds.`);
+}
+
+async function generatePortrait(wwf) {
+  const panel = $("start-portrait");
+  if (panel) {
+    panel.classList.add("busy");
+    panel.classList.remove("hidden");
+    $("start-portrait-meta").textContent = "painting portrait…";
+  }
+  if ($("start-overlay").classList.contains("hidden")) setStatus("painting portrait…");
+  try {
+    const res = await fetch("/api/portrait", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ wwf, model: state.imageModel || undefined }),
+    });
+    if (!res.ok) {
+      let detail = "HTTP " + res.status;
+      try { detail = (await res.json()).detail || detail; } catch (e) { /* ignore */ }
+      throw new Error(detail);
+    }
+    await loadWorlds();
+    updateStartPortrait();
+    updateSheetPortrait();
+    addSystem("Portrait ready.");
+  } catch (err) {
+    addError("Portrait: " + String(err.message || err));
+    updateStartPortrait();
+  } finally {
+    if (panel) panel.classList.remove("busy");
+    if (state.ready) setStatus("Awaiting your action");
+  }
+}
+
+/* The current live sheet (a dump_player_db snapshot) mapped to the portrait
+   payload, so a regenerate reflects the character's present level/gear. */
+function portraitPlayerPayload() {
+  const s = state.lastStats || {};
+  const c = s.character || {};
+  const inventory = (s.inventory || [])
+    .map((i) => (typeof i === "string" ? i : (i && i.name)))
+    .filter(Boolean);
+  // Only equipped gear goes to the image: the prompt must never imply a hood or
+  // cloak the character is not actually wearing.
+  const eq = s.equipment || {};
+  const equipped = {
+    armor: eq.armor || null,
+    hands: (eq.hands || []).map((h) => (h && h.name) || null),
+    worn: (eq.worn || []).map((w) => (w && w.name) || null),
+  };
+  return {
+    race: c.race || "",
+    character_class: c.character_class || "",
+    background: c.background || "",
+    alignment: c.alignment || "",
+    gender: c.gender || "",
+    level: c.level,
+    inventory,
+    equipped,
+  };
+}
+
+async function regeneratePortrait() {
+  if (!state.connected || !state.imageStatus.available) return;
+  const stem = state.activeSaveName;
+  if (!stem) return;
+  const btn = $("portrait-regen");
+  const wwf = stem.toLowerCase().endsWith(".wwf") ? stem : stem + ".wwf";
+  if (btn) { btn.disabled = true; btn.classList.add("busy"); }
+  setStatus("repainting portrait…");
+  try {
+    const res = await fetch("/api/portrait", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ wwf, force: true, player: portraitPlayerPayload(), model: state.imageModel || undefined }),
+    });
+    if (!res.ok) {
+      let detail = "HTTP " + res.status;
+      try { detail = (await res.json()).detail || detail; } catch (e) { /* ignore */ }
+      throw new Error(detail);
+    }
+    await loadWorlds();
+    updateSheetPortrait();
+    addSystem("Character portrait regenerated.");
+  } catch (err) {
+    addError("Portrait: " + String(err.message || err));
+  } finally {
+    if (btn) { btn.disabled = false; btn.classList.remove("busy"); }
+    if (state.ready) setStatus("Awaiting your action");
+  }
 }
 
 /* ── save / load ─────────────────────────────────────────── */
 
 function openSave() {
   if (!state.connected) { addError("Not connected to a session."); return; }
-  $("save-name").value = state.activeSaveName || "";
+  // Save is in place: the world's own name owns its images, so it is never
+  // renamed here (a new stem would orphan output/images/{stem}/).
+  $("save-target").textContent = state.activeSaveName ? `${state.activeSaveName}.wwf` : "—";
   $("save-error").classList.add("hidden");
   $("save-overlay").classList.remove("hidden");
-  setTimeout(() => { const el = $("save-name"); el.focus(); if (el.select) el.select(); }, 0);
 }
 function closeSave() { $("save-overlay").classList.add("hidden"); }
 function showSaveError(msg) { const el = $("save-error"); el.textContent = msg; el.classList.remove("hidden"); }
 
-function saveFileExists(name) {
-  const trimmed = name.trim();
-  if (!trimmed) return false;
-  const file = (trimmed.toLowerCase().endsWith(".wwf") ? trimmed : trimmed + ".wwf").toLowerCase();
-  return (state.worldsMeta || []).some((w) => (w.file || "").toLowerCase() === file);
-}
-
 function confirmSave() {
-  const name = $("save-name").value.trim();
-  if (!name) { showSaveError("Enter a name."); return; }
   if (!state.connected) { showSaveError("Not connected."); return; }
-  if (saveFileExists(name) && !window.confirm(`"${name}" already exists. Overwrite it?`)) return;
-  send({ type: "save", name });
+  send({ type: "save" });
   closeSave();
 }
 
@@ -892,9 +1693,15 @@ function renderLoadList() {
     btn.className = "load-item";
     const who = w.character ? `${w.character} — ${w.class || "?"} L${w.level == null ? "?" : w.level}` : "unknown character";
     const when = w.modified ? new Date(w.modified * 1000).toLocaleString() : "";
+    const thumb = w.portrait
+      ? `<img class="load-thumb" src="${escapeHtml(w.portrait)}?t=${portraitBust(w)}" alt="" />`
+      : `<span class="load-thumb empty"></span>`;
     btn.innerHTML =
+      thumb +
+      `<span class="load-text">` +
       `<span class="load-file">${escapeHtml(w.file)}</span>` +
-      `<span class="load-meta">${escapeHtml(who)}${when ? " · " + escapeHtml(when) : ""}</span>`;
+      `<span class="load-meta">${escapeHtml(who)}${when ? " · " + escapeHtml(when) : ""}</span>` +
+      `</span>`;
     btn.onclick = () => loadGame(w.file);
 
     const del = document.createElement("button");
@@ -913,9 +1720,11 @@ function renderLoadList() {
 async function loadGame(file) {
   if (state.sessionId && !window.confirm(`Load "${file}"? The current session will be closed.`)) return;
   closeLoad();
+  const wanted = confirmPortrait(file);
   try {
     await startSession(file);
     setStatus(`Loaded ${file}`);
+    if (wanted) generatePortrait(file);
   } catch (err) {
     addError("Load failed: " + String(err.message || err));
   }
@@ -971,6 +1780,8 @@ function resetToHome() {
   state.busy = false;
   state.activeSaveName = null;
   state.endAfterSave = false;
+  state.lastStats = null;      // never generate icons for a closed character
+  state.iconGenEpoch += 1;     // cancel any in-flight generation run
   transcript.innerHTML = "";
   statsBox.innerHTML = '<div class="muted">Start a session to load your sheet.</div>';
   setConn("disconnected", "off");
@@ -980,6 +1791,9 @@ function resetToHome() {
   $("ctx-label").textContent = "context —";
   updateCtxMeter(0, 0);
   $("start-overlay").classList.remove("hidden");
+  $("sheet-portrait").classList.add("hidden");
+  $("sheet-portrait-img").removeAttribute("src");
+  $("sheet-title").textContent = "Character";
   hideTooltip();
   updateComposer();
   loadWorlds().catch(() => {});
@@ -1273,8 +2087,10 @@ async function finishCreate(terminal) {
     $("create-transcript").appendChild(ok);
     const worlds = await loadWorlds();
     if (worlds.includes(terminal.wwf)) $("world-select").value = terminal.wwf;
+    updateStartPortrait();
     $("start-error").classList.add("hidden");
     setTimeout(closeCreate, 1100);
+    if (confirmPortrait(terminal.wwf)) setTimeout(() => generatePortrait(terminal.wwf), 1200);
   } else if (terminal.type === "cancelled") {
     showCreateError("Creation cancelled.");
   } else {
@@ -1313,11 +2129,15 @@ async function init() {
     send({ type: "flags", verbose: e.target.checked });
   });
   $("toggle-thinking").addEventListener("change", (e) => {
-    transcript.classList.toggle("show-thinking", e.target.checked);
+    // Display-only: the model always thinks; this just shows/hides the panes.
+    state.thinkEnabled = !!e.target.checked;
+    transcript.classList.toggle("show-thinking", state.thinkEnabled);
+    updateThinkingLabel();
   });
   $("theme-toggle").addEventListener("click", toggleTheme);
   $("sheet-toggle").addEventListener("click", toggleSheet);
   $("sheet-close").addEventListener("click", closeSheet);
+  $("portrait-regen").addEventListener("click", regeneratePortrait);
   $("sheet-backdrop").addEventListener("click", closeSheet);
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
@@ -1330,14 +2150,32 @@ async function init() {
   $("save-open").addEventListener("click", openSave);
   $("load-open").addEventListener("click", openLoad);
   $("world-delete").addEventListener("click", () => deleteWorld($("world-select").value));
+  $("world-select").addEventListener("change", updateStartPortrait);
+  document.querySelectorAll(".images-toggle").forEach((el) => {
+    el.addEventListener("change", (e) => setImagesEnabled(e.target.checked));
+  });
+  document.querySelectorAll(".image-model-select").forEach((el) => {
+    el.addEventListener("change", (e) => setImageModel(e.target.value));
+  });
+  document.querySelectorAll(".icon-model-select").forEach((el) => {
+    el.addEventListener("change", (e) => setIconModel(e.target.value));
+  });
+  document.querySelectorAll(".sheet-mode-input").forEach((el) => {
+    el.addEventListener("change", (e) => { if (e.target.checked) setSheetMode(e.target.value); });
+  });
+  initSheetMode();
+  // Thinking is off by default; read the checkbox into state so session creation
+  // and socket-open both honour it.
+  state.thinkEnabled = !!$("toggle-thinking").checked;
+  transcript.classList.toggle("show-thinking", state.thinkEnabled);
+  updateThinkingLabel();
   $("save-cancel").addEventListener("click", closeSave);
   $("save-confirm").addEventListener("click", confirmSave);
   $("load-cancel").addEventListener("click", closeLoad);
-  $("save-name").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") { e.preventDefault(); confirmSave(); }
-  });
 
   try {
+    await initImages();
+    await loadIconIndex();
     const worlds = await Promise.all([loadWorlds(), loadModels()]).then((r) => r[0]);
     if (!worlds.length) {
       $("begin").disabled = true;

@@ -73,6 +73,29 @@ def main() -> bool:
         sleep["description"][:52])
     shield = next(e for e in sp["spellbook"] if e["name"] == "Shield")
     rec("entry description wins over spells.yml", shield["description"] == "GM note: +5 AC.")
+
+    # One list on the sheet: the spellbook with prepared entries flagged, then any
+    # prepared spell the book does not hold (prepared casters have no spellbook).
+    rec("spellbook merges prepared spells (book order first)",
+        [e["name"] for e in sp["spellbook"]] == ["Detect Magic", "Shield", "Sleep", "Magic Missile"],
+        str([e["name"] for e in sp["spellbook"]]))
+    flags = {e["name"]: e["prepared"] for e in sp["spellbook"]}
+    rec("book-only entries are not flagged prepared",
+        flags["Detect Magic"] is False and flags["Shield"] is False, str(flags))
+    rec("prepared entries are flagged (in or out of the book)",
+        flags["Sleep"] is True and flags["Magic Missile"] is True, str(flags))
+    rec("has_spellbook reports the character's own book", sp["has_spellbook"] is True)
+    rec("spellbook item missing -> list marked unavailable",
+        sp["spellbook_missing"] is True, str(sp["spellbook_missing"]))
+    with_book = build_stats({**PAYLOAD, "inventory": PAYLOAD["inventory"] + [{"name": "Spellbook"}]})
+    rec("spellbook item present -> list usable",
+        with_book["spellcasting"]["spellbook_missing"] is False)
+    prepared_only = build_stats({"spellcasting": {"spells_prepared": ["Bless"]}})
+    rec("no spellbook at all -> prepared-only list, never flagged missing",
+        prepared_only["spellcasting"]["has_spellbook"] is False
+        and prepared_only["spellcasting"]["spellbook_missing"] is False
+        and [e["name"] for e in prepared_only["spellcasting"]["spellbook"]] == ["Bless"],
+        str(prepared_only["spellcasting"]))
     rec("unknown spell -> empty description", sp["spells_known"][0]["description"] == "")
     rec("mixed string/dict cantrips handled",
         [e["name"] for e in sp["cantrips"]] == ["Mage Hand", "Fire Bolt"])
@@ -129,6 +152,46 @@ def main() -> bool:
     rec("inventory weapon gets config desc", bool(inv["Dagger"]))
     rec("GM inventory desc wins", inv["Magic Dagger"] == "gm text")
 
+    # Shared vs per-item icon keys: exact catalog/weapon match is shared; a
+    # specific/modified item gets its own key (generated later at runtime).
+    invi = {i["name"]: i.get("icon") for i in cfg["inventory"]}
+    rec("inventory Dagger reuses the weapon icon", invi.get("Dagger") == "weapon/dagger")
+    rec("inventory Magic Dagger is per-item", invi.get("Magic Dagger") == "item/magic-dagger")
+    shared_inv = build_stats({"inventory": ["Spellbook"]})["inventory"]
+    rec("starting item uses the shared catalog", shared_inv[0].get("icon") == "item/spellbook")
+    # Fighter-style proficiencies: categories must produce keys, not text.
+    fighter = build_stats({
+        "armor_proficiencies": ["All armor", "Shields"],
+        "weapon_proficiencies": ["Martial weapons", "Simple weapons"],
+        "tool_proficiencies": ["Jeweler's Tools", "Vehicles (land)"],
+    })["proficiencies"]
+    f_armor = {e["name"]: e.get("icon") for e in fighter["armor"]}
+    f_weapons = {e["name"]: e.get("icon") for e in fighter["weapons"]}
+    f_tools = {e["name"]: e.get("icon") for e in fighter["tools"]}
+    rec("fighter armor categories keyed",
+        f_armor.get("All armor") == "armor/all-armor" and f_armor.get("Shields") == "armor/shield")
+    rec("fighter weapon categories keyed",
+        f_weapons.get("Martial weapons") == "weapon/martial-weapons"
+        and f_weapons.get("Simple weapons") == "weapon/simple-weapons")
+    rec("fighter vehicle tool keyed", f_tools.get("Vehicles (land)") == "tool/vehicles-land")
+    cons = build_stats({"consumables": {"Potion of Healing": 2}})
+    rec("Potion of Healing is a shared icon",
+        cons["consumable_icons"]["Potion of Healing"] == "item/potion-of-healing")
+
+    # Numeric/emblem stat icons.
+    ab = build_stats({"stats": {"str": 16, "dex": 14}})
+    rec("ability icons keyed by full name",
+        ab["stats"][0]["icon"] == "ability/strength" and ab["stats"][0]["name"] == "Strength")
+    sv = build_stats({"saves": ["Strength", "Wisdom"]})
+    rec("saves become {name, icon}",
+        sv["proficiencies"]["saves"][0] == {"name": "Strength", "icon": "save/strength"})
+    cm = build_stats({"level": 4, "gold": 9, "xp": 100, "current_hit_points": 20,
+                      "total_hit_points": 30, "armor_class": 15, "speed": 30})
+    rec("stat icon keys present",
+        cm["character"]["level_icon"] == "stat/level" and cm["combat"]["ac_icon"] == "stat/ac")
+    rec("character exposes gender (for the portrait payload)",
+        build_stats({"gender": "Female"})["character"]["gender"] == "Female")
+
     # Active effects: string entries (spells) and {name, description} dicts
     # (update_player_list stores a dict when the item text has a colon). The
     # dict shape used to crash build_stats with "unhashable type: 'dict'".
@@ -167,6 +230,46 @@ def main() -> bool:
     rec("reputation: auto-created bucket renders",
         len(rep) == 1 and rep[0]["category"] == "Others" and rep[0]["faction"] == "Misc"
         and rep[0]["entries"][0]["name"] == "Awakened Convert")
+
+    # Equipped items (SRD 5.1): the sheet flags what is worn/wielded like prepared
+    # spells, reports the hands, and carries the armour-class breakdown.
+    es = build_stats({
+        "name": "Tester", "character_class": "Fighter", "features": [],
+        "stats": {"str": 16, "dex": 14, "con": 14},
+        "armor_class": 18,
+        "inventory": ["Longsword", "Chain Mail", "Shield", "Rope"],
+        "equipped": {"armor": "Chain Mail", "hands": ["Longsword", "Shield"]},
+    })
+    inv = {e["name"]: e for e in es["inventory"]}
+    rec("equipment: worn armour is flagged with its slot",
+        inv["Chain Mail"]["equipped"] and inv["Chain Mail"]["slot"] == "Worn")
+    rec("equipment: a held weapon is flagged with its hand",
+        inv["Longsword"]["equipped"] and inv["Longsword"]["slot"] == "Main hand")
+    rec("equipment: the off hand too", inv["Shield"]["slot"] == "Off hand")
+    rec("equipment: carried items are not flagged",
+        not inv["Rope"]["equipped"] and inv["Rope"]["slot"] is None)
+    rec("equipment: hands + AC breakdown reach the sheet",
+        es["equipment"]["hands_free"] == 0
+        and es["combat"]["ac_breakdown"].startswith("18")
+        and "Chain Mail" in es["combat"]["ac_breakdown"])
+    rec("equipment: a payload without `equipped` claims no breakdown",
+        build_stats({"stats": {"dex": 14}, "inventory": ["Rope"]})["combat"]["ac_breakdown"] == "")
+
+    # Worn (non-hand) items — cloaks, rings, boots — and attunement.
+    ew = build_stats({
+        "character_class": "Fighter", "stats": {"str": 16, "dex": 14, "con": 14},
+        "inventory": [{"name": "Cloak of Warding", "kind": "cloak", "attunement": True},
+                      "Chain Mail"],
+        "equipped": {"armor": "Chain Mail", "hands": [None, None], "worn": ["Cloak of Warding"]},
+        "attuned": ["Cloak of Warding"], "armor_class": 16,
+    })
+    winv = {e["name"]: e for e in ew["inventory"]}
+    rec("equipment: a worn item is flagged Worn like the armour",
+        winv["Cloak of Warding"]["equipped"] and winv["Cloak of Warding"]["slot"] == "Worn")
+    rec("equipment: the attuned list reaches the sheet",
+        ew["equipment"]["attuned"] == ["Cloak of Warding"]
+        and ew["equipment"]["attunement_slots_free"] == 2
+        and ew["equipment"]["worn"][0]["name"] == "Cloak of Warding")
 
     # Regression against the real save, if present.
     real = REPO / "output" / "electronistu.player"

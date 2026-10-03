@@ -12,6 +12,18 @@ try:
 except ImportError:  # pragma: no cover - PyYAML is a declared dependency
     yaml = None
 
+from .icons import icon_key_for  # noqa: E402
+
+try:  # SRD 5.1 carrying rules live at the repo root (shared with dice_server)
+    from carrying import carry_state, weight_for  # noqa: E402
+except ImportError:  # pragma: no cover - package-relative fallback
+    from ..carrying import carry_state, weight_for  # noqa: E402
+
+try:  # SRD 5.1 equipped-items model (same repo root, shared with dice_server)
+    from equipment import equipment_state  # noqa: E402
+except ImportError:  # pragma: no cover - package-relative fallback
+    from ..equipment import equipment_state  # noqa: E402
+
 _CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 _SPELL_DB = None
 
@@ -56,8 +68,36 @@ def _spell_entries(seq):
             meta = spells.get(name.lower())
             if isinstance(meta, dict):
                 desc = meta.get("description") or ""
-        out.append({"name": name, "description": str(desc)})
+        out.append({"name": name, "description": str(desc), "icon": icon_key_for("spell", name)})
     return out
+
+
+def _has_spellbook_item(inventory) -> bool:
+    """True when the inventory still holds the character's spellbook.
+
+    A wizard whose spellbook is stolen/lost keeps every spell on the sheet, but
+    cannot use them until the item is recovered (see the `unavailable` field).
+    """
+    for entry in inventory or []:
+        name = entry.get("name", "") if isinstance(entry, dict) else entry
+        if "spellbook" in str(name).lower():
+            return True
+    return False
+
+
+def _merge_prepared(spellbook, prepared):
+    """One sheet list: the spellbook, with the prepared entries flagged.
+
+    Prepared spells missing from the book (prepared casters have no spellbook
+    at all — Cleric/Druid/Paladin) are appended so they never disappear.
+    """
+    prepared_names = {e["name"].strip().lower() for e in prepared}
+    merged = [{**entry, "prepared": entry["name"].strip().lower() in prepared_names}
+              for entry in spellbook]
+    listed = {e["name"].strip().lower() for e in merged}
+    merged += [{**entry, "prepared": True} for entry in prepared
+               if entry["name"].strip().lower() not in listed]
+    return merged
 
 
 def _max_spell_slots(character_class, level):
@@ -156,7 +196,7 @@ def _weapon_entries(names):
         if isinstance(name, dict):
             name = name.get("name", "")
         canonical, desc = _weapon_entry(name)
-        out.append({"name": canonical, "description": desc})
+        out.append({"name": canonical, "description": desc, "icon": icon_key_for("weapon", canonical)})
     return out
 
 
@@ -290,23 +330,58 @@ def _feature_entries(features, class_name=None, race_name=None, background_name=
             desc = ""
         if not desc:
             desc = idx.get(name.lower(), "")
-        out.append({"name": name, "description": str(desc)})
+        out.append({"name": name, "description": str(desc), "icon": icon_key_for("feature", name)})
     return out
 
 
-def _inventory_entries(items):
+def _inventory_entries(items, equip=None):
+    """Inventory chips, with equipped entries flagged like prepared spells.
+
+    `equip` is the shared `_equipment` block; each equipped name is tagged with the
+    slot it occupies (Main hand / Off hand / Worn) so the sheet can highlight it.
+    """
+    slots = {}
+    for hand in (equip or {}).get("hands", []) or []:
+        if isinstance(hand, dict) and hand.get("name"):
+            slots[str(hand["name"])] = ("Main hand" if hand.get("slot") == "main_hand"
+                                        else "Off hand")
+    for worn in (equip or {}).get("worn", []) or []:
+        if isinstance(worn, dict) and worn.get("name"):
+            slots[str(worn["name"])] = "Worn"
+    if (equip or {}).get("armor"):
+        slots[str(equip["armor"])] = "Worn"
+
     out = []
     for it in items:
+        declared = None
+        base = None
         if isinstance(it, dict):
             name = str(it.get("name") or "")
             desc = it.get("description") or ""
+            declared = it.get("weight")
+            base = it.get("base")
         else:
             name = str(it)
             desc = ""
         if not desc:
             _canon, wdesc = _weapon_entry(name)
             desc = wdesc
-        out.append({"name": name, "description": str(desc)})
+        weight = weight_for(name, declared, base)
+        out.append({"name": name, "description": str(desc), "icon": icon_key_for("inventory", name),
+                    "weight": weight, "unweighed": weight is None,
+                    "equipped": name in slots, "slot": slots.get(name)})
+    return out
+
+
+def _tag_entries(names, category):
+    """Plain string lists (skills, armour, tools, languages) -> {name, icon}."""
+    if not isinstance(names, list):
+        return []
+    out = []
+    for entry in names:
+        label = str(entry.get("name") or "") if isinstance(entry, dict) else str(entry)
+        if label:
+            out.append({"name": label, "icon": icon_key_for(category, label)})
     return out
 
 
@@ -327,6 +402,12 @@ def _modifier(score):
     return f"+{mod}" if mod >= 0 else str(mod)
 
 
+_ABILITY_NAMES = {
+    "str": "Strength", "dex": "Dexterity", "con": "Constitution",
+    "int": "Intelligence", "wis": "Wisdom", "cha": "Charisma",
+}
+
+
 def build_stats(db_data: dict) -> dict:
     """Turn a `dump_player_db` payload into a structured character sheet."""
     if not isinstance(db_data, dict):
@@ -340,20 +421,37 @@ def build_stats(db_data: dict) -> dict:
     if isinstance(stats_raw, dict):
         for key in ("str", "dex", "con", "int", "wis", "cha"):
             value = stats_raw.get(key, "?")
-            stats.append({"key": key.upper(), "value": value, "modifier": _modifier(value)})
+            name = _ABILITY_NAMES[key]
+            stats.append({
+                "key": key.upper(), "name": name, "value": value,
+                "modifier": _modifier(value), "icon": icon_key_for("ability", name),
+            })
 
     spellcasting = None
     spell_raw = g("spellcasting")
     if isinstance(spell_raw, dict):
         spell_slots = spell_raw.get("slots", {})
+        spellbook = _spell_entries(spell_raw.get("spellbook", []))
+        prepared = _spell_entries(spell_raw.get("spells_prepared", []))
+        raw_inventory = g("inventory")
+        has_spellbook_item = _has_spellbook_item(
+            raw_inventory if isinstance(raw_inventory, list) else [])
         spellcasting = {
             "ability": str(spell_raw.get("ability", "")).capitalize(),
+            "ability_icon": icon_key_for("ability", str(spell_raw.get("ability", ""))),
             "dc": spell_raw.get("dc"),
+            "dc_icon": "stat/save-dc",
             "attack_modifier": spell_raw.get("attack_modifier"),
+            "attack_icon": "stat/spell-attack",
             "cantrips": _spell_entries(spell_raw.get("cantrips", [])),
             "spells_known": _spell_entries(spell_raw.get("spells_known", [])),
-            "spells_prepared": _spell_entries(spell_raw.get("spells_prepared", [])),
-            "spellbook": _spell_entries(spell_raw.get("spellbook", [])),
+            "spells_prepared": prepared,
+            # The book itself: prepared entries flagged, so the sheet shows one
+            # list instead of two. `has_spellbook` picks the field label;
+            # `spellbook_missing` greys the whole list (book item gone).
+            "spellbook": _merge_prepared(spellbook, prepared),
+            "has_spellbook": bool(spellbook),
+            "spellbook_missing": bool(spellbook) and not has_spellbook_item,
             "slots": spell_slots,
             "slot_levels": _slot_levels(spell_slots, g("character_class"), g("level")),
         }
@@ -363,23 +461,30 @@ def build_stats(db_data: dict) -> dict:
     background_name = g("background")
 
     proficiencies = {
-        "skills": g("skills") if isinstance(g("skills"), list) else [],
-        "saves": g("saves") if isinstance(g("saves"), list) else [],
-        "armor": g("armor_proficiencies") if isinstance(g("armor_proficiencies"), list) else [],
+        "skills": _tag_entries(g("skills"), "skill"),
+        "saves": _tag_entries(g("saves"), "save"),
+        "armor": _tag_entries(g("armor_proficiencies"), "armor"),
         "weapons": _weapon_entries(g("weapon_proficiencies")),
-        "tools": g("tool_proficiencies") if isinstance(g("tool_proficiencies"), list) else [],
+        "tools": _tag_entries(g("tool_proficiencies"), "tool"),
         "features": _feature_entries(g("features"), class_name, race_name, background_name),
-        "languages": g("languages") if isinstance(g("languages"), list) else [],
+        "languages": _tag_entries(g("languages"), "language"),
     }
+
+    equip = equipment_state(g)
 
     inventory = g("inventory")
     if not isinstance(inventory, list):
         inventory = []
-    inventory = _inventory_entries(inventory)
+    inventory = _inventory_entries(inventory, equip)
+
+    # SRD 5.1 carrying capacity / variant encumbrance, recomputed from the data
+    # above (never taken from the dump, which may carry a stale derived copy).
+    carry = carry_state(g)
 
     consumables = g("consumables")
     if not isinstance(consumables, dict):
         consumables = {}
+    consumable_icons = {str(k): icon_key_for("consumable", k) for k in consumables}
 
     reputation = []
     rep_raw = g("reputation")
@@ -392,6 +497,8 @@ def build_stats(db_data: dict) -> dict:
                     reputation.append({
                         "category": str(category).title(),
                         "faction": str(faction).title(),
+                        "kingdom_icon": icon_key_for("kingdom", category),
+                        "faction_icon": icon_key_for("faction", faction),
                         "entries": entries,
                     })
 
@@ -420,7 +527,12 @@ def build_stats(db_data: dict) -> dict:
                     else:
                         delta = entry.get("delta", 0)
                         rows.append({"field": field, "value": f"{'+' if delta >= 0 else ''}{delta}"})
-            active_effects.append({"name": name, "description": desc, "rows": rows})
+            active_effects.append({
+                "name": name,
+                "description": desc,
+                "rows": rows,
+                "icon": icon_key_for("spell", name),
+            })
 
     return {
         "character": {
@@ -428,29 +540,49 @@ def build_stats(db_data: dict) -> dict:
             "race": race_name,
             "character_class": class_name,
             "level": g("level"),
+            "gender": g("gender"),
             "gold": g("gold"),
             "xp": g("xp"),
+            "level_icon": "stat/level",
+            "gold_icon": "stat/gold",
+            "xp_icon": "stat/xp",
             "background": background_name,
             "alignment": g("alignment"),
             "race_desc": _race_description(race_name),
             "character_class_desc": _class_description(class_name),
             "background_desc": _background_description(background_name),
+            "race_icon": icon_key_for("race", race_name),
+            "class_icon": icon_key_for("class", class_name),
+            "background_icon": icon_key_for("background", background_name),
+            "alignment_icon": icon_key_for("alignment", g("alignment")),
         },
         "combat": {
             "hp_current": g("current_hit_points", "?"),
             "hp_max": g("total_hit_points", "?"),
             "armor_class": g("armor_class", "?"),
-            "speed": g("speed", "?"),
+            "ac_breakdown": equip.get("ac_breakdown", "") if equip.get("derived_from_equipped") else "",
+            "speed": carry["speed"] if carry["speed"] is not None else g("speed", "?"),
+            "speed_base": g("speed", "?"),
+            "speed_penalty": carry["speed_penalty"],
             "proficiency_bonus": g("proficiency_bonus", "?"),
             "hit_dice_count": g("hit_dice_count", "?"),
             "hit_dice_size": g("hit_dice_size", "?"),
             "temporary_hit_points": thp,
+            "hp_icon": "stat/hp",
+            "ac_icon": "stat/ac",
+            "speed_icon": "stat/speed",
+            "proficiency_icon": "stat/proficiency",
+            "hit_dice_icon": "stat/hit-dice",
+            "temp_hp_icon": "stat/temp-hp",
         },
         "stats": stats,
         "spellcasting": spellcasting,
         "proficiencies": proficiencies,
         "inventory": inventory,
         "consumables": consumables,
+        "consumable_icons": consumable_icons,
         "reputation": reputation,
         "active_effects": active_effects,
+        "carrying": carry,
+        "equipment": equip,
     }

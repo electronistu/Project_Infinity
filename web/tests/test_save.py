@@ -18,10 +18,8 @@ REPO = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO))
 
 from web.engine import GameSession  # noqa: E402
-from web.naming import sanitize_save_name  # noqa: E402
 
 OUTPUT = REPO / "output"
-NEW = "My Epic Save"
 MODEL = "deepseek-v4.1-flash:cloud"
 
 
@@ -29,18 +27,6 @@ def unit_tests() -> bool:
     from web.engine import _max_timeline_turn
 
     ok = True
-    print("  -- naming --")
-    for inp, expect in [
-        ("My Save", ("My Save", "My Save.wwf")),
-        ("bad/name:here", ("bad_name_here", "bad_name_here.wwf")),
-        ("already.wwf", ("already", "already.wwf")),
-        ("", ("save", "save.wwf")),
-        ("CON", ("CON_save", "CON_save.wwf")),
-    ]:
-        got = sanitize_save_name(inp)
-        ok &= got == expect
-        print(f"    [{'ok' if got == expect else 'FAIL'}] {inp!r} -> {got}")
-
     print("  -- timeline turn parsing --")
     for label, text, expect in [
         ("legacy Rounds 1-19", "# Session Timeline\n\n## Rounds 1-19 | a | b\n", 19),
@@ -86,7 +72,6 @@ def _build_temp_save():
 
 async def functional() -> bool:
     stem, wwf, player, timeline = _build_temp_save()
-    new_files = [OUTPUT / f"{NEW}.wwf", OUTPUT / f"{NEW}.player", OUTPUT / f"{NEW}.timeline"]
 
     # Seed a legacy timeline: a previous session already recorded 19 turns.
     timeline.write_text(
@@ -109,7 +94,7 @@ async def functional() -> bool:
                 await session.submit("Roll a d20 for me.")
             elif t == "turn_end":
                 turn_done = True
-                await session.submit_save(NEW)  # manual save -> timeline + player
+                await session.submit_save()  # manual save -> in place: timeline + player
             elif t == "saved":
                 if turn_done:
                     got_saved = True
@@ -123,36 +108,38 @@ async def functional() -> bool:
             elif t == "closed":
                 break
 
-        tl = OUTPUT / f"{NEW}.timeline"
+        tl = timeline
         text = tl.read_text(encoding="utf-8") if tl.exists() else ""
         continued = "Turns 20-20" in text
+        saved_in_place = player.stat().st_mtime_ns != player_mtime_before
         ok = True
         ok &= got_saved and got_timeline
         ok &= not saved_before_manual
         ok &= session.turn_counter == 20 and session.last_timeline_turn == 20
-        ok &= (OUTPUT / f"{NEW}.wwf").exists() and (OUTPUT / f"{NEW}.player").exists() and tl.exists()
+        ok &= wwf.exists() and player.exists() and tl.exists()
         ok &= continued
         ok &= "Mechanical Changes" not in text
-        ok &= player.stat().st_mtime_ns == player_mtime_before  # no autosave on the seeded save
+        # Save is in place: the seeded world is rewritten, never renamed away.
+        ok &= saved_in_place and session.active_name == stem
         print(f"    saved={got_saved} timeline={got_timeline} turn={session.turn_counter} "
-              f"continued_from_19={continued} orig_untouched={player.stat().st_mtime_ns == player_mtime_before}")
+              f"continued_from_19={continued} saved_in_place={saved_in_place}")
 
-        if (OUTPUT / f"{NEW}.player").exists():
-            sheet = await _dump_player(OUTPUT / f"{NEW}.player")
+        if player.exists():
+            sheet = await _dump_player(player)
             print(f"    playable via MCP: {sheet.get('name')} {sheet.get('character_class')}")
     finally:
         try:
             await session.close()
         except Exception:  # noqa: BLE001
             pass
-        for path in new_files + [wwf, player, timeline]:
+        for path in [wwf, player, timeline]:
             path.unlink(missing_ok=True)
     return bool(ok)
 
 
 def main() -> int:
     print("=" * 72)
-    print("SAVE (no autosave; timeline on save; turns continue across sessions)")
+    print("SAVE (no autosave; in-place save; timeline on save; turns continue across sessions)")
     print("=" * 72)
     ok = unit_tests()
     print("  -- functional (self-contained temp save) --")

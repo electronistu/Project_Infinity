@@ -35,6 +35,18 @@ def get_npc_array(npc: NPC) -> list:
     stats_array = [npc.stats.strength, npc.stats.dexterity, npc.stats.constitution, npc.stats.intelligence, npc.stats.wisdom, npc.stats.charisma]
     return [npc.level, npc.race, npc.character_class, npc.armor_class, npc.total_hit_points, stats_array, True if npc.is_walker else None]
 
+def _player_item(item):
+    """One inventory entry for the `.player` file: a bare name when plain, else a dict
+    carrying the description and (for homebrew/magic gear) its declared `base`."""
+    base = getattr(item, "base", None)
+    if not item.description and not base:
+        return item.name
+    entry = {"name": item.name, "description": item.description}
+    if base:
+        entry["base"] = base
+    return entry
+
+
 def get_player_json(pc, kingdoms=None) -> str:
     player_data = {
         "name": pc.name,
@@ -69,9 +81,10 @@ def get_player_json(pc, kingdoms=None) -> str:
         "languages": pc.languages,
         "features": [f.name for f in pc.features_and_traits],
         "inventory": [
-            {"name": item.name, "description": item.description} if item.description else item.name
+            _player_item(item)
             for item in pc.equipment.inventory if item.item_type not in ("ammunition", "consumable")
         ],
+        "equipped": getattr(pc, "equipped", {}) or {},
         "consumables": pc.consumables if pc.consumables else {},
         "reputation": _build_reputation(kingdoms) if kingdoms else {},
     }

@@ -209,5 +209,67 @@ class EldritchBlastTest(unittest.TestCase):
                     self.assertEqual(r["slot_consumed"], "cantrip")
 
 
+class SpellbookItemTest(H.EngineCase):
+    """A wizard without their spellbook item: levels blocked, cantrips/scrolls still work."""
+
+    player_factory = staticmethod(H.wizard_l3)
+
+    def _steal_book(self):
+        r = H.ds.update_player_list(key="inventory", item="Spellbook", action="remove")
+        self.assertTrue(r.get("success", True), r)
+        self.assertNotIn("Spellbook", H.dbv("inventory"))
+
+    def test_leveled_spell_blocked_and_no_slot_consumed(self):
+        self._steal_book()
+        r = H.ds.resolve_magic(spell_name="Magic Missile", actor="Senna", slot_level=1,
+                               target_ac=12, target_name="G", target_current_hp=30)
+        self.assertFalse(r.get("success", True))
+        self.assertIn("spellbook", r["error"].lower())
+        self.assertEqual(H.dbv("spellcasting")["slots"]["1"], 4)  # untouched
+
+    def test_cantrip_still_works(self):
+        self._steal_book()
+        with H.fixed_rolls([15, 5]):
+            r = H.ds.resolve_magic(spell_name="Fire Bolt", actor="Senna", spell_attack_modifier=5,
+                                   target_ac=12, target_name="G", target_current_hp=30)
+        self.assertEqual(r["slot_consumed"], "cantrip")
+        self.assertTrue(r.get("success", True))
+
+    def test_scroll_still_works(self):
+        self._steal_book()
+        with H.fixed_rolls([4, 2, 2]):
+            r = H.ds.resolve_magic(spell_name="Magic Missile", actor="Senna", slot_level=1,
+                                   target_ac=12, target_name="G", target_current_hp=30, is_scroll=True)
+        self.assertEqual(r["slot_consumed"], "scroll")
+
+    def test_book_present_casts_normally(self):
+        with H.fixed_rolls([4, 2, 2]):
+            r = H.ds.resolve_magic(spell_name="Magic Missile", actor="Senna", slot_level=1,
+                                   target_ac=12, target_name="G", target_current_hp=30)
+        self.assertEqual(r["slot_consumed"], 1)
+
+    def test_cannot_prepare_spells_without_the_book(self):
+        self._steal_book()
+        r = H.ds.rest(rest_type="long", prepared_spells=["Magic Missile", "Sleep"])
+        err = r["changes"]["prepared_spells_error"]
+        self.assertEqual(err["error"], "Spellbook missing.")
+        self.assertNotIn("prepared_spells", r["changes"])
+
+    def test_preparing_still_works_with_the_book(self):
+        r = H.ds.rest(rest_type="long", prepared_spells=["Magic Missile", "Sleep"])
+        self.assertEqual(r["changes"]["prepared_spells"]["count"], 2)
+
+
+class PreparedCasterNotGatedTest(H.EngineCase):
+    """Clerics/Druids have no spellbook list and are never gated on the item."""
+
+    player_factory = staticmethod(H.cleric_l5)
+
+    def test_cleric_can_prepare_without_a_spellbook_item(self):
+        self.assertNotIn("Spellbook", H.dbv("inventory"))
+        r = H.ds.rest(rest_type="long", prepared_spells=["Cure Wounds"])
+        self.assertNotIn("prepared_spells_error", r["changes"])
+
+
 if __name__ == "__main__":
     unittest.main()
