@@ -113,8 +113,6 @@ Images are cached per save under `output/images/{stem}/` and regenerate only whe
 | **Refresh** | Character sheet | Reload the sheet from the engine |
 | **↻** | Character sheet | Regenerate the character portrait |
 
-Typed commands in the input box: `/help`, `/stats`, `/save`, `/sync`, `/quit`.
-
 ### Saving and loading
 
 **There is no autosave — progress persists only when you save.** Saving is **in place**: the game writes the world's own files and never renames them, because a world's images live under a folder keyed to its name. A save:
