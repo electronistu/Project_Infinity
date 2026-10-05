@@ -35,7 +35,7 @@ from mcp import ClientSession, StdioServerParameters  # noqa: E402
 from mcp.client.stdio import stdio_client  # noqa: E402
 from ollama import AsyncClient  # noqa: E402
 
-from .images import known_scene_places  # noqa: E402
+from .images import known_npc_names, known_scene_places  # noqa: E402
 from forge.world import render_world_text  # noqa: E402
 from .ollama_stream import stream_chat  # noqa: E402
 from .stats import build_stats  # noqa: E402
@@ -123,6 +123,9 @@ def _tool_schema(tool) -> dict:
 
 
 SCENE_TOOL = "request_scene_image"
+# Declares recurring NPCs (name + description). The engine buffers them and the
+# server persists them; the GM then refers to those NPCs by name alone.
+NPC_TOOL = "register_npcs"
 # Tools the GM may attach to narrative prose (the Narrative Phase). A round that
 # carries prose plus only these tools is the turn's last word: the tool loop must
 # NOT run another model round, or the GM re-narrates the whole turn.
@@ -157,7 +160,12 @@ def format_known_places(places: list[dict]) -> str:
             lines.append(f"        - {p['location']}")
             last_l = p["location"]
         desc = f" — {p['description']}" if p["description"] else ""
-        npc = f" · main NPC: {p['main_npc']}" if p.get("main_npc") else ""
+        npc_info = p.get("main_npc") or {}
+        if isinstance(npc_info, dict):
+            npc_name = str(npc_info.get("name") or npc_info.get("description") or "").strip()
+        else:
+            npc_name = str(npc_info).strip()
+        npc = f" · main NPC: {npc_name}" if npc_name else ""
         lines.append(f"            - {p['sublocation'] or '(whole place)'}{desc}{npc}")
     return "\n".join(lines)
 
@@ -170,10 +178,11 @@ def render_protocol(text: str, scene_images: bool) -> str:
 
 
 def filter_tools(tools: list[dict], scene_images: bool) -> list[dict]:
-    """Hide the scene-image tool from the GM unless storyline images are on."""
+    """Hide the scene-image and NPC-declaration tools unless storyline images are on."""
     if scene_images:
         return list(tools)
-    return [t for t in tools if (t.get("function") or {}).get("name") != SCENE_TOOL]
+    return [t for t in tools
+            if (t.get("function") or {}).get("name") not in (SCENE_TOOL, NPC_TOOL)]
 
 
 def _clean_sync_tokens(text: str) -> str:
@@ -225,6 +234,10 @@ class GameSession:
         self._scene_places: dict[tuple[str, str], tuple[str, str]] = {}
         self._scene_rejected = False
         self._scene_rejected_place: tuple[str, str] | None = None
+        # Declared NPC names (place main NPCs + the storyline cast), lowercased, and the
+        # declarations buffered this turn which the server persists on the next scene call.
+        self._cast_names: set[str] = set()
+        self._pending_npcs: list[dict] = []
 
     # ── public API ────────────────────────────────────────────────────────
 
@@ -354,12 +367,15 @@ class GameSession:
                             _scene_key(p["location"], p["sublocation"]): (p["kingdom"], p["area"])
                             for p in places
                         }
+                        self._cast_names = known_npc_names(self.base_dir / OUTPUT_DIR,
+                                                           self.active_name or "")
                         if places:
                             body = (
                                 "KNOWN IMAGE PLACES (reuse these exact kingdom / area / location / "
                                 "sublocation names; only invent a new name for a genuinely new place, "
                                 "and request its seed with `establishing` only when it is not listed "
-                                "here):\n" + format_known_places(places)
+                                "here. Use the place's main NPC by NAME; never restate their look):\n"
+                                + format_known_places(places)
                             )
                         else:
                             body = (
@@ -713,13 +729,14 @@ class GameSession:
             return
         self._scene_requested_turn = True
         kingdom, area, location, sublocation = self._match_known_place(narrative)
+        npcs, self._pending_npcs = self._pending_npcs, []
         await self._emit({
             "type": "scene_request", "kind": "auto",
             "description": narrative or "",
             "kingdom": kingdom, "area": area,
             "location": location, "sublocation": sublocation,
             "time_of_day": "", "weather": "", "characters": {},
-            "establishing": "", "main_npc": "", "seed_change": "",
+            "establishing": "", "main_npc": {}, "npcs": npcs, "seed_change": "",
             "turn": self.turn_counter,
         })
 
@@ -774,6 +791,14 @@ class GameSession:
             except Exception as e:  # noqa: BLE001
                 text = f"Tool error: {type(e).__name__}: {e}"
                 is_error = True
+        if name == SCENE_TOOL:
+            self._collect_declarations(args)
+        if name == NPC_TOOL:
+            self._remember_declared(args.get("npcs"))
+        if name == SCENE_TOOL and warning is None:
+            note = self._undeclared_note(args)
+            if note:
+                text = f"{text}\n\n{note}" if text else note
         await self._emit({"type": "tool_result", "name": name, "text": text, "is_error": is_error})
         self.messages.append({"role": "tool", "content": text, "name": name})
         if name == SCENE_TOOL and self.scene_images and warning is None and not self._scene_requested_turn:
@@ -786,6 +811,9 @@ class GameSession:
                 self._scene_places[_scene_key(location, sublocation)] = (kingdom, area)
             elif not kingdom and not area:
                 kingdom, area = self._scene_places.get(_scene_key(location, sublocation), ("", ""))
+            # Declarations flow to the server with the image call (the single writer).
+            npcs, self._pending_npcs = self._pending_npcs, []
+            main_npc = args.get("main_npc") if isinstance(args.get("main_npc"), dict) else {}
             await self._emit({
                 "type": "scene_request", "kind": "story",
                 "description": str(args.get("description") or ""),
@@ -796,10 +824,58 @@ class GameSession:
                 "weather": str(args.get("weather") or ""),
                 "characters": args.get("characters") if isinstance(args.get("characters"), dict) else {},
                 "establishing": str(args.get("establishing") or ""),
-                "main_npc": str(args.get("main_npc") or ""),
+                "main_npc": main_npc,
+                "npcs": npcs,
                 "seed_change": str(args.get("seed_change") or ""),
                 "turn": self.turn_counter,
             })
+
+    def _remember_declared(self, npcs) -> list[str]:
+        """Buffer declared NPCs (name + description) and remember their names."""
+        added: list[str] = []
+        if not isinstance(npcs, list):
+            return added
+        for entry in npcs:
+            if not isinstance(entry, dict):
+                continue
+            name = " ".join(str(entry.get("name") or "").split())[:80]
+            if not name:
+                continue
+            self._cast_names.add(name.lower())
+            self._pending_npcs.append({
+                "name": name,
+                "description": " ".join(str(entry.get("description") or "").split())[:400],
+            })
+            added.append(name)
+        return added
+
+    def _collect_declarations(self, args: dict) -> None:
+        """Declarations that ride a scene call: the `npcs` list + the place's main NPC."""
+        self._remember_declared(args.get("npcs"))
+        main = args.get("main_npc")
+        if isinstance(main, dict):
+            name = " ".join(str(main.get("name") or "").split())
+            if name:
+                self._cast_names.add(name.lower())
+
+    def _undeclared_note(self, args: dict) -> str:
+        """A soft note listing `characters` names that no declaration covers."""
+        characters = args.get("characters")
+        if not isinstance(characters, dict) or not characters:
+            return ""
+        unknown: list[str] = []
+        for key in characters:
+            name = " ".join(str(key or "").split())
+            if name and name.lower() not in self._cast_names:
+                unknown.append(name)
+        if not unknown:
+            return ""
+        listed = "; ".join(f'"{n}"' for n in unknown[:4])
+        return (
+            f"NOTE: {listed} not declared. Declare recurring characters with register_npcs "
+            "(name + description) so the illustrator keeps them consistent; an undeclared name "
+            "is drawn from its own key text and is not remembered."
+        )
 
     def _scene_seed_warning(self, args: dict) -> str | None:
         """Reject a new-place scene call that is missing its establishing view.

@@ -2,7 +2,7 @@
   "name": "Electronistu",
   "level": 1,
   "xp": 0,
-  "gold": 85,
+  "gold": 115,
   "character_class": "Wizard",
   "race": "High Elf",
   "background": "Criminal",
@@ -24,11 +24,11 @@
   },
   "proficiency_bonus": 2,
   "skills": [
-    "Investigation",
     "Arcana",
     "Stealth",
     "Deception",
-    "Perception"
+    "Perception",
+    "Investigation"
   ],
   "saves": [
     "Intelligence",
@@ -36,19 +36,19 @@
   ],
   "armor_proficiencies": [],
   "weapon_proficiencies": [
-    "Quarterstaff",
-    "Longbow",
+    "Light Crossbow",
     "Dagger",
-    "Dart",
+    "Shortbow",
+    "Quarterstaff",
     "Shortsword",
     "Longsword",
-    "Shortbow",
-    "Sling",
-    "Light Crossbow"
+    "Dart",
+    "Longbow",
+    "Sling"
   ],
   "tool_proficiencies": [
-    "Dice Set",
-    "Thieves' tools"
+    "Thieves' tools",
+    "Dice Set"
   ],
   "languages": [
     "Common",
@@ -123,7 +123,7 @@
     "dc": 13,
     "attack_modifier": 5,
     "cantrips": [
-      "Chill Touch",
+      "Mage Hand",
       "Poison Spray",
       "True Strike"
     ],
@@ -131,16 +131,16 @@
       "1": 2
     },
     "spellbook": [
+      "Color Spray",
       "Detect Magic",
       "Disguise Self",
-      "False Life",
       "Identify",
       "Magic Missile",
       "Sleep"
     ],
     "spells_prepared": [
+      "Color Spray",
       "Disguise Self",
-      "False Life",
       "Magic Missile",
       "Sleep"
     ]

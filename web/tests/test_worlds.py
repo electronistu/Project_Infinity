@@ -198,16 +198,19 @@ async def main() -> int:
                 f"status={r.status_code} failed={body.get('failed')}")
             server_mod.icon_service.ensure = _fake_ensure
 
-            # Storyline scenes: a hidden per-place seed + a visible action chained
-            # from the seed then from the place's previous action.
+            # Storyline scenes: a hidden per-place seed + a visible action drawn fresh
+            # from that seed (never from the place's previous action), served once.
             r = await c.post("/api/scene", json={
                 "session_id": "scenetest", "description": "a forge at dusk",
                 "mood": "tense", "kingdom": "Kingdom of Eldoria", "area": "Eldoria City",
                 "location": "Hask's Smithy", "sublocation": "the forge",
                 "time_of_day": "dusk", "weather": "light rain",
-                "characters": {"three dockhands": "drinking and looking up"},
+                "characters": {"Gorson": "hammering at the anvil",
+                               "Maera": "drawing ale",
+                               "three dockhands": "drinking and looking up"},
                 "establishing": "a hot forge",
-                "main_npc": "Gorson — a burly smith",
+                "main_npc": {"name": "Gorson", "description": "a burly smith"},
+                "npcs": [{"name": "Maera", "description": "a broad, one-eared woman"}],
             })
             body = r.json()
             scenes_path = OUTPUT_DIR / "images" / "_scenetest" / "scenes"
@@ -219,27 +222,35 @@ async def main() -> int:
             rec("fresh place action references the seed + portrait",
                 body.get("used_seed") is True and body.get("used_portrait_reference") is True, str(body))
             seeded = known_scene_places(OUTPUT_DIR, "_scenetest")
-            rec("POST scene stores the main NPC on the seed",
-                any(p["location"] == "Hask's Smithy" and p["main_npc"] == "Gorson — a burly smith"
+            rec("POST scene stores the main NPC (name + description) on the seed",
+                any(p["location"] == "Hask's Smithy"
+                    and p["main_npc"] == {"name": "Gorson", "description": "a burly smith"}
                     for p in seeded), str(seeded))
+            rec("POST scene reports the NPCs it added to the cast",
+                body.get("npcs_added") == ["Maera"], str(body))
             rec("POST scene forwards kingdom + area to the generator",
                 bool(scene_refs) and scene_refs[-1][0] == "Kingdom of Eldoria"
                 and scene_refs[-1][1] == "Eldoria City", str(scene_refs[-1:]))
             rec("POST scene forwards time_of_day + weather to the generator",
                 bool(scene_refs) and scene_refs[-1][3] == "dusk" and scene_refs[-1][4] == "light rain",
                 str(scene_refs[-1:]))
-            rec("POST scene forwards the character cast to the generator",
-                bool(scene_refs) and scene_refs[-1][5] == {"three dockhands": "drinking and looking up"},
+            rec("POST scene injects the stored descriptions for declared names",
+                bool(scene_refs) and scene_refs[-1][5] == {
+                    "Gorson — a burly smith": "hammering at the anvil",
+                    "Maera — a broad, one-eared woman": "drawing ale",
+                    "three dockhands": "drinking and looking up"},
                 str(scene_refs[-1:]))
             rec("POST scene uses the config story model by default",
                 scene_models_seen[-1] == "gemini-3.1-flash-image", str(scene_models_seen[-1:]))
+            rec("action written under the save's image dir", bool(list(scenes_path.glob("action-*"))))
+            rec("hidden seed written under the save's image dir", bool(list(scenes_path.glob("seed-*"))))
             url = body.get("action", {}).get("url", "")
             g = await c.get(url)
             rec("GET scene serves the image",
                 g.status_code == 200 and g.headers.get("content-type", "").startswith("image/jpeg"),
                 f"{g.status_code} {g.headers.get('content-type')}")
-            rec("action written under the save's image dir", bool(list(scenes_path.glob("action-*"))))
-            rec("hidden seed written under the save's image dir", bool(list(scenes_path.glob("seed-*"))))
+            rec("the action image is deleted after it has been served",
+                not list(scenes_path.glob("action-*")), str(list(scenes_path.glob("action-*"))))
             r2 = await c.post("/api/scene", json={
                 "session_id": "scenetest", "description": "the smithy, embers dying",
                 "mood": "tense", "location": "Hask's Smithy", "sublocation": "the forge",
@@ -249,15 +260,16 @@ async def main() -> int:
             rec("POST scene honours an explicit image model",
                 r2.status_code == 200 and scene_models_seen[-1] == "gemini-3-pro-image",
                 str(scene_models_seen[-1:]))
-            rec("revisit chains from the last action (no new seed)",
-                again.get("used_last_action") is True and not again.get("seed_created"), str(again))
+            rec("a revisit draws from the seed again (no new seed, no chain)",
+                again.get("used_seed") is True and not again.get("seed_created")
+                and "used_last_action" not in again, str(again))
             r3 = await c.post("/api/scene", json={
                 "session_id": "scenetest", "description": "on the road",
                 "location": "Lantern Row", "sublocation": "",
             })
-            rec("leaving a location deletes its actions but keeps its seeds",
+            rec("a different place writes its own seed and action",
                 r3.status_code == 200
-                and len(list(scenes_path.glob("action-*"))) == 1
+                and len(list(scenes_path.glob("action-*"))) == 2
                 and len(list(scenes_path.glob("seed-*"))) == 2,
                 f"actions={list(scenes_path.glob('action-*'))} seeds={list(scenes_path.glob('seed-*'))}")
             rec("POST scene unknown session -> 404",

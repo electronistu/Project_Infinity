@@ -17,7 +17,7 @@ sys.path.insert(0, str(REPO))
 from PIL import Image as PILImage  # noqa: E402
 
 from web.images import (  # noqa: E402
-    ImageService, SceneService, known_scene_places, known_scene_locations,
+    ImageService, SceneService, known_scene_places, known_scene_locations, known_npc_names,
     _gear_line, _veterancy_line,
 )
 
@@ -241,7 +241,7 @@ def main() -> bool:
         rec("first portrait has no reference", first_parts == 1)
         rec("regeneration feeds the previous portrait", second_parts == 2)
 
-        # ── storyline scenes: hidden seed + chained action (16:9, per-save disk) ──
+        # ── storyline scenes: hidden seed + an action drawn fresh from it (16:9, per-save disk) ──
         sc = SceneService()
         rec("scene service uses 16:9", sc.aspect_ratio == "16:9")
         ap = sc.action_prompt(PLAYER, "a city of brass and ash", "standing before a forge at dusk",
@@ -254,7 +254,7 @@ def main() -> bool:
         rec("action prompt names the full address",
             all(x in ap for x in ("Hask's Smithy", "the forge", "Eldoria City", "Kingdom of Eldoria")), ap[:200])
         rec("action prompt carries the seed reference line",
-            "empty establishing view" in ap and "central figure" in ap)
+            "this IS the picture" in ap and "in the described action" in ap)
         clothed = {"race": "High Elf", "character_class": "Wizard",
                    "equipped": {"armor": None, "hands": [None, None],
                                 "worn": ["Dark Common Clothes"]},
@@ -277,7 +277,7 @@ def main() -> bool:
             and "nothing more" in svc.portrait_prompt(clothed))
         rec("action prompt forbids rendered text", "no text" in ap.lower())
         tod = sc.action_prompt(PLAYER, "world", "desc", "mood", location="Loc", sublocation="sub",
-                               ref_kind="chain", time_of_day="deep night", weather="heavy rain")
+                               ref_kind="seed", time_of_day="deep night", weather="heavy rain")
         rec("action prompt states the explicit time and weather",
             "Time of day: deep night." in tod and "Weather: heavy rain." in tod, tod[:120])
         plain = sc.action_prompt(PLAYER, "w", "d", "m", location="Loc", sublocation="sub")
@@ -296,21 +296,62 @@ def main() -> bool:
             "must not be drawn as a man" in cast)
         rec("action prompt omits the character line when the cast is empty",
             "Characters present" not in plain)
-        chain = sc.action_prompt(PLAYER, "world", "desc", "mood", location="Loc", sublocation="sub", ref_kind="chain")
-        rec("chain reference line continues the previous moment",
-            "immediately preceding moment" in chain and "central figure" in chain)
+        seedref = sc.action_prompt(PLAYER, "world", "desc", "mood", location="Loc", sublocation="sub",
+                                   ref_kind="seed")
+        rec("the seed view IS the picture (reproduced, with the cast placed into it)",
+            "this IS the picture" in seedref and "reproduce it unchanged" in seedref
+            and "immediately preceding moment" not in seedref)
+        rec("action prompt forbids extra figures",
+            "no other person" in seedref and "no other person" in ap)
+        rec("action prompt forbids camera gaze",
+            "acknowledges the camera or the viewer" in seedref
+            and "acknowledges the camera or the viewer" in ap)
+        rec("every action prompt demands true night when it is night",
+            "draw true night" in plain and "no blue hour" in plain
+            and "draw true night" in seedref)
+        rec("the no-gaze guard makes figures face the action (back to the camera is fine)",
+            "faces the ACTION at hand" in plain and "back to the camera" in plain)
+        rec("the protagonist guard turns them to the action, not the lens",
+            "the camera may see their back" in seedref
+            and "the camera may see their back" not in plain)
+        rec("seed layout + camera are locked; only day/night, weather and damage change",
+            "The attached establishing view IS the scene" in seedref
+            and "do not change the viewpoint" in seedref
+            and "weather (atmosphere only" in seedref
+            and "transient damage or mess" in seedref
+            and "camera may move closer" not in seedref)
+        rec("protagonist guard turns the portrait's frontal pose into the action",
+            "does not look at or address the camera" in seedref)
+        portraitref = sc.action_prompt(PLAYER, "world", "desc", "mood", location="Loc",
+                                       sublocation="sub", ref_kind="portrait")
+        rec("layout lock applies only when the seed is attached",
+            "The attached establishing view IS the scene" in ap
+            and "The attached establishing view IS the scene" not in portraitref
+            and "The attached establishing view IS the scene" not in plain)
+        rec("the action never invents architecture the seed does not show",
+            "ground truth for the space" in seedref
+            and "leave them out of the picture" in seedref
+            and "the protagonist included" in seedref
+            and "always in frame" not in seedref
+            and "ground truth for the space" not in portraitref
+            and "ground truth for the space" not in plain)
         guard = "appearance is fixed by the attached portrait"
         rec("protagonist guard appears only with a place/portrait reference",
-            guard in ap and guard in chain
+            guard in ap and guard in seedref
             and guard not in sc.action_prompt(PLAYER, "w", "d", "m", location="Loc", sublocation="sub"))
         seedp = sc.seed_prompt("a city of brass and ash", "Hask's Smithy", "the forge", "a hot forge")
-        rec("seed prompt is an empty establishing view",
-            "bird's-eye" in seedp and "animals" in seedp.lower())
+        rec("seed prompt is a grounded empty establishing view",
+            "eye level" in seedp and "animals" in seedp.lower()
+            and "bird's-eye" not in seedp)
         rec("seed prompt names the place and description",
             "the forge" in seedp and "a hot forge" in seedp)
         rec("seed prompt carries the empty-place guard", "no person" in seedp.lower())
+        rec("seed prompt is timeless and weather-neutral",
+            "weather-neutral" in seedp and "no rain, snow, fog" in seedp
+            and "no dawn, dusk or night" in seedp)
 
-        # ensure_scene: hidden seed + chained action; cleanup only when leaving the location.
+        # ensure_scene: hidden seed + an action drawn fresh from it every time; each
+        # action is a one-shot file (served once, then deleted).
         sc3 = SceneService(tmp)
         captured = []
 
@@ -326,9 +367,11 @@ def main() -> bool:
         r1 = sc3.ensure_scene("scenetest", PLAYER, "world", description="a forge at dusk",
                               mood="tense", kingdom="Kingdom of Eldoria", area="Eldoria City",
                               location="Hask's Smithy", sublocation="the forge",
-                              establishing="a hot forge", main_npc="Gorson — a burly smith",
+                              establishing="a hot forge",
+                              main_npc={"name": "Gorson", "description": "a burly smith"},
                               time_of_day="dusk", weather="light rain",
-                              characters={"three dockhands": "drinking"})
+                              characters={"Gorson": "hammering at the anvil",
+                                          "three dockhands": "drinking"})
         rec("first visit creates the seed and seeds the action from it",
             r1["seed_created"] and r1["used_seed"], str(r1))
         rec("the hidden seed is generated empty (no references)", not captured[0][1])
@@ -336,6 +379,10 @@ def main() -> bool:
             "Time of day: dusk." in captured[1][0] and "Weather: light rain." in captured[1][0])
         rec("ensure_scene feeds the character cast into the action prompt",
             "Characters present" in captured[1][0] and "- three dockhands: drinking" in captured[1][0])
+        rec("the place main NPC's description is injected from the seed",
+            "- Gorson — a burly smith: hammering at the anvil" in captured[1][0], captured[1][0][:300])
+        rec("an undeclared name is drawn from its own key text",
+            "- three dockhands: drinking" in captured[1][0])
         rec("the first action references seed + portrait",
             captured[1][1] is not None and len(captured[1][1]) == 2)
         rec("action references are downscaled to ref_max_side",
@@ -344,9 +391,17 @@ def main() -> bool:
         rec("action written to disk", bool(list(scene_dir.glob("action-*"))))
         rec("hidden seed written to disk", bool(list(scene_dir.glob("seed-*"))))
         r2 = sc3.ensure_scene("scenetest", PLAYER, "world", description="embers dying",
-                              location="Hask's Smithy", sublocation="the forge")
-        rec("second action chains from the last action",
-            r2["used_last_action"] and not r2["seed_created"], str(r2))
+                              location="Hask's Smithy", sublocation="the forge",
+                              npcs=[{"name": "Maera", "description": "a broad, one-eared woman"}],
+                              characters={"Maera": "drawing ale"})
+        rec("every later action is drawn from the seed too, never the last action",
+            r2["used_seed"] and not r2["seed_created"] and "used_last_action" not in r2, str(r2))
+        rec("the second action's place reference is the same seed bytes",
+            captured[2][1][0] == captured[1][1][0] and len(captured[2][1]) == 2)
+        rec("npcs declared on the image call are added to the cast",
+            r2["npcs_added"] == ["Maera"], str(r2))
+        rec("a declared NPC's description is injected from the cast",
+            "- Maera — a broad, one-eared woman: drawing ale" in captured[2][0], captured[2][0][:300])
         r3 = sc3.ensure_scene("scenetest", PLAYER, "world", description="downstairs",
                               kingdom="Kingdom of Eldoria", area="Eldoria City",
                               location="Hask's Smithy", sublocation="common room",
@@ -355,30 +410,64 @@ def main() -> bool:
         r4 = sc3.ensure_scene("scenetest", PLAYER, "world", description="the rafters catch",
                               kingdom="Kingdom of Eldoria", area="Eldoria City",
                               location="Hask's Smithy", sublocation="the forge", seed_change="it burned down")
-        rec("seed_change regenerates the seed but keeps the action chain",
-            r4["seed_regenerated"] and r4["used_last_action"], str(r4))
+        rec("seed_change regenerates the seed and applies to this action immediately",
+            r4["seed_regenerated"] and r4["used_seed"], str(r4))
         r5 = sc3.ensure_scene("scenetest", PLAYER, "world", description="on the road",
                               kingdom="Borderlands", area="the Eldoria–Silverwood border",
                               location="Lantern Row", sublocation="")
-        rec("leaving the location deletes its action images",
-            len(list(scene_dir.glob("action-*"))) == 1, str(list(scene_dir.glob("action-*"))))
-        rec("seeds survive leaving the location", len(list(scene_dir.glob("seed-*"))) == 3)
-        slug = r5["action"]["url"].rsplit("/", 1)[-1]
-        got = sc3.get_scene("scenetest", slug)
+        rec("actions are not tracked in the manifest (ephemeral)",
+            "actions" not in json.loads((scene_dir / "manifest.json").read_text(encoding="utf-8")),
+            (scene_dir / "manifest.json").read_text(encoding="utf-8")[:120])
+        rec("seeds survive across places", len(list(scene_dir.glob("seed-*"))) == 3)
+        got = sc3.get_scene("scenetest", r1["action"]["url"].rsplit("/", 1)[-1])
         rec("get_scene returns bytes + mime", bool(got) and got[1].startswith("image/"))
+        rec("an action image is deleted after it has been served once",
+            sc3.get_scene("scenetest", r1["action"]["url"].rsplit("/", 1)[-1]) is None)
+        rec("a hidden seed is never served",
+            sc3.get_scene("scenetest", list(scene_dir.glob("seed-*"))[0].stem) is None)
         places = known_scene_places(tmp, "scenetest")
         rec("known_scene_places lists seeded places with the full hierarchy",
             any(p["kingdom"] == "Kingdom of Eldoria" and p["area"] == "Eldoria City"
                 and p["location"] == "Hask's Smithy" and p["sublocation"] == "the forge"
-                and p["description"] == "a hot forge" and p["main_npc"] == "Gorson — a burly smith"
+                and p["description"] == "a hot forge"
+                and p["main_npc"] == {"name": "Gorson", "description": "a burly smith"}
                 for p in places), str(places))
         rec("seed_change preserved the main NPC",
             any(p["location"] == "Hask's Smithy" and p["sublocation"] == "the forge"
-                and p["main_npc"] == "Gorson — a burly smith" for p in places))
+                and p["main_npc"]["name"] == "Gorson" for p in places))
+        rec("the cast is persisted in the manifest (v5)",
+            json.loads((scene_dir / "manifest.json").read_text(encoding="utf-8"))["version"] == 5
+            and "maera" in json.loads((scene_dir / "manifest.json").read_text(encoding="utf-8"))["cast"])
+        rec("no last_cast bookkeeping remains",
+            "last_cast" not in (scene_dir / "manifest.json").read_text(encoding="utf-8"))
+        rec("known_npc_names lists place main NPCs + the storyline cast",
+            known_npc_names(tmp, "scenetest") == {"gorson", "maera"},
+            str(known_npc_names(tmp, "scenetest")))
         rec("known_scene_places empty for an unknown save", known_scene_places(tmp, "nope") == [])
         rec("known_scene_locations lists distinct locations",
             known_scene_locations(tmp, "scenetest") == ["Hask's Smithy", "Lantern Row"],
             str(known_scene_locations(tmp, "scenetest")))
+
+        # v3 -> v5 migration: the action list (and its files) is abandoned; a legacy
+        # string main_npc is read as a description (no name -> no expansion).
+        legacy = scene_dir / "action-legacy-1.jpg"
+        legacy.write_bytes(jpeg(64, 36))
+        (scene_dir / "manifest.json").write_text(json.dumps({
+            "version": 3,
+            "seeds": {"k": {"file": "seed-x.png", "location": "Old Place", "sublocation": "",
+                            "description": "", "main_npc": "Gorson — a burly smith",
+                            "last_cast": {"three dockhands": "drinking"},
+                            "created": 1, "mime": "image/png"}},
+            "actions": [{"file": "action-legacy-1.jpg", "slug": "action-legacy-1"}],
+            "current": {"location": "Old Place"}, "seq": 7,
+        }), encoding="utf-8")
+        migrated = sc3._read_manifest("scenetest")
+        rec("a v3 manifest migrates to v5 (actions + seq + last_cast dropped, seeds + current kept)",
+            migrated["version"] == 5 and "actions" not in migrated and "seq" not in migrated
+            and migrated["cast"] == {} and migrated["current"].get("location") == "Old Place"
+            and migrated["seeds"]["k"]["main_npc"] == {"name": "", "description": "Gorson — a burly smith"}
+            and "last_cast" not in migrated["seeds"]["k"], str(migrated))
+        rec("migrating deletes the abandoned action files", not legacy.exists())
 
         sc2 = SceneService()
         fake2 = _FakeClient()

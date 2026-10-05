@@ -83,7 +83,7 @@ The Google entries appear only when `GEMINI_API_KEY` is set; they use the same k
 Image generation is **opt-in** and **cached** — nothing is drawn unless you ask for it. Tick **images** on the start screen (or in the Load dialog) to enable:
 
 - **Character portrait** — a head-and-shoulders portrait of your character, shown on the start screen and the character sheet. The **↻** button on the sheet repaints it from the character's current level and gear.
-- **Storyline scenes** — the GM attaches one cinematic 16:9 illustration to a turn's narrative. Each place keeps a hidden reference image: the illustration chains from it, so a place and its regulars stay consistent when you return (see [How It Works](#how-it-works)).
+- **Storyline scenes** — the GM attaches one cinematic 16:9 illustration to a turn's narrative. Each place keeps a hidden establishing reference image: every illustration is drawn from it, so a place and its regulars stay consistent when you return. **Hover an illustration to see it full size** (see [How It Works](#how-it-works)).
 - **Sheet icons** — the shared, cross-character icon library used by the character sheet (items, spells, skills, abilities, conditions, and more).
 
 Two pickers choose the models that draw them (both require `GEMINI_API_KEY`):
@@ -95,7 +95,7 @@ Two pickers choose the models that draw them (both require `GEMINI_API_KEY`):
 
 The start screen also sets the sheet's icon treatment: **icons** (use the shared library), **generate icons on the fly**, or **text only**.
 
-Images are cached per save under `output/images/{stem}/` and regenerate only when the data behind them changes. A portrait is drawn from your character's **equipped** gear and nothing else — never from items merely carried in the pack.
+Portraits, sheet icons and each place's hidden establishing image are cached under `output/images/{stem}/` and regenerate only when the data behind them changes (the illustrations in the transcript are drawn fresh each turn and are not kept). A portrait is drawn from your character's **equipped** gear and nothing else — never from items merely carried in the pack.
 
 ### Controls
 
@@ -150,7 +150,7 @@ What that buys you:
 - **Rest, Recovery & Leveling** — short and long rests auto-apply hit dice, slot recovery, Arcane Recovery, and effect clearing per SRD 5.1; crossing an XP threshold auto-applies HP, proficiency, hit dice, and spell-slot progression.
 - **Reputation That Persists** — your standing with every guild is stored in your `.player` as `title: description` entries, so the GM can reference your deeds in the opening scene and throughout later sessions.
 - **A Timeline, Not a Transcript** — saving records the GM's summary of the story so far, which is injected on load to keep a long campaign coherent.
-- **Illustrations That Remember** — places, their light, and their regulars stay consistent across a whole campaign. Every scene is anchored to a hidden reference of the place, so a tavern never grows a new room and its barkeep never changes face.
+- **Illustrations That Remember** — places, their light, and their regulars stay consistent across a whole campaign. Every scene is anchored to a hidden reference of the place, so a tavern never grows a new room and its barkeep never changes face; each recurring NPC is described once and then referred to by name.
 
 Under the hood:
 
@@ -166,7 +166,7 @@ The GM is an AI, so everything it "knows" has to be handed to it. A session star
 - **The GM protocol** ([`GameMaster_MCP.md`](GameMaster_MCP.md)) — its rules, combat and narration discipline, and (when images are on) the scene-imagery instructions.
 - **The world** — the shared history and the four kingdoms with their capitals, relations and guilds, from [`config/world.yml`](config/world.yml). This *is* the world; there is no per-save world file.
 - **The save's timeline** (`{stem}.timeline`) — the GM's own summary of everything that happened before this session, so a long campaign stays coherent.
-- **The known image places** (when images are on) — every place already drawn for this save, as a `kingdom → area → location → sublocation` tree, each with its short description and its **main NPC** — for example *The Drowned Lantern → Common Room — low-ceilinged, peat fire · main NPC: Maera, a one-eared, broad-shouldered barkeep*. The GM reuses these exact names, so a place reads and looks the same whenever you return.
+- **The known image places** (when images are on) — every place already drawn for this save, as a `kingdom → area → location → sublocation` tree, each with its short description and its **main NPC's name** — for example *The Drowned Lantern → Common Room — low-ceilinged, peat fire · main NPC: Maera*. The GM reuses these exact names, so a place reads the same whenever you return; an NPC's appearance is kept by the engine, not restated to the GM.
 
 The character is then pulled live from the engine's database — stats, HP, inventory, equipped gear (with the derived armour-class breakdown) and the carrying/encumbrance block — and the opening scene is narrated.
 
@@ -185,23 +185,30 @@ illustrations consistent across the whole campaign.
   draws an **establishing view** of it — empty, with no people or creatures, just the
   atmosphere. This seed is **never shown to you**; it is the place's visual anchor and it is
   permanent, so it survives between sessions.
-- **Moments chain from the seed.** The picture you see is the **action** image. The first one
-  in a place is drawn from its seed plus your character's portrait; each later one is drawn
-  from the **previous action image** plus the portrait. So a room keeps its layout and its
-  light as the scene evolves.
-- **Leaving and returning.** Step out of a room but stay in the building, and the chain picks
-  up where it left off. Leave the whole **location**, and its action images are discarded —
-  but the seed stays. Come back later and the place begins again from its seed, exactly as it
-  was first drawn.
+- **Moments are drawn from the seed — never from the previous picture.** The picture you see
+  is the **action** image: the establishing view **reproduced with you and the people in it**,
+  so a room never rearranges and a character can never be duplicated out of the previous frame.
+  The only things that change are the time of day, the weather, and whatever the moment itself
+  breaks or spills. Nothing absent from the establishing view is invented — no door appears
+  where the place has none. Each action image is served once and then discarded; the seed is the
+  only scene picture a save keeps.
+- **Leaving and returning.** The seed is permanent, so a room you revisit — later in the same
+  session or in a later one — is drawn from the same establishing view it had the first time.
 - **Permanent changes.** If a place changes for good — it burns down, a wall collapses — the
-  GM can regenerate its seed from the original, so later visits reflect the change. Passing
-  conditions (a fire tonight, a storm) stay in the action image instead.
-- **Who is on stage.** The GM lists every NPC and creature present, with a name and a look, so
-  the illustrator draws the right people — a described woman is drawn as a woman, not a
-  default. A place's **main NPC** (its smith, its innkeeper) is recorded with the seed, helpers
-  and all, and reused across sessions.
+  GM regenerates its seed from the original and the very next image already reflects it.
+  Passing conditions (a fire tonight, a storm) live only in the action image, so the GM
+  restates them while they last.
+- **Who is on stage — names in, looks injected.** Each recurring NPC is declared **once** with a
+  stable look (name + description); after that the GM refers to them by **name only**. The engine
+  looks the stored description up and hands it to the illustrator, so an NPC's face never drifts
+  with the GM's wording. A place's **main NPC** (its smith, its innkeeper) is declared with the
+  seed; recurring characters are declared as they appear. One-off extras need no declaration.
 - **Time and weather are explicit.** The GM declares the time of day and the weather, and the
-  engine feeds them to the illustrator — a night scene is dark, a rain-soaked street is wet.
+  engine feeds them to the illustrator — night is truly dark, lit only by its lamps and fires,
+  and a rain-soaked street is wet. The seed itself is drawn timeless and weather-neutral, so a
+  place's permanent picture never bakes in tonight's storm.
+- **Nobody poses for the camera.** Everyone in the frame is caught in the action — figures face
+  what they are doing, not the viewer, and being seen from behind is normal.
 
 ---
 
@@ -217,7 +224,7 @@ illustrations consistent across the whole campaign.
 | Config | YAML |
 | World | Static scaffold in `config/world.yml` (fixed history + kingdoms) |
 | Game Master models | Ollama Cloud, Google Gemini *(optional)* |
-| Images *(optional)* | Google Gemini image models, cached per save |
+| Images *(optional)* | Google Gemini image models, cached per save (portraits, icons, place seeds) |
 
 ---
 

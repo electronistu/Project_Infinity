@@ -8249,6 +8249,50 @@
       "prompt": "A single Zulkoon, laid out neatly. Flat codex emblem on a dark ground: bold uniform pale-bone linework, limited palette of warm bone highlights, umber mid-tones and a single ember-red accent, set on a flat solid #1E1A13 background that exactly matches the dark character sheet; the subject contrasts strongly with that background. High contrast, legible at 64 pixels. No gradients, no glow, no drop shadows, no paper grain, no text, no letters, no numbers, no runes, no watermarks, no frame. A single centred subject.",
       "source_hash": "ffc5086eddff8a4a8229d181c9252cca0eb9ee85",
       "created": 1791032992
+    },
+    "item/iron-coffer": {
+      "kind": "item",
+      "slug": "iron-coffer",
+      "name": "Iron Coffer",
+      "file": "iron-coffer.png",
+      "mime": "image/png",
+      "model": "gemini-3.1-flash-lite-image",
+      "prompt": "A single Iron Coffer. Flat codex emblem on a dark ground: bold uniform pale-bone linework, limited palette of warm bone highlights, umber mid-tones and a single ember-red accent, set on a flat solid #1E1A13 background that exactly matches the dark character sheet; the subject contrasts strongly with that background. High contrast, legible at 64 pixels. No gradients, no glow, no drop shadows, no paper grain, no text, no letters, no numbers, no runes, no watermarks, no frame. A single centred subject.",
+      "source_hash": "d15bc5612094e22763a62da1996b718625df11ca",
+      "created": 1791152398
+    },
+    "item/bonded-warehouse-ledger": {
+      "kind": "item",
+      "slug": "bonded-warehouse-ledger",
+      "name": "Bonded Warehouse Ledger",
+      "file": "bonded-warehouse-ledger.png",
+      "mime": "image/png",
+      "model": "gemini-3.1-flash-lite-image",
+      "prompt": "A single Bonded Warehouse Ledger. Flat codex emblem on a dark ground: bold uniform pale-bone linework, limited palette of warm bone highlights, umber mid-tones and a single ember-red accent, set on a flat solid #1E1A13 background that exactly matches the dark character sheet; the subject contrasts strongly with that background. High contrast, legible at 64 pixels. No gradients, no glow, no drop shadows, no paper grain, no text, no letters, no numbers, no runes, no watermarks, no frame. A single centred subject.",
+      "source_hash": "dce65d64dcf7bc222ab820076ee5b740f9bcb6df",
+      "created": 1791152401
+    },
+    "item/moonstone": {
+      "kind": "item",
+      "slug": "moonstone",
+      "name": "Moonstone (2)",
+      "file": "moonstone.png",
+      "mime": "image/png",
+      "model": "gemini-3.1-flash-lite-image",
+      "prompt": "A single Moonstone (2). Flat codex emblem on a dark ground: bold uniform pale-bone linework, limited palette of warm bone highlights, umber mid-tones and a single ember-red accent, set on a flat solid #1E1A13 background that exactly matches the dark character sheet; the subject contrasts strongly with that background. High contrast, legible at 64 pixels. No gradients, no glow, no drop shadows, no paper grain, no text, no letters, no numbers, no runes, no watermarks, no frame. A single centred subject.",
+      "source_hash": "277ca6956b4ea2c491870ede4e1c97521885cd61",
+      "created": 1791152404
+    },
+    "item/silvered-dagger": {
+      "kind": "item",
+      "slug": "silvered-dagger",
+      "name": "Silvered Dagger",
+      "file": "silvered-dagger.png",
+      "mime": "image/png",
+      "model": "gemini-3.1-flash-lite-image",
+      "prompt": "A single Silvered Dagger. Flat codex emblem on a dark ground: bold uniform pale-bone linework, limited palette of warm bone highlights, umber mid-tones and a single ember-red accent, set on a flat solid #1E1A13 background that exactly matches the dark character sheet; the subject contrasts strongly with that background. High contrast, legible at 64 pixels. No gradients, no glow, no drop shadows, no paper grain, no text, no letters, no numbers, no runes, no watermarks, no frame. A single centred subject.",
+      "source_hash": "898a2739c381b366a53e68acb4106f8e28f715d4",
+      "created": 1791153383
     }
   }
 }

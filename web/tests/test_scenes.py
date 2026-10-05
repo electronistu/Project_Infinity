@@ -56,15 +56,17 @@ async def main() -> bool:
     rec("protocol keeps the surrounding rules", "A" in off and "B" in off)
 
     tools = [{"function": {"name": "roll_dice"}},
-             {"function": {"name": "request_scene_image"}}]
-    rec("filter_tools hides the scene tool when off",
+             {"function": {"name": "request_scene_image"}},
+             {"function": {"name": "register_npcs"}}]
+    rec("filter_tools hides the scene + NPC-declaration tools when off",
         [t["function"]["name"] for t in filter_tools(tools, False)] == ["roll_dice"])
-    rec("filter_tools keeps the scene tool when on", len(filter_tools(tools, True)) == 2)
+    rec("filter_tools keeps the scene + NPC-declaration tools when on",
+        len(filter_tools(tools, True)) == 3)
 
     tree = format_known_places([
         {"kingdom": "Kingdom of Eldoria", "area": "Eldoria City", "location": "The Drowned Lantern",
          "sublocation": "Common Room", "description": "low-ceilinged, peat fire",
-         "main_npc": "Maera — a one-eared, broad-shouldered barkeep"},
+         "main_npc": {"name": "Maera", "description": "a one-eared, broad-shouldered barkeep"}},
         {"kingdom": "Kingdom of Eldoria", "area": "Eldoria City", "location": "The Drowned Lantern",
          "sublocation": "", "description": ""},
         {"kingdom": "Borderlands", "area": "", "location": "Waystone", "sublocation": "", "description": ""},
@@ -72,8 +74,10 @@ async def main() -> bool:
     rec("priming tree nests kingdom > area > location > sublocation",
         "- Kingdom of Eldoria" in tree and "    - Eldoria City" in tree
         and "        - The Drowned Lantern" in tree
-        and "            - Common Room — low-ceilinged, peat fire · main NPC: Maera — a one-eared, broad-shouldered barkeep" in tree
+        and "            - Common Room — low-ceilinged, peat fire · main NPC: Maera" in tree
         and "- Borderlands" in tree and "    - (unknown area)" in tree, tree)
+    rec("the priming shows the place main NPC's NAME only, never the description",
+        "broad-shouldered barkeep" not in tree, tree)
 
     gs = GameSession(base_dir=REPO, model="test", scene_images=True)
     gs.session = _FakeMCP()
@@ -86,9 +90,10 @@ async def main() -> bool:
                       "kingdom": "Kingdom of Eldoria", "area": "Eldoria City",
                       "location": "Hask & Daughters Smithy", "sublocation": "the forge",
                       "time_of_day": "dusk", "weather": "light rain",
-                      "characters": {"the smith — a soot-stained man": "hammering at the anvil"},
+                      "characters": {"the smith": "hammering at the anvil"},
                       "establishing": "a hot forge",
-                      "main_npc": "the smith — a soot-stained man"},
+                      "main_npc": {"name": "the smith", "description": "a soot-stained man"},
+                      "npcs": [{"name": "Maera", "description": "a one-eared barkeep"}]},
     }})
     scene = [e for e in drain(gs._evt_q) if e.get("type") == "scene_request"]
     rec("scene_request emitted for the GM tool",
@@ -100,8 +105,9 @@ async def main() -> bool:
         and scene[0].get("location") == "Hask & Daughters Smithy"
         and scene[0].get("sublocation") == "the forge" and scene[0].get("establishing") == "a hot forge"
         and scene[0].get("time_of_day") == "dusk" and scene[0].get("weather") == "light rain"
-        and scene[0].get("main_npc") == "the smith — a soot-stained man"
-        and scene[0].get("characters") == {"the smith — a soot-stained man": "hammering at the anvil"})
+        and scene[0].get("main_npc") == {"name": "the smith", "description": "a soot-stained man"}
+        and scene[0].get("characters") == {"the smith": "hammering at the anvil"}
+        and scene[0].get("npcs") == [{"name": "Maera", "description": "a one-eared barkeep"}])
     rec("legacy caption dropped from the scene event",
         bool(scene) and "caption" not in scene[0], str(scene))
 
@@ -109,10 +115,11 @@ async def main() -> bool:
     tools = await ds.mcp.list_tools()
     scene_tool = next((t for t in tools if t.name == "request_scene_image"), None)
     props = list((scene_tool.inputSchema or {}).get("properties", {})) if scene_tool else []
-    rec("scene tool dropped the caption field",
+    rec("scene tool speaks names + declarations, not descriptions",
         props == ["description", "kingdom", "area", "location", "sublocation", "time_of_day",
-                  "weather", "characters", "establishing", "main_npc", "seed_change", "mood"],
-        str(props))
+                  "weather", "characters", "establishing", "main_npc", "npcs", "seed_change",
+                  "mood"], str(props))
+    rec("register_npcs is exposed to the GM", any(t.name == "register_npcs" for t in tools))
 
     await gs._execute_tool({"function": {
         "name": "request_scene_image", "arguments": {"description": "another"},
@@ -132,6 +139,24 @@ async def main() -> bool:
     }})
     rec("other tools emit no scene_request",
         not any(e.get("type") == "scene_request" for e in drain(gs._evt_q)))
+
+    # Declarations: register_npcs is buffered and flushed with the image call; an
+    # undeclared name gets a soft note (a declared one does not).
+    gs_note = GameSession(base_dir=REPO, model="test", scene_images=True)
+    gs_note.session = _FakeMCP()
+    gs_note._scene_requested_turn = False
+    await gs_note._execute_tool({"function": {"name": "register_npcs", "arguments": {
+        "npcs": [{"name": "Maera", "description": "a one-eared barkeep"}]}}})
+    rec("register_npcs is buffered for the next scene call",
+        [p["name"] for p in gs_note._pending_npcs] == ["Maera"], str(gs_note._pending_npcs))
+    await gs_note._execute_tool({"function": {"name": "request_scene_image", "arguments": {
+        "description": "x", "location": "L", "sublocation": "s", "establishing": "a cold hall",
+        "characters": {"Maera": "pouring", "the harbourmaster": "watching"}}}})
+    note = [e for e in drain(gs_note._evt_q)
+            if e.get("type") == "tool_result" and "NOTE:" in str(e.get("text") or "")]
+    rec("an undeclared name gets a soft note (a declared one does not)",
+        len(note) == 1 and "the harbourmaster" in note[0]["text"]
+        and "Maera" not in note[0]["text"], str(note))
 
     # New-place seed gate: a scene call with no establishing view is rejected with
     # a warning and no scene_request, then accepted once `establishing` is supplied.

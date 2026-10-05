@@ -46,18 +46,25 @@ portrait_guard: >-
 
 # ── Storyline scene images (16:9 cinematic) ──
 # Two images per place: a hidden, permanent, EMPTY establishing "seed" per
-# (location, sublocation), and a visible "action" image chained from the seed then
-# from the place's previous action. The seed is never shown to the player.
+# (location, sublocation), and a visible "action" image drawn FRESH from that seed
+# + the portrait every time. Actions are never used as references for later
+# actions — chaining made the model duplicate the figures already in the frame —
+# and each action file is served once, then deleted. The seed is never shown to
+# the player and is the only persisted scene asset.
 scene_aspect_ratio: "16:9"
 scene_max_side: 1024
 
 # Hidden establishing "seed" prompt. Placeholders: {location} {sublocation}
 # {establishing} {world} (and {change} when regenerating after a permanent change).
+# It is the only place reference for every action, so it is framed at eye level:
+# a bird's-eye seed would pull every action shot into a top-down.
 scene_seed: >-
-  An establishing / bird's-eye view of {address_line}. {establishing}
-  World setting: {world}. Empty and unpopulated — no people, no creatures, no animals,
-  no protagonist. Atmospheric, strong sense of place, painterly detail. No text, letters,
-  numbers, runes, watermarks, logos, borders or user-interface elements.
+  A wide establishing view of {address_line}, seen at eye level or a slight three-quarter
+  angle. {establishing} World setting: {world}. Empty and unpopulated — no people, no
+  creatures, no animals, no protagonist. Timeless and weather-neutral: no rain, snow, fog, mist
+  or time-of-day light (no dawn, dusk or night); the light is neutral. Atmospheric, strong sense
+  of place, painterly detail. No text, letters, numbers, runes, watermarks, logos, borders or
+  user-interface elements.
 scene_seed_guard: >-
   The scene must contain no person, no creature and no animal of any kind — an empty place.
 scene_seed_change: >-
@@ -83,31 +90,72 @@ scene_characters_line: >-
 scene_characters_guard: >-
   Render every listed character exactly as described — a described woman must not be drawn as
   a man — and add no character who is not listed.
-# Attached when the action is seeded from the place's hidden establishing view.
+# Attached when the action is drawn from the place's hidden establishing view: the seed
+# IS the picture — the action reproduces it and only places the cast into it.
 scene_action_from_seed: >-
-  Attached references: (1) the empty establishing view of {location} — {sublocation}: place the
-  scene in exactly this space, keeping its architecture, colours, layout and atmosphere;
-  (2) the protagonist's portrait — place that same character in the scene as the central figure.
-# Attached when the action continues from the place's previous action image.
-scene_action_chain: >-
-  Attached references: (1) the immediately preceding moment in this same place — keep the space,
-  layout and atmosphere continuous and show what happens next, updating the action, time of day
-  and any changes; (2) the protagonist's portrait — place that same character in the scene as
-  the central figure.
+  Attached references: (1) the establishing view of {location} — {sublocation}: this IS the
+  picture — reproduce it unchanged (same camera, framing, architecture, furniture, props,
+  colours, arrangement), then place the characters into it. Change nothing about the space
+  itself, except the three things the moment legitimately changes: the time of day (relight the
+  same scene for day or night), the weather (rain, fog, snow, wind — the same room under a
+  different sky), and the action's own transient damage or mess — a table split, a chair toppled,
+  a hearth scattered, spilled ale, a fire. Objects the action touches may be broken or displaced;
+  the room is never rearranged. (2) the protagonist's portrait — that same character, in the
+  described action.
+# Appended to every action prompt: removing the previous-action reference stops the
+# model COPYING a figure, but not its habit of FILLING a room.
+scene_no_extra_figures: >-
+  Draw only the protagonist and the characters listed above: no other person, face,
+  silhouette, figure, reflection or background crowd may appear.
+# Appended to every action prompt: the frame is candid — nobody addresses the camera,
+# and every figure faces the action (seen from behind when it is in front of them).
+scene_no_camera_gaze: >-
+  No one looks at, faces or acknowledges the camera or the viewer — every figure is caught
+  mid-action, absorbed in what they are doing and facing into the scene; every figure faces the
+  ACTION at hand, and a figure seen from behind, back to the camera, is correct whenever the
+  action is in front of them.
+# Appended to every action prompt: match the declared light — night is TRUE night.
+scene_lighting_guard: >-
+  Match the declared time of day exactly. At night or deep night draw true night: deep darkness
+  over everything except the local light sources — a fire, a lamp, a lantern, a moonlit doorway —
+  each throwing only a small pool of light around itself. No twilight, no dusk glow, no sunset
+  colours, no ambient daylight, no blue hour.
+# Appended when the action is drawn from the place's seed: lock the space AND the camera.
+scene_layout_lock: >-
+  The attached establishing view IS the scene: keep the same camera, framing, crop, architecture,
+  walls, doors, windows, stairs, furniture, props, their positions, scale and proportions. Do not
+  redesign, add, remove, resize, restyle or rearrange anything, and do not change the viewpoint,
+  the framing or the composition. Only what the moment legitimately changes may differ: the time
+  of day (relight this identical scene for day or night), the weather (atmosphere only — it never
+  alters the space), and the transient damage or mess of the action (a table split, a chair
+  toppled, a fire, spilled ale). Then place the characters into that same space.
+# Appended with the layout lock: the seed image is the only source of the space — never
+# invent architecture it does not show, and drop a character who needs a missing element.
+scene_absent_element_guard: >-
+  The attached establishing view is the ground truth for the space: never invent an element it
+  does not show — no new door, doorway, window, opening, stair, beam, fixture or furniture. Place
+  characters only where that view allows; if a character is described at a spot it does not
+  contain (standing in a doorway that is not there), move them into the closest visible place; if
+  that is impossible, leave them out of the picture. This applies to every figure, the protagonist
+  included: never invent a place to keep them in frame.
 
-# Reference images (the seed / previous action / portrait) are input tokens;
-# keep them small and cap the model's resolution budget for them.
+# Reference images (the seed / portrait) are input tokens; keep them small and cap
+# the model's resolution budget for them.
 ref_max_side: 512
 ref_media_resolution: "MEDIA_RESOLUTION_MEDIUM"
 # Used when only the protagonist's portrait is attached as a reference.
 scene_portrait_reference_line: >-
-  The attached portrait is the protagonist — place that same character in the scene as the
-  central figure, in the described action and pose; keep the same face, hair colour and build.
+  The attached portrait is the protagonist — keep the same face, hair colour and build; place that
+  character in the described action and pose.
 # Always appended when the portrait is attached: stop the GM's text from
 # overriding the portrait's appearance OR adding gear the character does not have.
 scene_protagonist_guard: >-
   The protagonist's appearance is fixed by the attached portrait — do not restate or
   alter their face, hair, build or clothing from the text; depict the scene around them.
+  In the scene the protagonist does not look at or address the camera — turn them into the
+  action despite the portrait's frontal pose: they face whatever they are doing, not the lens,
+  and the camera may see their back. Never rotate the protagonist toward the camera to match
+  the portrait.
   The protagonist wears only the equipment shown in that portrait: ignore or omit any
   garment, armour, weapon or accessory the text names that the portrait does not show,
   and never add a hood, hooded cloak, cowl, hat, helmet or armour that is not in it.

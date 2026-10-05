@@ -1766,7 +1766,8 @@ def request_scene_image(description: str, kingdom: str = "", area: str = "",
                         location: str = "", sublocation: str = "",
                         time_of_day: str = "", weather: str = "",
                         characters: dict[str, str] | None = None,
-                        establishing: str = "", main_npc: str = "",
+                        establishing: str = "", main_npc: dict | None = None,
+                        npcs: list[dict] | None = None,
                         seed_change: str = "", mood: str = "") -> dict:
     """Request a storyline illustration of the turn's moment. Emit exactly one per
     narrative turn, attached to the narrative prose (the system prompt's imagery
@@ -1774,17 +1775,23 @@ def request_scene_image(description: str, kingdom: str = "", area: str = "",
 
     TWO IMAGES PER PLACE. On entering a NEW location/sublocation, ask for its
     establishing view too by filling `establishing`; the engine then makes an empty
-    'seed' image (never shown to the player) and the action image seeded from it.
-    Afterwards only the action image is produced, each one seeded from the place's
-    previous action. Only ask for a seed when the place is NOT already in the KNOWN
-    IMAGE PLACES list; if a new place's seed is missing the tool returns a WARNING and
-    you must call again with `establishing`.
+    'seed' image (never shown to the player). Afterwards only the action image is
+    produced, and every one of them is drawn FRESH from that hidden establishing view
+    — never from the previous action — so a figure can never be duplicated and the
+    cast comes only from your `characters` dict. Only ask for a seed when the place is
+    NOT already in the KNOWN IMAGE PLACES list; if a new place's seed is missing the
+    tool returns a WARNING and you must call again with `establishing`.
 
     PARAMETERS:
-    - description: the ACTION only — what the protagonist and any NPCs do, and any notable
-      transient event (e.g. the place is on fire). Put the time of day/night in `time_of_day`
-      and the weather in `weather`, NOT here. Do NOT re-describe the place's architecture;
-      the seed/previous action carries it.
+    - description: what HAPPENS — the protagonist's action, and any notable transient event
+      (e.g. the place is on fire). NAME every NPC ('Corvin watches the protagonist read'), never
+      identify them by look ('a thin man in a damp grey coat watches'). Never describe a person's
+      look, the place, its furniture or its light, the time or the weather — the seed carries the
+      place, `time_of_day`/`weather` carry the light, and a declared NPC's look comes from the
+      registry. You MAY say where the protagonist is standing or sitting. DO restate anything
+      from earlier in this scene that is still true and still visible (spilled ale, a broken
+      table, blood, a body, an open door) — nothing carries over from the previous image on its
+      own.
     - kingdom: the realm the place lies in. Declare it ONLY when creating the seed (together
       with `establishing`); otherwise omit it and reuse the known place. Reuse the exact known
       name.
@@ -1799,35 +1806,39 @@ def request_scene_image(description: str, kingdom: str = "", area: str = "",
     - weather: the weather or conditions, e.g. 'heavy rain', 'dense fog', 'clear skies',
       'a howling blizzard'. Fed to the image generator.
     - characters: a dict of EVERY NPC/creature on stage -> what they are doing or how they
-      act toward the protagonist. The KEY carries the identity and any salient look (gender,
-      build, a distinguishing feature) so the artist cannot swap them; the VALUE carries the
-      action. Use EXACT counts, never 'a few' (e.g. 'three dockhands'), and reuse the same key
-      wording across turns so the cast stays continuous. Exclude the protagonist (their
-      portrait is attached). Example: {'three dockhands': 'hunched over cheap ale, turning to
-      look at the protagonist', 'the barkeep — a broad, one-eared woman': 'talking with the
-      protagonist across the bar'}.
+      act toward the protagonist. The KEY is the NPC's **name** (exactly as declared — see
+      `npcs` / `register_npcs`; never repeat their look here); the VALUE carries the action.
+      Use EXACT counts, never 'a few' (e.g. 'three dockhands'). The engine injects the stored
+      description for every declared name, so continuity does not depend on your wording.
+      Exclude the protagonist (their portrait is attached). Example: {'Maera': 'drawing ale,
+      watching the door', 'the harbourmaster': 'handing over a sealed writ'}.
     - establishing: a short description of the place, given ONLY when its seed does not
-      exist yet. It must be empty and unpopulated — no people, creatures or animals.
-    - main_npc: the place's main NPC, given at seed creation — name, physical appearance and any
-      helpers / aides / partners (e.g. "Gorson — a burly, grey-bearded smith with a burn-scarred
-      left hand; two apprentices"). Leave "" if the place has no main NPC. Declared ONLY when
-      creating the seed; reuse the exact same NPC (and look) in the action `characters` whenever
-      they are present.
+      exist yet. It must be empty and unpopulated — no people, creatures or animals — and
+      weather-free and timeless: no rain, fog or snow, and no time of day ('at dusk'), because
+      the seed is permanent and weather-neutral; those belong in `weather` / `time_of_day`.
+    - main_npc: the place's main NPC, given at seed creation as {'name': ...,
+      'description': ...}. The description is the stable look (gender, build, distinguishing
+      features) plus any helpers/aides/partners (e.g. {'name': 'Gorson', 'description': 'a
+      burly, grey-bearded smith with a burn-scarred left hand; two apprentices'}). Pass {} if
+      the place has no main NPC. Declared ONLY when creating the seed; afterwards refer to
+      them by name in `characters`.
+    - npcs: recurring storyline NPCs declared in this same call, as a list of {'name': ...,
+      'description': ...}. Use it when someone recurring first appears; the same names can
+      also be declared ahead of time with register_npcs. After that, use the NAME ONLY
+      everywhere — never repeat the description.
     - seed_change: a PERMANENT change to the place (e.g. 'it burned down'). Regenerates the
-      hidden seed from the original; the current action still chains from the last action,
-      and the new seed is used the next time the player enters after leaving.
+      hidden seed immediately, so this image and every later one already show the change.
     - mood: a short mood word for the light/atmosphere.
 
-    ALWAYS put the protagonist IN the frame as the main subject, and refer to the
-    player/main character as 'the protagonist' (the image prompt maps the attached
-    portrait onto that word): say where the protagonist is and what they are doing,
+    Refer to the player/main character as 'the protagonist' (the image prompt maps the
+    attached portrait onto that word): say where the protagonist is and what they are
+    doing — they face the action, not the camera, and their back to the camera is fine —
     but NEVER describe their physical appearance (face, hair, build, race,
     clothing) — the portrait is attached automatically. Describe clothing, armour,
     weapons and accessories ONLY from what they actually have equipped (check
     `_equipment` in your latest dump_player_db if unsure): never invent a hood,
     hooded cloak, cowl, hat, helmet, armour or other item they do not have, and
-    never write 'hooded'/'cloaked'/'armoured' unless it is equipped. Never frame
-    the shot as an empty room.
+    never write 'hooded'/'cloaked'/'armoured' unless it is equipped.
 
     This does not change game state and the engine does not wait for the picture;
     it is rendered and shown with your narrative.
@@ -1839,10 +1850,45 @@ def request_scene_image(description: str, kingdom: str = "", area: str = "",
         "location": location or "",
         "sublocation": sublocation or "",
         "characters": len(characters) if isinstance(characters, dict) else 0,
-        "main_npc": main_npc or "",
+        "main_npc": (main_npc or {}).get("name", "") if isinstance(main_npc, dict) else "",
+        "npcs": len(npcs) if isinstance(npcs, list) else 0,
         "seed_requested": bool(establishing or seed_change),
         "note": ("The illustration will appear with your narrative. Do NOT mention "
                  "this tool or its result in the Mechanics block."),
+    }
+
+
+@mcp.tool()
+def register_npcs(npcs: list[dict]) -> dict:
+    """Declares recurring storyline NPCs so the illustrator draws them identically every time.
+
+    Declare each recurring character ONCE, the first time they appear, with a stable look. The
+    engine stores the description and injects it into every later illustration: after that you
+    refer to the NPC by NAME ONLY and never repeat their description.
+
+    PARAMETERS:
+    - npcs: a list of {'name': ..., 'description': ...} dicts. `name` is the exact name you will
+      keep using (a person's name, or a stable handle like 'the harbourmaster'). `description`
+      is the stable look: gender, build, distinguishing features, clothing/role-defining gear
+      (e.g. {'name': 'Maera', 'description': 'a broad, one-eared woman with iron-grey braids,
+      leaning on the bar'}).
+
+    Re-declaring an existing name updates its description. Use request_scene_image's `npcs`
+    field instead when you are also requesting the illustration in the same call.
+    """
+    cleaned = []
+    if isinstance(npcs, list):
+        for entry in npcs:
+            if not isinstance(entry, dict):
+                continue
+            name = " ".join(str(entry.get("name") or "").split())
+            if name:
+                cleaned.append(name)
+    return {
+        "status": "registered",
+        "npcs": cleaned,
+        "count": len(cleaned),
+        "note": "The engine stores these descriptions; use the names alone from now on.",
     }
 
 

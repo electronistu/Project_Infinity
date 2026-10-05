@@ -555,6 +555,82 @@ async function autoGenerateIcons(d) {
   if (state.ready) setStatus("Awaiting your action");
 }
 
+/* ── hover to enlarge an image (reuses the SAME <img> node) ─────────────────
+   Scene action images are one-shot (served once, then deleted) and portraits are
+   cache-busted, so a second <img> would re-fetch — and 404 for scenes. The
+   enlarged view IS the same node, lifted to the viewport with `position: fixed`
+   while hovered (which also escapes the transcript's scroll clipping). */
+
+/* `position: fixed` resolves against the nearest ancestor that establishes a
+   containing block (a transform/filter/perspective/will-change/contain), not
+   always the viewport. Return that ancestor's viewport origin to correct for. */
+function fixedOrigin(el) {
+  let node = el && el.parentElement;
+  while (node && node !== document.body) {
+    const cs = getComputedStyle(node);
+    if (cs.transform !== "none" || cs.filter !== "none" || cs.perspective !== "none"
+        || (cs.willChange || "").indexOf("transform") !== -1
+        || /paint|layout|strict|content/.test(cs.contain || "")) {
+      const r = node.getBoundingClientRect();
+      return { x: r.left, y: r.top };
+    }
+    node = node.parentElement;
+  }
+  return { x: 0, y: 0 };
+}
+
+function attachHoverZoom(container, img, boundsSel) {
+  if (!container || !img || !window.matchMedia) return;
+  if (!window.matchMedia("(hover: hover)").matches) return;
+  const PAD = 10;
+  let zoomed = false;
+
+  function restore() {
+    if (!zoomed) return;
+    zoomed = false;
+    img.classList.remove("zoomed");
+    img.style.removeProperty("left");
+    img.style.removeProperty("top");
+    img.style.removeProperty("width");
+    img.style.removeProperty("height");
+    container.classList.remove("zooming");
+    container.style.removeProperty("height");
+  }
+
+  function enlarge(ev) {
+    if (zoomed || !img.complete || !img.naturalWidth) return;
+    const rect = img.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const boundsEl = boundsSel ? document.querySelector(boundsSel) : null;
+    const b = (boundsEl || document.documentElement).getBoundingClientRect();
+    const maxW = Math.max(120, b.width - PAD * 2);
+    const maxH = Math.max(80, b.height - PAD * 2);
+    const ar = img.naturalHeight / img.naturalWidth;
+    let w = Math.min(maxW, img.naturalWidth);   // never upscale past native
+    let h = w * ar;
+    if (h > maxH) { h = maxH; w = h / ar; }     // full frame, natural aspect
+    // Centre on the cursor and clamp inside the bounds: the box then always
+    // contains the cursor, so the pointer never leaves it (no flicker).
+    let left = Math.min(Math.max(ev.clientX - w / 2, b.left + PAD), b.right - PAD - w);
+    let top = Math.min(Math.max(ev.clientY - h / 2, b.top + PAD), b.bottom - PAD - h);
+    const origin = fixedOrigin(img);
+    // The img leaves the flow — hold the container's box so text does not reflow.
+    container.style.height = container.getBoundingClientRect().height + "px";
+    container.classList.add("zooming");
+    img.classList.add("zoomed");
+    img.style.width = w + "px";
+    img.style.height = h + "px";
+    img.style.left = (left - origin.x) + "px";
+    img.style.top = (top - origin.y) + "px";
+    zoomed = true;
+  }
+
+  container.addEventListener("pointerenter", enlarge);
+  container.addEventListener("pointerleave", restore);
+  // The node can be swapped in place (portrait regen) — collapse the zoom then.
+  img.addEventListener("load", restore);
+}
+
 /* ── storyline scene images (session-only; opt-in) ─────────── */
 
 function sceneFigure(evt) {
@@ -566,6 +642,7 @@ function sceneFigure(evt) {
     : "Scene illustration";
   img.decoding = "async";
   fig.appendChild(img);
+  attachHoverZoom(fig, img, "#transcript");
   return { fig, img };
 }
 
@@ -595,7 +672,8 @@ async function requestSceneImage(evt, fig, img) {
     weather: evt.weather || "",
     characters: evt.characters || {},
     establishing: evt.establishing || "",
-    main_npc: evt.main_npc || "",
+    main_npc: evt.main_npc || {},
+    npcs: evt.npcs || [],
     seed_change: evt.seed_change || "",
     model: state.imageModel || undefined,
   };

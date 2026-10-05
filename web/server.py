@@ -186,7 +186,8 @@ class SceneBody(BaseModel):
     weather: str = ""
     characters: dict[str, str] = {}
     establishing: str = ""
-    main_npc: str = ""
+    main_npc: dict = {}
+    npcs: list = []
     seed_change: str = ""
     model: str | None = None
 
@@ -426,7 +427,22 @@ async def generate_scene(body: SceneBody):
             if k:
                 characters[k] = " ".join(str(value or "").split())[:160]
     establishing = " ".join(str(body.establishing or "").split())[:400]
-    main_npc = " ".join(str(body.main_npc or "").split())[:300]
+    # Declared NPCs: `{name, description}` (the engine injects the descriptions later).
+    main_npc: dict[str, str] = {}
+    if isinstance(body.main_npc, dict):
+        main_npc = {
+            "name": " ".join(str(body.main_npc.get("name") or "").split())[:80],
+            "description": " ".join(str(body.main_npc.get("description") or "").split())[:400],
+        }
+    npcs: list[dict[str, str]] = []
+    if isinstance(body.npcs, list):
+        for entry in body.npcs[:20]:
+            if not isinstance(entry, dict):
+                continue
+            name = " ".join(str(entry.get("name") or "").split())[:80]
+            if name:
+                npcs.append({"name": name,
+                             "description": " ".join(str(entry.get("description") or "").split())[:400]})
     seed_change = " ".join(str(body.seed_change or "").split())[:400]
     model = _image_model_or_400(body.model)
     stem = session.active_name or ""
@@ -440,7 +456,7 @@ async def generate_scene(body: SceneBody):
                 description=description, mood=mood, kingdom=kingdom, area=area,
                 location=location, sublocation=sublocation,
                 time_of_day=time_of_day, weather=weather, characters=characters,
-                establishing=establishing, main_npc=main_npc,
+                establishing=establishing, main_npc=main_npc, npcs=npcs,
                 seed_change=seed_change, model=model,
             )
         except ImageError as exc:

@@ -507,3 +507,27 @@ button.danger:hover:not(:disabled) { color: #fff; background: var(--danger); }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* ── hover to enlarge a scene image (same node; fixed while hovered) ──
+   The enlarged view reuses the original <img>: scene action images are one-shot,
+   so a second <img> would re-fetch and 404. `position: fixed` lifts it out of the
+   transcript's scroll clipping. Placed last so it wins over the thumbnail rules. */
+img.zoomed {
+  position: fixed;
+  z-index: 30;
+  margin: 0;
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  aspect-ratio: auto;
+  object-fit: contain;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+.scene-figure.zooming { background: transparent; border-color: transparent; overflow: visible; }
+@media (hover: hover) {
+  .scene-figure img { cursor: zoom-in; }
+}
