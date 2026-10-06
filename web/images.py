@@ -767,21 +767,21 @@ _SCENE_ACTION_FROM_SEED = (
     "picture — reproduce it unchanged (same camera, framing, architecture, furniture, props, "
     "colours, arrangement), then place the characters into it. Change nothing about the space "
     "itself, except the three things the moment legitimately changes: the time of day (relight "
-    "the same scene for day or night), the weather (rain, fog, snow, wind — the same room under a "
-    "different sky), and the action's own transient damage or mess — a table split, a chair "
-    "toppled, a hearth scattered, spilled ale, a fire. Objects the action touches may be broken "
-    "or displaced; the room is never rearranged. (2) the protagonist's portrait — that same "
-    "character, in the described action."
+    "the same scene for day or night), the weather (rain, fog, snow, wind — rendered as "
+    "atmosphere, staying outdoors), and the action's own transient damage or mess — a table split, "
+    "a chair toppled, a hearth scattered, spilled ale, a fire. Objects the action touches may be "
+    "broken or displaced; the room is never rearranged. (2) the protagonist's portrait — that "
+    "same character, in the described action."
 )
 _SCENE_ACTION_FROM_SEED_SOLO = (
     "Attached reference: the establishing view of {location} — {sublocation}: this IS the picture "
     "— reproduce it unchanged (same camera, framing, architecture, furniture, props, colours, "
     "arrangement), then place the characters into it. Change nothing about the space itself, "
     "except the three things the moment legitimately changes: the time of day (relight the same "
-    "scene for day or night), the weather (rain, fog, snow, wind — the same room under a different "
-    "sky), and the action's own transient damage or mess — a table split, a chair toppled, a hearth "
-    "scattered, spilled ale, a fire. Objects the action touches may be broken or displaced; the "
-    "room is never rearranged."
+    "scene for day or night), the weather (rain, fog, snow, wind — rendered as atmosphere, "
+    "staying outdoors), and the action's own transient damage or mess — a table split, a chair "
+    "toppled, a hearth scattered, spilled ale, a fire. Objects the action touches may be broken "
+    "or displaced; the room is never rearranged."
 )
 _SCENE_NO_EXTRA_FIGURES = (
     "Draw only the protagonist and the characters listed above: no other person, face, silhouette, "
@@ -799,15 +799,25 @@ _SCENE_LIGHTING_GUARD = (
     "moonlit doorway — each throwing only a small pool of light around itself. No twilight, no "
     "dusk glow, no sunset colours, no ambient daylight, no blue hour."
 )
+_SCENE_WEATHER_GUARD = (
+    "Weather is an outdoor phenomenon: rain and snow fall only where the sky is open. If this "
+    "place is an interior — the establishing view shows walls, a ceiling or a roof — keep "
+    "precipitation outside: show it only through the windows, doorways and other openings "
+    "(streaks on the glass, a sky beyond, weather-light falling through the opening) and keep the "
+    "inside dry — no rain, snow, puddles, drips or wet interior surfaces. Never draw rain or snow "
+    "falling or pooling inside an enclosed room. Fog, mist and haze may soften the interior air, "
+    "but never as falling water. If the place is genuinely open to the sky (a courtyard, a ruined "
+    "roofless hall, an open-sided shelter), render the weather directly where the sky is open."
+)
 _SCENE_LAYOUT_LOCK = (
     "The attached establishing view IS the scene: keep the same camera, framing, crop, architecture, "
     "walls, doors, windows, stairs, furniture, props, their positions, scale and proportions. Do "
     "not redesign, add, remove, resize, restyle or rearrange anything, and do not change the "
     "viewpoint, the framing or the composition. Only what the moment legitimately changes may "
     "differ: the time of day (relight this identical scene for day or night), the weather "
-    "(atmosphere only — it never alters the space), and the transient damage or mess of the action "
-    "(a table split, a chair toppled, a fire, spilled ale). Then place the characters into that "
-    "same space."
+    "(atmosphere only — it stays outdoors and never alters the space), and the transient damage or "
+    "mess of the action (a table split, a chair toppled, a fire, spilled ale). Then place the "
+    "characters into that same space."
 )
 _SCENE_ABSENT_ELEMENT_GUARD = (
     "The attached establishing view is the ground truth for the space: never invent an element it "
@@ -872,6 +882,9 @@ class SceneService(GeminiImageBackend):
         ).strip()
         self.lighting_guard = str(
             cfg.get("scene_lighting_guard") or _SCENE_LIGHTING_GUARD
+        ).strip()
+        self.weather_guard = str(
+            cfg.get("scene_weather_guard") or _SCENE_WEATHER_GUARD
         ).strip()
         self.layout_lock = str(
             cfg.get("scene_layout_lock") or _SCENE_LAYOUT_LOCK
@@ -1155,6 +1168,8 @@ class SceneService(GeminiImageBackend):
             body = (body + " " + self.no_camera_gaze).strip()
         if self.lighting_guard:
             body = (body + " " + self.lighting_guard).strip()
+        if self._clean(weather) and self.weather_guard:
+            body = (body + " " + self.weather_guard).strip()
         if ref_kind == "seed" and self.layout_lock:
             body = (body + " " + self.layout_lock).strip()
         if ref_kind == "seed" and self.absent_element_guard:

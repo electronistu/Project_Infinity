@@ -36,6 +36,31 @@ class SpellCastingTest(H.EngineCase):
         self.assertEqual(H.dbv("spellcasting")["slots"]["1"], 4)  # unchanged
         self.assertIn("Scroll", r["narrative_format"])
 
+    def test_no_slot_failure_carries_a_mechanics_line(self):
+        H.ds.modify_player_numeric("spellcasting.slots.1", -4)
+        r = H.ds.resolve_magic(spell_name="Magic Missile", actor="Senna", slot_level=1)
+        self.assertFalse(r["success"])
+        self.assertEqual(r["slot_level_needed"], 1)
+        self.assertIn("not cast: no 1st-level slot remaining", r["narrative_format"])
+        self.assertIn("No level 1 spell slots", r["error"])
+
+    def test_spellbook_missing_failure_carries_a_mechanics_line(self):
+        H.ds.update_player_list(key="inventory", item="Spellbook", action="remove")
+        r = H.ds.resolve_magic(spell_name="Magic Missile", actor="Senna", slot_level=1,
+                               target_ac=12, target_name="G", target_current_hp=30)
+        self.assertFalse(r["success"])
+        self.assertIn("not cast: the spellbook is missing", r["narrative_format"])
+        self.assertIn("spellbook is missing", r["error"])
+
+    def test_scroll_fizzle_carries_a_mechanics_line(self):
+        with H.rolls_always(1):  # 1 + INT 3 = 4 vs DC 13
+            r = H.ds.resolve_magic(spell_name="Magic Missile", actor="Senna", slot_level=3,
+                                   is_scroll=True, target_ac=12, target_name="G",
+                                   target_current_hp=30)
+        self.assertFalse(r["success"])
+        self.assertIn("the scroll fizzles", r["narrative_format"])
+        self.assertIn("Scroll ability check failed", r["error"])
+
 
 class SavingThrowSpellTest(H.EngineCase):
     player_factory = staticmethod(H.wizard_l3)
@@ -192,6 +217,7 @@ class BuffTest(H.EngineCase):
         r = H.ds.resolve_magic(spell_name="Mage Armor", actor="Senna", slot_level=1, target_name="Senna")
         self.assertFalse(r["success"])
         self.assertIn("already active", r["error"])
+        self.assertIn("already active, not recast", r["narrative_format"])
         self.assertEqual(H.dbv("spellcasting")["slots"]["1"], slots_before)
 
 

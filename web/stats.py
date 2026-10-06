@@ -20,9 +20,11 @@ except ImportError:  # pragma: no cover - package-relative fallback
     from ..carrying import carry_state, weight_for  # noqa: E402
 
 try:  # SRD 5.1 equipped-items model (same repo root, shared with dice_server)
-    from equipment import equipment_state  # noqa: E402
+    from equipment import (armor_entry, bonus_suppressed_reason, equipment_state,
+                           item_effects, properties_for, weapon_entry)  # noqa: E402
 except ImportError:  # pragma: no cover - package-relative fallback
-    from ..equipment import equipment_state  # noqa: E402
+    from ..equipment import (armor_entry, bonus_suppressed_reason, equipment_state,
+                             item_effects, properties_for, weapon_entry)  # noqa: E402
 
 try:  # SRD 5.1 skill -> ability map (same repo root, shared with dice_server)
     import skills as skills_mod  # noqa: E402
@@ -339,40 +341,189 @@ def _feature_entries(features, class_name=None, race_name=None, background_name=
     return out
 
 
+_ABILITY_LABELS = {"str": "STR", "dex": "DEX", "con": "CON",
+                   "int": "INT", "wis": "WIS", "cha": "CHA"}
+
+
+def _signed(value):
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return str(value)
+    return f"+{number}" if number >= 0 else str(number)
+
+
+def _effect_line(effect):
+    """One human-readable line for a declared item effect (flat fields normalize to these)."""
+    etype = str(effect.get("type") or "").strip().lower()
+    value = effect.get("value")
+    ability = _ABILITY_LABELS.get(str(effect.get("ability") or "").lower(), "")
+    if etype == "ac_bonus":
+        return f"{_signed(value)} AC"
+    if etype == "attack_bonus":
+        return f"{_signed(value)} to attack rolls"
+    if etype == "damage_bonus":
+        return f"{_signed(value)} to damage rolls"
+    if etype == "save_bonus":
+        return f"{_signed(value)} to saving throws"
+    if etype == "check_bonus":
+        return f"{_signed(value)} to ability checks"
+    if etype == "proficiency_bonus":
+        return f"{_signed(value)} to proficiency bonus"
+    if etype == "spell_attack_bonus":
+        return f"{_signed(value)} to spell attacks"
+    if etype == "spell_dc_bonus":
+        return f"{_signed(value)} spell save DC"
+    if etype == "initiative":
+        return f"{_signed(value)} to initiative"
+    if etype == "ability_set" and ability:
+        return f"{ability} becomes {value}"
+    if etype == "ability_bonus" and ability:
+        cap = effect.get("max")
+        return f"{_signed(value)} {ability}" + (f" (max {cap})" if cap else "")
+    if etype == "skill_bonus":
+        skill = effect.get("skill") or effect.get("name")
+        return f"{_signed(value)} to {skill}" if skill else f"{_signed(value)} to skill checks"
+    if etype == "damage_resistance":
+        return f"resistance to {value}" if value else "damage resistance"
+    if etype == "damage_immunity":
+        return f"immunity to {value}" if value else "damage immunity"
+    if etype == "condition_immunity":
+        return f"immune to {value}" if value else "condition immunity"
+    if etype == "speed_grant":
+        return f"speed {value} ft" if value else "speed granted"
+    pretty = etype.replace("_", " ").strip()
+    return f"{pretty} {value}".strip() if value not in (None, True, False, "") else pretty
+
+
+def _weapon_stat_line(name, base, declared):
+    """A weapon's stat line: declared fields win, the archetype fills the gaps."""
+    arche = weapon_entry(name, base) or {}
+    damage = declared.get("damage_dice") or arche.get("damage") or ""
+    damage_type = declared.get("damage_type") or arche.get("damage_type") or ""
+    head = f"{damage} {damage_type}".strip()
+    parts = [head] if head else []
+    parts += [str(p) for p in properties_for(name, base, declared)]
+    line = ", ".join(parts)
+    if arche.get("category"):
+        kind = f"{arche['category']} {'melee' if arche.get('melee') else 'ranged'}"
+        line = f"{line} ({kind})" if line else kind
+    return line
+
+
+def _armor_stat_line(name, base, declared):
+    """Armour / shield stat line: declared fields win, the archetype fills the gaps."""
+    arche = armor_entry(name, base) or {}
+    shield = bool(arche.get("shield"))
+    ac = declared.get("ac")
+    if ac is None:
+        ac = arche.get("ac")
+    parts = []
+    if ac is not None:
+        parts.append(f"+{int(ac)} AC" if shield else f"AC {int(ac)}")
+    if not shield:
+        dex_cap = declared.get("dex_cap")
+        if dex_cap is None:
+            dex_cap = arche.get("dex_cap")
+        if dex_cap is not None:
+            parts.append("no DEX bonus" if int(dex_cap) == 0 else f"DEX cap +{int(dex_cap)}")
+    strength_req = declared.get("strength_req")
+    if strength_req is None:
+        strength_req = arche.get("strength_req")
+    if strength_req:
+        parts.append(f"Str {int(strength_req)}")
+    if arche.get("stealth_disadvantage"):
+        parts.append("stealth disadvantage")
+    if arche.get("type") and not shield:
+        parts.append(str(arche["type"]))
+    return ", ".join(parts)
+
+
+def _item_stat_lines(name, declared, items, attuned_names, equipped_names, is_equipped):
+    """Stat lines for one inventory entry (weapon / armour / worn magic).
+
+    Declared GM fields win over the config archetype. Magic bonuses are listed even when
+    inactive, with a qualifier (while wielded / while worn / while attuned / pair incomplete).
+    """
+    base = declared.get("base")
+    weapon = weapon_entry(name, base)
+    armor = armor_entry(name, base)
+    is_weapon = bool(weapon) or bool(declared.get("damage_dice") or declared.get("damage_type")
+                                     or declared.get("properties"))
+    is_armor = bool(armor) or declared.get("ac") is not None
+
+    lines = []
+    if is_weapon:
+        line = _weapon_stat_line(name, base, declared)
+    elif is_armor:
+        line = _armor_stat_line(name, base, declared)
+    else:
+        line = ""
+    if line:
+        lines.append(line)
+
+    rendered = [r for r in (_effect_line(e) for e in item_effects(declared)) if r]
+    if rendered:
+        reason = bonus_suppressed_reason(name, items, attuned_names, equipped_names)
+        if reason == "pair_incomplete":
+            qualifier = "when both halves are worn"
+        elif reason == "not_attuned":
+            qualifier = "while attuned"
+        elif not is_equipped:
+            qualifier = "while wielded" if is_weapon else "while worn"
+        else:
+            qualifier = ""
+        bonus = ", ".join(rendered)
+        if declared.get("kind") and not (is_weapon or is_armor):
+            bonus = f"{declared['kind']}: {bonus}"
+        if qualifier:
+            bonus = f"{bonus} ({qualifier})"
+        lines.append(bonus)
+    return lines
+
+
 def _inventory_entries(items, equip=None):
     """Inventory chips, with equipped entries flagged like prepared spells.
 
     `equip` is the shared `_equipment` block; each equipped name is tagged with the
     slot it occupies (Main hand / Off hand / Worn) so the sheet can highlight it.
+    The tooltip carries the GM's flavour text plus every declared stat line (weapon,
+    armour, worn magic), with the config archetype filling any gap.
     """
     slots = {}
+    equipped_names = []
     for hand in (equip or {}).get("hands", []) or []:
         if isinstance(hand, dict) and hand.get("name"):
             slots[str(hand["name"])] = ("Main hand" if hand.get("slot") == "main_hand"
                                         else "Off hand")
+            equipped_names.append(str(hand["name"]))
     for worn in (equip or {}).get("worn", []) or []:
         if isinstance(worn, dict) and worn.get("name"):
             slots[str(worn["name"])] = "Worn"
+            equipped_names.append(str(worn["name"]))
     if (equip or {}).get("armor"):
         slots[str(equip["armor"])] = "Worn"
+        equipped_names.append(str(equip["armor"]))
+    attuned_names = [str(n) for n in ((equip or {}).get("attuned") or [])]
 
     out = []
     for it in items:
-        declared = None
+        declared = {}
         base = None
         if isinstance(it, dict):
             name = str(it.get("name") or "")
-            desc = it.get("description") or ""
-            declared = it.get("weight")
+            declared = it
             base = it.get("base")
+            flavour = str(it.get("description") or "").strip()
         else:
             name = str(it)
-            desc = ""
-        if not desc:
-            _canon, wdesc = _weapon_entry(name)
-            desc = wdesc
-        weight = weight_for(name, declared, base)
-        out.append({"name": name, "description": str(desc), "icon": icon_key_for("inventory", name),
+            flavour = ""
+        stat_lines = _item_stat_lines(name, declared, items, attuned_names, equipped_names,
+                                      name in slots)
+        description = "\n".join(p for p in [flavour] + stat_lines if p)
+        weight = weight_for(name, declared.get("weight"), base)
+        out.append({"name": name, "description": description,
+                    "icon": icon_key_for("inventory", name),
                     "weight": weight, "unweighed": weight is None,
                     "equipped": name in slots, "slot": slots.get(name)})
     return out

@@ -150,7 +150,8 @@ def main() -> bool:
     rec("GM feature desc wins", feats["Custom"] == "gm")
     inv = {i["name"]: i["description"] for i in cfg["inventory"]}
     rec("inventory weapon gets config desc", bool(inv["Dagger"]))
-    rec("GM inventory desc wins", inv["Magic Dagger"] == "gm text")
+    rec("GM inventory desc is kept, stat line appended",
+        inv["Magic Dagger"].startswith("gm text") and "piercing" in inv["Magic Dagger"])
 
     # Shared vs per-item icon keys: exact catalog/weapon match is shared; a
     # specific/modified item gets its own key (generated later at runtime).
@@ -291,6 +292,49 @@ def main() -> bool:
     saves = {s["key"]: s for s in eff["saves"]}
     rec("equipment: derived saves include ability + proficiency + item",
         saves["CON"]["total"] == 5 and saves["DEX"]["total"] == 3)
+
+    # GM-declared item stats reach the inventory tooltip (declared wins; flavour text kept).
+    dt = build_stats({
+        "inventory": [
+            {"name": "Voidfang", "base": "Dagger", "damage_dice": "1d6",
+             "damage_type": "necrotic", "properties": ["Finesse", "Light"],
+             "attack_bonus": 2, "damage_bonus": 1, "description": "a cold blade"},
+            {"name": "Plate of the Dawn", "ac": 18, "dex_cap": 0, "strength_req": 15},
+            {"name": "Ring of Warding", "kind": "ring", "ac_bonus": 1, "save_bonus": 1,
+             "attunement": True},
+            "Shield", "Rope",
+        ],
+        "equipped": {"armor": None, "hands": [None, None], "worn": []},
+    })
+    dinv = {e["name"]: e["description"] for e in dt["inventory"]}
+    rec("declared weapon: flavour text first, declared stats after",
+        dinv["Voidfang"].startswith("a cold blade")
+        and "1d6 necrotic" in dinv["Voidfang"] and "Finesse" in dinv["Voidfang"])
+    rec("declared weapon: declared dice win over the Dagger base",
+        "1d4" not in dinv["Voidfang"])
+    rec("declared weapon: bonuses listed with a wielded qualifier",
+        "+2 to attack rolls" in dinv["Voidfang"] and "+1 to damage rolls" in dinv["Voidfang"]
+        and "while wielded" in dinv["Voidfang"])
+    rec("declared armour: AC/DEX/Str from the declaration",
+        "AC 18" in dinv["Plate of the Dawn"] and "no DEX bonus" in dinv["Plate of the Dawn"]
+        and "Str 15" in dinv["Plate of the Dawn"])
+    rec("declared shield shows its AC bonus", "+2 AC" in dinv["Shield"])
+    rec("worn magic: kind + bonuses, qualified while attuned",
+        dinv["Ring of Warding"].startswith("ring:")
+        and "+1 AC" in dinv["Ring of Warding"]
+        and "+1 to saving throws" in dinv["Ring of Warding"]
+        and "while attuned" in dinv["Ring of Warding"])
+    rec("plain loot keeps an empty tooltip", dinv["Rope"] == "")
+
+    dt2 = build_stats({
+        "inventory": [{"name": "Ring of Warding", "kind": "ring", "ac_bonus": 1,
+                       "save_bonus": 1, "attunement": True}],
+        "equipped": {"armor": None, "hands": [None, None], "worn": ["Ring of Warding"]},
+        "attuned": ["Ring of Warding"],
+    })
+    ring2 = dt2["inventory"][0]["description"]
+    rec("worn magic: no qualifier once worn and attuned",
+        "+1 AC" in ring2 and "while" not in ring2)
 
     # Regression against the real save, if present.
     real = REPO / "output" / "electronistu.player"

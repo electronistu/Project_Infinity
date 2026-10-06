@@ -271,6 +271,33 @@ class UpdateCombatantTest(H.EngineCase):
         self.assertIn("modify_player_numeric", r["note"])
         self.assertEqual(H.dbv("current_hit_points"), 44)
 
+    def test_player_condition_line_omits_unchanged_ac(self):
+        with H.fixed_rolls([15, 6, 7]):
+            H.ds.register_combatants([GOBLIN])
+        r = H.ds.update_combatant("Borin", conditions_add=["poisoned"])
+        self.assertNotIn("AC ", r["narrative_format"])
+        self.assertEqual(r["narrative_format"], "Borin — poisoned")
+
+    def test_npc_condition_line_omits_unchanged_ac(self):
+        with H.fixed_rolls([15, 6, 7]):
+            H.ds.register_combatants([GOBLIN])
+        r = H.ds.update_combatant("Goblin", conditions_add=["prone"])
+        self.assertNotIn("AC ", r["narrative_format"])
+        self.assertEqual(r["narrative_format"], "Goblin — prone")
+
+    def test_npc_ac_change_still_shows_ac(self):
+        with H.fixed_rolls([15, 6, 7]):
+            H.ds.register_combatants([GOBLIN])
+        r = H.ds.update_combatant("Goblin", ac=17)
+        self.assertIn("AC 17", r["narrative_format"])
+
+    def test_npc_hp_delta_still_shows_hp(self):
+        with H.fixed_rolls([15, 6, 7]):
+            H.ds.register_combatants([GOBLIN])
+        r = H.ds.update_combatant("Goblin", hp_delta=-2)
+        self.assertIn("HP", r["narrative_format"])
+        self.assertNotIn("AC ", r["narrative_format"])
+
     def test_unknown_combatant(self):
         r = H.ds.update_combatant("Nobody", conditions_add=["prone"])
         self.assertEqual(r["error"], "not_registered")

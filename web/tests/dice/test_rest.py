@@ -49,6 +49,7 @@ class LongRestTest(H.EngineCase):
         r = H.ds.rest("long")
         self.assertFalse(r["success"])
         self.assertIn("0 HP", r["error"])
+        self.assertIn("Long rest — impossible while at 0 HP", r["narrative_format"])
 
     def test_long_rest_replaces_prepared_spells(self):
         r = H.ds.rest("long", prepared_spells=["Shield", "Sleep"])

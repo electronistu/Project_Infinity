@@ -408,6 +408,43 @@ async def main() -> bool:
         "current_list" not in stored and "equipment" not in stored
         and "narrative_format" not in stored, stored)
 
+    # A failed action: its narrative_format must reach the mechanics event, and a tool-shape
+    # error (no narrative_format) must produce no mechanics line at all.
+    class _FailMCP:
+        async def call_tool(self, name, arguments=None):
+            return _Result(json.dumps({
+                "success": False,
+                "error": "No level 1 spell slots remaining to cast Disguise Self.",
+                "narrative_format": "Senna Disguise Self — not cast: no 1st-level slot remaining",
+                "hint": "Take a long rest."}))
+
+    class _ShapeErrMCP:
+        async def call_tool(self, name, arguments=None):
+            return _Result(json.dumps({
+                "success": False, "error": "attack_modifier_required",
+                "reason": "Pass attack_modifier, or weapon=/attack=."}))
+
+    gs_fail = GameSession(base_dir=REPO, model="test", scene_images=False)
+    gs_fail.session = _FailMCP()
+    await gs_fail._execute_tool({"function": {"name": "resolve_magic",
+                                              "arguments": {"spell_name": "Disguise Self"}}})
+    fail_view = drain(gs_fail._evt_q)
+    fail_mech = [e for e in fail_view if e.get("type") == "mechanics"]
+    fail_gm = gs_fail.messages[-1]["content"]
+    rec("a failed action's narrative_format reaches the mechanics event",
+        len(fail_mech) == 1
+        and fail_mech[0].get("lines") == ["Senna Disguise Self — not cast: no 1st-level slot remaining"],
+        str(fail_mech))
+    rec("the failure's narrative_format is still dropped from the GM view",
+        "narrative_format" not in fail_gm and "No level 1 spell slots" in fail_gm, fail_gm)
+
+    gs_shape = GameSession(base_dir=REPO, model="test", scene_images=False)
+    gs_shape.session = _ShapeErrMCP()
+    await gs_shape._execute_tool({"function": {"name": "resolve_attack",
+                                               "arguments": {"actor": "x"}}})
+    rec("a tool-shape error produces no mechanics line",
+        not [e for e in drain(gs_shape._evt_q) if e.get("type") == "mechanics"])
+
     # Combat rosters: the engine forwards the sheets + live state to the client (tooltips),
     # and drops them from the GM view.
     class _CombatMCP:

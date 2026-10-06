@@ -714,6 +714,17 @@ def _blocked_action(cursor, error: str, reason: str, item: str | None = None,
     }
 
 
+def _action_failure(error: str, narrative_format: str, **fields) -> dict:
+    """A refused player action that costs nothing (no slot, no turn spent).
+
+    The GM gets the `error` (and any extra fields); the engine composes the player-facing
+    `narrative_format` line into the turn's Mechanics block. Tool-shape / GM-correctable errors
+    (a missing parameter, an invalid notation, an unknown registry name) must NOT use this —
+    they stay GM-only.
+    """
+    return {"success": False, "error": error, "narrative_format": narrative_format, **fields}
+
+
 def _ability_mod(score) -> int:
     try:
         return (int(score) - 10) // 2
@@ -2804,8 +2815,9 @@ def rest(rest_type: str, prepared_spells: list[str] | None = None) -> dict:
 
         elif rest_type == "long":
             if current_hp <= 0:
-                return {"success": False,
-                        "error": "Cannot benefit from a long rest with 0 HP. The character must be stabilized first."}
+                return _action_failure(
+                    "Cannot benefit from a long rest with 0 HP. The character must be stabilized first.",
+                    "Long rest — impossible while at 0 HP")
 
             _db_set(cursor, "current_hit_points", str(total_hp))
             changes["hp"] = {"old": current_hp, "new": total_hp,
@@ -4092,12 +4104,14 @@ def update_combatant(name: str, conditions_add: list[str] | None = None,
                 elif int(hp_delta) > 0:
                     entry["killed"] = False
 
-    # HP is shown only when this call actually moved it; otherwise the client tooltip
-    # carries the live HP (conditions + AC are the new state here).
-    bits = [f"AC {entry['ac']}"]
+    # Vitals appear only when this call actually changed them; otherwise the client tooltip
+    # carries the live HP/AC. The player's AC is never shown here (ac= is ignored for the player).
+    bits = []
     if hp_delta is not None and not is_player:
-        bits.insert(0, f"{entry['current_hp']}/{entry['max_hp']} HP")
-    narrative = f"{name}: " + ", ".join(bits)
+        bits.append(f"{entry['current_hp']}/{entry['max_hp']} HP")
+    if ac is not None and not is_player:
+        bits.append(f"AC {entry['ac']}")
+    narrative = f"{name}: {', '.join(bits)}" if bits else name
     if current:
         narrative += f" — {', '.join(current)}"
     if blocked:
@@ -5299,15 +5313,15 @@ def resolve_magic(
             buff_data_raw = json.loads(buff_data_raw)
         lookup_entries = {k.lower(): k for k in buff_data_raw}
         if spell_key in lookup_entries:
-            return {
-                "success": False,
-                "error": f"{spell_name} is already active.",
-                "spell_name": spell_name,
-                "hint": (
+            return _action_failure(
+                f"{spell_name} is already active.",
+                f"{actor} {spell_name} — already active, not recast",
+                spell_name=spell_name,
+                hint=(
                     f"Remove it first via update_player_list(key='active_effects', "
                     f"item='{lookup_entries[spell_key]}', action='remove') before recasting."
                 ),
-            }
+            )
 
     # ── SPELLBOOK CHECK ──
     # A caster whose spell list lives in a spellbook (wizard-style) cannot cast
@@ -5316,13 +5330,13 @@ def resolve_magic(
     if (DB_CONNECTION is not None and cursor is not None
             and not is_npc_attack and not is_npc_vs_npc and not is_scroll
             and sp_level > 0 and _needs_spellbook(cursor) and not _has_spellbook_item(cursor)):
-        return {
-            "success": False,
-            "error": f"Cannot cast {spell_name}: the spellbook is missing.",
-            "spell_name": spell_name,
-            "hint": "The character's spellbook is not in their inventory. "
-                    "Recover it before casting leveled spells.",
-        }
+        return _action_failure(
+            f"Cannot cast {spell_name}: the spellbook is missing.",
+            f"{actor} {spell_name} — not cast: the spellbook is missing",
+            spell_name=spell_name,
+            hint="The character's spellbook is not in their inventory. "
+                 "Recover it before casting leveled spells.",
+        )
 
     # ── SPELL SLOT MANAGEMENT ──
     is_cantrip = (sp_level == 0)
@@ -5366,14 +5380,14 @@ def resolve_magic(
                 for k, v in sc_data.get("slots", {}).items():
                     if int(v) > 0:
                         available_slots[f"lv{k}"] = v
-            return {
-                "success": False,
-                "error": f"No level {effective_slot} spell slots remaining to cast {spell_name}.",
-                "spell_name": spell_name,
-                "slot_level_needed": effective_slot,
-                "available_slots": available_slots if available_slots else "No spell slots available.",
-                "hint": "Take a long rest to recover spell slots, or cast using a higher-level slot by providing slot_level.",
-            }
+            return _action_failure(
+                f"No level {effective_slot} spell slots remaining to cast {spell_name}.",
+                f"{actor} {spell_name} — not cast: no {_ordinal(effective_slot)}-level slot remaining",
+                spell_name=spell_name,
+                slot_level_needed=effective_slot,
+                available_slots=available_slots if available_slots else "No spell slots available.",
+                hint="Take a long rest to recover spell slots, or cast using a higher-level slot by providing slot_level.",
+            )
 
         cursor.execute("SELECT value FROM player WHERE key = ?", ("spellcasting",))
         sc_check = cursor.fetchone()
@@ -5382,14 +5396,14 @@ def resolve_magic(
             str_effective_slot = str(effective_slot)
             if str_effective_slot not in sc_data_check.get("slots", {}):
                 cursor.execute("SELECT key FROM player")
-                return {
-                    "success": False,
-                    "error": f"Player has no level {effective_slot} spell slots. Maximum available slot level may be insufficient for this spell.",
-                    "spell_name": spell_name,
-                    "slot_level_needed": effective_slot,
-                    "available_slots": {f"lv{k}": v for k, v in sc_data_check.get("slots", {}).items() if int(v) > 0} if sc_data_check.get("slots") else "No spell slots.",
-                    "hint": f"This character does not have level {effective_slot} spell slots available.",
-                }
+                return _action_failure(
+                    f"Player has no level {effective_slot} spell slots. Maximum available slot level may be insufficient for this spell.",
+                    f"{actor} {spell_name} — not cast: no {_ordinal(effective_slot)}-level slot available",
+                    spell_name=spell_name,
+                    slot_level_needed=effective_slot,
+                    available_slots={f"lv{k}": v for k, v in sc_data_check.get("slots", {}).items() if int(v) > 0} if sc_data_check.get("slots") else "No spell slots.",
+                    hint=f"This character does not have level {effective_slot} spell slots available.",
+                )
 
     # ── PARAMETER VALIDATION (before consuming the slot) ──
     if sp_attack_type == "attack_roll" and target_ac is None:
@@ -5433,17 +5447,17 @@ def resolve_magic(
                     scroll_d20 = random.randint(1, 20)
                     scroll_total = scroll_d20 + ability_mod
                     if scroll_total < dc:
-                        return {
-                            "success": False,
-                            "error": f"Scroll ability check failed for {spell_name}. "
-                                     f"Check: {scroll_total} vs DC {dc} ({scroll_d20} + {ability_mod}). "
-                                     "The scroll's magic fizzles and is wasted.",
-                            "spell_name": spell_name,
-                            "scroll_level": effective_slot,
-                            "scroll_check": {"d20": scroll_d20, "ability_modifier": ability_mod,
-                                             "total": scroll_total, "dc": dc, "passed": False},
-                            "hint": "The scroll is consumed but the spell does not take effect. Remove it from inventory."
-                        }
+                        return _action_failure(
+                            f"Scroll ability check failed for {spell_name}. "
+                            f"Check: {scroll_total} vs DC {dc} ({scroll_d20} + {ability_mod}). "
+                            "The scroll's magic fizzles and is wasted.",
+                            f"{actor} {spell_name} (scroll) — check {scroll_total} vs DC {dc}: the scroll fizzles",
+                            spell_name=spell_name,
+                            scroll_level=effective_slot,
+                            scroll_check={"d20": scroll_d20, "ability_modifier": ability_mod,
+                                          "total": scroll_total, "dc": dc, "passed": False},
+                            hint="The scroll is consumed but the spell does not take effect. Remove it from inventory."
+                        )
                     else:
                         slot_narrative += f" (Ability Check: {scroll_total} vs DC {dc} — passed)"
                         scroll_check_info = {"d20": scroll_d20, "ability_modifier": ability_mod,

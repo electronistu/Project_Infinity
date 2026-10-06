@@ -24,31 +24,32 @@
   },
   "proficiency_bonus": 2,
   "skills": [
-    "Arcana",
-    "Stealth",
     "Deception",
+    "Investigation",
     "Perception",
-    "Investigation"
+    "Arcana",
+    "Stealth"
   ],
+  "expertise": [],
   "saves": [
     "Intelligence",
     "Wisdom"
   ],
   "armor_proficiencies": [],
   "weapon_proficiencies": [
-    "Light Crossbow",
+    "Shortsword",
     "Dagger",
     "Shortbow",
-    "Quarterstaff",
-    "Shortsword",
-    "Longsword",
     "Dart",
-    "Longbow",
-    "Sling"
+    "Quarterstaff",
+    "Sling",
+    "Longsword",
+    "Light Crossbow",
+    "Longbow"
   ],
   "tool_proficiencies": [
-    "Thieves' tools",
-    "Dice Set"
+    "Dice Set",
+    "Thieves' tools"
   ],
   "languages": [
     "Common",
@@ -124,23 +125,23 @@
     "attack_modifier": 5,
     "cantrips": [
       "Mage Hand",
-      "Poison Spray",
-      "True Strike"
+      "Minor Illusion",
+      "Poison Spray"
     ],
     "slots": {
       "1": 2
     },
     "spellbook": [
-      "Color Spray",
       "Detect Magic",
       "Disguise Self",
+      "False Life",
       "Identify",
       "Magic Missile",
       "Sleep"
     ],
     "spells_prepared": [
-      "Color Spray",
       "Disguise Self",
+      "False Life",
       "Magic Missile",
       "Sleep"
     ]

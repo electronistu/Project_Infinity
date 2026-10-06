@@ -813,8 +813,9 @@ function descTag(item) {
   const name = typeof item === "string" ? item : (item && item.name) ? item.name : JSON.stringify(item);
   const desc = (item && typeof item === "object" && item.description) ? item.description : "";
   const weightLb = (item && typeof item === "object" && typeof item.weight === "number") ? item.weight : null;
-  // Weights ride along in the tooltip so the sheet stays quiet about it.
-  const tip = [desc, weightLb === null ? "" : `${weightLb} lb`].filter(Boolean).join(" · ");
+  // Weights ride along in the tooltip so the sheet stays quiet about it (own line, so
+  // multi-line stat lines never glue the weight onto the last one).
+  const tip = [desc, weightLb === null ? "" : `${weightLb} lb`].filter(Boolean).join("\n");
   const iconKey = (item && typeof item === "object" && item.icon) ? item.icon : null;
   const prepared = !!(item && typeof item === "object" && item.prepared);
   const equipped = !!(item && typeof item === "object" && item.equipped);

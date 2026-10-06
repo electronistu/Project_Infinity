@@ -114,21 +114,21 @@ scene_action_from_seed: >-
   picture — reproduce it unchanged (same camera, framing, architecture, furniture, props,
   colours, arrangement), then place the characters into it. Change nothing about the space
   itself, except the three things the moment legitimately changes: the time of day (relight the
-  same scene for day or night), the weather (rain, fog, snow, wind — the same room under a
-  different sky), and the action's own transient damage or mess — a table split, a chair toppled,
-  a hearth scattered, spilled ale, a fire. Objects the action touches may be broken or displaced;
-  the room is never rearranged. (2) the protagonist's portrait — that same character, in the
-  described action.
+  same scene for day or night), the weather (rain, fog, snow, wind — rendered as atmosphere,
+  staying outdoors), and the action's own transient damage or mess — a table split, a chair
+  toppled, a hearth scattered, spilled ale, a fire. Objects the action touches may be broken or
+  displaced; the room is never rearranged. (2) the protagonist's portrait — that same character,
+  in the described action.
 # Same, but with NO portrait attached (an appearance-changing effect is active): only the seed.
 scene_action_from_seed_solo: >-
   Attached reference: the establishing view of {location} — {sublocation}: this IS the picture
   — reproduce it unchanged (same camera, framing, architecture, furniture, props, colours,
   arrangement), then place the characters into it. Change nothing about the space itself,
   except the three things the moment legitimately changes: the time of day (relight the same
-  scene for day or night), the weather (rain, fog, snow, wind — the same room under a different
-  sky), and the action's own transient damage or mess — a table split, a chair toppled, a hearth
-  scattered, spilled ale, a fire. Objects the action touches may be broken or displaced; the
-  room is never rearranged.
+  scene for day or night), the weather (rain, fog, snow, wind — rendered as atmosphere, staying
+  outdoors), and the action's own transient damage or mess — a table split, a chair toppled, a
+  hearth scattered, spilled ale, a fire. Objects the action touches may be broken or displaced;
+  the room is never rearranged.
 # Appended to every action prompt: removing the previous-action reference stops the
 # model COPYING a figure, but not its habit of FILLING a room.
 scene_no_extra_figures: >-
@@ -147,15 +147,26 @@ scene_lighting_guard: >-
   over everything except the local light sources — a fire, a lamp, a lantern, a moonlit doorway —
   each throwing only a small pool of light around itself. No twilight, no dusk glow, no sunset
   colours, no ambient daylight, no blue hour.
+# Appended when the GM declares weather: weather is an outdoor phenomenon — precipitation
+# never falls inside an enclosed room (it shows through windows/doorways); fog/haze may.
+scene_weather_guard: >-
+  Weather is an outdoor phenomenon: rain and snow fall only where the sky is open. If this place
+  is an interior — the establishing view shows walls, a ceiling or a roof — keep precipitation
+  outside: show it only through the windows, doorways and other openings (streaks on the glass, a
+  sky beyond, weather-light falling through the opening) and keep the inside dry — no rain, snow,
+  puddles, drips or wet interior surfaces. Never draw rain or snow falling or pooling inside an
+  enclosed room. Fog, mist and haze may soften the interior air, but never as falling water. If the
+  place is genuinely open to the sky (a courtyard, a ruined roofless hall, an open-sided shelter),
+  render the weather directly where the sky is open.
 # Appended when the action is drawn from the place's seed: lock the space AND the camera.
 scene_layout_lock: >-
   The attached establishing view IS the scene: keep the same camera, framing, crop, architecture,
   walls, doors, windows, stairs, furniture, props, their positions, scale and proportions. Do not
   redesign, add, remove, resize, restyle or rearrange anything, and do not change the viewpoint,
   the framing or the composition. Only what the moment legitimately changes may differ: the time
-  of day (relight this identical scene for day or night), the weather (atmosphere only — it never
-  alters the space), and the transient damage or mess of the action (a table split, a chair
-  toppled, a fire, spilled ale). Then place the characters into that same space.
+  of day (relight this identical scene for day or night), the weather (atmosphere only — it stays
+  outdoors and never alters the space), and the transient damage or mess of the action (a table
+  split, a chair toppled, a fire, spilled ale). Then place the characters into that same space.
 # Appended with the layout lock: the seed image is the only source of the space — never
 # invent architecture it does not show, and drop a character who needs a missing element.
 scene_absent_element_guard: >-

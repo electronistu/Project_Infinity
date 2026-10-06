@@ -286,6 +286,17 @@ def main() -> bool:
         only_time = sc.action_prompt(PLAYER, "w", "d", "m", location="Loc", sublocation="sub", time_of_day="dusk")
         rec("action prompt keeps only the time when weather is empty",
             "Time of day: dusk." in only_time and "Weather:" not in only_time)
+        rec("declared weather -> the weather guard keeps it outdoors",
+            "Weather is an outdoor phenomenon" in tod
+            and "keep the inside dry" in tod
+            and "Fog, mist and haze may soften the interior air" in tod)
+        rec("weather guard is absent when no weather is declared",
+            "Weather is an outdoor phenomenon" not in plain
+            and "Weather is an outdoor phenomenon" not in only_time)
+        wet_portrait = sc.action_prompt(PLAYER, "world", "desc", "mood", location="Loc",
+                                        sublocation="sub", ref_kind="portrait", weather="rain")
+        rec("weather guard applies to a portrait-only action too",
+            "Weather is an outdoor phenomenon" in wet_portrait)
         cast = sc.action_prompt(PLAYER, "world", "desc", "mood", location="Loc", sublocation="sub",
                                 characters={"three dockhands": "drinking and turning to look",
                                             "the barkeep — a broad, one-eared woman": "talking"})
@@ -301,6 +312,8 @@ def main() -> bool:
         rec("the seed view IS the picture (reproduced, with the cast placed into it)",
             "this IS the picture" in seedref and "reproduce it unchanged" in seedref
             and "immediately preceding moment" not in seedref)
+        rec("the old 'room under a different sky' wording is gone",
+            "different sky" not in tod and "different sky" not in seedref)
         rec("action prompt forbids extra figures",
             "no other person" in seedref and "no other person" in ap)
         rec("action prompt forbids camera gaze",
@@ -318,6 +331,7 @@ def main() -> bool:
             "The attached establishing view IS the scene" in seedref
             and "do not change the viewpoint" in seedref
             and "weather (atmosphere only" in seedref
+            and "stays outdoors" in seedref
             and "transient damage or mess" in seedref
             and "camera may move closer" not in seedref)
         rec("protagonist guard turns the portrait's frontal pose into the action",
