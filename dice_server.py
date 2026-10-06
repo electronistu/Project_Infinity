@@ -1033,6 +1033,7 @@ def modify_player_numeric(key: str, delta: int) -> dict:
                         "delta": delta,
                         "clamped": True,
                         "message": f"Consumable '{consumable_name}' cannot go below 0. Set to 0.",
+                        "narrative_format": f"Consumable '{consumable_name}' set to 0 (cannot go below 0).",
                     }
                 del data[consumable_name]
                 cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", (root_key, json.dumps(data)))
@@ -1046,6 +1047,7 @@ def modify_player_numeric(key: str, delta: int) -> dict:
                     "item_depleted": True,
                     "depleted_item": consumable_name,
                     "message": f"DEPLETED — {consumable_name} has been used up and removed from consumables.",
+                    "narrative_format": f"DEPLETED — {consumable_name} has been used up and removed from consumables.",
                 }
 
             cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", (root_key, json.dumps(data)))
@@ -1106,6 +1108,8 @@ def modify_player_numeric(key: str, delta: int) -> dict:
                         f"You MUST still apply manually: class features, cantrips/spells, "
                         f"ability score improvements (at levels 4/8/12/16/19), and subclass features."
                     )
+        result["narrative_format"] = (result.get("level_up_summary")
+                                      or f"{key}: {current_val} → {new_val} ({delta:+d})")
         return result
     except Exception as e:
         return {"success": False, "error": f"Error modifying numeric value: {str(e)}", "key": key}
@@ -1354,6 +1358,7 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
                         "action": action,
                         "current_list": [e.get("name", str(e)) if isinstance(e, dict) else str(e) for e in current_list],
                         "reverted": reverted,
+                        "narrative_format": f"Removed active effect '{item}' and reverted its bonuses.",
                     }
                     return result_early
         else:
@@ -1415,6 +1420,16 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
                     f"'{added_name}' is not in the SRD weight catalog and no weight was given, so it "
                     f"counts as 0 lb. Re-add it with weight=<pounds> so carrying capacity stays accurate."
                 )
+
+        verb = "Removed from" if action == "remove" else "Added to"
+        narrative = f"{verb} {key}: {item}."
+        if result.get("carrying"):
+            status = result["carrying"].get("status")
+            if status:
+                narrative += f" Encumbrance: {status}."
+        if result.get("unequipped"):
+            narrative += f" {item} was worn or wielded, so it was unequipped."
+        result["narrative_format"] = narrative
 
         return result
     except Exception as e:
@@ -1766,7 +1781,7 @@ def request_scene_image(description: str, kingdom: str = "", area: str = "",
                         location: str = "", sublocation: str = "",
                         time_of_day: str = "", weather: str = "",
                         characters: dict[str, str] | None = None,
-                        establishing: str = "", main_npc: dict | None = None,
+                        establishing: str = "", main_npcs: list[dict] | None = None,
                         npcs: list[dict] | None = None,
                         seed_change: str = "", mood: str = "") -> dict:
     """Request a storyline illustration of the turn's moment. Emit exactly one per
@@ -1816,16 +1831,20 @@ def request_scene_image(description: str, kingdom: str = "", area: str = "",
       exist yet. It must be empty and unpopulated — no people, creatures or animals — and
       weather-free and timeless: no rain, fog or snow, and no time of day ('at dusk'), because
       the seed is permanent and weather-neutral; those belong in `weather` / `time_of_day`.
-    - main_npc: the place's main NPC, given at seed creation as {'name': ...,
-      'description': ...}. The description is the stable look (gender, build, distinguishing
-      features) plus any helpers/aides/partners (e.g. {'name': 'Gorson', 'description': 'a
-      burly, grey-bearded smith with a burn-scarred left hand; two apprentices'}). Pass {} if
-      the place has no main NPC. Declared ONLY when creating the seed; afterwards refer to
-      them by name in `characters`.
+    - main_npcs: the place's main NPCs, given ONLY when creating the seed, as a LIST of
+      {'name': ..., 'role': ..., 'description': ...} — one person per entry (e.g. the
+      innkeeper and her grandson are two entries; a smith with two apprentices is the smith
+      plus an entry for each apprentice). `role` is that person's function in the place
+      ('the innkeeper', 'the smith', 'the table-runner'), and it is shown back to you in the
+      KNOWN IMAGE PLACES list. `description` is the stable PHYSICAL look only — gender,
+      build, distinguishing features, clothing/gear they always wear; never a pose, a
+      position in the room, a current action, or a helper. Pass [] if the place has none.
+      Afterwards refer to each by name in `characters`.
     - npcs: recurring storyline NPCs declared in this same call, as a list of {'name': ...,
-      'description': ...}. Use it when someone recurring first appears; the same names can
-      also be declared ahead of time with register_npcs. After that, use the NAME ONLY
-      everywhere — never repeat the description.
+      'description': ...}. `description` is the stable physical look only (never a pose or an
+      action — the same rule as `main_npcs`). Use it when someone recurring first appears; the
+      same names can also be declared ahead of time with register_npcs. After that, use the
+      NAME ONLY everywhere — never repeat the description.
     - seed_change: a PERMANENT change to the place (e.g. 'it burned down'). Regenerates the
       hidden seed immediately, so this image and every later one already show the change.
     - mood: a short mood word for the light/atmosphere.
@@ -1850,11 +1869,10 @@ def request_scene_image(description: str, kingdom: str = "", area: str = "",
         "location": location or "",
         "sublocation": sublocation or "",
         "characters": len(characters) if isinstance(characters, dict) else 0,
-        "main_npc": (main_npc or {}).get("name", "") if isinstance(main_npc, dict) else "",
+        "main_npcs": len(main_npcs) if isinstance(main_npcs, list) else 0,
         "npcs": len(npcs) if isinstance(npcs, list) else 0,
         "seed_requested": bool(establishing or seed_change),
-        "note": ("The illustration will appear with your narrative. Do NOT mention "
-                 "this tool or its result in the Mechanics block."),
+        "note": "The illustration will appear with your narrative.",
     }
 
 
@@ -1869,9 +1887,10 @@ def register_npcs(npcs: list[dict]) -> dict:
     PARAMETERS:
     - npcs: a list of {'name': ..., 'description': ...} dicts. `name` is the exact name you will
       keep using (a person's name, or a stable handle like 'the harbourmaster'). `description`
-      is the stable look: gender, build, distinguishing features, clothing/role-defining gear
-      (e.g. {'name': 'Maera', 'description': 'a broad, one-eared woman with iron-grey braids,
-      leaning on the bar'}).
+      is the stable PHYSICAL look only: gender, build, distinguishing features,
+      clothing/role-defining gear — never a pose, a position in the room or a current action,
+      and never a second person (e.g. {'name': 'Maera', 'description': 'a broad, one-eared
+      woman with iron-grey braids'}).
 
     Re-declaring an existing name updates its description. Use request_scene_image's `npcs`
     field instead when you are also requesting the illustration in the same call.
@@ -2427,6 +2446,69 @@ def _conditions_for(cursor, name, is_player=False) -> set:
     return _registry_conditions(name)
 
 
+def _is_player_name(cursor, name) -> bool:
+    """True when `name` is the player (registry is_player flag, else the save's name)."""
+    entry = _COMBAT_REGISTRY.get(name)
+    if isinstance(entry, dict) and entry.get("is_player"):
+        return True
+    if cursor is None or not name:
+        return False
+    return (str(name).strip().lower()
+            == str(_db_val(cursor, "name", "") or "").strip().lower())
+
+
+def _combatant_hp(cursor, name):
+    """(current, max) HP for a combatant, from the player sheet or the registry."""
+    if _is_player_name(cursor, name):
+        cur = int(_db_val(cursor, "current_hit_points", 0) or 0)
+        mx = int(_db_val(cursor, "total_hit_points", cur) or cur)
+        return cur, mx
+    reg = _registry_hp(name)
+    if reg is None:
+        return None, None
+    return reg, (_registry_max_hp(name) or reg)
+
+
+def _apply_combat_condition(cursor, name, condition):
+    """Add an SRD condition to a registered combatant (or the player's sheet).
+
+    Respects a registry NPC's `condition_immunities`. Returns `(status, reason)` with
+    status one of 'added' / 'present' / 'immune' / 'not_registered'.
+    """
+    cond = str(condition or "").strip().lower()
+    if not cond or not name:
+        return "not_registered", None
+    entry = _COMBAT_REGISTRY.get(name)
+    if entry is None:
+        if cursor is not None and _is_player_name(cursor, name):
+            current = _player_conditions(cursor)
+            if cond in current:
+                return "present", None
+            _db_set(cursor, "conditions", sorted(current | {cond}))
+            DB_CONNECTION.commit()
+            return "added", None
+        return "not_registered", None
+    if entry.get("is_player"):
+        if cursor is None:
+            return "not_registered", None
+        current = _player_conditions(cursor)
+        if cond in current:
+            return "present", None
+        current = current | {cond}
+        _db_set(cursor, "conditions", sorted(current))
+        entry["conditions"] = sorted(current)
+        DB_CONNECTION.commit()
+        return "added", None
+    immunities = {str(c).strip().lower() for c in (entry.get("condition_immunities") or [])}
+    if cond in immunities:
+        return "immune", None
+    current = {str(c).strip().lower() for c in (entry.get("conditions") or [])}
+    if cond in current:
+        return "present", None
+    entry["conditions"] = sorted(current | {cond})
+    return "added", None
+
+
 def _condition_attack_effects(attacker_conditions, target_conditions, ranged=False):
     """(advantage?, disadvantage?, force_crit?, sources) from conditions on both sides."""
     advantage = disadvantage = force_crit = False
@@ -2614,6 +2696,81 @@ def _player_registry_entry(cursor) -> dict:
     }
 
 
+def _fmt_attack(a) -> str:
+    """One attack as a readable line: 'Dagger +4, 1d4+2 piercing (Finesse, reach 5)'."""
+    name = str(a.get("name") or "attack")
+    bonus = a.get("attack_bonus")
+    hit = f"{int(bonus):+d}" if isinstance(bonus, (int, float)) else ""
+    dmg = str(a.get("damage_dice") or a.get("damage") or "").strip()
+    mod = a.get("damage_modifier")
+    if isinstance(mod, (int, float)) and mod:
+        dmg += f"{int(mod):+d}"
+    dtype = str(a.get("damage_type") or "").strip()
+    reach = a.get("reach")
+    props = [str(p) for p in (a.get("properties") or [])]
+    if reach:
+        props.append(f"reach {reach}")
+    detail = ", ".join(p for p in (f"{dmg} {dtype}".strip(), *props) if p)
+    head = " ".join(p for p in (name, hit) if p)
+    return f"{head}, {detail}" if detail else head
+
+
+def _combatant_sheet_lines(name, entry) -> list[str]:
+    """The full declared sheet of a registry NPC, for the client's name tooltip (never the player)."""
+    lines = [f"{name} — {entry.get('role') or 'hostile'}"]
+    vitals = [f"HP {entry['current_hp']}/{entry['max_hp']}", f"AC {entry['ac']}"]
+    if entry.get("speed") is not None:
+        vitals.append(f"Speed {entry['speed']}")
+    if entry.get("challenge_rating") is not None:
+        vitals.append(f"CR {entry['challenge_rating']}")
+    lines.append("  " + "  ".join(vitals))
+    saves = entry.get("saves") or {}
+    if saves:
+        lines.append("  Saves: " + ", ".join(f"{k.upper()} {int(v):+d}" for k, v in saves.items()))
+    attacks = entry.get("attacks") or []
+    if attacks:
+        lines.append("  Attacks: " + "; ".join(_fmt_attack(a) for a in attacks))
+    if int(entry.get("multiattack") or 1) > 1:
+        lines.append(f"  Multiattack: {entry['multiattack']}")
+    sc = entry.get("spellcasting")
+    if isinstance(sc, dict) and sc:
+        lines.append("  Spellcasting: " + json.dumps(sc, ensure_ascii=True))
+    traits = entry.get("traits") or []
+    if traits:
+        lines.append("  Traits: " + "; ".join(str(t) for t in traits))
+    for label, key in (("Resistances", "damage_resistances"), ("Immunities", "damage_immunities"),
+                       ("Vulnerabilities", "damage_vulnerabilities"),
+                       ("Condition immunities", "condition_immunities")):
+        vals = entry.get(key) or []
+        if vals:
+            lines.append(f"  {label}: " + ", ".join(str(v) for v in vals))
+    if entry.get("conditions"):
+        lines.append("  Conditions: " + ", ".join(str(c) for c in entry["conditions"]))
+    return lines
+
+
+def _registry_summary_list() -> list[dict]:
+    """The compact roster the engine forwards to the client for the combatant tooltips."""
+    out: list[dict] = []
+    for rname, entry in _COMBAT_REGISTRY.items():
+        summary = {
+            "name": rname,
+            "hp": f"{entry['current_hp']}/{entry['max_hp']}",
+            "ac": entry["ac"],
+            "initiative": entry["initiative_total"],
+            "is_player": entry.get("is_player", False),
+            "role": entry.get("role", "hostile"),
+        }
+        if entry.get("speed") is not None:
+            summary["speed"] = entry["speed"]
+        if entry.get("challenge_rating") is not None:
+            summary["cr"] = entry["challenge_rating"]
+        if entry.get("conditions"):
+            summary["conditions"] = entry["conditions"]
+        out.append(summary)
+    return out
+
+
 @mcp.tool()
 def register_combatants(combatants: list[dict], add_to_existing: bool = False) -> dict:
     """
@@ -2661,6 +2818,10 @@ def register_combatants(combatants: list[dict], add_to_existing: bool = False) -
     4. Conditions declared here and changed via update_combatant drive advantage/disadvantage, auto
        failures and critical hits against helpless targets (blinded, prone, restrained, paralyzed,
        petrified, stunned, unconscious, poisoned, frightened, invisible).
+    5. narrative_format is a single line ending in "Initiative Order"; the player sees it as a
+       hover tooltip, and each NPC's FULL stat sheet rides a separate `sheets` payload shown as
+       client-side name tooltips. Never dump a stat block or the order into prose; HP is not
+       restated there either.
 
     EXAMPLES:
     register_combatants(combatants=[
@@ -2731,47 +2892,37 @@ def register_combatants(combatants: list[dict], add_to_existing: bool = False) -
                 "is_player": False,
             })
 
-    registry_summary = []
-    for rname, entry in _COMBAT_REGISTRY.items():
-        summary = {
-            "name": rname,
-            "hp": f"{entry['current_hp']}/{entry['max_hp']}",
-            "ac": entry["ac"],
-            "initiative": entry["initiative_total"],
-            "is_player": entry.get("is_player", False),
-            "role": entry.get("role", "hostile"),
-        }
-        if entry.get("conditions"):
-            summary["conditions"] = entry["conditions"]
-        registry_summary.append(summary)
+    registry_summary = _registry_summary_list()
+    total = len(_COMBAT_REGISTRY)
 
-    narrative_parts = [f"Combatants registered ({len(_COMBAT_REGISTRY)} total)."]
+    new_npc_names = [c["name"] for c in combatants
+                     if not (_COMBAT_REGISTRY.get(c["name"], {}).get("is_player"))]
+    sheets = []
+    for nname in new_npc_names:
+        entry = _COMBAT_REGISTRY.get(nname)
+        if entry is not None:
+            sheets.append({"name": nname, "lines": _combatant_sheet_lines(nname, entry)})
 
     if add_to_existing:
         added_names = [c["name"] for c in combatants]
-        narrative_parts.append(f"Added to existing registry: {', '.join(added_names)}")
         return {
             "success": True,
             "registry_summary": registry_summary,
-            "narrative_format": "\n".join(narrative_parts),
+            "sheets": sheets,
+            "narrative_format": (f"Combatants registered ({total} total). "
+                                 f"Added to existing registry: {', '.join(added_names)}"),
         }
 
     initiative_results.sort(key=lambda r: (-r["total"], r["name"]))
     order = [r["name"] for r in initiative_results]
-
-    narrative_parts.append("Initiative Order:")
-    for i, r in enumerate(initiative_results, 1):
-        tag = " (Player)" if r["is_player"] else ""
-        narrative_parts.append(
-            f"  {i}. {r['name']}{tag}: {r['total']} ({r['roll']} + {r['modifier']})"
-        )
 
     return {
         "success": True,
         "initiative": initiative_results,
         "initiative_order": order,
         "registry_summary": registry_summary,
-        "narrative_format": "\n".join(narrative_parts),
+        "sheets": sheets,
+        "narrative_format": f"Combatants registered ({total} total). Initiative Order",
     }
 
 
@@ -2794,8 +2945,11 @@ def update_combatant(name: str, conditions_add: list[str] | None = None,
     1. Conditions drive the engine automatically: blinded/prone/restrained/poisoned/frightened/
        invisible modify attack rolls, paralyzed/petrified/stunned/unconscious auto-fail STR/DEX
        saves and are hit critically in melee, petrified resists all damage.
-    2. The player's conditions are stored on their sheet; use modify_player_numeric for player HP.
-    3. There is no end-combat call — declare a new registry with register_combatants when one is
+    2. A condition a TOOL applied (a spell's Paralyzed, Sleep's Unconscious) is already on the
+       combatant — never re-declare it. Adding one that is already present returns it under
+       `already_present` and changes nothing.
+    3. The player's conditions are stored on their sheet; use modify_player_numeric for player HP.
+    4. There is no end-combat call — declare a new registry with register_combatants when one is
        needed.
 
     EXAMPLES:
@@ -2812,6 +2966,7 @@ def update_combatant(name: str, conditions_add: list[str] | None = None,
     is_player = bool(entry.get("is_player"))
     notes = []
     blocked = []
+    already_present = []
 
     if is_player:
         if DB_CONNECTION is None:
@@ -2830,6 +2985,8 @@ def update_combatant(name: str, conditions_add: list[str] | None = None,
         if key in immunities:
             blocked.append({"condition": key, "reason": "immune"})
             continue
+        if key in current:
+            already_present.append(key)
         current.add(key)
     for condition in conditions_remove or []:
         current.discard(str(condition).strip().lower())
@@ -2860,16 +3017,25 @@ def update_combatant(name: str, conditions_add: list[str] | None = None,
                 elif int(hp_delta) > 0:
                     entry["killed"] = False
 
-    narrative = f"{name}: {entry['current_hp']}/{entry['max_hp']} HP, AC {entry['ac']}"
+    # HP is shown only when this call actually moved it; otherwise the client tooltip
+    # carries the live HP (conditions + AC are the new state here).
+    bits = [f"AC {entry['ac']}"]
+    if hp_delta is not None and not is_player:
+        bits.insert(0, f"{entry['current_hp']}/{entry['max_hp']} HP")
+    narrative = f"{name}: " + ", ".join(bits)
     if current:
         narrative += f" — {', '.join(current)}"
     if blocked:
         narrative += f" (immune to {', '.join(b['condition'] for b in blocked)})"
+    if already_present:
+        narrative += f" ({', '.join(already_present)} already present — no change)"
     return {
         "success": True, "name": name, "is_player": is_player,
         "hp": f"{entry['current_hp']}/{entry['max_hp']}", "ac": entry["ac"],
         "conditions": current, "blocked_conditions": blocked,
+        "already_present": already_present,
         "note": " ".join(notes) or None,
+        "registry_summary": _registry_summary_list(),
         "narrative_format": narrative,
     }
 
@@ -3198,7 +3364,8 @@ def resolve_attack(
             result["target_killed"] = None
             if is_npc_vs_npc:
                 result["npc_vs_npc"] = True
-            result["narrative_format"] = narrative_parts[0]
+            result["narrative_format"] = "\n".join(narrative_parts)
+            result["registry_summary"] = _registry_summary_list()
             return result
 
         primary_die_size, primary_rolls, primary_sum = _parse_and_roll_dice(damage_dice)
@@ -3305,10 +3472,6 @@ def resolve_attack(
                     narrative_parts.append(f"{target_name} HP: 0{display_max} (KILLED)")
                 else:
                     result["target_killed"] = False
-                    if target_name:
-                        max_hp = _registry_max_hp(target_name)
-                        display_max = f"/{max_hp}" if max_hp else ""
-                        narrative_parts.append(f"{target_name} HP: {target_remaining}{display_max}")
             else:
                 result["target_killed"] = None
         elif not is_npc_attack and not is_npc_vs_npc:
@@ -3335,10 +3498,6 @@ def resolve_attack(
                     narrative_parts.append(f"{target_name} HP: 0{display_max} (KILLED)")
                 else:
                     result["target_killed"] = False
-                    if target_name:
-                        max_hp = _registry_max_hp(target_name)
-                        display_max = f"/{max_hp}" if max_hp else ""
-                        narrative_parts.append(f"{target_name} HP: {target_remaining}{display_max}")
 
                 if result.get("target_killed") and challenge_rating is not None:
                     xp_awarded = CR_XP_TABLE.get(challenge_rating, 0)
@@ -3356,6 +3515,7 @@ def resolve_attack(
             result["target_killed"] = None
 
         result["narrative_format"] = "\n".join(narrative_parts)
+        result["registry_summary"] = _registry_summary_list()
 
         return result
 
@@ -3558,7 +3718,32 @@ def _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_re
 
     if buffs_applied:
         result["buffs_applied"] = buffs_applied
+
+    # A condition a spell applied is written onto the combatant here, so the GM never has to
+    # re-declare it with update_combatant (update_combatant stays available to remove it later).
+    cond = result.get("condition")
+    cond_targets = result.get("condition_targets")
+    if cond and isinstance(cond_targets, list) and cond_targets:
+        ccur = DB_CONNECTION.cursor() if DB_CONNECTION is not None else None
+        applied, refused = [], []
+        for tname in cond_targets:
+            status, _reason = _apply_combat_condition(ccur, tname, cond)
+            if status == "added":
+                applied.append(tname)
+            elif status in ("immune", "not_registered"):
+                refused.append(tname)
+        if applied:
+            result["conditions_applied"] = applied
+            dur = result.get("condition_duration") or "until ended"
+            who = ", ".join(applied)
+            result["condition_reminder"] = (
+                f"[GM: {who} — {cond} ({dur}). Remove with "
+                f"update_combatant(name=..., conditions_remove=['{cond}']) when it ends.]")
+        if refused:
+            result["conditions_refused"] = refused
+
     result["narrative_format"] = "\n".join(narrative_parts)
+    result["registry_summary"] = _registry_summary_list()
     return result
 
 
@@ -3684,7 +3869,6 @@ def _resolve_projectile_spell(
             if dealt > 0 and cursor:
                 hp_result = _apply_hp_change(cursor, -dealt)
                 tr["hp_change"] = hp_result
-                hp_lines.append(f"{name} HP: {hp_result['hp_status']}")
             target_results.append(tr)
             continue
         chp = e["current_hp"]
@@ -3706,8 +3890,6 @@ def _resolve_projectile_spell(
                 if xp > 0:
                     total_xp += xp
                     tr["xp_awarded"] = xp
-        else:
-            hp_lines.append(f"{name} HP: {max(remaining, 0)}{display_max}")
         target_results.append(tr)
 
     # ── 4. Breakdown narrative ──
@@ -4398,11 +4580,11 @@ def resolve_magic(
                     if is_player and cursor:
                         hp_result = _apply_hp_change(cursor, delta) if delta > 0 else None
                         healed_list.append({"name": tname, "healing": delta, "hp_change": hp_result})
-                        narrative_parts.append(f"{tname} HP: {hp_result['hp_status']}" if hp_result else f"{tname} HP: already full ({max_hp}/{max_hp})")
+                        narrative_parts.append(f"{tname} healed for {delta} HP" if hp_result else f"{tname} already at full HP")
                     elif not is_player and tname:
                         _registry_update_hp(tname, max_hp)
                         healed_list.append({"name": tname, "healing": delta, "remaining_hp": max_hp, "max_hp": max_hp})
-                        narrative_parts.append(f"{tname} HP: {max_hp}/{max_hp} (fully restored)")
+                        narrative_parts.append(f"{tname} fully restored ({delta} HP)")
                 result["targets_healed"] = healed_list
             elif target_name:
                 registry_hp = _registry_hp(target_name)
@@ -4411,7 +4593,7 @@ def resolve_magic(
                     new_hp = max_hp
                     _registry_update_hp(target_name, new_hp)
                     result["target_healed"] = {"name": target_name, "healing": new_hp - registry_hp, "remaining_hp": new_hp, "max_hp": max_hp}
-                    narrative_parts.append(f"{target_name} HP: {new_hp}/{max_hp} (fully restored)")
+                    narrative_parts.append(f"{target_name} fully restored ({new_hp - registry_hp} HP)")
                 else:
                     full_hp = int(_db_val(cursor, "total_hit_points", 0))
                     hp_result = _apply_hp_change(cursor, full_hp - int(_db_val(cursor, "current_hit_points", 0))) if cursor else None
@@ -4424,7 +4606,7 @@ def resolve_magic(
                 hp_result = _apply_hp_change(cursor, delta) if cursor and delta > 0 else None
                 if hp_result:
                     result["hp_change"] = hp_result
-                    narrative_parts.append(f"HP: {hp_result['hp_status']}")
+                    narrative_parts.append(f"Healed {delta} HP")
 
             result["healing_rolls"] = []
             result["damage_type"] = sp_damage_type
@@ -4457,11 +4639,11 @@ def resolve_magic(
                     delta = new_hp - tchp
                     hp_result = _apply_hp_change(cursor, delta)
                     healed_list.append({"name": tname, "healing": delta, "hp_change": hp_result})
-                    narrative_parts.append(f"{tname} HP: {hp_result['hp_status']}")
+                    narrative_parts.append(f"{tname} healed for {delta} HP")
                 elif not is_player and tname:
                     _registry_update_hp(tname, new_hp)
                     healed_list.append({"name": tname, "healing": new_hp - tchp, "remaining_hp": new_hp, "max_hp": max_hp})
-                    narrative_parts.append(f"{tname} HP: {new_hp}/{max_hp}")
+                    narrative_parts.append(f"{tname} healed for {new_hp - tchp} HP")
             result["targets_healed"] = healed_list
         elif target_name:
             registry_hp = _registry_hp(target_name)
@@ -4470,7 +4652,7 @@ def resolve_magic(
                 new_hp = min(registry_hp + total_healing, max_hp)
                 _registry_update_hp(target_name, new_hp)
                 result["target_healed"] = {"name": target_name, "healing": new_hp - registry_hp, "remaining_hp": new_hp, "max_hp": max_hp}
-                narrative_parts.append(f"{target_name} HP: {new_hp}/{max_hp}")
+                narrative_parts.append(f"{target_name} healed for {new_hp - registry_hp} HP")
             else:
                 hp_result = _apply_hp_change(cursor, total_healing) if cursor else None
                 if hp_result:
@@ -4523,18 +4705,22 @@ def resolve_magic(
                 name = t.get("name", "Unknown")
                 chp = t.get("current_hp", 0)
                 if chp <= remaining_pool:
-                    affected.append({"name": name})
+                    affected.append({"name": name, "hp": chp})
                     remaining_pool -= chp
                 else:
-                    unaffected.append({"name": name})
+                    unaffected.append({"name": name, "hp": chp})
             result["targets_affected"] = affected
             result["targets_unaffected"] = unaffected
             result["hp_pool_remaining"] = remaining_pool
+            if sp_condition and affected:
+                result["condition_targets"] = [t["name"] for t in affected]
 
             for t in affected:
-                narrative_parts.append(f"{t['name']}: Affected — {sp_condition} ({sp_condition_duration})")
+                narrative_parts.append(
+                    f"{t['name']}: Affected — {sp_condition} ({sp_condition_duration})")
             for t in unaffected:
-                narrative_parts.append(f"{t['name']}: Unaffected — HP exceeds remaining pool ({remaining_pool})")
+                narrative_parts.append(
+                    f"{t['name']}: Unaffected — HP exceeds remaining pool ({remaining_pool})")
         elif sp_condition:
             narrative_parts.append(f"Condition: {sp_condition} ({sp_condition_duration})")
 
@@ -4614,6 +4800,7 @@ def resolve_magic(
         target_results = []
         killed_count = 0
         save_name = sp_save_type.upper() if sp_save_type else "SAVE"
+        condition_targets = []
 
         for t in targets:
             tname = t.get("name", "Unknown")
@@ -4670,6 +4857,7 @@ def resolve_magic(
                 )
                 if sp_no_damage and sp_condition:
                     narrative_parts.append(f"{tname}: Affected — {sp_condition} ({sp_condition_duration})")
+                    condition_targets.append(tname)
 
             # SRD resistances/immunities/vulnerabilities, after any save halving.
             if not sp_healing and not is_player and t_damage > 0:
@@ -4689,10 +4877,6 @@ def resolve_magic(
                 max_hp = _registry_max_hp(tname) if tname else 0
                 display_max = f"/{max_hp}" if max_hp else ""
                 narrative_parts.append(f"{tname} HP: 0{display_max} (KILLED)")
-            elif tchp > 0:
-                max_hp = _registry_max_hp(tname) if tname else 0
-                display_max = f"/{max_hp}" if max_hp else ""
-                narrative_parts.append(f"{tname} HP: {remaining}{display_max}")
 
             tr = {"name": tname, "save_roll": save_d20, "save_modifier": tsave,
                    "save_total": save_total, "save_success": save_success,
@@ -4707,8 +4891,6 @@ def resolve_magic(
             if is_player and t_damage > 0 and cursor:
                 hp_result = _apply_hp_change(cursor, -t_damage)
                 tr["hp_change"] = hp_result
-                if tname:
-                    narrative_parts.append(f"{tname} HP: {hp_result['hp_status']}")
 
             if killed and tcr is not None:
                 xp = CR_XP_TABLE.get(tcr, 0)
@@ -4721,6 +4903,13 @@ def resolve_magic(
         result["targets"] = target_results
         if not sp_healing:
             result["killed_count"] = killed_count
+        if sp_condition and condition_targets:
+            result["condition"] = sp_condition
+            if sp_condition_duration:
+                result["condition_duration"] = sp_condition_duration
+            if sp_requires_concentration:
+                result["requires_concentration"] = True
+            result["condition_targets"] = condition_targets
 
         if total_xp > 0 and not is_npc_attack and not is_npc_vs_npc and cursor:
             xp_result = modify_player_numeric(key="xp", delta=total_xp)
@@ -4788,6 +4977,12 @@ def resolve_magic(
                     narrative_parts.append(f"{saver_name} saved — no damage.")
         elif sp_no_damage and sp_condition:
             narrative_parts.append(f"{saver_name}: Affected — {sp_condition} ({sp_condition_duration})")
+            result["condition"] = sp_condition
+            if sp_condition_duration:
+                result["condition_duration"] = sp_condition_duration
+            if sp_requires_concentration:
+                result["requires_concentration"] = True
+            result["condition_targets"] = [saver_name]
         if auto_fail:
             result["save_auto_failed"] = True
 
@@ -4834,10 +5029,6 @@ def resolve_magic(
                 narrative_parts.append(f"{target_name} HP: 0{display_max} (KILLED)")
             else:
                 result["target_killed"] = False
-                if target_name:
-                    max_hp = _registry_max_hp(target_name)
-                    display_max = f"/{max_hp}" if max_hp else ""
-                    narrative_parts.append(f"{target_name} HP: {target_remaining}{display_max}")
         else:
             result["target_killed"] = None
         result["npc_vs_npc"] = True
@@ -4850,7 +5041,7 @@ def resolve_magic(
             new_hp = min(registry_hp + total_damage, max_hp)
             _registry_update_hp(target_name, new_hp)
             result["target_healed"] = {"name": target_name, "healing": new_hp - registry_hp, "remaining_hp": new_hp, "max_hp": max_hp}
-            narrative_parts.append(f"{actor} heals {target_name} for {new_hp - registry_hp} HP ({new_hp}/{max_hp})")
+            narrative_parts.append(f"{actor} heals {target_name} for {new_hp - registry_hp} HP")
         else:
             narrative_parts.append(f"{actor} heals {target_name or 'target'} for {total_damage} HP.")
     elif not is_npc_attack and not is_npc_vs_npc and not sp_healing:
@@ -4886,13 +5077,6 @@ def resolve_magic(
                 narrative_parts.append(f"{target_name} HP: 0{display_max} (KILLED)")
             else:
                 result["target_killed"] = False
-                if target_name:
-                    if db_target and result.get("hp_change"):
-                        narrative_parts.append(f"{target_name} HP: {result['hp_change']['hp_status']}")
-                    else:
-                        max_hp = _registry_max_hp(target_name)
-                        display_max = f"/{max_hp}" if max_hp else ""
-                        narrative_parts.append(f"{target_name} HP: {target_remaining}{display_max}")
 
             if result.get("target_killed") and challenge_rating is not None:
                 xp_awarded = CR_XP_TABLE.get(challenge_rating, 0)
@@ -4913,12 +5097,12 @@ def resolve_magic(
             new_hp = min(registry_hp + total_damage, max_hp)
             _registry_update_hp(target_name, new_hp)
             result["target_healed"] = {"name": target_name, "healing": new_hp - registry_hp, "remaining_hp": new_hp, "max_hp": max_hp}
-            narrative_parts.append(f"{target_name} HP: {new_hp}/{max_hp}")
+            narrative_parts.append(f"{target_name} healed for {new_hp - registry_hp} HP")
         else:
             hp_result = _apply_hp_change(cursor, total_damage) if cursor else None
             if hp_result:
                 result["hp_change"] = hp_result
-                narrative_parts.append(f"Healed {target_name}: {hp_result['hp_status']}")
+                narrative_parts.append(f"Healed {target_name} for {total_damage} HP")
     else:
         result["target_killed"] = None
         if is_npc_vs_npc:

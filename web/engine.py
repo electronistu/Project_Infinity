@@ -81,12 +81,6 @@ def _max_timeline_turn(text: str) -> int:
     return highest
 
 PAUSE_TOKENS = ("{{_NEED_AN_OTHER_PROMPT}}", "{{_NEED_ANOTHER_PROMPT}}")
-
-# "**END MECHANICS**" on its own line (see GameMaster_MCP.md narrative_phase).
-MECHANICS_MARKER_RE = re.compile(
-    r"^[ \t]*\*{0,2}[ \t]*end(?:\s+of)?\s+mechanics:?[ \t]*\*{0,2}[ \t]*$",
-    re.IGNORECASE | re.MULTILINE,
-)
 MAX_THINKING_RETRIES = 3
 DEFAULT_CONTEXT_WINDOW = 1_048_576
 
@@ -130,6 +124,9 @@ NPC_TOOL = "register_npcs"
 # carries prose plus only these tools is the turn's last word: the tool loop must
 # NOT run another model round, or the GM re-narrates the whole turn.
 NARRATIVE_PHASE_TOOLS = frozenset({SCENE_TOOL})
+# Tools whose result may change the combat roster the client shows as tooltips.
+COMBAT_TOOLS = frozenset({"register_combatants", "update_combatant", "resolve_attack",
+                          "resolve_magic"})
 # Scene-imagery instructions live in GameMaster_MCP.md between these markers;
 # they are sent to the GM only when storyline image generation is enabled.
 _SCENE_BLOCK = re.compile(
@@ -160,12 +157,20 @@ def format_known_places(places: list[dict]) -> str:
             lines.append(f"        - {p['location']}")
             last_l = p["location"]
         desc = f" — {p['description']}" if p["description"] else ""
-        npc_info = p.get("main_npc") or {}
-        if isinstance(npc_info, dict):
-            npc_name = str(npc_info.get("name") or npc_info.get("description") or "").strip()
+        npc_labels: list[str] = []
+        for npc in (p.get("main_npcs") or []):
+            if not isinstance(npc, dict):
+                continue
+            name = str(npc.get("name") or "").strip()
+            if not name:
+                continue
+            role = str(npc.get("role") or "").strip()
+            npc_labels.append(f"{name} ({role})" if role else name)
+        if npc_labels:
+            label = "main NPC" if len(npc_labels) == 1 else "main NPCs"
+            npc = f" · {label}: " + ", ".join(npc_labels)
         else:
-            npc_name = str(npc_info).strip()
-        npc = f" · main NPC: {npc_name}" if npc_name else ""
+            npc = ""
         lines.append(f"            - {p['sublocation'] or '(whole place)'}{desc}{npc}")
     return "\n".join(lines)
 
@@ -185,12 +190,86 @@ def filter_tools(tools: list[dict], scene_images: bool) -> list[dict]:
             if (t.get("function") or {}).get("name") not in (SCENE_TOOL, NPC_TOOL)]
 
 
+# ── What the GM is shown of a tool result ─────────────────────────────────
+#
+# Tool results carry only what the GM does not already hold: the event/delta, the
+# exact mechanics, and errors that explain what happened. The base sheet is already
+# in context (dump_player_db), so state snapshots (`equipment`, the carrying
+# breakdown, a full inventory list) are not re-sent. The FULL result still goes to the
+# client (the tool_result event) for debugging; only the copy appended to the GM
+# conversation is trimmed. Tools not listed here pass through untouched.
+_GM_VIEW_KEEP: dict[str, tuple[str, ...]] = {
+    "modify_player_numeric": (
+        "success", "key", "old_value", "new_value", "delta", "clamped",
+        "item_depleted", "depleted_item", "level_up", "old_level", "new_level",
+        "level_up_changes", "level_up_summary", "hp_status", "message",
+        "remaining_slots"),
+    "update_player_list": (
+        "success", "key", "item", "action", "unequipped", "note", "warning",
+        "unknown_base", "unweighed_item", "reverted", "spells_prepared_info"),
+    "equip_item": (
+        "success", "action", "item", "armor_class_before", "armor_class_after",
+        "warnings", "time_cost", "already_equipped", "equipped", "held",
+        "occupied", "worn", "slot"),
+    "attune_item": (
+        "success", "action", "item", "attuned", "attunement_slots_free",
+        "warnings", "already_attuned"),
+    "rest": ("success", "rest_type", "changes", "hints"),
+    "register_combatants": ("success", "initiative_order", "registry_summary"),
+    "update_combatant": ("success", "name", "is_player", "hp", "ac", "conditions",
+                         "blocked_conditions", "already_present", "note"),
+    # Acknowledgements: the GM just made the call, so only the outcome is new.
+    "request_scene_image": ("status", "note"),
+    "register_npcs": ("status", "count", "note"),
+}
+# Added on failure so the GM can explain and act on a refused/wrong call.
+_GM_VIEW_ERROR_EXTRA = (
+    "error", "reason", "gm_instruction", "turn_lost", "action_consumed",
+    "current_items", "held", "occupied", "worn", "slot", "available_keys",
+    "attuned", "attunement_slots_free")
+# `carrying` is reduced to the one-line state that drives disadvantage.
+_GM_VIEW_CARRYING = ("status", "speed_penalty", "carried", "capacity")
+
+
+def _gm_tool_view(name: str, text: str) -> str:
+    """The trimmed result the GM sees, as JSON (falls back to `text` when not a dict).
+
+    Listed tools keep only their new-info keys; every other tool passes its mechanics
+    through, but the heavy state snapshots (`equipment`, `current_list`, the full
+    `carrying` breakdown) are always dropped — the GM already holds the sheet."""
+    try:
+        payload = json.loads(text)
+    except (json.JSONDecodeError, TypeError):
+        return text
+    if not isinstance(payload, dict):
+        return text
+    if name in _GM_VIEW_KEEP:
+        keys = list(_GM_VIEW_KEEP[name])
+        if payload.get("success", True) is False:
+            keys += list(_GM_VIEW_ERROR_EXTRA)
+        view = {k: payload[k] for k in dict.fromkeys(keys) if k in payload}
+    else:
+        view = dict(payload)
+    # Always drop the state the GM already holds, and the mechanics disclosure itself (the
+    # engine composes that block from narrative_format — the GM never transcribes it).
+    view.pop("equipment", None)
+    view.pop("current_list", None)
+    view.pop("registry_summary", None)
+    view.pop("sheets", None)
+    view.pop("narrative_format", None)
+    carry = payload.get("carrying")
+    if isinstance(carry, dict):
+        slim = {k: carry[k] for k in _GM_VIEW_CARRYING if k in carry}
+        if slim:
+            view["carrying"] = slim
+        else:
+            view.pop("carrying", None)
+    return json.dumps(view, ensure_ascii=True)
+
+
 def _clean_sync_tokens(text: str) -> str:
     for token in PAUSE_TOKENS:
         text = text.replace(token, "")
-    # The GM's mechanics-block terminator is protocol, not prose — drop it from any
-    # summary (e.g. a timeline entry) so it can never surface to the player.
-    text = MECHANICS_MARKER_RE.sub("", text)
     return text.strip()
 
 
@@ -237,6 +316,14 @@ class GameSession:
         # Declared NPC names (place main NPCs + the storyline cast), lowercased, and the
         # declarations buffered this turn which the server persists on the next scene call.
         self._cast_names: set[str] = set()
+        # Static combatant sheets (name -> rendered lines) from register_combatants, merged
+        # with the live roster and sent to the client for the combatant tooltips.
+        self._combat_sheets: dict[str, list[str]] = {}
+        self._combat_order: list[str] = []
+        self._combat_initiative: dict[str, dict] = {}
+        # The engine-composed Mechanics block for the current turn: each tool result's
+        # narrative_format, in call order, sent to the client as the `mechanics` event.
+        self._mechanics_lines: list[str] = []
         self._pending_npcs: list[dict] = []
 
     # ── public API ────────────────────────────────────────────────────────
@@ -374,7 +461,7 @@ class GameSession:
                                 "KNOWN IMAGE PLACES (reuse these exact kingdom / area / location / "
                                 "sublocation names; only invent a new name for a genuinely new place, "
                                 "and request its seed with `establishing` only when it is not listed "
-                                "here. Use the place's main NPC by NAME; never restate their look):\n"
+                                "here. Use the place's main NPCs by NAME; never restate their look):\n"
                                 + format_known_places(places)
                             )
                         else:
@@ -400,6 +487,7 @@ class GameSession:
                     # (The opening illustration is requested by the GM itself, in
                     # the awakening tool batch — see GameMaster_MCP.md.)
                     await self._emit({"type": "busy", "value": True})
+                    self._mechanics_lines = []
                     awakening = await self._run_role(key_content, "awakening")
                     await self._ensure_scene_image(awakening or "")
                     await self._emit({"type": "awakening_end", "text": awakening or ""})
@@ -450,6 +538,7 @@ class GameSession:
     async def _handle_action(self, text: str) -> None:
         await self._emit({"type": "busy", "value": True})
         self._scene_requested_turn = False  # at most one illustration per turn
+        self._mechanics_lines = []          # the engine-composed block is per turn
         try:
             result = await self._run_role(text, "turn")
             await self._ensure_scene_image(result or "")
@@ -471,6 +560,7 @@ class GameSession:
             await self._emit({"type": "stats", "data": build_stats(db_data) if isinstance(db_data, dict) else {}})
         elif cmd == "/sync":
             await self._emit({"type": "busy", "value": True})
+            self._mechanics_lines = []
             try:
                 await self._run_role("{{_SYNC_DATABASE}}", "sync")
                 await self._emit({"type": "notice", "title": "Sync", "text": "Database synchronized."})
@@ -736,7 +826,7 @@ class GameSession:
             "kingdom": kingdom, "area": area,
             "location": location, "sublocation": sublocation,
             "time_of_day": "", "weather": "", "characters": {},
-            "establishing": "", "main_npc": {}, "npcs": npcs, "seed_change": "",
+            "establishing": "", "main_npcs": [], "npcs": npcs, "seed_change": "",
             "turn": self.turn_counter,
         })
 
@@ -795,12 +885,28 @@ class GameSession:
             self._collect_declarations(args)
         if name == NPC_TOOL:
             self._remember_declared(args.get("npcs"))
+        gm_text = _gm_tool_view(name, text)
         if name == SCENE_TOOL and warning is None:
             note = self._undeclared_note(args)
             if note:
                 text = f"{text}\n\n{note}" if text else note
-        await self._emit({"type": "tool_result", "name": name, "text": text, "is_error": is_error})
-        self.messages.append({"role": "tool", "content": text, "name": name})
+                gm_text = f"{gm_text}\n\n{note}" if gm_text else note
+        # The client keeps the full result (debugging); the GM reads the trimmed view.
+        await self._emit({"type": "tool_result", "name": name, "text": text,
+                          "gm_text": gm_text, "is_error": is_error})
+        self.messages.append({"role": "tool", "content": gm_text, "name": name})
+        # The engine composes the turn's Mechanics block from narrative_format; the client
+        # shows it where the GM placed the {{_MECHANICS}} token.
+        mech = self._collect_mechanics(text)
+        if mech:
+            self._mechanics_lines.extend(mech)
+            await self._emit({"type": "mechanics", "lines": list(self._mechanics_lines)})
+        if name in COMBAT_TOOLS:
+            roster = self._combat_roster_update(text)
+            if roster is not None:
+                await self._emit({"type": "combat_roster", "combatants": roster,
+                                  "order": list(self._combat_order),
+                                  "initiative": dict(self._combat_initiative)})
         if name == SCENE_TOOL and self.scene_images and warning is None and not self._scene_requested_turn:
             self._scene_requested_turn = True
             location = str(args.get("location") or "")
@@ -813,7 +919,7 @@ class GameSession:
                 kingdom, area = self._scene_places.get(_scene_key(location, sublocation), ("", ""))
             # Declarations flow to the server with the image call (the single writer).
             npcs, self._pending_npcs = self._pending_npcs, []
-            main_npc = args.get("main_npc") if isinstance(args.get("main_npc"), dict) else {}
+            main_npcs = args.get("main_npcs") if isinstance(args.get("main_npcs"), list) else []
             await self._emit({
                 "type": "scene_request", "kind": "story",
                 "description": str(args.get("description") or ""),
@@ -824,11 +930,64 @@ class GameSession:
                 "weather": str(args.get("weather") or ""),
                 "characters": args.get("characters") if isinstance(args.get("characters"), dict) else {},
                 "establishing": str(args.get("establishing") or ""),
-                "main_npc": main_npc,
+                "main_npcs": main_npcs,
                 "npcs": npcs,
                 "seed_change": str(args.get("seed_change") or ""),
                 "turn": self.turn_counter,
             })
+
+    def _collect_mechanics(self, text: str) -> list[str]:
+        """The narrative_format lines from a tool result, for the engine-composed block."""
+        try:
+            payload = json.loads(text)
+        except (json.JSONDecodeError, TypeError):
+            return []
+        if not isinstance(payload, dict):
+            return []
+        fmt = payload.get("narrative_format")
+        if not isinstance(fmt, str):
+            return []
+        return [line for line in fmt.split("\n") if line.strip()]
+
+    def _combat_roster_update(self, text: str) -> list[dict] | None:
+        """Merge a combat tool result into the roster the client shows as tooltips.
+
+        `sheets` (from register_combatants) carries the static stat lines; every combat
+        tool's `registry_summary` carries the live HP/AC/conditions. Returns the merged
+        roster to emit, or None when the result carries no roster."""
+        try:
+            payload = json.loads(text)
+        except (json.JSONDecodeError, TypeError):
+            return None
+        if not isinstance(payload, dict):
+            return None
+        sheets = payload.get("sheets")
+        if isinstance(sheets, list):
+            for sheet in sheets:
+                if isinstance(sheet, dict) and sheet.get("name"):
+                    lines = sheet.get("lines")
+                    if isinstance(lines, list):
+                        self._combat_sheets[str(sheet["name"])] = [str(x) for x in lines]
+        summary = payload.get("registry_summary")
+        if not isinstance(summary, list) or not summary:
+            return None
+        init = payload.get("initiative")
+        if isinstance(init, list) and init:
+            self._combat_initiative = {
+                str(e.get("name")): {"roll": e.get("roll"), "modifier": e.get("modifier"),
+                                    "total": e.get("total")}
+                for e in init if isinstance(e, dict) and e.get("name")}
+        order = payload.get("initiative_order")
+        if isinstance(order, list) and order:
+            self._combat_order = [str(x) for x in order]
+        roster: list[dict] = []
+        for entry in summary:
+            if not isinstance(entry, dict) or not entry.get("name"):
+                continue
+            item = dict(entry)
+            item["sheet"] = self._combat_sheets.get(str(entry["name"]), [])
+            roster.append(item)
+        return roster
 
     def _remember_declared(self, npcs) -> list[str]:
         """Buffer declared NPCs (name + description) and remember their names."""
@@ -850,13 +1009,16 @@ class GameSession:
         return added
 
     def _collect_declarations(self, args: dict) -> None:
-        """Declarations that ride a scene call: the `npcs` list + the place's main NPC."""
+        """Declarations that ride a scene call: the `npcs` list + the place's main NPCs."""
         self._remember_declared(args.get("npcs"))
-        main = args.get("main_npc")
-        if isinstance(main, dict):
-            name = " ".join(str(main.get("name") or "").split())
-            if name:
-                self._cast_names.add(name.lower())
+        main = args.get("main_npcs")
+        if isinstance(main, list):
+            for entry in main:
+                if not isinstance(entry, dict):
+                    continue
+                name = " ".join(str(entry.get("name") or "").split())
+                if name:
+                    self._cast_names.add(name.lower())
 
     def _undeclared_note(self, args: dict) -> str:
         """A soft note listing `characters` names that no declaration covers."""

@@ -230,6 +230,14 @@ class ConditionTest(H.EngineCase):
         self.assertEqual(r["blocked_conditions"], [{"condition": "poisoned", "reason": "immune"}])
         self.assertEqual(r["conditions"], [])
 
+    def test_readding_a_present_condition_notes_it(self):
+        self._setup()
+        H.ds.update_combatant("Goblin", conditions_add=["prone"])
+        r = H.ds.update_combatant("Goblin", conditions_add=["prone"])
+        self.assertEqual(r["already_present"], ["prone"])
+        self.assertIn("already present", r["narrative_format"])
+        self.assertEqual(r["conditions"], ["prone"])
+
     def test_player_conditions_are_stored_and_drive_checks(self):
         self._setup()
         H.ds.update_combatant("Borin", conditions_add=["poisoned"])

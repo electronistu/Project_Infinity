@@ -579,18 +579,43 @@ def _slug(text) -> str:
 
 
 def _npc_fields(value) -> dict:
-    """Normalize a declared NPC to {name, description}. A legacy plain string is a description."""
+    """Normalize a declared NPC to {name, description, role}. A legacy plain string is a description."""
     if isinstance(value, dict):
         return {"name": re.sub(r"\s+", " ", str(value.get("name") or "")).strip(),
-                "description": re.sub(r"\s+", " ", str(value.get("description") or "")).strip()}
-    return {"name": "", "description": re.sub(r"\s+", " ", str(value or "")).strip()}
+                "description": re.sub(r"\s+", " ", str(value.get("description") or "")).strip(),
+                "role": re.sub(r"\s+", " ", str(value.get("role") or "")).strip()}
+    return {"name": "", "description": re.sub(r"\s+", " ", str(value or "")).strip(), "role": ""}
+
+
+def _npc_list(value) -> list[dict]:
+    """Normalize a place's main NPCs to a list of {name, description, role}.
+
+    A list is the canonical shape (v6); a legacy single dict/string becomes a one-item
+    list. Entries with neither a name nor a description are dropped."""
+    if value is None:
+        return []
+    items = value if isinstance(value, list) else [value]
+    out: list[dict] = []
+    for item in items:
+        fields = _npc_fields(item)
+        if fields["name"] or fields["description"]:
+            out.append(fields)
+    return out
+
+
+def _seed_main_npcs(entry) -> list[dict]:
+    """A seed entry's main NPCs, reading the v6 `main_npcs` key or a legacy `main_npc`."""
+    raw = (entry or {}).get("main_npcs")
+    if raw is None:
+        raw = (entry or {}).get("main_npc")
+    return _npc_list(raw)
 
 
 def _manifest_entries(data) -> list[dict]:
-    """Normalize a scene manifest (v1 flat / v2 / v3 / v4 / v5) to a list of seed dicts."""
+    """Normalize a scene manifest (v1 flat / v2-v6) to a list of seed dicts."""
     if not isinstance(data, dict):
         return []
-    if data.get("version") in (2, 3, 4, 5) and isinstance(data.get("seeds"), dict):
+    if data.get("version") in (2, 3, 4, 5, 6) and isinstance(data.get("seeds"), dict):
         return [e for e in data["seeds"].values() if isinstance(e, dict)]
     # v1: {location_slug: entry}
     return [e for e in data.values() if isinstance(e, dict) and e.get("location")]
@@ -619,7 +644,7 @@ def known_scene_places(output_dir, stem: str) -> list[dict]:
         out.append({"kingdom": kingdom, "area": area, "location": location,
                     "sublocation": sublocation,
                     "description": str(entry.get("description") or "").strip(),
-                    "main_npc": _npc_fields(entry.get("main_npc"))})
+                    "main_npcs": _seed_main_npcs(entry)})
     return sorted(out, key=lambda p: (p["kingdom"].lower(), p["area"].lower(),
                                       p["location"].lower(), p["sublocation"].lower()))
 
@@ -633,9 +658,9 @@ def known_npc_names(output_dir, stem: str) -> set[str]:
     except (OSError, json.JSONDecodeError):
         return names
     for entry in _manifest_entries(data):
-        name = _npc_fields((entry or {}).get("main_npc"))["name"]
-        if name:
-            names.add(name.lower())
+        for npc in _seed_main_npcs(entry):
+            if npc["name"]:
+                names.add(npc["name"].lower())
     raw_cast = data.get("cast") if isinstance(data, dict) else None
     if isinstance(raw_cast, dict):
         for entry in raw_cast.values():
@@ -737,10 +762,11 @@ class SceneService(GeminiImageBackend):
     actions (that made the model duplicate the figures already in the frame) and
     are deleted as soon as they have been served once.
 
-    `output/images/{stem}/scenes/manifest.json` is the v5 manifest:
-        {version, seeds: {key: entry}, cast: {name_slug: {name, description}}, current: {...}}
-    The seed is never served to the client; it is the only persisted scene asset. The
-    `cast` map keeps the declared NPC looks; the GM only ever passes their names.
+    `output/images/{stem}/scenes/manifest.json` is the v6 manifest:
+        {version, seeds: {key: entry}, cast: {name_slug: {name, description, role}}, current: {...}}
+    Each seed entry carries `main_npcs` = a list of {name, description, role}. The seed is
+    never served to the client; it is the only persisted scene asset. The `cast` map keeps
+    the declared NPC looks; the GM only ever passes their names.
     """
 
     def __init__(self, output_dir=None, config_path: Path | None = None):
@@ -807,15 +833,15 @@ class SceneService(GeminiImageBackend):
 
     def _read_manifest(self, stem: str) -> dict:
         path = self.manifest_path(stem)
-        empty = {"version": 5, "seeds": {}, "cast": {}, "current": {}}
+        empty = {"version": 6, "seeds": {}, "cast": {}, "current": {}}
         if not path.exists():
             return empty
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             return empty
-        if isinstance(data, dict) and data.get("version") in (2, 3, 4, 5) and isinstance(data.get("seeds"), dict):
-            if data.get("version") not in (4, 5):
+        if isinstance(data, dict) and data.get("version") in (2, 3, 4, 5, 6) and isinstance(data.get("seeds"), dict):
+            if data.get("version") not in (4, 5, 6):
                 # Action images became ephemeral one-shot files in v4: clean up any left over.
                 for entry in (data.get("actions") or []):
                     try:
@@ -828,7 +854,8 @@ class SceneService(GeminiImageBackend):
                     continue
                 entry = dict(entry)
                 entry.pop("last_cast", None)
-                entry["main_npc"] = _npc_fields(entry.get("main_npc"))
+                entry["main_npcs"] = _seed_main_npcs(entry)
+                entry.pop("main_npc", None)
                 seeds[key] = entry
             cast: dict = {}
             raw_cast = data.get("cast")
@@ -837,7 +864,7 @@ class SceneService(GeminiImageBackend):
                     fields = _npc_fields(entry)
                     if fields["name"]:
                         cast[_slug(fields["name"])] = fields
-            return {"version": 5, "seeds": seeds, "cast": cast, "current": data.get("current") or {}}
+            return {"version": 6, "seeds": seeds, "cast": cast, "current": data.get("current") or {}}
         # v1 flat manifest: {location_slug: entry}
         seeds: dict = {}
         now = int(time.time())
@@ -854,11 +881,11 @@ class SceneService(GeminiImageBackend):
                 "file": entry.get("file"), "slug": slug, "kingdom": kingdom, "area": area,
                 "location": location, "sublocation": sublocation,
                 "description": str(entry.get("description") or ""),
-                "main_npc": _npc_fields(entry.get("main_npc")),
+                "main_npcs": _npc_list(entry.get("main_npc")),
                 "created": entry.get("created") or now,
                 "mime": entry.get("mime") or "image/png",
             }
-        return {"version": 5, "seeds": seeds, "cast": {}, "current": {}}
+        return {"version": 6, "seeds": seeds, "cast": {}, "current": {}}
 
     def _write_manifest(self, stem: str, data: dict) -> None:
         path = self.manifest_path(stem)
@@ -1069,7 +1096,7 @@ class SceneService(GeminiImageBackend):
         return f"action-{_slug(location)[:16] or 'place'}-{_slug(sublocation)[:16] or 'main'}-{h}-{token}"
 
     def _store_seed(self, stem: str, manifest: dict, kingdom: str, area: str, location: str,
-                    sublocation: str, description: str, main_npc, raw: bytes,
+                    sublocation: str, description: str, main_npcs, raw: bytes,
                     existing=None) -> dict:
         ext, mime = sniff_image(raw) or ("png", "image/png")
         slug = (existing or {}).get("slug") or self._seed_slug(kingdom, area, location, sublocation)
@@ -1083,7 +1110,7 @@ class SceneService(GeminiImageBackend):
         entry = {
             "file": file, "slug": slug, "kingdom": str(kingdom or ""), "area": str(area or ""),
             "location": str(location or ""), "sublocation": str(sublocation or ""),
-            "description": str(description or ""), "main_npc": _npc_fields(main_npc),
+            "description": str(description or ""), "main_npcs": _npc_list(main_npcs),
             "mime": mime, "created": int(time.time()),
         }
         manifest.setdefault("seeds", {})[self._key(kingdom, area, location, sublocation)] = entry
@@ -1093,14 +1120,14 @@ class SceneService(GeminiImageBackend):
     def _resolve_characters(characters, seed, cast) -> dict:
         """Map `{name: action}` to `{name — description: action}` for the image prompt.
 
-        Names resolve against the place's main NPC first, then the save's storyline cast;
+        Names resolve against the place's main NPCs first, then the save's storyline cast;
         an undeclared name is drawn from its own key text (a one-off extra, not remembered)."""
         if not isinstance(characters, dict):
             return {}
         known: dict[str, dict] = {}
-        place = _npc_fields((seed or {}).get("main_npc"))
-        if place["name"]:
-            known[place["name"].lower()] = place
+        for place in _seed_main_npcs(seed):
+            if place["name"]:
+                known[place["name"].lower()] = place
         if isinstance(cast, dict):
             for entry in cast.values():
                 fields = _npc_fields(entry)
@@ -1119,7 +1146,7 @@ class SceneService(GeminiImageBackend):
 
     def ensure_scene(self, stem: str, player: dict, world: str, description: str = "",
                      mood: str = "", kingdom: str = "", area: str = "", location: str = "",
-                     sublocation: str = "", establishing: str = "", main_npc=None,
+                     sublocation: str = "", establishing: str = "", main_npcs=None,
                      seed_change: str = "", npcs=None,
                      time_of_day: str = "", weather: str = "", characters=None,
                      model: str | None = None) -> dict:
@@ -1153,7 +1180,7 @@ class SceneService(GeminiImageBackend):
                                      establishing or f"An atmospheric view of {sublocation or location}.",
                                      model=effective)
             seed = self._store_seed(stem, manifest, kingdom, area, location, sublocation,
-                                    establishing, main_npc, raw)
+                                    establishing, main_npcs, raw)
             seed_created = True
         elif seed_change:
             old = self._file_bytes(stem, seed)
@@ -1162,7 +1189,7 @@ class SceneService(GeminiImageBackend):
                                      change=seed_change, refs=[old] if old else None, model=effective)
             seed = self._store_seed(stem, manifest, kingdom, area, location, sublocation,
                                     establishing or str(seed.get("description") or ""),
-                                    main_npc if main_npc else (seed.get("main_npc") or {}), raw,
+                                    main_npcs if main_npcs else _seed_main_npcs(seed), raw,
                                     existing=seed)
             seed_regenerated = True
 

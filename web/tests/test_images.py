@@ -368,7 +368,8 @@ def main() -> bool:
                               mood="tense", kingdom="Kingdom of Eldoria", area="Eldoria City",
                               location="Hask's Smithy", sublocation="the forge",
                               establishing="a hot forge",
-                              main_npc={"name": "Gorson", "description": "a burly smith"},
+                              main_npcs=[{"name": "Gorson", "role": "the smith",
+                                          "description": "a burly smith"}],
                               time_of_day="dusk", weather="light rain",
                               characters={"Gorson": "hammering at the anvil",
                                           "three dockhands": "drinking"})
@@ -430,13 +431,17 @@ def main() -> bool:
             any(p["kingdom"] == "Kingdom of Eldoria" and p["area"] == "Eldoria City"
                 and p["location"] == "Hask's Smithy" and p["sublocation"] == "the forge"
                 and p["description"] == "a hot forge"
-                and p["main_npc"] == {"name": "Gorson", "description": "a burly smith"}
+                and p["main_npcs"] == [{"name": "Gorson", "role": "the smith",
+                                        "description": "a burly smith"}]
                 for p in places), str(places))
         rec("seed_change preserved the main NPC",
             any(p["location"] == "Hask's Smithy" and p["sublocation"] == "the forge"
-                and p["main_npc"]["name"] == "Gorson" for p in places))
-        rec("the cast is persisted in the manifest (v5)",
-            json.loads((scene_dir / "manifest.json").read_text(encoding="utf-8"))["version"] == 5
+                and p["main_npcs"][0]["name"] == "Gorson" for p in places))
+        rec("the main NPCs' roles round-trip through the manifest",
+            any(p["location"] == "Hask's Smithy" and p["sublocation"] == "the forge"
+                and p["main_npcs"][0]["role"] == "the smith" for p in places), str(places))
+        rec("the cast is persisted in the manifest (v6)",
+            json.loads((scene_dir / "manifest.json").read_text(encoding="utf-8"))["version"] == 6
             and "maera" in json.loads((scene_dir / "manifest.json").read_text(encoding="utf-8"))["cast"])
         rec("no last_cast bookkeeping remains",
             "last_cast" not in (scene_dir / "manifest.json").read_text(encoding="utf-8"))
@@ -448,8 +453,8 @@ def main() -> bool:
             known_scene_locations(tmp, "scenetest") == ["Hask's Smithy", "Lantern Row"],
             str(known_scene_locations(tmp, "scenetest")))
 
-        # v3 -> v5 migration: the action list (and its files) is abandoned; a legacy
-        # string main_npc is read as a description (no name -> no expansion).
+        # v3 -> v6 migration: the action list (and its files) is abandoned; a legacy
+        # string main_npc becomes a one-item main_npcs list (no name -> no expansion).
         legacy = scene_dir / "action-legacy-1.jpg"
         legacy.write_bytes(jpeg(64, 36))
         (scene_dir / "manifest.json").write_text(json.dumps({
@@ -462,10 +467,13 @@ def main() -> bool:
             "current": {"location": "Old Place"}, "seq": 7,
         }), encoding="utf-8")
         migrated = sc3._read_manifest("scenetest")
-        rec("a v3 manifest migrates to v5 (actions + seq + last_cast dropped, seeds + current kept)",
-            migrated["version"] == 5 and "actions" not in migrated and "seq" not in migrated
+        rec("a v3 manifest migrates to v6 (actions + seq + last_cast dropped, seeds + current kept)",
+            migrated["version"] == 6 and "actions" not in migrated and "seq" not in migrated
             and migrated["cast"] == {} and migrated["current"].get("location") == "Old Place"
-            and migrated["seeds"]["k"]["main_npc"] == {"name": "", "description": "Gorson — a burly smith"}
+            and migrated["seeds"]["k"]["main_npcs"] == [{"name": "",
+                                                          "description": "Gorson — a burly smith",
+                                                          "role": ""}]
+            and "main_npc" not in migrated["seeds"]["k"]
             and "last_cast" not in migrated["seeds"]["k"], str(migrated))
         rec("migrating deletes the abandoned action files", not legacy.exists())
 

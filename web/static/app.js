@@ -15,6 +15,10 @@ const state = {
   lastCommandType: null,
   cur: null,       // current streaming assistant bubble
   lastTool: null,  // last tool block awaiting a result
+  combatRoster: [], // live combatants (name, hp, ac, conditions, sheet lines) for tooltips
+  combatOrder: [],  // authoritative initiative order (names)
+  combatInitiative: {}, // name -> {roll, modifier, total}
+  mechanicsLines: [], // engine-composed Mechanics block for the current turn
   worldsMeta: [],  // enriched /api/worlds entries
   activeSaveName: null,
   endAfterSave: false,
@@ -53,70 +57,33 @@ function stripTokens(s) {
     .replace(/\{\{_SYNC_DATABASE\}\}/g, "");
 }
 
-/* The GM closes its mechanics block with a protocol marker ("**END MECHANICS**").
-   It is never prose: the markdown renderer uses it to close the panel, and the
-   plain-text surfaces (the streaming preview) strip it so it never reaches the
-   player's narration. */
-const MECH_START_RE = /^\s*\*{0,2}\s*mechanics:?\s*\*{0,2}\s*$/i;
-const MECH_END_RE = /^\s*\*{0,2}\s*end(?:\s+of)?\s+mechanics:?\s*\*{0,2}\s*$/i;
-const MECH_END_RE_G = /^[ \t]*\*{0,2}[ \t]*end(?:\s+of)?\s+mechanics:?[ \t]*\*{0,2}[ \t]*$/gim;
-
-function stripMechanicsMarker(text) {
-  return String(text).replace(MECH_END_RE_G, "");
-}
-
 function fmtNum(n) { return Number(n || 0).toLocaleString(); }
 
 function mdToHtml(raw) {
   const lines = stripTokens(raw).split("\n");
-  // With an explicit END marker the block closes exactly there, so a tool's
-  // multi-line narrative_format (and any trailing narrative list) stays inside.
-  const explicitMech = lines.some((rawLine) => MECH_END_RE.test(rawLine));
   const out = [];
   let inList = false;
-  let inMech = false;
   const closeList = () => { if (inList) { out.push("</ul>"); inList = false; } };
-  const closeMech = () => { if (inMech) { out.push("</div>"); inMech = false; } };
   for (const rawLine of lines) {
     let line = escapeHtml(rawLine)
       .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
       .replace(/\*([^*]+)\*/g, "<em>$1</em>");
-    // The end marker is protocol, never rendered; it just closes the panel.
-    if (MECH_END_RE.test(rawLine)) {
-      closeList(); closeMech();
-      continue;
-    }
-    if (MECH_START_RE.test(rawLine)) {
-      closeList(); closeMech();
-      out.push('<div class="mechanics"><div class="mech-title">Mechanics</div>');
-      inMech = true;
-      continue;
-    }
     if (/^\s*[-*]\s+/.test(rawLine)) {
       if (!inList) { out.push("<ul>"); inList = true; }
       out.push("<li>" + line.replace(/^\s*[-*]\s+/, "") + "</li>");
       continue;
     }
-    if (inMech && explicitMech) {
-      // Everything up to the marker belongs to the panel (blank lines included).
-      closeList();
-      if (rawLine.trim() !== "") out.push('<div class="mech-line">' + line + "</div>");
-      continue;
-    }
     closeList();
     const h = rawLine.match(/^(#{1,6})\s+/);
     if (h) {
-      closeMech();
       const lvl = Math.min(6, h[1].length) + 1;
       out.push(`<h${lvl}>` + line.replace(/^#+\s+/, "") + `</h${lvl}>`);
       continue;
     }
     if (rawLine.trim() === "") continue;
-    closeMech();
     out.push("<p>" + line + "</p>");
   }
   closeList();
-  closeMech();
   return out.join("\n");
 }
 
@@ -205,11 +172,110 @@ function beginSegment(tb) {
 function endSegment(tb) {
   if (!tb.seg) return;
   tb.seg.innerHTML = mdToHtml(tb.segRaw);
+  tagCombatantNames(tb.seg);
+  tagInitiative(tb.seg);
   tb.seg = null;
   tb.segRaw = "";
 }
 
-/* The model always thinks; this only shows/hides the thinking panes */
+/* Wrap any known combatant name in the rendered message so hovering it shows the
+   live sheet. Names are matched longest-first; existing spans/code are skipped. */
+function escapeRegExp(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function tagCombatantNames(root) {
+  const names = (state.combatRoster || [])
+    .filter((c) => c && c.name && !c.is_player)
+    .map((c) => String(c.name))
+    .sort((a, b) => b.length - a.length);
+  if (!root || !names.length) return;
+  const known = new Set(names);
+  const re = new RegExp("(" + names.map(escapeRegExp).join("|") + ")", "g");
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const p = node.parentElement;
+      if (!p || p.closest(".combatant") || p.closest("pre") || p.closest("code") ||
+          p.closest(".tool-block") || p.closest("button") || p.closest("select")) {
+        return NodeFilter.FILTER_REJECT;
+      }
+      return node.nodeValue && node.nodeValue.trim()
+        ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+    },
+  });
+  const nodes = [];
+  let n;
+  while ((n = walker.nextNode())) nodes.push(n);
+  for (const node of nodes) {
+    const parts = node.nodeValue.split(re);
+    if (parts.length < 2) continue;
+    const frag = document.createDocumentFragment();
+    for (const part of parts) {
+      if (!part) continue;
+      if (known.has(part)) {
+        const span = document.createElement("span");
+        span.className = "combatant";
+        span.setAttribute("data-combatant", part);
+        span.textContent = part;
+        frag.appendChild(span);
+      } else {
+        frag.appendChild(document.createTextNode(part));
+      }
+    }
+    node.parentNode.replaceChild(frag, node);
+  }
+}
+
+/* Make the engine's "Initiative Order" label green and hoverable (the order is a tooltip). */
+function tagInitiative(root) {
+  if (!root || !(state.combatOrder || []).length) return;
+  const phrase = "Initiative Order";
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const p = node.parentElement;
+      if (!p || p.closest(".initiative") || p.closest("pre") || p.closest("code") ||
+          p.closest(".tool-block") || p.closest("button") || p.closest("select")) {
+        return NodeFilter.FILTER_REJECT;
+      }
+      return node.nodeValue && node.nodeValue.includes(phrase)
+        ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+    },
+  });
+  const nodes = [];
+  let n;
+  while ((n = walker.nextNode())) nodes.push(n);
+  for (const node of nodes) {
+    const parts = node.nodeValue.split(phrase);
+    const frag = document.createDocumentFragment();
+    parts.forEach((part, i) => {
+      if (i > 0) {
+        const span = document.createElement("span");
+        span.className = "initiative";
+        span.setAttribute("data-initiative", "1");
+        span.textContent = phrase;
+        frag.appendChild(span);
+      }
+      if (part) frag.appendChild(document.createTextNode(part));
+    });
+    node.parentNode.replaceChild(frag, node);
+  }
+}
+
+/* The engine composes the Mechanics block; append it once, at the end of the turn's narrative. */
+function appendMechanics(tb) {
+  const lines = (state.mechanicsLines || []).map((l) => String(l)).filter((l) => l.trim() !== "");
+  state.mechanicsLines = [];
+  if (!tb || !lines.length) return;
+  const panel = document.createElement("div");
+  panel.className = "mechanics";
+  panel.innerHTML = '<div class="mech-title">Mechanics</div>'
+    + lines.map((l) => '<div class="mech-line">' + escapeHtml(l) + "</div>").join("");
+  tb.flow.appendChild(panel);
+  tb.hasNarrative = true;
+  tagCombatantNames(panel);
+  tagInitiative(panel);
+}
+
 function updateThinkingLabel() {
   const el = $("thinking-label");
   if (!el) return;
@@ -244,16 +310,26 @@ function addToolCall(name, args, parent) {
   el.innerHTML =
     `<div class="tool-head">tool · ${escapeHtml(name)}</div>` +
     `<pre class="tool-args">${escapeHtml(JSON.stringify(args || {}))}</pre>` +
+    `<div class="tool-gm-wrap" hidden><div class="tool-gm-label">GM sees</div>` +
+    `<pre class="tool-gm"></pre></div>` +
     `<pre class="tool-result"></pre>`;
   (parent || transcript).appendChild(el);
   scrollToBottom();
   return el;
 }
 
-function fillToolResult(el, text, isError) {
+function fillToolResult(el, text, isError, gmText) {
   if (!el) return;
   if (isError) el.classList.add("error");
   el.querySelector(".tool-result").textContent = text || "";
+  // The trimmed view is what the GM actually read — shown separately (green), and
+  // only when it differs from the full result (pass-through mechanics are identical).
+  const gm = gmText == null ? "" : String(gmText);
+  const wrap = el.querySelector(".tool-gm-wrap");
+  if (wrap && gm && gm !== String(text || "")) {
+    wrap.hidden = false;
+    el.querySelector(".tool-gm").textContent = gm;
+  }
 }
 
 /* ── stats rendering ──────────────────────────────────────── */
@@ -672,7 +748,7 @@ async function requestSceneImage(evt, fig, img) {
     weather: evt.weather || "",
     characters: evt.characters || {},
     establishing: evt.establishing || "",
-    main_npc: evt.main_npc || {},
+    main_npcs: evt.main_npcs || [],
     npcs: evt.npcs || [],
     seed_change: evt.seed_change || "",
     model: state.imageModel || undefined,
@@ -919,9 +995,68 @@ function slotPips(levels) {
 
 const tooltipEl = $("item-tooltip");
 let tooltipTarget = null;
-const TIP_SEL = "[data-icon],[data-name],[data-desc]";
+const TIP_SEL = "[data-icon],[data-name],[data-desc],[data-combatant],[data-initiative]";
+
+function showInitiativeTooltip(target) {
+  tooltipTarget = target;
+  tooltipEl.innerHTML = "";
+  const n = document.createElement("div");
+  n.className = "tooltip-name";
+  n.textContent = "Initiative Order";
+  tooltipEl.appendChild(n);
+  const d = document.createElement("div");
+  d.className = "tooltip-desc tooltip-sheet";
+  const init = state.combatInitiative || {};
+  d.textContent = (state.combatOrder || []).map((name, i) => {
+    const info = init[name] || {};
+    let suffix = "";
+    if (info.total != null) {
+      suffix = " — " + info.total;
+      if (info.roll != null && info.modifier != null) suffix += ` (${info.roll} + ${info.modifier})`;
+    }
+    return `${i + 1}. ${name}${suffix}`;
+  }).join("\n");
+  tooltipEl.appendChild(d);
+  tooltipEl.classList.remove("hidden");
+  positionTooltip(target);
+}
+
+function showCombatantTooltip(target, name) {
+  const c = (state.combatRoster || []).find((x) => x && x.name === name) || {};
+  tooltipTarget = target;
+  tooltipEl.innerHTML = "";
+  const n = document.createElement("div");
+  n.className = "tooltip-name";
+  n.textContent = name;
+  tooltipEl.appendChild(n);
+  const d = document.createElement("div");
+  d.className = "tooltip-desc tooltip-sheet";
+  const head = [c.role ? String(c.role) : "", c.hp ? "HP " + c.hp : "",
+                c.ac != null ? "AC " + c.ac : "",
+                c.speed != null ? "Speed " + c.speed : "",
+                c.cr != null ? "CR " + c.cr : ""].filter(Boolean).join("  ");
+  const lines = head ? [head] : [];
+  if (Array.isArray(c.conditions) && c.conditions.length) {
+    lines.push("Conditions: " + c.conditions.join(", "));
+  }
+  // sheet lines: ["Name — role", "  HP … AC … Speed …", …detail lines]. The name and the
+  // static vitals are already shown above, so only the detail lines are appended.
+  if (Array.isArray(c.sheet)) {
+    for (const line of c.sheet.slice(2)) {
+      const text = String(line).trim();
+      if (text) lines.push(text);
+    }
+  }
+  d.textContent = lines.join("\n");
+  tooltipEl.appendChild(d);
+  tooltipEl.classList.remove("hidden");
+  positionTooltip(target);
+}
 
 function showTooltip(target) {
+  if (target.hasAttribute("data-initiative")) { showInitiativeTooltip(target); return; }
+  const combatant = target.getAttribute("data-combatant");
+  if (combatant) { showCombatantTooltip(target, combatant); return; }
   const url = target.getAttribute("data-icon");
   const name = target.getAttribute("data-name");
   const desc = target.getAttribute("data-desc");
@@ -1265,7 +1400,7 @@ function handleEvent(evt) {
         beginSegment(tb);
         tb.segRaw += evt.text;
         // Never let the protocol marker reach the streaming preview.
-        const visible = stripMechanicsMarker(stripTokens(tb.segRaw));
+        const visible = stripTokens(tb.segRaw);
         if (!tb.hasNarrative && visible.trim()) {
           tb.hasNarrative = true;
           tb.el.classList.add("has-narrative");
@@ -1278,6 +1413,10 @@ function handleEvent(evt) {
     case "assistant_end":
       // One round of the turn is done; render its narrative segment but keep
       // the turn bubble open for later rounds (tools / the final answer).
+      // Use the model's complete round text as the source of truth, not the deltas.
+      if (state.cur && typeof evt.text === "string" && evt.text.trim()) {
+        state.cur.segRaw = evt.text;
+      }
       if (state.cur) endSegment(state.cur);
       scrollToBottom();
       break;
@@ -1288,8 +1427,18 @@ function handleEvent(evt) {
       break;
 
     case "tool_result":
-      fillToolResult(state.lastTool, evt.text, evt.is_error);
+      fillToolResult(state.lastTool, evt.text, evt.is_error, evt.gm_text);
       state.lastTool = null;
+      break;
+
+    case "combat_roster":
+      state.combatRoster = Array.isArray(evt.combatants) ? evt.combatants : [];
+      if (Array.isArray(evt.order)) state.combatOrder = evt.order.map(String);
+      if (evt.initiative && typeof evt.initiative === "object") state.combatInitiative = evt.initiative;
+      break;
+
+    case "mechanics":
+      state.mechanicsLines = Array.isArray(evt.lines) ? evt.lines : [];
       break;
 
     case "context":
@@ -1303,6 +1452,7 @@ function handleEvent(evt) {
       break;
 
     case "awakening_end":
+      appendMechanics(state.cur);
       finalizeTurnBubble();
       state.ready = true;
       setStatus("Awaiting your action");
@@ -1311,6 +1461,7 @@ function handleEvent(evt) {
       break;
 
     case "turn_end":
+      appendMechanics(state.cur);
       finalizeTurnBubble();
       if (evt.turn != null) { state.turn = evt.turn; updateTurn(); }
       setStatus("Awaiting your action");
@@ -1401,6 +1552,10 @@ async function startSession(save) {
   if (state.ws) { try { state.ws.close(); } catch (e) { /* ignore */ } state.ws = null; }
   state.connected = false; state.ready = false; state.busy = false;
   state.lastStats = null;      // drop the previous character's sheet
+  state.combatRoster = [];     // drop the previous fight's tooltips
+  state.combatOrder = [];
+  state.combatInitiative = {};
+  state.mechanicsLines = [];
   state.iconGenEpoch += 1;     // cancel any in-flight generation run
   transcript.innerHTML = "";
   const res = await fetch("/api/sessions", {
@@ -1871,6 +2026,10 @@ function resetToHome() {
   state.activeSaveName = null;
   state.endAfterSave = false;
   state.lastStats = null;      // never generate icons for a closed character
+  state.combatRoster = [];     // never tooltip a closed fight
+  state.combatOrder = [];
+  state.combatInitiative = {};
+  state.mechanicsLines = [];
   state.iconGenEpoch += 1;     // cancel any in-flight generation run
   transcript.innerHTML = "";
   statsBox.innerHTML = '<div class="muted">Start a session to load your sheet.</div>';
@@ -2208,7 +2367,7 @@ async function init() {
   $("end-cancel").addEventListener("click", closeEnd);
   $("end-discard").addEventListener("click", endWithoutSaving);
   $("end-save").addEventListener("click", saveAndEnd);
-  bindTooltips(statsBox);
+  bindTooltips(document.body);
   window.addEventListener("scroll", hideTooltip, true);
   window.addEventListener("resize", hideTooltip);
   input.addEventListener("keydown", (e) => {

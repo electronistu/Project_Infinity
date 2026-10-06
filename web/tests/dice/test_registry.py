@@ -75,6 +75,50 @@ class RegistryTest(H.EngineCase):
         self._register()  # no add_to_existing
         self.assertEqual(H.ds._registry_hp("Goblin"), 7)  # back to full
 
+    def test_register_narrative_is_minimal_and_sheets_are_structured(self):
+        with H.fixed_rolls([15, 6, 7]):
+            r = H.ds.register_combatants([
+                {"name": "Goblin", "hp": 7, "ac": 15, "initiative_modifier": 2,
+                 "saves": {"dex": 2, "con": 0}, "role": "hostile",
+                 "attacks": [{"name": "Scimitar", "attack_bonus": 4, "damage_dice": "1d6",
+                              "damage_modifier": 2, "damage_type": "slashing"}],
+                 "traits": ["Sneaky"]},
+            ])
+        n = r["narrative_format"]
+        self.assertEqual(n, "Combatants registered (2 total). Initiative Order")
+        self.assertNotIn("HP ", n)                      # no HP anywhere in the block
+        self.assertNotIn("Goblin — hostile", n)         # no inline sheet
+        # The full sheet rides the structured payload instead.
+        goblin = next(s for s in r["sheets"] if s["name"] == "Goblin")
+        self.assertEqual(goblin["lines"][0], "Goblin — hostile")
+        self.assertIn("DEX +2", "\n".join(goblin["lines"]))
+        self.assertIn("Scimitar +4, 1d6+2 slashing", "\n".join(goblin["lines"]))
+        self.assertNotIn("Borin", [s["name"] for s in r["sheets"]])   # player excluded
+        self.assertEqual([e["name"] for e in r["registry_summary"]],
+                         ["Borin", "Goblin"])
+
+    def test_add_to_existing_returns_only_the_new_sheets(self):
+        self._register(npcs=OGRE_ONLY, rolls=[10])
+        with H.fixed_rolls([1]):
+            r = H.ds.register_combatants([{"name": "Wolf", "hp": 11, "ac": 13}],
+                                         add_to_existing=True)
+        self.assertEqual(r["narrative_format"],
+                         "Combatants registered (3 total). Added to existing registry: Wolf")
+        self.assertEqual([s["name"] for s in r["sheets"]], ["Wolf"])   # only the arrival
+        self.assertIn("HP 11/11  AC 13", "\n".join(r["sheets"][0]["lines"]))
+
+    def test_attack_narrative_no_longer_restates_hp(self):
+        self._register(npcs=OGRE_ONLY, rolls=[10])
+        with H.fixed_rolls([1]):  # natural 1 -> automatic miss
+            miss = H.ds.resolve_attack(actor="Borin", attack_modifier=7, target_ac=11,
+                                       damage_dice="1d8", damage_modifier=4, target_name="Ogre")
+        self.assertNotIn("HP:", miss["narrative_format"])
+        with H.fixed_rolls([15, 7]):
+            hit = H.ds.resolve_attack(actor="Borin", attack_modifier=7, target_ac=11,
+                                      damage_dice="1d8", damage_modifier=4, target_name="Ogre")
+        self.assertNotIn("Ogre HP:", hit["narrative_format"])
+        self.assertEqual(hit["target_remaining_hp"], 48)  # JSON still carries it (tooltip)
+
 
 if __name__ == "__main__":
     unittest.main()

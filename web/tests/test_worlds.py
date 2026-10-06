@@ -209,7 +209,8 @@ async def main() -> int:
                                "Maera": "drawing ale",
                                "three dockhands": "drinking and looking up"},
                 "establishing": "a hot forge",
-                "main_npc": {"name": "Gorson", "description": "a burly smith"},
+                "main_npcs": [{"name": "Gorson", "role": "the smith",
+                              "description": "a burly smith"}],
                 "npcs": [{"name": "Maera", "description": "a broad, one-eared woman"}],
             })
             body = r.json()
@@ -222,9 +223,10 @@ async def main() -> int:
             rec("fresh place action references the seed + portrait",
                 body.get("used_seed") is True and body.get("used_portrait_reference") is True, str(body))
             seeded = known_scene_places(OUTPUT_DIR, "_scenetest")
-            rec("POST scene stores the main NPC (name + description) on the seed",
+            rec("POST scene stores the main NPCs (name + role + description) on the seed",
                 any(p["location"] == "Hask's Smithy"
-                    and p["main_npc"] == {"name": "Gorson", "description": "a burly smith"}
+                    and p["main_npcs"] == [{"name": "Gorson", "role": "the smith",
+                                            "description": "a burly smith"}]
                     for p in seeded), str(seeded))
             rec("POST scene reports the NPCs it added to the cast",
                 body.get("npcs_added") == ["Maera"], str(body))

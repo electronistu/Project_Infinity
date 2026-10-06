@@ -152,6 +152,36 @@ class SleepPoolTest(H.EngineCase):
         self.assertEqual(r["hp_pool_remaining"], 5)
 
 
+class ConditionAutoApplyTest(H.EngineCase):
+    player_factory = staticmethod(H.wizard_l3)
+
+    def test_sleep_applies_unconscious_to_affected_targets(self):
+        with H.rolls_always(10):
+            H.ds.register_combatants([{"name": "Peck", "hp": 5, "ac": 11},
+                                      {"name": "Boss", "hp": 40, "ac": 15}])
+        with H.fixed_rolls([5, 5, 5, 5, 5]):  # pool 25
+            r = H.ds.resolve_magic(spell_name="Sleep", actor="Senna", slot_level=1,
+                                   targets=[{"name": "Peck", "current_hp": 5},
+                                            {"name": "Boss", "current_hp": 40}])
+        self.assertEqual(r["conditions_applied"], ["Peck"])
+        self.assertIn("unconscious", H.ds._COMBAT_REGISTRY["Peck"]["conditions"])
+        self.assertIn("Peck", r["condition_reminder"])
+        self.assertIn("Peck: Affected", r["narrative_format"])
+        self.assertIn("Boss: Unaffected", r["narrative_format"])
+        self.assertNotIn("(HP ", r["narrative_format"])   # HP lives in the tooltip now
+
+    def test_immune_target_refuses_the_condition(self):
+        with H.rolls_always(10):
+            H.ds.register_combatants([{"name": "Construct", "hp": 5, "ac": 10,
+                                       "condition_immunities": ["unconscious"]}])
+        with H.fixed_rolls([5, 5, 5, 5, 5]):
+            r = H.ds.resolve_magic(spell_name="Sleep", actor="Senna", slot_level=1,
+                                   targets=[{"name": "Construct", "current_hp": 5}])
+        self.assertNotIn("conditions_applied", r)
+        self.assertEqual(r.get("conditions_refused"), ["Construct"])
+        self.assertEqual(H.ds._COMBAT_REGISTRY["Construct"]["conditions"], [])
+
+
 class ScorchingRayTest(H.EngineCase):
     player_factory = staticmethod(H.wizard_l3)  # has 2nd-level slots
 

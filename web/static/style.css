@@ -31,6 +31,7 @@ html[data-theme="dark"] {
   --on-accent: #f7ecda;
   --gold: #c9a24b;
   --ok: #8aa05b;
+  --npc: #a6d189;   /* combatant names (light green on the dark ground) */
   --danger: #c25a48;
   --info: #8a9ba8;
   --focus: #c9a24b;
@@ -56,6 +57,7 @@ html[data-theme="light"] {
   --on-accent: #fbf4ec;
   --gold: #8a6a22;
   --ok: #3e6b4a;
+  --npc: #3f7a4a;   /* combatant names (green, readable on vellum) */
   --danger: #a3352a;
   --info: #3f5e77;
   --focus: #9e3b2e;
@@ -191,6 +193,9 @@ details.thinking > summary { cursor: pointer; color: var(--faint); font-family: 
               font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
 .tool-block .tool-head { color: var(--info); }
 .tool-block pre { width: 100%; margin: 4px 0 0; white-space: pre-wrap; word-break: break-word; color: var(--muted); }
+.tool-block .tool-gm-label { margin-top: 6px; color: var(--ok); font-family: var(--sans); font-size: 9.5px;
+                             text-transform: uppercase; letter-spacing: .04em; }
+.tool-block .tool-gm { color: var(--ok); }
 .tool-block.error .tool-head { color: var(--danger); }
 .transcript:not(.show-tools) .tool-block { display: none; }
 
@@ -251,6 +256,9 @@ button.wide { width: 100%; margin-top: 10px; }
 .tooltip-name { font-weight: 700; }
 .tooltip-desc { color: var(--muted); }
 .tag.has-desc { cursor: help; border-color: var(--accent); }
+.combatant { color: var(--npc); cursor: help; }
+.initiative { color: var(--npc); cursor: help; }
+.tooltip-sheet { font-family: var(--mono); font-size: 11.5px; line-height: 1.5; }
 
 /* ── stats cards ─────────────────────────────────────────── */
 .stats { display: flex; flex-direction: column; gap: 12px; }
