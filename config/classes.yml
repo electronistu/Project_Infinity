@@ -61,6 +61,9 @@
     - name: Spellcasting
       level: 1
       description: "You can cast spells from the bard spell list. Charisma is your spellcasting ability."
+    - name: Jack of All Trades
+      level: 2
+      description: "You can add half your proficiency bonus, rounded down, to any ability check you make that doesn't already include your proficiency bonus."
   starting_equipment_options:
     - choose_one_from:
         - "Rapier"

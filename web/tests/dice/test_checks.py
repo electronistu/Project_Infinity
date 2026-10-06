@@ -10,14 +10,14 @@ class PerformCheckTest(H.EngineCase):
 
     def test_success(self):
         with H.fixed_rolls([18]) as calls:
-            r = H.ds.perform_check(5, 15, "Athletics")
+            r = H.ds.perform_check(5, 15, "Endurance")
         self.assertEqual(calls, [(1, 20)])
         self.assertEqual(r["base_roll"], 18)
         self.assertEqual(r["total"], 23)
         self.assertEqual(r["outcome"], "Success")
         self.assertEqual(r["actor"], "Borin")
         self.assertEqual(r["dc_to_beat"], 15)
-        self.assertEqual(r["narrative_format"], "Borin Athletics: 23 vs DC 15 (Success) (18 + 5)")
+        self.assertEqual(r["narrative_format"], "Borin Endurance: 23 vs DC 15 (Success) (18 + 5)")
 
     def test_failure(self):
         with H.fixed_rolls([3]):
@@ -27,7 +27,7 @@ class PerformCheckTest(H.EngineCase):
 
     def test_exact_dc_succeeds(self):
         with H.fixed_rolls([10]):
-            r = H.ds.perform_check(5, 15, "Perception")  # 15 >= 15
+            r = H.ds.perform_check(5, 15, "Luck")  # custom check, manual modifier; 15 >= 15
         self.assertEqual(r["outcome"], "Success")
 
     def test_natural_twenty_is_critical_even_below_dc(self):

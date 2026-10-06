@@ -66,6 +66,10 @@ class AttackTest(H.EngineCase):
         self.assertFalse(r.get("success", True))
         self.assertIn("error", r)
 
+    def test_attack_line_names_the_target(self):
+        r = self._atk([15, 7])
+        self.assertIn("Borin Attack → Dummy", r["narrative_format"])
+
 
 class NpcAttackTest(H.EngineCase):
     player_factory = staticmethod(H.wizard_l3)
@@ -78,6 +82,15 @@ class NpcAttackTest(H.EngineCase):
         self.assertIn("hp_change", r)
         self.assertEqual(r["hp_change"]["new_value"], 8)  # 13 - 5
         self.assertEqual(H.dbv("current_hit_points"), 8)
+
+    def test_npc_attack_line_names_the_player(self):
+        with H.fixed_rolls([15, 3]):
+            r = H.ds.resolve_attack(actor="Goblin", attack_modifier=4, target_ac=13,
+                                    damage_dice="1d6", damage_modifier=2,
+                                    is_npc_attack=True, target_name="{player_name}",
+                                    target_current_hp=13)
+        # The {player_name} placeholder is resolved to the sheet name.
+        self.assertIn("Goblin Attack → Senna", r["narrative_format"])
 
     def test_temporary_hp_absorbs_damage_first(self):
         with H.fixed_rolls([8]):

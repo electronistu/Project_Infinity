@@ -18,8 +18,17 @@ class ModifyNumericTest(H.EngineCase):
         self.assertFalse(r["success"])
         self.assertIn("available_keys", r)
 
-    def test_hp_clamps_at_zero_and_flags_death(self):
+    def test_massive_damage_is_instant_death(self):
         r = H.ds.modify_player_numeric("current_hit_points", -999)
+        self.assertEqual(r["new_value"], 0)
+        self.assertTrue(r["dead"])
+        self.assertTrue(r["instant_death"])
+        self.assertEqual(r["status"], "Dead")
+        self.assertNotIn("death_saves", r)
+        self.assertEqual(H.dbv("current_hit_points"), 0)
+
+    def test_drop_to_zero_flags_death_saves(self):
+        r = H.ds.modify_player_numeric("current_hit_points", -50)  # 44 -> 0, leftover 6
         self.assertTrue(r["clamped"])
         self.assertEqual(r["new_value"], 0)
         self.assertEqual(r["status"], "Unconscious")

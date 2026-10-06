@@ -171,6 +171,8 @@ class PlayerCharacter(BaseEntity):
     weapon_proficiencies: List[str] = []
     tool_proficiencies: List[str] = []
     skills: List[Skill] = []
+    # Skill names with Expertise (proficiency bonus doubled) — rogue/bard features.
+    expertise: List[str] = []
     saving_throws: List[Skill] = []
     equipment: Equipment = Field(default_factory=Equipment)
     # What is worn/wielded: {"armor": name|None, "hands": [main, off]} (SRD 5.1 has

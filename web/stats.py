@@ -24,6 +24,11 @@ try:  # SRD 5.1 equipped-items model (same repo root, shared with dice_server)
 except ImportError:  # pragma: no cover - package-relative fallback
     from ..equipment import equipment_state  # noqa: E402
 
+try:  # SRD 5.1 skill -> ability map (same repo root, shared with dice_server)
+    import skills as skills_mod  # noqa: E402
+except ImportError:  # pragma: no cover - package-relative fallback
+    from .. import skills as skills_mod  # noqa: E402
+
 _CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 _SPELL_DB = None
 
@@ -416,16 +421,31 @@ def build_stats(db_data: dict) -> dict:
     def g(key, default=""):
         return _parse(db_data.get(key, default))
 
+    equip = equipment_state(g)
+
     stats_raw = g("stats")
+    scores = equip.get("effective_stats") if isinstance(equip, dict) else None
+    if not isinstance(scores, dict):
+        scores = stats_raw if isinstance(stats_raw, dict) else {}
+    score_sources = equip.get("score_sources") if isinstance(equip, dict) else {}
+    if not isinstance(score_sources, dict):
+        score_sources = {}
     stats = []
     if isinstance(stats_raw, dict):
         for key in ("str", "dex", "con", "int", "wis", "cha"):
-            value = stats_raw.get(key, "?")
+            base_value = stats_raw.get(key, "?")
+            value = scores.get(key, base_value)
             name = _ABILITY_NAMES[key]
-            stats.append({
+            entry = {
                 "key": key.upper(), "name": name, "value": value,
                 "modifier": _modifier(value), "icon": icon_key_for("ability", name),
-            })
+            }
+            # A worn/wielded score item changed this score — show the source so the
+            # sheet (and the GM reading it) never contradicts the engine.
+            if value != base_value:
+                entry["base_value"] = base_value
+                entry["source"] = ", ".join(score_sources.get(key, [])) or None
+            stats.append(entry)
 
     spellcasting = None
     spell_raw = g("spellcasting")
@@ -470,7 +490,63 @@ def build_stats(db_data: dict) -> dict:
         "languages": _tag_entries(g("languages"), "language"),
     }
 
-    equip = equipment_state(g)
+    save_prof = {str(s).strip().lower()[:3] for s in (g("saves") or [])}
+    prof_bonus = int(g("proficiency_bonus", 2) or 2) + int(equip.get("proficiency_bonus_mod") or 0)
+    item_save_bonus = int(equip.get("save_bonus") or 0)
+    saves = []
+    for key in ("str", "dex", "con", "int", "wis", "cha"):
+        try:
+            mod = (int(scores.get(key, 10)) - 10) // 2
+        except (TypeError, ValueError):
+            mod = 0
+        proficient = key in save_prof
+        saves.append({
+            "key": key.upper(), "name": _ABILITY_NAMES[key], "modifier": mod,
+            "proficient": proficient, "prof_bonus": prof_bonus if proficient else 0,
+            "item_bonus": item_save_bonus,
+            "total": mod + (prof_bonus if proficient else 0) + item_save_bonus,
+            "icon": icon_key_for("save", _ABILITY_NAMES[key]),
+        })
+
+    # SRD 5.1 derived skill modifiers: ability + proficiency/Expertise/Jack of All Trades + the flat
+    # item check bonus (scoped skill_bonus needs a context, so it is engine-side only).
+    def _names(val):
+        out = []
+        for e in (val or []):
+            n = e.get("name") if isinstance(e, dict) else e
+            if n:
+                out.append(str(n))
+        return out
+
+    proficient_skills = {skills_mod.normalize(n) for n in _names(g("skills"))}
+    expertise_skills = {skills_mod.normalize(n) for n in _names(g("expertise"))}
+    has_joat = any("jack of all trades" in skills_mod.normalize(n) for n in _names(g("features")))
+    flat_check = int(equip.get("check_bonus") or 0) if isinstance(equip, dict) else 0
+    derived_skills = []
+    for skill_name, ability_key in skills_mod.SKILL_ABILITIES.items():
+        key = skills_mod.normalize(skill_name)
+        try:
+            base = (int(scores.get(ability_key, 10)) - 10) // 2
+        except (TypeError, ValueError):
+            base = 0
+        proficient = key in proficient_skills
+        expertise = key in expertise_skills
+        if expertise:
+            part = 2 * prof_bonus
+        elif proficient:
+            part = prof_bonus
+        elif has_joat:
+            part = prof_bonus // 2
+        else:
+            part = 0
+        derived_skills.append({
+            "name": skill_name, "ability": ability_key.upper(), "modifier": base + part + flat_check,
+            "proficient": proficient, "expertise": expertise, "prof_bonus": part,
+            "item_bonus": flat_check, "icon": icon_key_for("skill", skill_name),
+        })
+    by_skill = {d["name"]: d for d in derived_skills}
+    passive = {name.lower(): 10 + by_skill[name]["modifier"]
+               for name in ("Perception", "Investigation", "Insight")}
 
     inventory = g("inventory")
     if not isinstance(inventory, list):
@@ -480,6 +556,27 @@ def build_stats(db_data: dict) -> dict:
     # SRD 5.1 carrying capacity / variant encumbrance, recomputed from the data
     # above (never taken from the dump, which may carry a stale derived copy).
     carry = carry_state(g)
+    speed = equip.get("speed_state") or {}
+    if speed:
+        if speed.get("ignore_encumbrance"):
+            carry["speed_penalty"] = 0
+            carry["speed"] = speed.get("walk")
+        elif speed.get("walk") is not None:
+            carry["speed"] = max(0, int(speed["walk"]) - int(carry.get("speed_penalty") or 0))
+        carry["speed_base"] = speed.get("base", g("speed", "?"))
+        carry["speeds"] = speed.get("modes", {})
+
+    # SRD 5.1 exhaustion: speed halved at level 2, 0 at level 5.
+    try:
+        exh_level = max(0, min(6, int(g("exhaustion", 0) or 0)))
+    except (TypeError, ValueError):
+        exh_level = 0
+    exh_mult = 0.0 if exh_level >= 5 else (0.5 if exh_level >= 2 else 1.0)
+    if exh_mult != 1.0 and carry.get("speed") is not None:
+        carry["speed"] = int(carry["speed"] * exh_mult)
+        carry["speeds"] = {k: int(v * exh_mult) for k, v in (carry.get("speeds") or {}).items()}
+    conc_raw = g("concentration")
+    concentration = conc_raw.get("spell") if isinstance(conc_raw, dict) else None
 
     consumables = g("consumables")
     if not isinstance(consumables, dict):
@@ -562,12 +659,22 @@ def build_stats(db_data: dict) -> dict:
             "armor_class": g("armor_class", "?"),
             "ac_breakdown": equip.get("ac_breakdown", "") if equip.get("derived_from_equipped") else "",
             "speed": carry["speed"] if carry["speed"] is not None else g("speed", "?"),
-            "speed_base": g("speed", "?"),
+            "speed_base": carry.get("speed_base", g("speed", "?")),
+            "speeds": carry.get("speeds", {}),
+            "resistances": (equip.get("defenses") or {}).get("damage_resistances", []),
+            "immunities": (equip.get("defenses") or {}).get("damage_immunities", []),
+            "condition_immunities": (equip.get("defenses") or {}).get("condition_immunities", []),
             "speed_penalty": carry["speed_penalty"],
             "proficiency_bonus": g("proficiency_bonus", "?"),
             "hit_dice_count": g("hit_dice_count", "?"),
             "hit_dice_size": g("hit_dice_size", "?"),
             "temporary_hit_points": thp,
+            "exhaustion": exh_level,
+            "concentration": concentration,
+            "death_saves": {
+                "successes": int(g("death_save_successes", 0) or 0),
+                "failures": int(g("death_save_failures", 0) or 0),
+            },
             "hp_icon": "stat/hp",
             "ac_icon": "stat/ac",
             "speed_icon": "stat/speed",
@@ -576,6 +683,9 @@ def build_stats(db_data: dict) -> dict:
             "temp_hp_icon": "stat/temp-hp",
         },
         "stats": stats,
+        "saves": saves,
+        "skills": derived_skills,
+        "passive": passive,
         "spellcasting": spellcasting,
         "proficiencies": proficiencies,
         "inventory": inventory,

@@ -31,6 +31,7 @@ The inventory entry an equipped name points at may carry `base`, `ac_bonus`,
 
 from __future__ import annotations
 
+import json
 import os
 import re
 
@@ -262,10 +263,511 @@ def _bonuses_apply(name, declared, attuned, equipped_names, inventory) -> bool:
     return True
 
 
-def bonus_suppressed_reason(name, inventory, attuned=(), equipped_names=None) -> str | None:
-    """Why an item's magical bonus is not applying, or None when it applies."""
+# ── item effects: the general model (SRD 5.1) ─────────────────────────────────
+#
+# Every magical effect an item grants is a typed entry. Legacy flat fields
+# (`ac_bonus`, `attack_bonus`, `damage_bonus`, ...) and the flat authoring sugar
+# (`save_bonus`, `set_con`, `str_bonus`, ...) normalize into the same entries, so
+# every consumer reads one shape. Explicit `effects` list entries are passed
+# through verbatim.
+
+_ABILITY_KEYS = ("str", "dex", "con", "int", "wis", "cha")
+
+# flat field -> canonical single-value effect type
+_FLAT_EFFECTS = {
+    "ac_bonus": "ac_bonus",
+    "attack_bonus": "attack_bonus",
+    "damage_bonus": "damage_bonus",
+    "save_bonus": "save_bonus",
+    "check_bonus": "check_bonus",
+    "proficiency_bonus": "proficiency_bonus",
+    "spell_attack_bonus": "spell_attack_bonus",
+    "spell_dc_bonus": "spell_dc_bonus",
+    "hp_per_level": "hp_per_level",
+    "hit_die_healing_multiplier": "hit_die_healing_multiplier",
+}
+_ABILITY_SET_FIELDS = {f"set_{k}": k for k in _ABILITY_KEYS}
+_ABILITY_BONUS_FIELDS = {f"{k}_bonus": k for k in _ABILITY_KEYS}
+
+# Effect types the engine understands at all; and the subset it APPLIES today.
+# A known-but-not-applied type is reported as unmodelled rather than dropped.
+KNOWN_EFFECT_TYPES = {
+    "ability_set", "ability_bonus", "proficiency_bonus", "save_bonus", "save_advantage",
+    "check_bonus", "skill_bonus", "initiative", "ac_bonus", "ac_set", "damage_resistance",
+    "damage_immunity", "condition_immunity", "attack_bonus", "damage_bonus",
+    "spell_attack_bonus", "spell_dc_bonus", "weapon_property", "hp_per_level",
+    "hit_die_healing_multiplier", "regeneration", "speed", "speed_grant", "grant_proficiency",
+}
+APPLIED_EFFECT_TYPES = {
+    "ability_set", "ability_bonus", "proficiency_bonus", "save_bonus", "check_bonus",
+    "ac_bonus", "ac_set", "attack_bonus", "damage_bonus", "spell_attack_bonus",
+    "spell_dc_bonus", "save_advantage", "skill_bonus", "initiative", "damage_resistance",
+    "damage_immunity", "condition_immunity", "speed", "speed_grant", "grant_proficiency",
+    "weapon_property", "hp_per_level", "hit_die_healing_multiplier",
+}
+# `regeneration` is deliberately NOT applied: it needs a clock the engine does not have; it stays
+# declared and is narrated by the GM.
+
+
+def _to_int(value, default=0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def item_effects(declared) -> list[dict]:
+    """Normalize an inventory entry into its typed effect entries.
+
+    Legacy/sugar flat fields come first, then any explicit `effects` list. Item-level gating
+    (attunement / pair) is applied later by the aggregation helpers, not here.
+    """
+    declared = declared if isinstance(declared, dict) else {}
+    effects: list[dict] = []
+    for field, etype in _FLAT_EFFECTS.items():
+        value = declared.get(field)
+        if value not in (None, 0, False):
+            effects.append({"type": etype, "value": _to_int(value)})
+    for field, ability in _ABILITY_SET_FIELDS.items():
+        value = declared.get(field)
+        if value:
+            effects.append({"type": "ability_set", "ability": ability, "value": _to_int(value, 10)})
+    for field, ability in _ABILITY_BONUS_FIELDS.items():
+        value = declared.get(field)
+        if value:
+            entry = {"type": "ability_bonus", "ability": ability, "value": _to_int(value)}
+            cap = declared.get(f"{ability}_bonus_max")
+            if cap is not None:
+                entry["max"] = _to_int(cap)
+            effects.append(entry)
+    raw = declared.get("effects")
+    if isinstance(raw, list):
+        for item in raw:
+            if isinstance(item, dict) and item.get("type"):
+                effects.append(dict(item))
+    return effects
+
+
+def _predicate_known(when) -> bool:
+    when = str(when or "always").strip().lower()
+    if when in ("", "always", "no_armor", "no_shield", "no_armor_or_shield", "while_holding",
+                "requires_items", "vs_spells"):
+        return True
+    return (when.startswith("vs_damage:") or when.startswith("vs_condition:")
+            or when.startswith("context:"))
+
+
+def effect_applies(effect, ctx) -> bool:
+    """Evaluate an effect's `when` predicate against the current equipment state.
+
+    ctx carries at least `armor`, `hands`, `worn`, `inventory`, `equipped_names`; save-scoped
+    predicates additionally read `against`, `damage` and `condition`. An unknown predicate is
+    treated as NOT satisfied (never silently active).
+    """
+    when = str((effect or {}).get("when") or "always").strip().lower()
+    if when in ("", "always"):
+        return True
+    ctx = ctx or {}
+    inventory = ctx.get("inventory") or []
+    armor = ctx.get("armor")
+    hands = [h for h in (ctx.get("hands") or []) if h]
+    worn = [w for w in (ctx.get("worn") or []) if w]
+    equipped_names = ctx.get("equipped_names")
+    if equipped_names is None:
+        equipped_names = ([armor] if armor else []) + hands + worn
+    if when == "no_armor":
+        return not armor
+    if when == "no_shield":
+        return not any(is_shield(h, _base_of(inventory, h)) for h in hands)
+    if when == "no_armor_or_shield":
+        return (not armor) and not any(is_shield(h, _base_of(inventory, h)) for h in hands)
+    if when == "while_holding":
+        name = ctx.get("name")
+        return bool(name) and name in hands
+    if when == "requires_items":
+        need = effect.get("items") or effect.get("requires") or []
+        if isinstance(need, str):
+            need = [need]
+        return all(n in equipped_names for n in need)
+    if when == "vs_spells":
+        return str(ctx.get("against") or "").lower() == "spells"
+    if when.startswith("vs_damage:"):
+        return str(ctx.get("damage") or "").lower() == when.split(":", 1)[1]
+    if when.startswith("vs_condition:"):
+        return str(ctx.get("condition") or "").lower() == when.split(":", 1)[1]
+    if when.startswith("context:"):
+        return str(ctx.get("context") or "").lower() == when.split(":", 1)[1]
+    return False
+
+
+def _active_effects(name, inventory, attuned, equipped_names, ctx) -> list[dict]:
+    """This item's effects that are live: its magic applies (attuned/pair) and each `when` holds."""
     declared = _declared(inventory, name)
-    if not (declared.get("ac_bonus") or declared.get("attack_bonus") or declared.get("damage_bonus")):
+    effects = item_effects(declared)
+    if not effects:
+        return []
+    if not _bonuses_apply(name, declared, attuned, equipped_names, inventory):
+        return []
+    local = dict(ctx or {})
+    local["name"] = name
+    local["inventory"] = inventory
+    local["equipped_names"] = list(equipped_names or [])
+    return [e for e in effects if effect_applies(e, local)]
+
+
+def _equip_context(inventory, armor, hands, worn) -> dict:
+    hands = [h for h in (hands or []) if h]
+    worn = [str(w) for w in (worn or []) if w]
+    return {
+        "armor": armor,
+        "hands": hands,
+        "worn": worn,
+        "inventory": inventory or [],
+        "equipped_names": ([armor] if armor else []) + hands + worn,
+    }
+
+
+def effective_scores(stats, inventory, equipped, attuned=()) -> tuple:
+    """(effective scores, {ability: [source item, ...]}) with worn/wielded score modifiers.
+
+    SRD semantics: `ability_bonus` adds (optionally capped at `max`), then `ability_set` acts
+    as a floor. Only items whose magic applies (attuned / pair complete) contribute.
+    """
+    stats = stats if isinstance(stats, dict) else {}
+    scores = {k: _to_int(stats.get(k, 10), 10) for k in _ABILITY_KEYS}
+    sources: dict[str, list[str]] = {}
+    equipped = equipped if isinstance(equipped, dict) else {}
+    armor = equipped.get("armor") or None
+    hands = _hands_list(equipped.get("hands"))
+    worn_raw = equipped.get("worn")
+    worn = [str(w) for w in worn_raw if w] if isinstance(worn_raw, list) else []
+    ctx = _equip_context(inventory, armor, hands, worn)
+    equipped_names = ctx["equipped_names"]
+    attuned = _attuned_set(attuned)
+
+    for name in equipped_names:
+        for eff in _active_effects(name, inventory, attuned, equipped_names, ctx):
+            ability = str(eff.get("ability") or "").lower()[:3]
+            if ability not in scores:
+                continue
+            if eff.get("type") == "ability_set":
+                value = _to_int(eff.get("value"), scores[ability])
+                if value > scores[ability]:
+                    scores[ability] = value
+                    sources.setdefault(ability, []).append(name)
+            elif eff.get("type") == "ability_bonus":
+                value = scores[ability] + _to_int(eff.get("value"))
+                if eff.get("max") is not None:
+                    value = min(value, _to_int(eff["max"]))
+                if value != scores[ability]:
+                    scores[ability] = value
+                    sources.setdefault(ability, []).append(name)
+    return scores, sources
+
+
+def effect_state(get) -> dict:
+    """Aggregate the scalar channels granted by equipped items (the general model).
+
+    Returns effective scores + sources, the item proficiency bonus, save/check bonuses, worn
+    attack/damage, spell attack/DC bonuses, and any declared-but-unmodelled effects.
+    """
+    equipped = get("equipped", None)
+    present = isinstance(equipped, dict)
+    eq = equipped if present else {}
+    armor = eq.get("armor") or None
+    hands = _hands_list(eq.get("hands"))
+    worn_raw = eq.get("worn")
+    worn = [str(w) for w in worn_raw if w] if isinstance(worn_raw, list) else []
+    attuned = _attuned_set(get("attuned", []))
+    inventory = get("inventory", []) or []
+    if not isinstance(inventory, list):
+        inventory = []
+    stats = get("stats", {}) or {}
+    if not isinstance(stats, dict):
+        stats = {}
+    ctx = _equip_context(inventory, armor, hands, worn)
+    equipped_names = ctx["equipped_names"]
+
+    scores, sources = effective_scores(stats, inventory, eq, attuned)
+    state = {
+        "derived_from_equipped": present,
+        "base_scores": {k: _to_int(stats.get(k, 10), 10) for k in _ABILITY_KEYS},
+        "scores": scores,
+        "score_sources": sources,
+        "proficiency_bonus_mod": 0,
+        "hp_per_level": 0,
+        "hit_die_healing_multiplier": 1.0,
+        "initiative_bonus": 0,
+        "initiative_advantage": False,
+        "save_bonus": 0,
+        "check_bonus": 0,
+        "spell_attack_bonus": 0,
+        "spell_dc_bonus": 0,
+        "worn_attack_bonus": 0,
+        "worn_damage_bonus": 0,
+        "worn_attack_sources": [],
+        "worn_damage_sources": [],
+        "save_bonus_sources": [],
+        "check_bonus_sources": [],
+        "granted_proficiencies": [],
+        "unmodelled": [],
+    }
+    for name in equipped_names:
+        active = _active_effects(name, inventory, attuned, equipped_names, ctx)
+        declared = _declared(inventory, name)
+        for eff in item_effects(declared):
+            etype = str(eff.get("type") or "")
+            is_active = eff in active
+            if etype not in KNOWN_EFFECT_TYPES or not _predicate_known(eff.get("when")):
+                state["unmodelled"].append({
+                    "item": name, "type": etype or "?",
+                    "reason": "unknown_effect" if etype not in KNOWN_EFFECT_TYPES
+                              else "unknown_predicate"})
+                continue
+            if etype not in APPLIED_EFFECT_TYPES:
+                state["unmodelled"].append({"item": name, "type": etype, "reason": "not_yet_applied"})
+                continue
+            if not is_active:
+                continue
+            value = _to_int(eff.get("value"))
+            if etype == "proficiency_bonus":
+                state["proficiency_bonus_mod"] += value
+            elif etype == "save_bonus":
+                state["save_bonus"] += value
+                state["save_bonus_sources"].append(name)
+            elif etype == "check_bonus":
+                state["check_bonus"] += value
+                state["check_bonus_sources"].append(name)
+            elif etype == "spell_attack_bonus":
+                state["spell_attack_bonus"] += value
+            elif etype == "spell_dc_bonus":
+                state["spell_dc_bonus"] += value
+            elif etype == "grant_proficiency":
+                state["granted_proficiencies"].append(
+                    {"category": str(eff.get("category") or "").lower(),
+                     "value": str(eff.get("value") or "").lower(), "item": name})
+            elif etype == "hp_per_level":
+                state["hp_per_level"] += value
+            elif etype == "hit_die_healing_multiplier":
+                if value:
+                    state["hit_die_healing_multiplier"] *= float(value)
+            elif etype == "initiative":
+                state["initiative_bonus"] += _to_int(eff.get("bonus"))
+                if eff.get("advantage"):
+                    state["initiative_advantage"] = True
+    # Worn (non-hand) attack/damage bonuses (the weapon's own are read from its entry).
+    for name in worn:
+        for eff in _active_effects(name, inventory, attuned, equipped_names, ctx):
+            if eff.get("type") == "attack_bonus":
+                state["worn_attack_bonus"] += _to_int(eff.get("value"))
+                state["worn_attack_sources"].append(name)
+            elif eff.get("type") == "damage_bonus":
+                state["worn_damage_bonus"] += _to_int(eff.get("value"))
+                state["worn_damage_sources"].append(name)
+    return state
+
+
+# ── defense, speed, and context-aware check bonuses ──────────────────────────
+
+def _active_effect_entries_from_buffs(get) -> list[dict]:
+    """Normalize `_active_buff_data` (active spell effects) into typed effect entries.
+
+    Accepts the legacy `{field, delta}` shape (-> kind 'delta') and the typed
+    `{kind, field, value}` shape.
+    """
+    raw = get("_active_buff_data", {}) or {}
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            raw = {}
+    out: list[dict] = []
+    for spell, entries in (raw.items() if isinstance(raw, dict) else []):
+        for entry in (entries or []):
+            if not isinstance(entry, dict):
+                continue
+            if entry.get("kind"):
+                out.append({**entry, "spell": spell})
+            elif entry.get("delta") is not None:
+                out.append({"kind": "delta", "field": entry.get("field"),
+                            "value": entry.get("delta"), "spell": spell})
+    return out
+
+
+def defense_state(get) -> dict:
+    """The player's damage / condition defenses from equipped items AND active spell effects.
+
+    Returns normalized lists + the source names, for `_apply_player_damage_modifiers` and the
+    condition-immunity check.
+    """
+    equipped = get("equipped", {}) or {}
+    inventory = get("inventory", []) or []
+    if not isinstance(inventory, list):
+        inventory = []
+    attuned = _attuned_set(get("attuned", []))
+    armor = equipped.get("armor") or None
+    hands = _hands_list(equipped.get("hands"))
+    worn_raw = equipped.get("worn")
+    worn = [str(w) for w in worn_raw if w] if isinstance(worn_raw, list) else []
+    ctx = _equip_context(inventory, armor, hands, worn)
+    equipped_names = ctx["equipped_names"]
+    out = {"damage_resistances": [], "damage_immunities": [], "damage_vulnerabilities": [],
+           "condition_immunities": [], "sources": []}
+
+    def add(bucket, value, source):
+        value = str(value or "").strip().lower()
+        if value and value not in out[bucket]:
+            out[bucket].append(value)
+            out["sources"].append(f"{source}: {value}")
+
+    for name in equipped_names:
+        for eff in _active_effects(name, inventory, attuned, equipped_names, ctx):
+            etype = eff.get("type")
+            if etype == "damage_resistance":
+                add("damage_resistances", eff.get("damage") or eff.get("value"), name)
+            elif etype == "damage_immunity":
+                add("damage_immunities", eff.get("damage") or eff.get("value"), name)
+            elif etype == "condition_immunity":
+                add("condition_immunities", eff.get("condition") or eff.get("value"), name)
+    for entry in _active_effect_entries_from_buffs(get):
+        kind = str(entry.get("kind") or "").lower()
+        spell = entry.get("spell")
+        if kind in ("resistance", "damage_resistance"):
+            add("damage_resistances", entry.get("value"), spell)
+        elif kind in ("immunity", "damage_immunity"):
+            add("damage_immunities", entry.get("value"), spell)
+        elif kind in ("vulnerability", "damage_vulnerability"):
+            add("damage_vulnerabilities", entry.get("value"), spell)
+        elif kind in ("condition_immunity",):
+            add("condition_immunities", entry.get("value"), spell)
+    return out
+
+
+def speed_state(get) -> dict:
+    """Derived walking speed and granted movement modes from equipped items (SRD 5.1).
+
+    Passive `speed` effects only: a `minimum` floor (Boots of Striding and Springing), a `bonus`,
+    a `multiplier`, `ignore_encumbrance`, and `speed_grant` modes (swim/fly/climb).
+    """
+    base = _to_int(get("speed", 30), 30)
+    equipped = get("equipped", {}) or {}
+    inventory = get("inventory", []) or []
+    if not isinstance(inventory, list):
+        inventory = []
+    attuned = _attuned_set(get("attuned", []))
+    armor = equipped.get("armor") or None
+    hands = _hands_list(equipped.get("hands"))
+    worn_raw = equipped.get("worn")
+    worn = [str(w) for w in worn_raw if w] if isinstance(worn_raw, list) else []
+    ctx = _equip_context(inventory, armor, hands, worn)
+    equipped_names = ctx["equipped_names"]
+    minimum = None
+    bonus = 0
+    multiplier = 1.0
+    ignore_encumbrance = False
+    modes: dict[str, int] = {}
+    for name in equipped_names:
+        for eff in _active_effects(name, inventory, attuned, equipped_names, ctx):
+            etype = eff.get("type")
+            if etype == "speed":
+                if eff.get("minimum") is not None:
+                    minimum = max(minimum or 0, _to_int(eff["minimum"]))
+                if eff.get("bonus"):
+                    bonus += _to_int(eff["bonus"])
+                if eff.get("multiplier"):
+                    multiplier *= float(eff["multiplier"])
+                if eff.get("ignore_encumbrance"):
+                    ignore_encumbrance = True
+            elif etype == "speed_grant":
+                mode = str(eff.get("mode") or "").strip().lower()
+                if mode:
+                    modes[mode] = max(modes.get(mode, 0), _to_int(eff.get("value")))
+    walk = base
+    if minimum is not None:
+        walk = max(walk, minimum)
+    walk += bonus
+    walk = int(walk * multiplier)
+    return {"base": base, "walk": walk, "modes": modes,
+            "ignore_encumbrance": ignore_encumbrance, "minimum": minimum,
+            "bonus": bonus, "multiplier": multiplier}
+
+
+def check_bonus_for(get, check_name: str = "", context=None) -> tuple:
+    """(flat bonus, sources) for an ability/skill check from equipped items.
+
+    Applies `check_bonus` (all checks) and any `skill_bonus` whose `skill` appears in the check
+    name; a `context:<tag>` predicate is matched against `context` (e.g. 'climbing').
+    """
+    equipped = get("equipped", {}) or {}
+    inventory = get("inventory", []) or []
+    if not isinstance(inventory, list):
+        inventory = []
+    attuned = _attuned_set(get("attuned", []))
+    armor = equipped.get("armor") or None
+    hands = _hands_list(equipped.get("hands"))
+    worn_raw = equipped.get("worn")
+    worn = [str(w) for w in worn_raw if w] if isinstance(worn_raw, list) else []
+    ctx = _equip_context(inventory, armor, hands, worn)
+    ctx["context"] = context
+    equipped_names = ctx["equipped_names"]
+    needle = normalize(check_name)
+    total = 0
+    sources = []
+    for name in equipped_names:
+        for eff in _active_effects(name, inventory, attuned, equipped_names, ctx):
+            etype = eff.get("type")
+            if etype == "check_bonus":
+                total += _to_int(eff.get("value"))
+                sources.append(name)
+            elif etype == "skill_bonus":
+                skill = normalize(eff.get("skill"))
+                if skill and skill in needle:
+                    total += _to_int(eff.get("value"))
+                    sources.append(name)
+    return total, sources
+
+
+def active_dice(get, field: str) -> list[dict]:
+    """Active spell dice bonuses for a field ('saving_throws', 'ability_checks', 'attack_rolls',
+    'damage_rolls') as `[{value, spell}]` (Bless +1d4, Bane -1d4, ...)."""
+    out = []
+    for entry in _active_effect_entries_from_buffs(get):
+        if (str(entry.get("kind") or "").lower() == "dice"
+                and str(entry.get("field") or "") == field):
+            out.append({"value": str(entry.get("value") or ""), "spell": entry.get("spell")})
+    return out
+
+
+def save_advantage_for(get, against=None, damage=None, condition=None) -> tuple:
+    """(advantage?, sources) for a saving throw from equipped items, scoped by context.
+
+    `against` (e.g. 'spells'), `damage` (a damage type) and `condition` match the effect's
+    `vs_spells` / `vs_damage:<t>` / `vs_condition:<c>` predicate.
+    """
+    equipped = get("equipped", {}) or {}
+    inventory = get("inventory", []) or []
+    if not isinstance(inventory, list):
+        inventory = []
+    attuned = _attuned_set(get("attuned", []))
+    armor = equipped.get("armor") or None
+    hands = _hands_list(equipped.get("hands"))
+    worn_raw = equipped.get("worn")
+    worn = [str(w) for w in worn_raw if w] if isinstance(worn_raw, list) else []
+    ctx = _equip_context(inventory, armor, hands, worn)
+    ctx.update({"against": against, "damage": damage, "condition": condition})
+    equipped_names = ctx["equipped_names"]
+    sources = []
+    for name in equipped_names:
+        for eff in _active_effects(name, inventory, attuned, equipped_names, ctx):
+            if eff.get("type") == "save_advantage":
+                sources.append(name)
+    return bool(sources), sources
+
+
+def bonus_suppressed_reason(name, inventory, attuned=(), equipped_names=None) -> str | None:
+    """Why an item's magical effects are not applying, or None when they apply."""
+    declared = _declared(inventory, name)
+    if not item_effects(declared):
         return None
     equipped_names = equipped_names if equipped_names is not None else [name]
     if declared.get("attunement") and str(name) not in _attuned_set(attuned):
@@ -324,10 +826,15 @@ def ac_from_parts(stats, character_class, armor=None, hands=None, features=(),
     worn_entry = armor_entry(armor, _base_of(inventory, armor)) if armor else None
     shield_name = next((h for h in (hands or []) if h and is_shield(h, _base_of(inventory, h))), None)
 
+    ctx = _equip_context(inventory, armor, hands, worn)
+
+    def ac_bonus_of(item_name):
+        return sum(_to_int(e.get("value"))
+                   for e in _active_effects(item_name, inventory, attuned, equipped_names, ctx)
+                   if e.get("type") == "ac_bonus")
+
     parts = []
-    armor_declared = _declared(inventory, armor) if armor else {}
-    armor_bonus = int(armor_declared.get("ac_bonus") or 0) \
-        if _bonuses_apply(armor, armor_declared, attuned, equipped_names, inventory) else 0
+    armor_bonus = ac_bonus_of(armor) if armor else 0
     if worn_entry is not None:
         cap = worn_entry.get("dex_cap")
         if cap is None:
@@ -345,27 +852,41 @@ def ac_from_parts(stats, character_class, armor=None, hands=None, features=(),
             parts.append(f"DEX {eff_dex:+d}")
         unarmored = False
     else:
-        base = 10 + dex
-        parts.append("unarmoured 10")
+        # Unarmoured candidates: the standard formula plus any `ac_set` item (Robe of the
+        # Archmagi, Mage Armor) — SRD: use the formula that gives the highest AC.
+        candidates = []
+        u_parts = ["unarmoured 10"]
+        u_base = 10 + dex
         if dex:
-            parts.append(f"DEX {dex:+d}")
-        unarmored = True
+            u_parts.append(f"DEX {dex:+d}")
         if cls == "Barbarian":
-            base += con
+            u_base += con
             if con:
-                parts.append(f"CON {con:+d}")
+                u_parts.append(f"CON {con:+d}")
         elif cls == "Monk":
-            base += wis
+            u_base += wis
             if wis:
-                parts.append(f"WIS {wis:+d}")
+                u_parts.append(f"WIS {wis:+d}")
+        candidates.append((u_base, u_parts))
+        for name in equipped_names:
+            for eff in _active_effects(name, inventory, attuned, equipped_names, ctx):
+                if eff.get("type") != "ac_set":
+                    continue
+                set_base = _to_int(eff.get("base"), 10)
+                set_parts = [f"{name} {set_base}"]
+                if eff.get("plus_dex"):
+                    set_base += dex
+                    if dex:
+                        set_parts.append(f"DEX {dex:+d}")
+                candidates.append((set_base, set_parts))
+        base, parts = max(candidates, key=lambda candidate: candidate[0])
+        unarmored = True
 
     shield_bonus = 0
     if shield_name is not None and cls != "Monk":
         shield_declared = _declared(inventory, shield_name)
         shield_entry = armor_entry(shield_name, shield_declared.get("base"))
-        shield_bonus = int((shield_entry or {}).get("ac", 2))
-        if _bonuses_apply(shield_name, shield_declared, attuned, equipped_names, inventory):
-            shield_bonus += int(shield_declared.get("ac_bonus") or 0)
+        shield_bonus = int((shield_entry or {}).get("ac", 2)) + ac_bonus_of(shield_name)
         parts.append(f"shield +{shield_bonus}")
 
     if defense and worn_entry is not None:
@@ -373,13 +894,7 @@ def ac_from_parts(stats, character_class, armor=None, hands=None, features=(),
         parts.append("Defense +1")
 
     # Worn items that are neither armour nor shields (cloaks, rings, ...) add their magic bonus.
-    worn_bonus = 0
-    for name in (worn or []):
-        if not name:
-            continue
-        declared = _declared(inventory, name)
-        if _bonuses_apply(name, declared, attuned, equipped_names, inventory):
-            worn_bonus += int(declared.get("ac_bonus") or 0)
+    worn_bonus = sum(ac_bonus_of(name) for name in (worn or []) if name)
     if worn_bonus:
         parts.append(f"worn +{worn_bonus}")
 
@@ -448,10 +963,17 @@ def equipment_state(get) -> dict:
     if not isinstance(features, list):
         features = []
 
-    ac, ac_info = ac_from_parts(stats, character_class, armor, hands, features, inventory,
+    effect = effect_state(get)
+    scores = effect["scores"]
+    defense = defense_state(get)
+    speed = speed_state(get)
+    ac, ac_info = ac_from_parts(scores, character_class, armor, hands, features, inventory,
                                 attuned, worn)
     equipped_names = ([armor] if armor else []) + [h for h in hands if h] + worn
-    proficiencies = get("armor_proficiencies", []) or []
+    proficiencies = list(get("armor_proficiencies", []) or [])
+    for grant in effect["granted_proficiencies"]:
+        if grant["category"] in ("armor", "armour"):
+            proficiencies.append(grant["value"])
 
     hand_slots = []
     for index, name in enumerate(hands):
@@ -511,6 +1033,12 @@ def equipment_state(get) -> dict:
             "code": "unknown_archetype",
             "message": f"No armour archetype is known for '{armor}' — declare a base or its ac.",
         })
+    for item in effect["unmodelled"]:
+        warnings.append({
+            "code": "unmodelled_effect",
+            "message": f"{item['item']} declares a '{item['type']}' effect the engine does not "
+                       f"apply yet ({item['reason']}) — narrate it by hand.",
+        })
 
     return {
         "derived_from_equipped": present,
@@ -531,6 +1059,18 @@ def equipment_state(get) -> dict:
         "proficiency_sources": [f"not proficient with {n}" for n in unproficient],
         "attuned": sorted(attuned),
         "attunement_slots_free": max(0, 3 - len(attuned)),
+        "effective_stats": scores,
+        "base_stats": effect["base_scores"],
+        "score_sources": effect["score_sources"],
+        "save_bonus": effect["save_bonus"],
+        "save_bonus_sources": effect["save_bonus_sources"],
+        "check_bonus": effect["check_bonus"],
+        "check_bonus_sources": effect["check_bonus_sources"],
+        "proficiency_bonus_mod": effect["proficiency_bonus_mod"],
+        "granted_proficiencies": effect["granted_proficiencies"],
+        "defenses": defense,
+        "speed_state": speed,
+        "unmodelled_effects": effect["unmodelled"],
         "worn": [{"name": name, "slot": "worn",
                   "kind": (str(_declared(inventory, name).get("kind") or "").lower() or None),
                   "attuned": name in attuned} for name in worn],

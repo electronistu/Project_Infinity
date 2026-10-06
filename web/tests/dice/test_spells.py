@@ -81,7 +81,7 @@ class HealingAndBuffTest(H.EngineCase):
             r = H.ds.resolve_magic(spell_name="Cure Wounds", actor="Father Aldric", slot_level=1,
                                    target_name="Father Aldric", healing=True)
         self.assertEqual(r["healing_total"], 8)  # 1d8 (4) + WIS (+4)
-        self.assertIn("Healing: 8", r["narrative_format"])
+        self.assertIn("Healing → Father Aldric: 8", r["narrative_format"])
 
     def test_healing_word_also_adds_modifier(self):
         with H.fixed_rolls([3]):

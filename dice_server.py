@@ -10,6 +10,7 @@ from level_up import apply_level_up, CASTER_TYPE_MAP, SLOT_TABLES, FULL_CASTER_S
 
 import carrying  # local SRD 5.1 carrying capacity / encumbrance rules
 import equipment  # local SRD 5.1 equipped-items model (armour, hands, derived AC)
+import skills  # local SRD 5.1 skill -> ability map + normalisation
 
 try:
     import yaml
@@ -32,6 +33,8 @@ XP_THRESHOLDS = [
 
 KNOWN_CASTER_CLASSES = {"Bard", "Sorcerer", "Warlock", "Ranger"}
 PREPARED_CASTER_CLASSES = {"Cleric", "Druid", "Paladin"}
+SRD_CLASSES = {"Barbarian", "Bard", "Cleric", "Druid", "Fighter", "Monk", "Paladin",
+               "Ranger", "Rogue", "Sorcerer", "Warlock", "Wizard"}
 
 CR_XP_TABLE = {
     0: 10, 0.125: 25, 0.25: 50, 0.5: 100,
@@ -237,9 +240,170 @@ def _carry_get(cursor):
     return lambda key, default=None: _db_val(cursor, key, default)
 
 
+def _item_effect_state(cursor) -> dict:
+    """Aggregated item-effect channels for the player (scores, save/check/prof/spell bonuses).
+
+    The single source of truth is `equipment.effect_state`, so the engine and the sheet agree.
+    """
+    if cursor is None:
+        return {}
+    return equipment.effect_state(_carry_get(cursor))
+
+
+def _effective_stats(cursor) -> dict:
+    """The player's six ability scores with worn/wielded score items applied (SRD 5.1)."""
+    state = _item_effect_state(cursor)
+    return dict(state.get("scores") or {})
+
+
+def _save_proficiencies(cursor) -> set:
+    """Lowercased 3-letter ability keys the player is proficient at saving with."""
+    return {str(s).strip().lower()[:3] for s in (_db_val(cursor, "saves", []) or [])}
+
+
+def _effective_prof_bonus(cursor) -> int:
+    """The player's proficiency bonus including item grants (Ioun Stone, Mastery)."""
+    base = int(_db_val(cursor, "proficiency_bonus", 2) or 2)
+    return base + int(_item_effect_state(cursor).get("proficiency_bonus_mod") or 0)
+
+
+def _derived_save(cursor, ability, situational: int = 0, against=None, damage=None,
+                  condition=None) -> dict:
+    """The player's full saving-throw modifier (SRD 5.1), engine-computed.
+
+    ability modifier (effective) + proficiency bonus (if proficient with the save) + worn /
+    attuned item save bonuses + a caller-supplied situational bonus or penalty. Scoped item
+    advantage (`save_advantage` with `vs_spells`/`vs_damage:`/`vs_condition:`) is returned too.
+    """
+    key = str(ability or "").strip().lower()[:3]
+    state = _item_effect_state(cursor)
+    scores = state.get("scores") or {}
+    ability_mod = _ability_mod(scores.get(key, scores.get("str", 10)))
+    prof_bonus = int(_db_val(cursor, "proficiency_bonus", 2) or 2) \
+        + int(state.get("proficiency_bonus_mod") or 0)
+    proficient = key in _save_proficiencies(cursor)
+    item_bonus = int(state.get("save_bonus") or 0)
+    advantage, advantage_sources = equipment.save_advantage_for(
+        _carry_get(cursor), against=against, damage=damage, condition=condition)
+    return {
+        "ability": key,
+        "ability_modifier": ability_mod,
+        "proficiency_bonus": prof_bonus if proficient else 0,
+        "proficient": proficient,
+        "item_bonus": item_bonus,
+        "item_sources": list(state.get("save_bonus_sources") or []),
+        "situational": int(situational or 0),
+        "advantage": advantage,
+        "advantage_sources": advantage_sources,
+        "modifier": ability_mod + (prof_bonus if proficient else 0) + item_bonus
+                    + int(situational or 0),
+    }
+
+
+def _list_names(value) -> list[str]:
+    """Names from a player list whose entries may be strings or {name, ...} dicts."""
+    out = []
+    for entry in (value or []):
+        if isinstance(entry, dict):
+            name = entry.get("name") or entry.get("skill") or ""
+        else:
+            name = entry
+        name = str(name or "").strip()
+        if name:
+            out.append(name)
+    return out
+
+
+def _player_skill_names(cursor) -> set:
+    """Normalized names of the player's proficient skills (SRD 5.1)."""
+    return {skills.normalize(n) for n in _list_names(_db_val(cursor, "skills", []))}
+
+
+def _player_expertise(cursor) -> set:
+    """Normalized names of the player's Expertise skills (double proficiency)."""
+    return {skills.normalize(n) for n in _list_names(_db_val(cursor, "expertise", []))}
+
+
+def _has_feature(cursor, needle) -> bool:
+    """True when the player's feature list contains `needle` (case-insensitive substring)."""
+    target = skills.normalize(needle)
+    return any(target in skills.normalize(n) for n in _list_names(_db_val(cursor, "features", [])))
+
+
+def _derived_check(cursor, check_name, ability=None, context=None, situational: int = 0) -> dict:
+    """The player's full ability/skill check modifier (SRD 5.1), engine-computed.
+
+    Ability modifier (effective) + proficiency bonus, doubled for Expertise or halved (rounded
+    down) for Jack of All Trades on a check that is not already proficient + worn/attuned item
+    `check_bonus`/`skill_bonus` + a caller-supplied situational bonus. `skill` is None for a plain
+    ability check (or an unrecognised check name).
+    """
+    skill = skills.skill_name(check_name)
+    ab = str(ability or "").strip().lower()[:3] or (skills.SKILL_ABILITIES.get(skill, "") if skill else "")
+    scores = _effective_stats(cursor)
+    ability_mod = _ability_mod(scores.get(ab, 10)) if ab else 0
+    prof_bonus = _effective_prof_bonus(cursor)
+    proficient = bool(skill) and skills.normalize(skill) in _player_skill_names(cursor)
+    expertise = bool(skill) and skills.normalize(skill) in _player_expertise(cursor)
+    joat = (not proficient) and _has_feature(cursor, "jack of all trades")
+    if expertise:
+        prof_part = 2 * prof_bonus
+    elif proficient:
+        prof_part = prof_bonus
+    elif joat:
+        prof_part = prof_bonus // 2
+    else:
+        prof_part = 0
+    item_bonus, item_sources = equipment.check_bonus_for(_carry_get(cursor), check_name, context)
+    return {
+        "skill": skill,
+        "ability": ab,
+        "ability_modifier": ability_mod,
+        "proficiency_bonus": prof_part,
+        "proficient": proficient,
+        "expertise": expertise,
+        "jack_of_all_trades": joat,
+        "item_bonus": item_bonus,
+        "item_sources": list(item_sources or []),
+        "situational": int(situational or 0),
+        "modifier": ability_mod + prof_part + item_bonus + int(situational or 0),
+    }
+
+
+def _passive_scores(cursor) -> dict:
+    """SRD 5.1 passive scores (10 + the derived modifier) for the three passive skills."""
+    return {skill.lower(): 10 + _derived_check(cursor, skill)["modifier"]
+            for skill in ("Perception", "Investigation", "Insight")}
+
+
 def _carry_block(cursor) -> dict:
-    """Derived carrying state (never persisted: it is stripped before saving)."""
-    return carrying.carry_state(_carry_get(cursor))
+    """Derived carrying state (never persisted: stripped before saving). Uses effective STR."""
+    scores = _effective_stats(cursor)
+
+    def get(key, default=None):
+        if key == "stats":
+            return scores
+        return _db_val(cursor, key, default)
+
+    state = carrying.carry_state(get)
+    # Passive item speed (Boots of Striding and Springing set a 30 ft floor and ignore
+    # encumbrance/heavy-armour reduction). Active speed items are spell-style buffs, not here.
+    speed = equipment.speed_state(get)
+    if speed["ignore_encumbrance"]:
+        state["speed_penalty"] = 0
+        state["speed"] = speed["walk"]
+    else:
+        state["speed"] = max(0, speed["walk"] - int(state.get("speed_penalty") or 0))
+    state["speed_base"] = speed["base"]
+    state["speeds"] = speed["modes"]
+    # SRD 5.1 exhaustion: speed halved at level 2, 0 at level 5.
+    exh = _exhaustion_effects(_exhaustion_level(cursor))
+    if exh["speed_multiplier"] != 1.0:
+        state["speed"] = int(state["speed"] * exh["speed_multiplier"])
+        state["speeds"] = {k: int(v * exh["speed_multiplier"])
+                           for k, v in (state.get("speeds") or {}).items()}
+        state["exhaustion_speed"] = exh["level"]
+    return state
 
 
 # ── equipped items / derived armour class (SRD 5.1) ───────────────────────────
@@ -250,18 +414,103 @@ def _equipment_block(cursor) -> dict:
 
 
 def _recompute_armor_class(cursor) -> int | None:
-    """Set `armor_class` from the equipped set. No-op without an `equipped` value.
+    """Recompute everything derived from the equipped set and effective scores (SRD 5.1).
 
-    The Forge writes the first consistent pair; from then on every equip/unequip
-    recomputes it here, so the sheet and the engine can never disagree with what
-    the character is actually wearing. Temporary effects still layer on top via
-    `modify_player_numeric(key='armor_class', ...)`.
+    Called after every equip/unequip/attune/level change: sets `armor_class` from the equipped set,
+    recomputes the spell save DC / spell attack from the effective spellcasting ability, and
+    reconciles the CON-score contribution to max HP. No-op (for each part) without an `equipped`
+    or `spellcasting` value.
+    """
+    ac = None
+    if isinstance(_db_val(cursor, "equipped", None), dict):
+        ac = _equipment_block(cursor)["base_ac"]
+        _db_set(cursor, "armor_class", ac)
+    _recompute_spellcasting(cursor)
+    _recompute_hit_points(cursor)
+    return ac
+
+
+def _recompute_spellcasting(cursor) -> dict | None:
+    """Recompute the player's spell save DC and spell attack from the effective sheet.
+
+    SRD 5.1: DC = 8 + proficiency bonus + spellcasting ability modifier (+ item spell-DC bonus);
+    attack = proficiency bonus + ability modifier (+ item spell-attack bonus).
+    """
+    sc = _db_val(cursor, "spellcasting", None)
+    if not isinstance(sc, dict) or not sc:
+        return None
+    stat_key = ABILITY_TO_STAT.get(str(sc.get("ability") or "").lower())
+    if not stat_key:
+        return None
+    scores = _effective_stats(cursor)
+    mod = _ability_mod(scores.get(stat_key, 10))
+    prof = _effective_prof_bonus(cursor)
+    state = _item_effect_state(cursor)
+    dc = 8 + prof + mod + int(state.get("spell_dc_bonus") or 0)
+    attack = prof + mod + int(state.get("spell_attack_bonus") or 0)
+    if sc.get("dc") != dc or sc.get("attack_modifier") != attack:
+        sc["dc"] = dc
+        sc["attack_modifier"] = attack
+        _db_set(cursor, "spellcasting", sc)
+    return {"dc": dc, "attack_modifier": attack}
+
+
+def _recompute_hit_points(cursor) -> int | None:
+    """Apply the effective-CON contribution to max HP (SRD 5.1: max changes retroactively).
+
+    Reconciles the stored `item_hp_delta` (the HP added by worn/wielded CON score items) with the
+    current effective CON, adjusting max and current HP by the difference (`Δcon_mod x level`).
+    Idempotent; no-op without an `equipped` value.
     """
     if not isinstance(_db_val(cursor, "equipped", None), dict):
+        _recompute_exhaustion_hp(cursor)
         return None
-    ac = _equipment_block(cursor)["base_ac"]
-    _db_set(cursor, "armor_class", ac)
-    return ac
+    base = _db_val(cursor, "stats", {}) or {}
+    if isinstance(base, str):
+        base = json.loads(base)
+    effective = _effective_stats(cursor)
+    level = int(_db_val(cursor, "level", 1) or 1)
+    base_mod = _ability_mod(base.get("con", 10))
+    eff_mod = _ability_mod(effective.get("con", base.get("con", 10)))
+    hp_per_level = int(_item_effect_state(cursor).get("hp_per_level") or 0)
+    new_delta = (eff_mod - base_mod) * level + hp_per_level * level
+    old_delta = int(_db_val(cursor, "item_hp_delta", 0) or 0)
+    diff = new_delta - old_delta
+    total = int(_db_val(cursor, "total_hit_points", 1) or 1)
+    if diff:
+        total = max(1, total + diff)
+        current = int(_db_val(cursor, "current_hit_points", 0) or 0)
+        # Never revive: a larger CON changes the maximum; a downed character stays down.
+        if current > 0:
+            current = min(max(0, current + diff), total)
+        _db_set(cursor, "total_hit_points", total)
+        _db_set(cursor, "current_hit_points", current)
+    _db_set(cursor, "item_hp_delta", new_delta)
+    _recompute_exhaustion_hp(cursor)
+    return int(_db_val(cursor, "total_hit_points", total) or total)
+
+
+def _recompute_exhaustion_hp(cursor) -> int:
+    """SRD 5.1 exhaustion: at level 4 the HP maximum is halved.
+
+    Reconciled through a persisted `exhaustion_hp_delta` (the same shape as `item_hp_delta`), so
+    recovering below level 4 restores the full maximum automatically. Never revives a downed
+    character. Idempotent; safe with no equipped set.
+    """
+    level = _exhaustion_level(cursor)
+    total = int(_db_val(cursor, "total_hit_points", 1) or 1)
+    old_penalty = int(_db_val(cursor, "exhaustion_hp_delta", 0) or 0)
+    base = total - old_penalty  # the maximum without the exhaustion penalty
+    target = max(1, int(base * (0.5 if level >= 4 else 1.0)))
+    new_penalty = target - base
+    if new_penalty != old_penalty:
+        current = int(_db_val(cursor, "current_hit_points", 0) or 0)
+        _db_set(cursor, "total_hit_points", str(target))
+        if current > 0:
+            _db_set(cursor, "current_hit_points", str(min(current, target)))
+        _db_set(cursor, "exhaustion_hp_delta", str(new_penalty))
+        DB_CONNECTION.commit()
+    return target
 
 
 def _clear_equipped(cursor, name) -> bool:
@@ -328,20 +577,108 @@ def _rename_equipped(cursor, old, new) -> bool:
     return changed
 
 
-WORN_KINDS = {"cloak", "boots", "gloves", "bracers", "headwear", "ring"}
+WORN_KINDS = {"cloak", "boots", "gloves", "gauntlets", "bracers", "headwear", "ring", "amulet",
+              "belt"}
+
+# SRD 5.1 "Multiple Items of the Same Kind": a character can't normally wear more than one pair
+# of footwear, one pair of gloves or gauntlets, one pair of bracers, one item of headwear, or one
+# cloak. Rings, amulets, necklaces and belts are NOT on that list (only the attunement rule "one
+# copy of an item" applies to them).
+WORN_EXCLUSIVE = {
+    "boots": "footwear",
+    "gloves": "hands",
+    "gauntlets": "hands",
+    "bracers": "arms",
+    "cloak": "shoulders",
+    "headwear": "head",
+}
+
+
+def _worn_group(declared) -> str | None:
+    """The SRD "same kind" wearing group for an item (None when unconstrained)."""
+    kind = str((declared or {}).get("kind") or "").strip().lower()
+    return WORN_EXCLUSIVE.get(kind)
+
+
+def _inventory_entry(inventory, name) -> dict:
+    """The inventory entry (dict) an item name points at, else {}."""
+    return next((e for e in (inventory or [])
+                 if isinstance(e, dict) and e.get("name") == name), {})
 
 
 def _is_worn_slot(item, declared) -> bool:
     """True when equipping should put the item in the `worn` container rather than a hand.
 
-    5e has no slots, but clothing, cloaks, boots, gloves, bracers, headwear and rings are worn
-    rather than held — they need somewhere to live so attunement and pairing rules have something
-    to bind to.
+    5e has no slots, but clothing, cloaks, boots, gloves, bracers, headwear, rings and amulets are
+    worn rather than held — they need somewhere to live so attunement and pairing rules have
+    something to bind to.
     """
     if equipment.is_weapon(item) or equipment.is_shield(item) or equipment.is_armor(item):
         return False
     kind = str((declared or {}).get("kind") or "").strip().lower()
     return kind in WORN_KINDS or equipment.is_clothing(item)
+
+
+def _reject_item(error: str, reason: str, item: str, nudge: str, **extra) -> dict:
+    """A refused inventory add: the GM is told exactly how to call the tool correctly."""
+    result = {"success": False, "error": error, "item": item, "reason": reason,
+              "gm_instruction": nudge}
+    result.update(extra)
+    return result
+
+
+def _validate_item_add(name: str, declared: dict, weight) -> dict | None:
+    """Reject a combat-relevant inventory add that is missing required stats (SRD 5.1).
+
+    The engine derives attack/damage/AC from the declared fields, so a weapon or armour that is
+    neither a known SRD archetype nor explicitly statted cannot be used. Returns None when the add
+    is acceptable.
+    """
+    base = declared.get("base")
+    known_archetype = bool(base) and (equipment.is_weapon(base) or equipment.is_armor(base)
+                                      or equipment.is_shield(base))
+    has_stats = bool(declared.get("damage_dice") or declared.get("ac"))
+    has_bonus = bool(equipment.item_effects(declared))
+    kind = str(declared.get("kind") or "").strip().lower()
+
+    # 1. An unknown `base` with nothing else to derive from is unusable. A declared bonus or kind
+    #    is enough for a homebrew worn item (e.g. base='Ring of Protection', kind='ring').
+    if base and not known_archetype and not has_stats and not has_bonus:
+        return _reject_item(
+            "unknown_base_no_stats",
+            f"Unknown base archetype '{base}' and no explicit stats — the engine cannot derive "
+            f"hands, weight or combat stats from it.", name,
+            f"Re-add with a real SRD base (e.g. base='Dagger'), or declare the stats: "
+            f"update_player_list(key='inventory', item='{name}', action='add', "
+            f"damage_dice='1d4', damage_type='piercing', properties=['Finesse']).",
+            unknown_base=base)
+
+    # 2. Weapon intent (dice/type/properties) with no damage dice and no resolvable archetype.
+    if (declared.get("damage_type") or declared.get("properties")) and not declared.get("damage_dice"):
+        wpn = equipment.weapon_entry(name, base) or {}
+        if not wpn.get("damage"):
+            return _reject_item(
+                "weapon_stats_missing",
+                f"No damage is known for '{name}' — declare damage_dice or a known weapon base.",
+                name,
+                f"Re-add as a weapon: update_player_list(key='inventory', item='{name}', "
+                f"action='add', base='Dagger', damage_dice='1d4', damage_type='piercing', "
+                f"properties=['Finesse','Light']).")
+
+    # 3. A worn magic item (bonus or paired) with no `kind` would be held, not worn.
+    worn_intent = has_bonus or bool(declared.get("pair"))
+    if worn_intent and not kind:
+        resolves_worn = (equipment.is_weapon(name, base) or equipment.is_armor(name, base)
+                         or equipment.is_shield(name, base) or equipment.is_clothing(name, base))
+        if not resolves_worn:
+            return _reject_item(
+                "worn_kind_missing",
+                f"'{name}' grants a magic bonus but has no `kind`, so it would be held rather "
+                f"than worn and its bonus would not apply.", name,
+                f"Declare the slot: update_player_list(key='inventory', item='{name}', "
+                f"action='add', kind='ring' (or 'amulet', 'cloak', 'boots', 'gloves', "
+                f"'gauntlets', 'bracers', 'headwear', 'belt'), save_bonus=<n>).")
+    return None
 
 
 def _in_active_combat() -> bool:
@@ -393,6 +730,22 @@ def _is_light_melee(name, inventory) -> bool:
     return bool(wpn.get("melee", True)) and any(p.startswith("light") for p in props)
 
 
+def _worn_item_bonuses(cursor, inventory):
+    """Sum worn items' attack/damage bonuses (SRD 5.1), by attunement/pair gating.
+
+    A thin projection of the general effect model (`equipment.effect_state`); returns
+    (attack, damage, sources).
+    """
+    state = _item_effect_state(cursor)
+    attack = int(state.get("worn_attack_bonus") or 0)
+    damage = int(state.get("worn_damage_bonus") or 0)
+    sources = list(state.get("worn_attack_sources") or [])
+    for src in state.get("worn_damage_sources") or []:
+        if src not in sources:
+            sources.append(src)
+    return attack, damage, sources
+
+
 def _derive_weapon_attack(cursor, weapon: str, inventory: list, hands_free: int = 1,
                           off_hand: bool = False) -> dict:
     """Derived attack/damage for a player's equipped weapon (SRD 5.1).
@@ -409,9 +762,12 @@ def _derive_weapon_attack(cursor, weapon: str, inventory: list, hands_free: int 
     base = entry.get("base")
     wpn = equipment.weapon_entry(weapon, base) or {}
     props = [str(p) for p in equipment.properties_for(weapon, base, entry)]
+    for eff in equipment.item_effects(entry):
+        if eff.get("type") == "weapon_property" and eff.get("property"):
+            props.append(str(eff["property"]))
     low = [p.lower() for p in props]
     melee = bool(wpn.get("melee", True))
-    stats = _db_val(cursor, "stats", {}) or {}
+    stats = _effective_stats(cursor)
     str_mod = _ability_mod(stats.get("str", 10))
     dex_mod = _ability_mod(stats.get("dex", 10))
     if any("finesse" in p for p in low):
@@ -422,21 +778,29 @@ def _derive_weapon_attack(cursor, weapon: str, inventory: list, hands_free: int 
         ability, ability_mod = "dexterity", dex_mod
 
     proficiencies = {str(p).strip().lower() for p in (_db_val(cursor, "weapon_proficiencies", []) or [])}
+    for grant in (_item_effect_state(cursor).get("granted_proficiencies") or []):
+        if str(grant.get("category") or "") in ("weapon", "weapons"):
+            proficiencies.add(str(grant.get("value") or "").lower())
     category = str(wpn.get("category") or "").lower()
     proficient = (not proficiencies
                   or f"{category} weapons" in proficiencies
                   or weapon.strip().lower() in proficiencies)
-    prof_bonus = int(_db_val(cursor, "proficiency_bonus", 2) or 2)
+    prof_bonus = _effective_prof_bonus(cursor)
 
-    # Magic bonuses: attunement / paired-item gating.
+    # Magic bonuses: attunement / paired-item gating, from the weapon itself and any worn item.
     equipped = _db_val(cursor, "equipped", {}) or {}
+    worn = [str(w) for w in (equipped.get("worn") or []) if w]
     equipped_names = ([equipped.get("armor")] if equipped.get("armor") else []) \
-        + [h for h in (equipped.get("hands") or []) if h]
+        + [h for h in (equipped.get("hands") or []) if h] + worn
     suppressed = equipment.bonus_suppressed_reason(weapon, inventory,
                                                    _db_val(cursor, "attuned", []) or [],
                                                    equipped_names)
-    attack_bonus = int(entry.get("attack_bonus") or 0) if suppressed is None else 0
-    damage_bonus = int(entry.get("damage_bonus") or 0) if suppressed is None else 0
+    weapon_effects = equipment.item_effects(entry)
+    attack_bonus = sum(int(e.get("value") or 0) for e in weapon_effects
+                       if e.get("type") == "attack_bonus") if suppressed is None else 0
+    damage_bonus = sum(int(e.get("value") or 0) for e in weapon_effects
+                       if e.get("type") == "damage_bonus") if suppressed is None else 0
+    worn_attack, worn_damage, worn_sources = _worn_item_bonuses(cursor, inventory)
 
     # Damage dice: a declared value wins; a Versatile weapon uses its two-handed die with a free hand.
     declared_dice = entry.get("damage_dice")
@@ -450,13 +814,13 @@ def _derive_weapon_attack(cursor, weapon: str, inventory: list, hands_free: int 
     if not declared_dice and versatile_die and hands_free >= 1:
         damage_dice = versatile_die
 
-    damage_modifier = ability_mod + damage_bonus
+    damage_modifier = ability_mod + damage_bonus + worn_damage
     if off_hand:
         # Two-weapon fighting: no ability modifier on the bonus attack's damage unless negative.
-        damage_modifier = min(ability_mod, 0) + damage_bonus
+        damage_modifier = min(ability_mod, 0) + damage_bonus + worn_damage
 
     return {
-        "attack_modifier": ability_mod + (prof_bonus if proficient else 0) + attack_bonus,
+        "attack_modifier": ability_mod + (prof_bonus if proficient else 0) + attack_bonus + worn_attack,
         "damage_dice": str(damage_dice) if damage_dice else None,
         "damage_modifier": damage_modifier,
         "damage_type": entry.get("damage_type") or wpn.get("damage_type") or "",
@@ -469,6 +833,11 @@ def _derive_weapon_attack(cursor, weapon: str, inventory: list, hands_free: int 
         "light_melee": melee and any(p.startswith("light") for p in low),
         "versatile_die": versatile_die,
         "bonus_suppressed": suppressed,
+        "item_bonus": {
+            "attack": attack_bonus + worn_attack,
+            "damage": damage_bonus + worn_damage,
+            "sources": ([weapon] if (attack_bonus or damage_bonus) else []) + worn_sources,
+        },
     }
 
 
@@ -599,6 +968,28 @@ def _player_name(cursor):
     return _db_val(cursor, "name", "Player")
 
 
+def _target_label(cursor, target_name, is_player_target=False) -> str:
+    """Display name of an action's target (SRD mechanics lines).
+
+    A real name is used as-is; `{player_name}` or an empty name for a player target resolves to the
+    sheet name; an empty non-player target yields "" so callers can omit the suffix.
+    """
+    name = str(target_name or "").strip()
+    if name and name != "{player_name}":
+        return name
+    if is_player_target or name == "{player_name}":
+        if cursor is not None:
+            return str(_db_val(cursor, "name", "") or "").strip() or "the player"
+        return "the player"
+    return ""
+
+
+def _target_suffix(cursor, target_name, is_player_target=False) -> str:
+    """` → Name` for a mechanics line, or '' when the target is unknown."""
+    label = _target_label(cursor, target_name, is_player_target)
+    return f" \u2192 {label}" if label else ""
+
+
 def _hp_status_tag(current, total):
     if total <= 0:
         return "Unknown"
@@ -656,16 +1047,178 @@ def _caster_spellcasting_mod(cursor) -> int:
     stat_key = ABILITY_TO_STAT.get(str(sc.get("ability", "")).lower())
     if not stat_key:
         return 0
-    stats = _db_val(cursor, "stats", {}) or {}
-    if isinstance(stats, str):
-        try:
-            stats = json.loads(stats)
-        except (json.JSONDecodeError, TypeError):
-            stats = {}
+    stats = _effective_stats(cursor)
+    return _ability_mod(stats.get(stat_key, 10))
+
+
+# ── exhaustion levels (SRD 5.1) ───────────────────────────────────────────
+
+EXHAUSTION_MAX = 6
+
+
+def _exhaustion_effects(level) -> dict:
+    """The SRD 5.1 exhaustion table for a level 0-6."""
     try:
-        return (int(stats.get(stat_key, 10)) - 10) // 2
+        level = max(0, min(EXHAUSTION_MAX, int(level or 0)))
+    except (TypeError, ValueError):
+        level = 0
+    return {
+        "level": level,
+        "check_disadvantage": level >= 1,
+        "speed_multiplier": 0.0 if level >= 5 else (0.5 if level >= 2 else 1.0),
+        "attack_disadvantage": level >= 3,
+        "save_disadvantage": level >= 3,
+        "hp_multiplier": 0.5 if level >= 4 else 1.0,
+        "dead": level >= 6,
+    }
+
+
+def _exhaustion_level(cursor) -> int:
+    """The player's exhaustion level (0-6), from the numeric sheet field."""
+    if cursor is None:
+        return 0
+    try:
+        return max(0, min(EXHAUSTION_MAX, int(_db_val(cursor, "exhaustion", 0) or 0)))
     except (TypeError, ValueError):
         return 0
+
+
+def _exhaustion_level_for(cursor, name, is_player=False) -> int:
+    """Exhaustion level for a player or a registered NPC."""
+    if is_player:
+        return _exhaustion_level(cursor)
+    entry = _COMBAT_REGISTRY.get(name) or {}
+    try:
+        return max(0, min(EXHAUSTION_MAX, int(entry.get("exhaustion") or 0)))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _apply_exhaustion_change(cursor, delta, reason=None) -> dict:
+    """Change the player's exhaustion level and reconcile derived state (HP max, speed)."""
+    old = _exhaustion_level(cursor)
+    new = max(0, min(EXHAUSTION_MAX, old + int(delta or 0)))
+    _db_set(cursor, "exhaustion", str(new))
+    DB_CONNECTION.commit()
+    if new >= EXHAUSTION_MAX:
+        _db_set(cursor, "current_hit_points", "0")
+        _end_concentration(cursor, reason="exhaustion 6")
+        DB_CONNECTION.commit()
+    max_hp = _recompute_exhaustion_hp(cursor)
+    return {"old": old, "new": new, "delta": new - old, "max_hp": max_hp,
+            "effects": _exhaustion_effects(new), "reason": reason}
+
+
+# ── concentration (SRD 5.1) ───────────────────────────────────────────────
+
+def _get_concentration(cursor) -> dict | None:
+    if cursor is None:
+        return None
+    conc = _db_val(cursor, "concentration", None)
+    if isinstance(conc, str):
+        try:
+            conc = json.loads(conc)
+        except (json.JSONDecodeError, TypeError):
+            conc = None
+    return conc if isinstance(conc, dict) and conc.get("spell") else None
+
+
+def _remove_active_effect(cursor, name) -> dict:
+    """Revert and delete one active spell effect; shared by update_player_list and concentration."""
+    buff_data_raw = _db_val(cursor, "_active_buff_data", {})
+    if isinstance(buff_data_raw, str):
+        buff_data_raw = json.loads(buff_data_raw)
+    if not isinstance(buff_data_raw, dict) or name not in buff_data_raw:
+        return {}
+    reverted = {}
+    for entry in buff_data_raw[name]:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("delta") is not None:
+            modify_player_numeric(key=entry["field"], delta=-entry["delta"])
+            reverted[entry["field"]] = {"delta": -entry["delta"]}
+        else:
+            reverted.setdefault(entry.get("field") or entry.get("kind"), []).append(
+                entry.get("value"))
+    del buff_data_raw[name]
+    _db_set(cursor, "_active_buff_data", buff_data_raw)
+    effects_list = _db_val(cursor, "active_effects", []) or []
+    if isinstance(effects_list, str):
+        effects_list = json.loads(effects_list)
+    _db_set(cursor, "active_effects", [e for e in effects_list if e != name])
+    DB_CONNECTION.commit()
+    return reverted
+
+
+def _end_concentration(cursor, reason="") -> dict | None:
+    """End the player's concentration, reverting its active effect. Returns what ended."""
+    conc = _get_concentration(cursor)
+    if not conc:
+        return None
+    spell = conc.get("spell")
+    reverted = _remove_active_effect(cursor, spell)
+    _db_set(cursor, "concentration", {})
+    DB_CONNECTION.commit()
+    return {"spell": spell, "reverted": reverted, "reason": reason}
+
+
+def _set_concentration(cursor, spell) -> dict | None:
+    """Begin concentrating on `spell`, ending any previous concentration first."""
+    ended = _end_concentration(cursor, reason=f"replaced by {spell}")
+    _db_set(cursor, "concentration", {"spell": spell})
+    DB_CONNECTION.commit()
+    return ended
+
+
+def _concentration_save(cursor, damage, source="damage") -> dict | None:
+    """SRD 5.1: CON save (DC 10 or half the damage) when a concentrating player takes damage."""
+    conc = _get_concentration(cursor)
+    if not conc or damage <= 0:
+        return None
+    spell = conc.get("spell")
+    dc = max(10, int(damage) // 2)
+    save_detail = _derived_save(cursor, "con")
+    cond_dis, _auto_fail, _ = _condition_save_effects(_player_conditions(cursor), "con")
+    exh_dis = _exhaustion_effects(_exhaustion_level(cursor))["save_disadvantage"]
+    roll, rolls, _mode, _ = _roll_d20(
+        advantage=bool(save_detail.get("advantage")), disadvantage=(cond_dis or exh_dis))
+    total = roll + save_detail["modifier"]
+    success = total >= dc
+    result = {
+        "spell": spell,
+        "dc": dc,
+        "roll": roll,
+        "modifier": save_detail["modifier"],
+        "total": total,
+        "success": success,
+        "source": source,
+    }
+    if rolls:
+        result["rolls"] = rolls
+    if not success:
+        result["broken"] = _end_concentration(cursor, reason=f"failed CON save (DC {dc})")
+    return result
+
+
+# ── death saving throws (SRD 5.1) ─────────────────────────────────────────
+
+def _reset_death_saves(cursor):
+    _db_set(cursor, "death_save_successes", "0")
+    _db_set(cursor, "death_save_failures", "0")
+    DB_CONNECTION.commit()
+
+
+def _clear_death_saves(cursor):
+    if int(_db_val(cursor, "death_save_successes", 0) or 0) or \
+            int(_db_val(cursor, "death_save_failures", 0) or 0):
+        _reset_death_saves(cursor)
+
+
+def _add_death_save_failure(cursor, count=1) -> int:
+    failures = min(3, int(_db_val(cursor, "death_save_failures", 0) or 0) + count)
+    _db_set(cursor, "death_save_failures", str(failures))
+    DB_CONNECTION.commit()
+    return failures
 
 
 def _apply_hp_change(cursor, delta):
@@ -730,7 +1283,58 @@ def _apply_hp_change(cursor, delta):
         result["healing_applied"] = new_val - current_hp
     if thp_absorbed > 0:
         result["temporary_hit_points"] = {"old": thp, "new": 0, "absorbed": thp_absorbed}
-    if clamped:
+
+    # SRD 5.1 hooks on the player damage path: healing any real HP ends death saves; damage while
+    # concentrating forces a CON save; massive leftover damage is instant death; damage at 0 HP
+    # is a death-save failure.
+    real_damage = -original_delta if original_delta < 0 else 0
+    if new_val > current_hp and current_hp == 0:
+        _clear_death_saves(cursor)
+
+    if real_damage > 0:
+        conc = _concentration_save(cursor, real_damage)
+        if conc is not None:
+            result["concentration_check"] = conc
+            if not conc["success"]:
+                result["concentration_broken"] = conc.get("broken")
+        if new_val == 0 and current_hp > 0:
+            overshoot = max(0, -(current_hp + original_delta))
+            if overshoot >= total_hp:
+                _end_concentration(cursor, reason="instant death")
+                result["status"] = "Dead"
+                result["dead"] = True
+                result["instant_death"] = True
+                result["message"] = (
+                    f"Massive damage! {result['hp_status']}. Instant death — "
+                    f"the leftover damage meets or exceeds the HP maximum ({total_hp}).")
+            else:
+                _reset_death_saves(cursor)
+                _end_concentration(cursor, reason="unconscious")
+                result["clamped"] = True
+                result["status"] = "Unconscious"
+                result["death_saves"] = True
+                result["death_save_failures"] = 0
+                result["message"] = f"HP has reached 0. {result['hp_status']}. Begin death saves."
+        elif new_val == 0 and current_hp == 0:
+            failures = _add_death_save_failure(cursor, count=1)
+            result["status"] = "Unconscious"
+            result["death_saves"] = True
+            result["death_save_failures"] = failures
+            if failures >= 3:
+                _end_concentration(cursor, reason="death")
+                result["status"] = "Dead"
+                result["dead"] = True
+                result["message"] = (f"Damage at 0 HP — third death-save failure. "
+                                     f"{result['hp_status']}. The character is dead.")
+            else:
+                result["message"] = (f"Damage while at 0 HP — one death-save failure "
+                                     f"({failures}/3). {result['hp_status']}.")
+        elif clamped:
+            result["clamped"] = True
+            result["message"] = f"Value was clamped. {result['hp_status']}."
+        else:
+            result["message"] = result["hp_status"]
+    elif clamped:
         result["clamped"] = True
         if new_val == 0 and current_hp > 0:
             result["status"] = "Unconscious"
@@ -740,10 +1344,6 @@ def _apply_hp_change(cursor, delta):
             result["message"] = f"HP restored to maximum. {result['hp_status']}."
         else:
             result["message"] = f"Value was clamped. {result['hp_status']}."
-    elif new_val == 0 and current_hp > 0:
-        result["status"] = "Unconscious"
-        result["death_saves"] = True
-        result["message"] = f"HP has reached 0. {result['hp_status']}. Begin death saves."
     elif total_hp > 0 and new_val == total_hp:
         result["message"] = f"Fully healed. {result['hp_status']}."
     else:
@@ -859,11 +1459,7 @@ def get_max_prepared_spells(cursor) -> int | None:
     level_row = cursor.fetchone()
     level = int(level_row[0]) if level_row else 1
 
-    cursor.execute("SELECT value FROM player WHERE key = ?", ("stats",))
-    stats_row = cursor.fetchone()
-    if not stats_row:
-        return None
-    stats = json.loads(stats_row[0])
+    stats = _effective_stats(cursor)
     stat_val = int(stats.get(stat_key, 10))
 
     modifier = (stat_val - 10) // 2
@@ -1129,6 +1725,8 @@ def modify_player_numeric(key: str, delta: int) -> dict:
                     for db_key, db_value in changes.items():
                         cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", (db_key, db_value))
                     DB_CONNECTION.commit()
+                    _recompute_armor_class(cursor)
+                    DB_CONNECTION.commit()
 
                     total_hp = int(changes.get('total_hit_points', _db_val(cursor, 'total_hit_points', 0)))
                     current_hp = int(changes.get('current_hit_points', _db_val(cursor, 'current_hit_points', 0)))
@@ -1201,6 +1799,21 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
                        attunement_by: str | None = None,
                        kind: str | None = None,
                        pair: bool | None = None,
+                       save_bonus: int | None = None,
+                       check_bonus: int | None = None,
+                       proficiency_bonus: int | None = None,
+                       spell_attack_bonus: int | None = None,
+                       spell_dc_bonus: int | None = None,
+                       set_str: int | None = None, set_dex: int | None = None,
+                       set_con: int | None = None, set_int: int | None = None,
+                       set_wis: int | None = None, set_cha: int | None = None,
+                       str_bonus: int | None = None, dex_bonus: int | None = None,
+                       con_bonus: int | None = None, int_bonus: int | None = None,
+                       wis_bonus: int | None = None, cha_bonus: int | None = None,
+                       str_bonus_max: int | None = None, dex_bonus_max: int | None = None,
+                       con_bonus_max: int | None = None, int_bonus_max: int | None = None,
+                       wis_bonus_max: int | None = None, cha_bonus_max: int | None = None,
+                       effects: list[dict] | None = None,
                        appearance: str | None = None,
                        description: str | None = None,
                        new_name: str | None = None) -> dict:
@@ -1214,19 +1827,43 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
     - weight: (inventory adds only) the item's weight in POUNDS, e.g. weight=2.5. Declare it for
       anything the SRD weight catalog does not know — magic items, loot, homebrew gear (see
       behaviour 5). SRD items are already weighed, so leave it out for those.
-    - base: (inventory adds only) the SRD archetype an invented item is built on, e.g.
-      base='Dagger' for 'Voidfang, a magic dagger'. It supplies properties, hands, weight and AC
-      for anything the catalogs do not know.
+    - base: (inventory adds only) the SRD archetype this item is built on, e.g. base='Dagger'
+      for 'Voidfang, a magic dagger'. Declare it on every weapon and suit of armour so properties,
+      hands, weight and AC resolve even when the name is reflavoured.
     - damage_dice / damage_type / properties: a weapon's combat stats (e.g. damage_dice='1d4',
       damage_type='piercing', properties=['Finesse', 'Light', 'Thrown']).
     - ac / dex_cap / strength_req: an armour's stats (e.g. ac=16, dex_cap=0, strength_req=13).
     - ac_bonus / attack_bonus / damage_bonus: magic bonuses, declared explicitly (never parsed
       from a '+1' in the name). They apply only while the item is ATTUNED (set attunement=True) and,
       for a paired item, only while both halves are worn.
-    - attunement: True when the item's magic requires attunement (SRD: at most 3 attuned items, one
-      of each kind). attunement_by optionally names a restriction (class, creature type).
-    - kind: the slot family for the one-of-each-kind rule — 'armor', 'cloak', 'boots', 'gloves',
-      'bracers', 'headwear', 'ring', 'other'.
+    - save_bonus / check_bonus: a flat bonus to ALL saving throws / ALL ability checks (Ring of
+      Protection, Cloak of Protection, Stone of Good Luck). The engine applies them; the GM never
+      adds them to a save it derives.
+    - set_str / set_dex / set_con / set_int / set_wis / set_cha: SET an ability score as a floor
+      (SRD: "is 19 while you wear this; no effect if already 19 or higher") — Amulet of Health CON 19,
+      Gauntlets of Ogre Power STR 19, Headband of Intellect INT 19, Belt of Giant Strength STR 21-29.
+    - str_bonus ... cha_bonus (+ *_bonus_max): INCREASE an ability score by a flat amount, optionally
+      up to a maximum (Belt of Dwarvenkind CON +2 to max 20, Ioun stones +2 to max 20, Hammer of
+      Thunderbolts STR +4 to max 30). Example: con_bonus=2, con_bonus_max=20.
+    - proficiency_bonus: an item bonus to the character's proficiency bonus (Ioun Stone, Mastery +1).
+    - spell_attack_bonus / spell_dc_bonus: item bonuses to spell attack rolls / spell save DC.
+    - effects: the GENERAL form — a list of typed effect entries for anything the flat fields cannot
+      express: {type, ...fields, when}. Types: ability_set, ability_bonus (+max), save_bonus,
+      save_advantage, check_bonus, skill_bonus, initiative, ac_bonus, ac_set ({base, plus_dex}),
+      damage_resistance, damage_immunity, condition_immunity, attack_bonus/damage_bonus (+scope),
+      spell_attack_bonus, spell_dc_bonus, weapon_property, hp_per_level, hit_die_healing_multiplier,
+      regeneration, speed, speed_grant, grant_proficiency. `when` predicates: no_armor, no_shield,
+      no_armor_or_shield, while_holding, requires_items (with items=[...]), vs_spells,
+      vs_damage:<type>, vs_condition:<name>. Example: effects=[{"type":"ac_bonus","value":2,
+      "when":"no_armor_or_shield"}]. An effect the engine does not apply yet is reported back as
+      'unmodelled_effects' so it is never silently lost.
+    - attunement: True when the item's magic requires attunement (SRD 5.1: at most 3 attuned
+      items, and no more than one copy of an item). attunement_by optionally names a prerequisite
+      (class, spellcaster, creature type, alignment). Bonuses declared WITHOUT attunement apply
+      immediately, as SRD magic items that do not require it (e.g. a +1 weapon).
+    - kind: what the item is worn as — 'armor', 'cloak', 'boots', 'gloves', 'gauntlets',
+      'bracers', 'headwear', 'ring', 'amulet', 'belt', 'other'. Required for a worn magic item so it
+      is donned, not held.
     - pair: True when this entry is ONE HALF of a paired item (boots, bracers, gauntlets, gloves).
       Add both halves as separate inventory entries sharing the same `base`; a single half grants no
       bonus (SRD: paired items confer no benefit unless both are worn).
@@ -1240,9 +1877,12 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
       ('the stranger's letter', 'the iron token'); transient state (sealed/opened, lit, half-full,
       emptied, broken) belongs in the DESCRIPTION, never in the name.
 
-    DECLARE FULL COMBAT STATS FOR INVENTED ITEMS: the engine derives attack rolls, damage and
-    armour class from these fields, so a weapon without damage and no known `base` cannot be used
-    to attack. Declare `base`, the damage/ac fields and any bonuses in the same add.
+    DECLARE FULL COMBAT STATS FOR ALL ITEMS: the engine derives attack rolls, damage, armour class,
+    saving throws, ability scores and attunement from these fields, and a declared value always wins
+    over the catalog, so declare them on EVERY weapon, suit of armour, shield and worn magic item
+    (ring, amulet, cloak, boots, gloves, bracers, headwear, belt) — SRD or invented. Declare `base`,
+    the damage/ac fields, `properties`, `kind` and any bonuses (including save_bonus / set_* /
+    *_bonus) in the same add; a weapon without damage and no known `base` cannot be used to attack.
 
     PROJECT-SPECIFIC BEHAVIORS:
     1. Prepared casters: capacity enforced on spells_prepared (max = spellcasting_ability_mod + level).
@@ -1272,7 +1912,11 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
        by a different object.
 
     EXAMPLES:
-    update_player_list(key='inventory', item='Dagger: A rusty blade (1d4 piercing, Finesse, Light, Thrown (range 20/60))', action='add')
+    update_player_list(key='inventory', item='Dagger: A rusty blade', action='add', base='Dagger', damage_dice='1d4', damage_type='piercing', properties=['Finesse', 'Light', 'Thrown (range 20/60)'])
+    update_player_list(key='inventory', item='Ring of Warding: a band of cold silver', action='add', base='Ring of Protection', kind='ring', ac_bonus=1, save_bonus=1, attunement=True)
+    update_player_list(key='inventory', item='Amulet of Health: a jade serpent on a silver chain', action='add', base='Amulet of Health', kind='amulet', set_con=19, attunement=True)
+    update_player_list(key='inventory', item='Belt of Hill Giant Strength: a broad leather belt', action='add', base='Belt of Giant Strength', kind='belt', set_str=21, attunement=True)
+    update_player_list(key='inventory', item='Bracers of Defense: lacquered wicker bracers', action='add', base='Bracers of Defense', kind='bracers', attunement=True, effects=[{'type': 'ac_bonus', 'value': 2, 'when': 'no_armor_or_shield'}])
     update_player_list(key='inventory', item='Dagger', action='remove')          ← name only, NOT 'Dagger: A rusty blade...'
     update_player_list(key='inventory', item='Void Crystal: a humming shard of black glass', action='add', weight=2.5)
     update_player_list(key='inventory', item="the stranger's letter", action='update', description="a folded scrap, the grey seal broken; the contents read — a summons to the Anvil and Ember at third bell")
@@ -1348,9 +1992,27 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
                                      ("strength_req", strength_req), ("ac_bonus", ac_bonus),
                                      ("attack_bonus", attack_bonus), ("damage_bonus", damage_bonus),
                                      ("attunement", attunement), ("attunement_by", attunement_by),
-                                     ("kind", kind), ("pair", pair)):
+                                     ("kind", kind), ("pair", pair),
+                                     ("save_bonus", save_bonus), ("check_bonus", check_bonus),
+                                     ("proficiency_bonus", proficiency_bonus),
+                                     ("spell_attack_bonus", spell_attack_bonus),
+                                     ("spell_dc_bonus", spell_dc_bonus),
+                                     ("set_str", set_str), ("set_dex", set_dex),
+                                     ("set_con", set_con), ("set_int", set_int),
+                                     ("set_wis", set_wis), ("set_cha", set_cha),
+                                     ("str_bonus", str_bonus), ("dex_bonus", dex_bonus),
+                                     ("con_bonus", con_bonus), ("int_bonus", int_bonus),
+                                     ("wis_bonus", wis_bonus), ("cha_bonus", cha_bonus),
+                                     ("str_bonus_max", str_bonus_max),
+                                     ("dex_bonus_max", dex_bonus_max),
+                                     ("con_bonus_max", con_bonus_max),
+                                     ("int_bonus_max", int_bonus_max),
+                                     ("wis_bonus_max", wis_bonus_max),
+                                     ("cha_bonus_max", cha_bonus_max)):
                     if value is not None:
                         declared[field] = value
+                if effects is not None:
+                    declared["effects"] = effects
             if declared:
                 new_entry = {"name": name, "description": desc, **declared}
 
@@ -1358,6 +2020,11 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
                 entry = new_entry if isinstance(new_entry, dict) else {"name": name}
                 entry["appearance"] = str(appearance).strip()
                 new_entry = entry
+
+            if key == "inventory":
+                rejection = _validate_item_add(name, declared, weight)
+                if rejection is not None:
+                    return rejection
 
             exists = any((isinstance(e, dict) and e.get("name") == name) or e == name for e in current_list)
             if exists:
@@ -1405,32 +2072,25 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
                 removed_equipped = _clear_equipped(cursor, item)
 
             if key == "active_effects":
-                buff_data_raw = _db_val(cursor, "_active_buff_data", {})
-                if isinstance(buff_data_raw, str):
-                    buff_data_raw = json.loads(buff_data_raw)
-                if item in buff_data_raw:
-                    entries = buff_data_raw[item]
-                    reverted = {}
-                    for entry in entries:
-                        modify_player_numeric(key=entry["field"], delta=-entry["delta"])
-                        reverted[entry["field"]] = {"delta": -entry["delta"]}
-                    del buff_data_raw[item]
-                    _db_set(cursor, "_active_buff_data", buff_data_raw)
-                    # Persist the removal of the effect from the list (the early
-                    # return below would otherwise skip the normal list write).
-                    cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)",
-                                   (key, json.dumps(current_list)))
-                    DB_CONNECTION.commit()
-                    result_early = {
-                        "success": True,
-                        "key": key,
-                        "item": item,
-                        "action": action,
-                        "current_list": [e.get("name", str(e)) if isinstance(e, dict) else str(e) for e in current_list],
-                        "reverted": reverted,
-                        "narrative_format": f"Removed active effect '{item}' and reverted its bonuses.",
-                    }
-                    return result_early
+                reverted = _remove_active_effect(cursor, item)
+                conc = _get_concentration(cursor)
+                if conc and conc.get("spell") == item:
+                    _db_set(cursor, "concentration", {})
+                # Persist the removal of the effect from the list (the early
+                # return below would otherwise skip the normal list write).
+                cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)",
+                               (key, json.dumps(current_list)))
+                DB_CONNECTION.commit()
+                result_early = {
+                    "success": True,
+                    "key": key,
+                    "item": item,
+                    "action": action,
+                    "current_list": [e.get("name", str(e)) if isinstance(e, dict) else str(e) for e in current_list],
+                    "reverted": reverted,
+                    "narrative_format": f"Removed active effect '{item}' and reverted its bonuses.",
+                }
+                return result_early
         elif action == "update":
             index = None
             for i, e in enumerate(current_list):
@@ -1516,15 +2176,7 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
                                  if isinstance(e, dict) and e.get("name") == (added_name or item)), None)
             if isinstance(added_entry, dict):
                 added_base = added_entry.get("base")
-            if action == "add" and added_base and not (equipment.is_armor(added_base)
-                                                        or equipment.is_weapon(added_base)):
-                result["unknown_base"] = added_base
-                result["warning"] = (
-                    f"Unknown base archetype '{added_base}' — it is stored as given, but the engine "
-                    f"cannot derive hands, weight or combat stats from it. Use an SRD weapon or "
-                    f"armour name, or declare the stats explicitly."
-                )
-            elif (action == "add" and weight is None and added_name
+            if (action == "add" and weight is None and added_name
                     and carrying.weight_for(added_name, base=added_base) is None):
                 result["unweighed_item"] = added_name
                 result["warning"] = (
@@ -1569,8 +2221,8 @@ def equip_item(item: str, action: str = "equip", slot: str | None = None,
     - action: 'equip' (default) or 'unequip'
     - slot: optional target — 'main_hand', 'off_hand', 'armor' or 'worn'. Omit to let the engine
       choose (armour goes to the armour slot; anything else takes a free hand). Cloaks, boots,
-      gloves, bracers, headwear and rings go to the 'worn' container; clothing (Common Clothes,
-      Vestments, Robes) is worn automatically and listed there.
+      gloves, gauntlets, bracers, headwear, rings and amulets go to the 'worn' container; clothing
+      (Common Clothes, Vestments, Robes) is worn automatically and listed there.
     - replace: when the slot or the second hand is already taken, set True to stow whatever was
       there instead of being refused. The stowed item stays in the inventory.
     - instant: allow an armour change during combat. By default donning/doffing armour is REFUSED
@@ -1711,6 +2363,23 @@ def equip_item(item: str, action: str = "equip", slot: str | None = None,
                             "armor_class_before": before, "armor_class_after": before,
                             "equipment": _equipment_block(cursor),
                             "narrative_format": f"{item} is already worn"}
+                # SRD 5.1 "Multiple Items of the Same Kind": one pair of footwear, gloves/gauntlets,
+                # bracers, headwear, cloak. Rings and amulets are unrestricted.
+                group = _worn_group(declared)
+                if group:
+                    conflict = next((w for w in worn
+                                     if _worn_group(_inventory_entry(inventory, w)) == group), None)
+                    if conflict and not replace:
+                        return {"success": False, "error": "worn_slot_taken", "item": item,
+                                "worn": conflict,
+                                "reason": f"{conflict} is already worn in the {group} slot — unequip "
+                                          f"it first, or repeat with replace=True.",
+                                "gm_instruction": f"Re-call equip_item(item='{item}', "
+                                                  f"replace=True) to stow {conflict}, or unequip "
+                                                  f"{conflict} first.",
+                                "equipment": _equipment_block(cursor)}
+                    if conflict:
+                        worn = [w for w in worn if w != conflict]
                 worn.append(item)
                 equipped["worn"] = worn
                 equipped["hands"] = hands
@@ -1763,7 +2432,7 @@ def equip_item(item: str, action: str = "equip", slot: str | None = None,
 @mcp.tool()
 def attune_item(item: str, action: str = "attune", instant: bool = False) -> dict:
     """
-    Attunes to (or breaks attunement with) a magic item (SRD 5.1: at most 3, one of each kind).
+    Attunes to (or breaks attunement with) a magic item (SRD 5.1: at most 3, one copy of an item).
 
     PARAMETERS:
     - item: the item's name exactly as it appears in the inventory
@@ -1772,9 +2441,9 @@ def attune_item(item: str, action: str = "attune", instant: bool = False) -> dic
       while a fight is running.
 
     PROJECT-SPECIFIC BEHAVIORS:
-    1. A creature can be attuned to no more than THREE magic items, to no more than one copy of an
-       item, and to only one item of each `kind` (armor, cloak, boots, gloves, bracers, headwear,
-       ring).
+    1. A creature can be attuned to no more than THREE magic items and to no more than one copy of
+       an item (e.g. two Ring of Protection). Attuning also fails if the item's declared
+       `attunement_by` prerequisite (class, spellcaster, creature type, alignment) is unmet.
     2. Only items declared with attunement=True can be attuned; their ac_bonus / attack_bonus /
        damage_bonus apply only while attuned (until then the derived bonuses stay off and the
        'equipment' block warns 'not_attuned').
@@ -1804,9 +2473,31 @@ def attune_item(item: str, action: str = "attune", instant: bool = False) -> dic
         attuned = _db_val(cursor, "attuned", []) or []
         attuned = [str(a) for a in attuned] if isinstance(attuned, list) else []
 
-        def _declared_kind(name):
+        def _identity(name):
             entry = next((e for e in inventory if isinstance(e, dict) and e.get("name") == name), {})
-            return str(entry.get("kind") or "").strip().lower()
+            return str(entry.get("base") or name).strip().lower()
+
+        def _prereq_met(prereq):
+            """SRD 5.1 prerequisites the sheet can answer; anything else is a GM ruling."""
+            text = str(prereq or "").strip().lower()
+            if not text:
+                return True
+            klass = str(_db_val(cursor, "character_class", "") or "").strip().lower()
+            race = str(_db_val(cursor, "race", "") or "").strip().lower()
+            alignment = str(_db_val(cursor, "alignment", "") or "").strip().lower()
+            if klass and klass in text:
+                return True
+            if race and race in text:
+                return True
+            if "spellcaster" in text or "spellcasting" in text:
+                return bool(_db_val(cursor, "spellcasting", None))
+            named_class = next((c for c in SRD_CLASSES if c.lower() in text), None)
+            if named_class:
+                return named_class.lower() == klass
+            for term in ("lawful", "chaotic", "neutral", "good", "evil"):
+                if term in text:
+                    return term in alignment
+            return True
 
         def _fail(error, reason, **extra):
             result = {"success": False, "error": error, "item": item, "reason": reason,
@@ -1841,13 +2532,18 @@ def attune_item(item: str, action: str = "attune", instant: bool = False) -> dic
         if len(attuned) >= 3:
             return _fail("attunement_full",
                          "Already attuned to three magic items — break one attunement first.")
-        kind = str(declared.get("kind") or "").strip().lower()
-        if kind and kind != "other":
-            clash = next((a for a in attuned if _declared_kind(a) == kind), None)
-            if clash is not None:
-                return _fail("attunement_kind_conflict",
-                             f"Already attuned to another {kind} ({clash}).",
-                             conflicting_item=clash, kind=kind)
+        prereq = declared.get("attunement_by")
+        if prereq and not _prereq_met(prereq):
+            return _fail("attunement_prerequisite_unmet",
+                         f"'{item}' requires attunement {prereq} — this character does not qualify.",
+                         prerequisite=prereq)
+        # SRD 5.1: "a creature can't attune to more than one copy of an item."
+        ident = _identity(item)
+        clash = next((a for a in attuned if _identity(a) == ident), None)
+        if clash is not None:
+            return _fail("attunement_duplicate_item",
+                         f"Already attuned to another copy of {declared.get('base') or item} "
+                         f"({clash}).", conflicting_item=clash)
         attuned.append(item)
         _db_set(cursor, "attuned", attuned)
         _recompute_armor_class(cursor)
@@ -1867,9 +2563,10 @@ def dump_player_db() -> dict:
     Returns a full dump of the current in-memory player database for state refresh.
 
     The dump includes a derived `_carrying` block (SRD 5.1 carrying capacity, encumbrance
-    status and effective speed) and a derived `_equipment` block (worn armour, hands,
-    hands free, and the armour-class breakdown). Both are computed, never saved: the
-    save file does not contain them.
+    status and effective speed), a derived `_equipment` block (worn armour, hands,
+    hands free, and the armour-class breakdown) and a derived `_passive` block (passive
+    Perception/Investigation/Insight = 10 + the engine-derived check modifier). All are computed,
+    never saved: the save file does not contain them.
     """
     global DB_CONNECTION
     if DB_CONNECTION is None:
@@ -1892,6 +2589,7 @@ def dump_player_db() -> dict:
 
         result["_carrying"] = _carry_block(cursor)
         result["_equipment"] = _equipment_block(cursor)
+        result["_passive"] = _passive_scores(cursor)
 
         return result
     except Exception as e:
@@ -2074,10 +2772,7 @@ def rest(rest_type: str, prepared_spells: list[str] | None = None) -> dict:
         total_hp = int(_db_val(cursor, "total_hit_points", 1))
         current_hp = int(_db_val(cursor, "current_hit_points", 0))
 
-        stats_raw = _db_val(cursor, "stats", {})
-        if isinstance(stats_raw, str):
-            stats_raw = json.loads(stats_raw)
-        con_mod = (int(stats_raw.get("con", 10)) - 10) // 2
+        con_mod = _ability_mod(_effective_stats(cursor).get("con", 10))
 
         sc_raw = _db_val(cursor, "spellcasting", {})
         if isinstance(sc_raw, str):
@@ -2104,10 +2799,12 @@ def rest(rest_type: str, prepared_spells: list[str] | None = None) -> dict:
             dice_spent = 0
             total_healing = 0
             missing_hp = total_hp - current_hp
+            # Periapt of Wound Closure (and similar): double the Hit-Die healing (SRD 5.1).
+            hd_multiplier = float(_item_effect_state(cursor).get("hit_die_healing_multiplier") or 1)
 
             while missing_hp > 0 and dice_spent < hd_count:
                 roll = random.randint(1, hd_size)
-                healing = max(roll + con_mod, 0)
+                healing = int(max(roll + con_mod, 0) * hd_multiplier)
                 total_healing += healing
                 missing_hp -= healing
                 dice_spent += 1
@@ -2222,13 +2919,23 @@ def rest(rest_type: str, prepared_spells: list[str] | None = None) -> dict:
             for spell_name in list(buff_data.keys()):
                 entries = buff_data[spell_name]
                 for entry in entries:
-                    modify_player_numeric(key=entry["field"], delta=-entry["delta"])
+                    if not isinstance(entry, dict):
+                        continue
+                    if entry.get("delta") is not None:
+                        modify_player_numeric(key=entry["field"], delta=-entry["delta"])
                 effects_cleared.append(spell_name)
             _db_set(cursor, "active_effects", [])
             _db_set(cursor, "_active_buff_data", {})
+            _db_set(cursor, "concentration", {})
+            _clear_death_saves(cursor)
             DB_CONNECTION.commit()
             if effects_cleared:
                 changes["effects_cleared"] = effects_cleared
+
+            # SRD 5.1: a long rest removes one level of exhaustion.
+            if _exhaustion_level(cursor) > 0:
+                exh_change = _apply_exhaustion_change(cursor, -1, reason="long rest")
+                changes["exhaustion"] = {"old": exh_change["old"], "new": exh_change["new"]}
 
             # A long rest ends capacity-changing effects (e.g. enhance ability: Bull's Strength).
             previous_multiplier = _db_val(cursor, "capacity_multiplier", 1)
@@ -2329,6 +3036,122 @@ def rest(rest_type: str, prepared_spells: list[str] | None = None) -> dict:
 
 
 @mcp.tool()
+def modify_exhaustion(delta: int, reason: str | None = None) -> dict:
+    """
+    Add or remove SRD 5.1 exhaustion levels on the player (0-6).
+
+    PARAMETERS:
+    - delta: signed number of levels (+1 for a forced march, a spell, etc.; -1 for a long rest or
+      greater restoration)
+    - reason: (optional) short note for the narrative
+
+    PROJECT-SPECIFIC BEHAVIORS:
+    1. The engine applies the level table: 1 disadvantage on ability checks, 2 speed halved,
+       3 disadvantage on attack rolls and saving throws, 4 HP maximum halved, 5 speed 0, 6 death.
+    2. A long rest removes exactly one level automatically (see rest); use this tool for every
+       other source (food/water/suffocation, spells, forced marches).
+    3. Level 6 marks the character dead.
+
+    EXAMPLES:
+    modify_exhaustion(delta=1, reason='forced march')
+    modify_exhaustion(delta=-2, reason='greater restoration')
+    """
+    global DB_CONNECTION
+    if DB_CONNECTION is None:
+        return {"success": False, "error": "Database not initialized."}
+    cursor = DB_CONNECTION.cursor()
+    change = _apply_exhaustion_change(cursor, delta, reason=reason)
+    effects = change["effects"]
+    parts = [f"Exhaustion {change['old']} \u2192 {change['new']}"]
+    if reason:
+        parts.append(f"({reason})")
+    if effects["dead"]:
+        parts.append("\u2014 level 6: the character is dead.")
+    elif effects["level"]:
+        bits = []
+        if effects["check_disadvantage"]:
+            bits.append("disadvantage on ability checks")
+        if effects["speed_multiplier"] == 0.5:
+            bits.append("speed halved")
+        elif effects["speed_multiplier"] == 0.0:
+            bits.append("speed 0")
+        if effects["attack_disadvantage"]:
+            bits.append("disadvantage on attack rolls and saves")
+        if effects["hp_multiplier"] == 0.5:
+            bits.append(f"HP maximum halved ({change['max_hp']})")
+        if bits:
+            parts.append("\u2014 " + ", ".join(bits))
+    return {
+        "success": True,
+        "exhaustion": change["new"],
+        "old": change["old"],
+        "delta": change["delta"],
+        "effects": effects,
+        "max_hp": change["max_hp"],
+        "narrative_format": " ".join(parts),
+    }
+
+
+@mcp.tool()
+def make_death_save() -> dict:
+    """
+    Rolls a death saving throw for a player at 0 HP (SRD 5.1): d20, 10 or higher succeeds.
+
+    PROJECT-SPECIFIC BEHAVIORS:
+    1. Three successes stabilise the character (counters clear, still at 0 HP).
+    2. Three failures kill the character.
+    3. A natural 20 regains 1 HP and clears the counters; a natural 1 counts as two failures.
+    4. Healing any real HP clears the counters automatically, and taking damage at 0 HP adds a
+       failure automatically, so only call this at the start of the player's turn while at 0 HP.
+
+    EXAMPLES:
+    make_death_save()
+    """
+    global DB_CONNECTION
+    if DB_CONNECTION is None:
+        return {"success": False, "error": "Database not initialized."}
+    cursor = DB_CONNECTION.cursor()
+    current_hp = int(_db_val(cursor, "current_hit_points", 0) or 0)
+    if current_hp > 0:
+        return {"success": False, "error": "not_dying",
+                "reason": "The character is not at 0 HP \u2014 no death save is needed."}
+    if int(_db_val(cursor, "death_save_failures", 0) or 0) >= 3:
+        return {"success": False, "error": "already_dead",
+                "reason": "The character already has three death-save failures."}
+    successes = int(_db_val(cursor, "death_save_successes", 0) or 0)
+    failures = int(_db_val(cursor, "death_save_failures", 0) or 0)
+    roll = random.randint(1, 20)
+    if roll == 20:
+        hp = _apply_hp_change(cursor, 1)
+        _clear_death_saves(cursor)
+        return {"success": True, "roll": 20, "outcome": "revived", "hp": hp["new_value"],
+                "narrative_format":
+                "Death save: natural 20 \u2014 the character regains 1 HP and is conscious."}
+    if roll == 1:
+        failures = min(3, failures + 2)
+    elif roll >= 10:
+        successes = min(3, successes + 1)
+    else:
+        failures = min(3, failures + 1)
+    _db_set(cursor, "death_save_successes", str(successes))
+    _db_set(cursor, "death_save_failures", str(failures))
+    DB_CONNECTION.commit()
+    if failures >= 3:
+        _end_concentration(cursor, reason="death")
+        outcome = "dead"
+        narrative = f"Death save: {roll} \u2014 third failure. The character is dead."
+    elif successes >= 3:
+        _reset_death_saves(cursor)
+        outcome = "stable"
+        narrative = f"Death save: {roll} \u2014 third success. The character is stable."
+    else:
+        outcome = "success" if roll >= 10 else "failure"
+        narrative = f"Death save: {roll} \u2014 {successes} successes, {failures} failures."
+    return {"success": True, "roll": roll, "successes": successes, "failures": failures,
+            "outcome": outcome, "narrative_format": narrative}
+
+
+@mcp.tool()
 def roll_dice(dice_notation: str, modifier: int = 0, actor: str = "{player_name}") -> dict:
     """
     Rolls dice for damage, healing, loot quantity, or any random magnitude.
@@ -2381,21 +3204,37 @@ def roll_dice(dice_notation: str, modifier: int = 0, actor: str = "{player_name}
 
 
 @mcp.tool()
-def perform_check(modifier: int, dc: int, check_name: str = "Check", actor: str = "{player_name}",
-                  ability: str | None = None, grapple: bool = False) -> dict:
+def perform_check(modifier: int | None = None, dc: int = 0, check_name: str = "Check",
+                  actor: str = "{player_name}", ability: str | None = None, grapple: bool = False,
+                  save: bool = False, situational_modifier: int | None = None,
+                  context: str | None = None, against: str | None = None,
+                  damage: str | None = None, condition: str | None = None) -> dict:
     """
     Performs a skill check or saving throw (d20 + modifier vs DC).
 
     PARAMETERS:
-    - modifier: bonus to add to the d20 roll
+    - modifier: bonus to add to the d20 roll. For a player ability/skill CHECK it is IGNORED when
+      `check_name` names a skill or `ability` is given — the engine derives the whole modifier
+      (like saves). It is only used for an NPC, or for a custom player check with no ability and no
+      known skill (e.g. 'Luck').
     - dc: difficulty class to beat
-    - check_name: label for the check (e.g. 'Athletics', 'Perception')
+    - check_name: label for the check (e.g. 'Athletics', 'Perception', 'Dexterity save')
     - actor: who is performing the check — character name for player, NPC/creature name for NPCs
     - ability: (optional) the ability the check uses — 'str', 'dex', 'con', 'int', 'wis' or 'cha'.
-      Pass it for every ability check and save so the engine can apply encumbrance and armour.
+      REQUIRED for a player save (save=True). For a player ability check, pass it (or a skill name)
+      and the engine picks the ability modifier and any skill proficiency itself.
     - grapple: set True when this check is an attempt to GRAPPLE a creature (SRD: it needs at least
       one free hand). The check is refused, and the action spent, when both hands are full. Do not
       set it for escaping a grapple — that needs no free hand.
+    - save: set True for a SAVING THROW. The engine then computes the player's modifier itself
+      (effective ability modifier + proficiency bonus if proficient + item save bonuses) and adds
+      'situational_modifier'. Do not pass `modifier` for a save.
+    - situational_modifier: a bonus/penalty the situation adds to a player check or save (cover, a
+      flat Bless total, ...). Added on top of the engine-derived modifier.
+    - context: an ability-check context for item `skill_bonus` effects with a `context:<tag>`
+      predicate (e.g. context='climbing' for Gloves of Swimming and Climbing).
+    - against / damage / condition: scope a player SAVE for item `save_advantage` effects
+      ('spells', a damage type, a condition); e.g. Mantle of Spell Resistance is `vs_spells`.
 
     RULES:
     - For weapon/unarmed attacks, use resolve_attack instead.
@@ -2408,13 +3247,17 @@ def perform_check(modifier: int, dc: int, check_name: str = "Check", actor: str 
     2. NOT PROFICIENT WITH WORN ARMOUR (SRD 5.1): disadvantage on STR/DEX checks; the response names
        the source in 'disadvantage_sources'.
     3. GRAPPLE (grapple=True): refused with turn_lost=true when no hand is free — no roll is made.
-    4. The GM's own granted advantage is not a parameter here — roll the check twice and narrate,
-       or tell the player their encumbrance is costing them.
+    4. PLAYER CHECKS ARE ENGINE-DERIVED: for a skill or ability check the modifier comes from the
+       sheet (effective ability modifier + skill proficiency, doubled for Expertise or halved for
+       Jack of All Trades + worn/attuned item check/skill bonuses), so the GM never computes it.
+       PLAYER SAVES ARE ENGINE-DERIVED (save=True) the same way (ability + proficiency + item save
+       bonuses). A worn Stone of Good Luck adds its +1 to every ability check and save.
 
     EXAMPLES:
-    perform_check(actor='Thorin', modifier=5, dc=15, check_name='Athletics', ability='str')
-    perform_check(actor='Guard Captain', modifier=2, dc=13, check_name='Perception', ability='wis')
-    perform_check(actor='Senna', modifier=1, dc=13, check_name='Deception', ability='cha')
+    perform_check(actor='Thorin', dc=15, check_name='Athletics', ability='str')
+    perform_check(actor='Thorin', dc=15, check_name='Dexterity save', ability='dex', save=True)
+    perform_check(actor='Senna', dc=13, check_name='Constitution save', ability='con', save=True,
+                  situational_modifier=2)
     """
     cursor = DB_CONNECTION.cursor() if DB_CONNECTION is not None else None
     is_player = _is_player_actor(cursor, actor)
@@ -2435,8 +3278,52 @@ def perform_check(modifier: int, dc: int, check_name: str = "Check", actor: str 
         _conditions_for(cursor, actor, is_player=is_player), ability)
     encumbrance_sources = [*encumbrance_sources, *cond_sources]
     disadvantage = disadvantage or cond_disadvantage
-    roll, rolls, roll_mode, _cancelled = _roll_d20(disadvantage=disadvantage)
-    total = roll + modifier
+
+    # SRD 5.1 exhaustion: level 1 → disadvantage on ability checks, level 3 → on saving throws.
+    exh = _exhaustion_effects(_exhaustion_level_for(cursor, actor, is_player=is_player))
+    if exh["save_disadvantage"] if save else exh["check_disadvantage"]:
+        disadvantage = True
+        encumbrance_sources = [*encumbrance_sources, f"exhaustion {exh['level']}"]
+
+    save_detail = None
+    check_detail = None
+    advantage = False
+    check_bonus_sources = []
+    if is_player and save and cursor is not None:
+        save_detail = _derived_save(cursor, ability, situational_modifier or 0,
+                                    against=against, damage=damage, condition=condition)
+        modifier = save_detail["modifier"]
+        advantage = bool(save_detail.get("advantage"))
+    elif is_player and cursor is not None:
+        # Full Option B: the engine derives ability/skill checks (ability + proficiency /
+        # Expertise / Jack of All Trades + item bonuses). The passed `modifier` is only the
+        # fallback for a custom check with no ability and no known skill (e.g. 'Luck').
+        if skills.skill_name(check_name) or ability:
+            check_detail = _derived_check(cursor, check_name, ability, context,
+                                          situational_modifier or 0)
+            modifier = check_detail["modifier"]
+        else:
+            modifier = int(modifier or 0) + int(situational_modifier or 0)
+            check_bonus, check_bonus_sources = equipment.check_bonus_for(
+                _carry_get(cursor), check_name, context)
+            modifier += check_bonus
+    else:
+        modifier = int(modifier or 0)
+
+    dice_bonus = 0
+    dice_sources = []
+    if is_player and cursor is not None:
+        field = "saving_throws" if save else "ability_checks"
+        for dice in equipment.active_dice(_carry_get(cursor), field):
+            raw = str(dice.get("value") or "").strip()
+            sign = -1 if raw.startswith("-") else 1
+            _, _, rolled = _parse_and_roll_dice(raw.lstrip("+-"))
+            if rolled:
+                dice_bonus += sign * rolled
+                dice_sources.append(f"{raw} ({dice.get('spell')})")
+
+    roll, rolls, roll_mode, _cancelled = _roll_d20(advantage=advantage, disadvantage=disadvantage)
+    total = roll + modifier + dice_bonus
 
     if roll == 20:
         result = "Critical Success"
@@ -2448,8 +3335,36 @@ def perform_check(modifier: int, dc: int, check_name: str = "Check", actor: str 
         result = "Failure"
 
     narrative = f"{actor} {check_name}: {total} vs DC {dc} ({result}) ({roll} + {modifier})"
+    if dice_bonus:
+        narrative += f" {'+' if dice_bonus >= 0 else '-'}{abs(dice_bonus)} dice"
     if roll_mode:
         narrative += f" [{roll_mode}]"
+    if save_detail is not None:
+        bits = []
+        if save_detail["ability_modifier"]:
+            bits.append(f"{save_detail['ability'].upper()} {save_detail['ability_modifier']:+d}")
+        if save_detail["proficiency_bonus"]:
+            bits.append(f"prof {save_detail['proficiency_bonus']:+d}")
+        if save_detail["item_bonus"]:
+            bits.append(f"item {save_detail['item_bonus']:+d}")
+        if save_detail["situational"]:
+            bits.append(f"situational {save_detail['situational']:+d}")
+        if bits:
+            narrative += " [" + ", ".join(bits) + "]"
+    if check_detail is not None:
+        bits = []
+        if check_detail["ability"] and check_detail["ability_modifier"]:
+            bits.append(f"{check_detail['ability'].upper()} {check_detail['ability_modifier']:+d}")
+        if check_detail["proficiency_bonus"]:
+            tag = ("expertise" if check_detail["expertise"]
+                   else "JoAT" if check_detail["jack_of_all_trades"] else "prof")
+            bits.append(f"{tag} {check_detail['proficiency_bonus']:+d}")
+        if check_detail["item_bonus"]:
+            bits.append(f"item {check_detail['item_bonus']:+d}")
+        if check_detail["situational"]:
+            bits.append(f"situational {check_detail['situational']:+d}")
+        if bits:
+            narrative += " [" + ", ".join(bits) + "]"
 
     response = {
         "actor": actor,
@@ -2461,6 +3376,19 @@ def perform_check(modifier: int, dc: int, check_name: str = "Check", actor: str 
         "outcome": result,
         "narrative_format": narrative,
     }
+    if save_detail is not None:
+        response["save"] = save_detail
+        if save_detail.get("advantage"):
+            response["advantage_sources"] = save_detail.get("advantage_sources")
+    elif check_detail is not None:
+        response["check"] = check_detail
+        if check_detail["item_sources"]:
+            response["item_bonus_sources"] = check_detail["item_sources"]
+    elif check_bonus_sources:
+        response["item_bonus_sources"] = check_bonus_sources
+    if dice_bonus:
+        response["dice_bonus"] = dice_bonus
+        response["dice_sources"] = dice_sources
     if rolls:
         response[f"{roll_mode}_rolls"] = rolls
     _encumbrance_note(response, encumbrance_sources)
@@ -2618,8 +3546,12 @@ CONDITION_EFFECTS = {
     "poisoned": {"self_attack_disadvantage": True, "self_check_disadvantage": True},
     "grappled": {},
     "incapacitated": {},
-    "exhaustion": {},  # tracked; the level table is not applied
+    "exhaustion": {},  # tracked as the numeric `exhaustion` level; see _exhaustion_effects
 }
+
+# SRD 5.1: concentration ends if you are incapacitated or killed.
+_INCAPACITATING_CONDITIONS = {"incapacitated", "paralyzed", "petrified", "stunned",
+                            "unconscious"}
 
 
 def _registry_save(target_name: str, ability) -> int | None:
@@ -2695,27 +3627,46 @@ def _apply_combat_condition(cursor, name, condition):
     entry = _COMBAT_REGISTRY.get(name)
     if entry is None:
         if cursor is not None and _is_player_name(cursor, name):
+            if cond == "exhaustion":
+                _apply_exhaustion_change(cursor, 1)
+                return "added", None
             current = _player_conditions(cursor)
             if cond in current:
                 return "present", None
+            if cond in (_player_defenses(cursor).get("condition_immunities") or []):
+                return "immune", f"immune to {cond}"
             _db_set(cursor, "conditions", sorted(current | {cond}))
             DB_CONNECTION.commit()
+            if cond in _INCAPACITATING_CONDITIONS:
+                _end_concentration(cursor, reason=cond)
             return "added", None
         return "not_registered", None
     if entry.get("is_player"):
         if cursor is None:
             return "not_registered", None
+        if cond == "exhaustion":
+            _apply_exhaustion_change(cursor, 1)
+            return "added", None
         current = _player_conditions(cursor)
         if cond in current:
             return "present", None
+        if cond in (_player_defenses(cursor).get("condition_immunities") or []):
+            return "immune", f"immune to {cond}"
         current = current | {cond}
         _db_set(cursor, "conditions", sorted(current))
         entry["conditions"] = sorted(current)
         DB_CONNECTION.commit()
+        if cond in _INCAPACITATING_CONDITIONS:
+            _end_concentration(cursor, reason=cond)
         return "added", None
     immunities = {str(c).strip().lower() for c in (entry.get("condition_immunities") or [])}
     if cond in immunities:
         return "immune", None
+    if cond == "exhaustion":
+        entry["exhaustion"] = min(EXHAUSTION_MAX, int(entry.get("exhaustion") or 0) + 1)
+        current = {str(c).strip().lower() for c in (entry.get("conditions") or [])}
+        entry["conditions"] = sorted(current | {"exhaustion"})
+        return "added", None
     current = {str(c).strip().lower() for c in (entry.get("conditions") or [])}
     if cond in current:
         return "present", None
@@ -2813,6 +3764,41 @@ def _apply_damage_modifiers(entry, damage, damage_type) -> tuple[int, str | None
     return int(damage * factor), f"{damage} -> {int(damage * factor)} ({dtype}: x{factor:g})"
 
 
+def _player_defenses(cursor) -> dict:
+    """The player's damage/condition defenses from equipped items AND active spell effects."""
+    if cursor is None:
+        return {"damage_resistances": [], "damage_immunities": [], "damage_vulnerabilities": [],
+                "condition_immunities": [], "sources": []}
+    return equipment.defense_state(_carry_get(cursor))
+
+
+def _apply_player_damage_modifiers(cursor, damage, damage_type) -> tuple[int, str | None]:
+    """SRD 5.1 resistances/immunities/vulnerabilities applied to damage the PLAYER takes.
+
+    Mirrors `_apply_damage_modifiers` but sources the defenses from the player's sheet (items +
+    active spells) and respects petrified's resistance to all damage.
+    """
+    if cursor is None or damage <= 0 or not damage_type:
+        return damage, None
+    defenses = _player_defenses(cursor)
+    dtype = str(damage_type).strip().lower()
+    immunities = list(defenses.get("damage_immunities") or [])
+    resistances = list(defenses.get("damage_resistances") or [])
+    vulnerabilities = list(defenses.get("damage_vulnerabilities") or [])
+    if "all" in immunities or dtype in immunities:
+        return 0, f"player immune to {dtype} ({defenses.get('sources')})"
+    if any(CONDITION_EFFECTS.get(c, {}).get("resist_all") for c in _player_conditions(cursor)):
+        resistances.append(dtype)
+    factor = 1.0
+    if "all" in resistances or dtype in resistances:
+        factor *= 0.5
+    if "all" in vulnerabilities or dtype in vulnerabilities:
+        factor *= 2.0
+    if factor == 1.0:
+        return damage, None
+    return int(damage * factor), f"player {damage} -> {int(damage * factor)} ({dtype}: x{factor:g})"
+
+
 def _derive_npc_attack(entry, attack_name) -> dict | None:
     """The declared attack entry whose name matches (case-insensitive)."""
     wanted = str(attack_name or "").strip().lower()
@@ -2859,6 +3845,7 @@ def _normalize_combatant(c, add_to_existing=False) -> dict:
         "spellcasting": c.get("spellcasting") if isinstance(c.get("spellcasting"), dict) else None,
         "traits": [str(t) for t in (c.get("traits") or [])],
         "conditions": [str(t).strip().lower() for t in (c.get("conditions") or [])],
+        "exhaustion": max(0, min(EXHAUSTION_MAX, int(c.get("exhaustion") or 0))),
         "initiative_roll": 0,
         "initiative_total": 0,
         "is_player": False,
@@ -2870,13 +3857,23 @@ def _normalize_combatant(c, add_to_existing=False) -> dict:
 def _player_registry_entry(cursor) -> dict:
     """The player's registry entry, with saves/speed/spellcasting derived from their sheet."""
     name = _db_val(cursor, "name", "Player")
-    stats_raw = _db_val(cursor, "stats", {}) or {}
-    if isinstance(stats_raw, str):
-        stats_raw = json.loads(stats_raw)
-    mods = {k: (int(stats_raw.get(k, 10)) - 10) // 2 for k in ABILITY_KEYS}
-    proficient = {str(s).strip().lower()[:3] for s in (_db_val(cursor, "saves", []) or [])}
-    prof_bonus = int(_db_val(cursor, "proficiency_bonus", 2) or 2)
-    saves = {k: mods[k] + (prof_bonus if k in proficient else 0) for k in ABILITY_KEYS}
+    scores = _effective_stats(cursor)
+    mods = {k: _ability_mod(scores.get(k, 10)) for k in ABILITY_KEYS}
+    proficient = _save_proficiencies(cursor)
+    prof_bonus = _effective_prof_bonus(cursor)
+    state = _item_effect_state(cursor)
+    item_save = int(state.get("save_bonus") or 0)
+    saves = {k: mods[k] + (prof_bonus if k in proficient else 0) + item_save
+             for k in ABILITY_KEYS}
+    defense = _player_defenses(cursor)
+    speed_state = equipment.speed_state(_carry_get(cursor))
+    exh = _exhaustion_effects(_exhaustion_level(cursor))
+    speed_walk = int(speed_state["walk"] * exh["speed_multiplier"])
+    speeds = {k: int(v * exh["speed_multiplier"])
+              for k, v in (speed_state["modes"] or {}).items()}
+    conditions = sorted(_player_conditions(cursor))
+    if exh["level"] > 0 and "exhaustion" not in conditions:
+        conditions = sorted([*conditions, "exhaustion"])
     spell_raw = _db_val(cursor, "spellcasting", {}) or {}
     spellcasting = None
     if isinstance(spell_raw, dict) and spell_raw.get("dc") is not None:
@@ -2890,19 +3887,21 @@ def _player_registry_entry(cursor) -> dict:
         "save_modifier": None,
         "saves": saves,
         "challenge_rating": None,
-        "initiative_modifier": mods["dex"],
-        "initiative_advantage": False,
+        "initiative_modifier": mods["dex"] + int(state.get("initiative_bonus") or 0),
+        "initiative_advantage": bool(state.get("initiative_advantage")),
         "role": "ally",
-        "speed": _db_val(cursor, "speed", 30),
-        "damage_resistances": [],
-        "damage_immunities": [],
-        "damage_vulnerabilities": [],
-        "condition_immunities": [],
+        "speed": speed_walk,
+        "speeds": speeds,
+        "damage_resistances": list(defense.get("damage_resistances") or []),
+        "damage_immunities": list(defense.get("damage_immunities") or []),
+        "damage_vulnerabilities": list(defense.get("damage_vulnerabilities") or []),
+        "condition_immunities": list(defense.get("condition_immunities") or []),
         "attacks": [],
         "multiattack": 1,
         "spellcasting": spellcasting,
         "traits": [],
-        "conditions": sorted(_player_conditions(cursor)),
+        "conditions": conditions,
+        "exhaustion": exh["level"],
         "initiative_roll": 0,
         "initiative_total": 0,
         "is_player": True,
@@ -2960,6 +3959,8 @@ def _combatant_sheet_lines(name, entry) -> list[str]:
             lines.append(f"  {label}: " + ", ".join(str(v) for v in vals))
     if entry.get("conditions"):
         lines.append("  Conditions: " + ", ".join(str(c) for c in entry["conditions"]))
+    if int(entry.get("exhaustion") or 0) > 0:
+        lines.append(f"  Exhaustion: {int(entry['exhaustion'])}")
     return lines
 
 
@@ -3016,6 +4017,8 @@ def register_combatants(combatants: list[dict], add_to_existing: bool = False) -
       - multiattack (int or str): how many attacks per Attack action (reported, not enforced)
       - spellcasting (dict): {ability, save_dc, attack_modifier} for NPC casters
       - conditions (list of str): starting conditions (blinded, prone, restrained, poisoned, ...)
+      - exhaustion (int 0-6): starting exhaustion level (drives ability-check/attack/save
+        disadvantage, speed and the HP maximum)
       - traits (list of str): free-text special abilities, for reference
     - add_to_existing (bool, default False): adds to the existing registry without wiping it. No
       initiative rolled for the arrivals; existing HP/saves/conditions are preserved.
@@ -3072,7 +4075,7 @@ def register_combatants(combatants: list[dict], add_to_existing: bool = False) -
         player_init_mod = player["initiative_modifier"]
         _COMBAT_REGISTRY[player_name] = player
 
-        player_d20 = random.randint(1, 20)
+        player_d20, player_rolls, _, _ = _roll_d20(advantage=player.get("initiative_advantage", False))
         player_init_total = player_d20 + player_init_mod
         _COMBAT_REGISTRY[player_name]["initiative_roll"] = player_d20
         _COMBAT_REGISTRY[player_name]["initiative_total"] = player_init_total
@@ -3144,14 +4147,17 @@ def register_combatants(combatants: list[dict], add_to_existing: bool = False) -
 def update_combatant(name: str, conditions_add: list[str] | None = None,
                      conditions_remove: list[str] | None = None,
                      hp_delta: int | None = None, max_hp: int | None = None,
-                     ac: int | None = None) -> dict:
+                     ac: int | None = None, exhaustion_delta: int | None = None) -> dict:
     """
-    Changes a registered combatant mid-fight: conditions and (NPC) HP / defence.
+    Changes a registered combatant mid-fight: conditions, exhaustion and (NPC) HP / defence.
 
     PARAMETERS:
     - name: the combatant exactly as registered
     - conditions_add / conditions_remove: SRD conditions, e.g. ['prone', 'restrained']. Adding a
       condition the creature is immune to is refused (reported in 'blocked_conditions').
+      `exhaustion` here means one level (+1 / clear).
+    - exhaustion_delta: (int) add or remove exhaustion levels (SRD 5.1, 0-6). For the player this
+      updates the sheet and re-derives the HP maximum; for an NPC it updates the registry entry.
     - hp_delta: (NPCs only) signed change; clamped to [0, max_hp], sets 'killed' at 0
     - max_hp / ac: (NPCs only) correct the declared values
 
@@ -3162,13 +4168,16 @@ def update_combatant(name: str, conditions_add: list[str] | None = None,
     2. A condition a TOOL applied (a spell's Paralyzed, Sleep's Unconscious) is already on the
        combatant — never re-declare it. Adding one that is already present returns it under
        `already_present` and changes nothing.
-    3. The player's conditions are stored on their sheet; use modify_player_numeric for player HP.
-    4. There is no end-combat call — declare a new registry with register_combatants when one is
+    3. Exhaustion is a level: `conditions_add=['exhaustion']` adds one level and `exhaustion_delta`
+       adjusts it; level 4 halves the HP maximum, level 6 is death.
+    4. The player's conditions are stored on their sheet; use modify_player_numeric for player HP.
+    5. There is no end-combat call — declare a new registry with register_combatants when one is
        needed.
 
     EXAMPLES:
     update_combatant(name='Goblin', conditions_add=['prone'])
     update_combatant(name='Ogre', hp_delta=-13)
+    update_combatant(name='{player_name}', exhaustion_delta=1)
     update_combatant(name='{player_name}', conditions_add=['restrained'])
     """
     global DB_CONNECTION
@@ -3192,18 +4201,36 @@ def update_combatant(name: str, conditions_add: list[str] | None = None,
         current = {str(c).strip().lower() for c in (entry.get("conditions") or [])}
         immunities = {str(c).strip().lower() for c in (entry.get("condition_immunities") or [])}
 
-    for condition in conditions_add or []:
-        key = str(condition).strip().lower()
-        if not key:
-            continue
+    # Exhaustion is a level, not a boolean condition.
+    cond_add = [str(c).strip().lower() for c in (conditions_add or []) if str(c).strip()]
+    cond_remove = [str(c).strip().lower() for c in (conditions_remove or [])]
+    add_levels = cond_add.count("exhaustion") + int(exhaustion_delta or 0)
+    if is_player:
+        if add_levels:
+            _apply_exhaustion_change(cursor, add_levels, reason="update_combatant")
+        if "exhaustion" in cond_remove:
+            _db_set(cursor, "exhaustion", "0")
+            DB_CONNECTION.commit()
+            _recompute_exhaustion_hp(cursor)
+        entry["exhaustion"] = _exhaustion_level(cursor)
+        current = _player_conditions(cursor)
+    else:
+        entry["exhaustion"] = max(0, min(EXHAUSTION_MAX,
+            int(entry.get("exhaustion") or 0) + add_levels))
+        if "exhaustion" in cond_remove:
+            entry["exhaustion"] = 0
+    cond_add = [c for c in cond_add if c != "exhaustion"]
+    cond_remove = [c for c in cond_remove if c != "exhaustion"]
+
+    for key in cond_add:
         if key in immunities:
             blocked.append({"condition": key, "reason": "immune"})
             continue
         if key in current:
             already_present.append(key)
         current.add(key)
-    for condition in conditions_remove or []:
-        current.discard(str(condition).strip().lower())
+    for key in cond_remove:
+        current.discard(key)
     current = sorted(current)
 
     if is_player:
@@ -3211,6 +4238,10 @@ def update_combatant(name: str, conditions_add: list[str] | None = None,
         _db_set(cursor, "conditions", current)
         entry["conditions"] = current
     else:
+        if entry["exhaustion"] > 0:
+            current = sorted(set(current) | {"exhaustion"})
+        else:
+            current = sorted(set(current) - {"exhaustion"})
         entry["conditions"] = current
 
     if hp_delta is not None or max_hp is not None or ac is not None:
@@ -3246,7 +4277,8 @@ def update_combatant(name: str, conditions_add: list[str] | None = None,
     return {
         "success": True, "name": name, "is_player": is_player,
         "hp": f"{entry['current_hp']}/{entry['max_hp']}", "ac": entry["ac"],
-        "conditions": current, "blocked_conditions": blocked,
+        "conditions": current, "exhaustion": int(entry.get("exhaustion") or 0),
+        "blocked_conditions": blocked,
         "already_present": already_present,
         "note": " ".join(notes) or None,
         "registry_summary": _registry_summary_list(),
@@ -3488,11 +4520,24 @@ def resolve_attack(
             force_crit = True
         enc_disadvantage, encumbrance_sources = _roll_disadvantage(cursor, is_player_attacker)
         encumbrance_sources = [*encumbrance_sources, *cond_sources]
+        exh = _exhaustion_effects(_exhaustion_level_for(
+            cursor, actor, is_player=is_player_attacker))
+        if exh["attack_disadvantage"]:
+            enc_disadvantage = True
+            encumbrance_sources = [*encumbrance_sources, f"exhaustion {exh['level']}"]
         d20, advantage_rolls, roll_mode, advantage_cancelled = _roll_d20(
             advantage=advantage or cond_adv, disadvantage=enc_disadvantage or cond_dis)
         die_label = f"{min(advantage_rolls)} / {max(advantage_rolls)} → " if advantage_rolls else ""
 
-        total_attack = d20 + attack_modifier
+        attack_dice_bonus = 0
+        if is_player_attacker and cursor is not None:
+            for dice in equipment.active_dice(_carry_get(cursor), "attack_rolls"):
+                raw = str(dice.get("value") or "").strip()
+                sign = -1 if raw.startswith("-") else 1
+                _, _, rolled = _parse_and_roll_dice(raw.lstrip("+-"))
+                if rolled:
+                    attack_dice_bonus += sign * rolled
+        total_attack = d20 + attack_modifier + attack_dice_bonus
 
         is_natural_1 = (d20 == 1)
         is_natural_20 = (d20 == 20)
@@ -3525,7 +4570,7 @@ def resolve_attack(
         elif attack_info is not None:
             attack_label = f" with {attack}"
         narrative_parts.append(
-            f"{actor} Attack{attack_label}{adv_label}: {die_label}{total_attack} vs AC {target_ac} ({outcome}) ({d20} + {attack_modifier})"
+            f"{actor} Attack{attack_label}{adv_label}{_target_suffix(cursor, target_name, bool(is_npc_attack))}: {die_label}{total_attack} vs AC {target_ac} ({outcome}) ({d20} + {attack_modifier})"
         )
 
         result = {
@@ -3559,6 +4604,8 @@ def resolve_attack(
                 result["magic_bonus_suppressed"] = weapon_info["bonus_suppressed"]
             if weapon_info.get("damage_type"):
                 result["damage_type"] = weapon_info["damage_type"]
+            if weapon_info.get("item_bonus"):
+                result["item_bonus"] = weapon_info["item_bonus"]
             if equipment_warnings:
                 result["equipment_warnings"] = equipment_warnings
         _encumbrance_note(result, encumbrance_sources, advantage_cancelled)
@@ -3634,7 +4681,16 @@ def resolve_attack(
             result["extra_damage_rolls"] = extra_rolls
             result["extra_damage_modifier"] = extra_damage_modifier
 
-        total_damage = primary_damage + extra_damage
+        damage_dice_bonus = 0
+        if is_player_attacker and cursor is not None:
+            for dice in equipment.active_dice(_carry_get(cursor), "damage_rolls"):
+                raw = str(dice.get("value") or "").strip()
+                sign = -1 if raw.startswith("-") else 1
+                _, _, rolled = _parse_and_roll_dice(raw.lstrip("+-"))
+                if rolled:
+                    damage_dice_bonus += sign * rolled
+        total_damage = primary_damage + extra_damage + damage_dice_bonus
+        result["damage_dice_bonus"] = damage_dice_bonus
 
         # SRD 5.1 resistances/immunities/vulnerabilities of a registered NPC target.
         target_entry = _COMBAT_REGISTRY.get(target_name) if target_name else None
@@ -3658,6 +4714,11 @@ def resolve_attack(
                                     "target": sorted(target_conditions)}
 
         if is_npc_attack and total_damage > 0:
+            total_damage, dmg_note = _apply_player_damage_modifiers(cursor, total_damage, damage_type)
+            if dmg_note:
+                result["damage_modified"] = dmg_note
+                narrative_parts.append(f"Damage adjusted: {dmg_note}")
+            result["damage_total"] = total_damage
             hp_result = _apply_hp_change(cursor, -total_damage)
             result["hp_change"] = hp_result
             target_remaining = hp_result["new_value"]
@@ -3831,15 +4892,41 @@ def _apply_active_buff(cursor, spell_name, field, delta):
     }
 
 
+def _store_active_effect(cursor, spell_name, kind, field, value):
+    """Record a NON-numeric active spell effect (resistance, dice, condition immunity).
+
+    Typed entries live alongside the numeric deltas in `_active_buff_data` and are consumed by
+    `equipment.defense_state` and the dice helpers. Duplicate (kind, field, value) entries for the
+    same spell are skipped.
+    """
+    buff_data_raw = _db_val(cursor, "_active_buff_data", {}) or {}
+    if isinstance(buff_data_raw, str):
+        buff_data_raw = json.loads(buff_data_raw)
+    entry = {"kind": kind, "field": field, "value": value}
+    entries = buff_data_raw.get(spell_name)
+    if not isinstance(entries, list):
+        entries = []
+    if entry not in entries:
+        entries = [e for e in entries if isinstance(e, dict)] + [entry]
+    buff_data_raw[spell_name] = entries
+    _db_set(cursor, "_active_buff_data", buff_data_raw)
+    effects_list = _db_val(cursor, "active_effects", []) or []
+    if isinstance(effects_list, str):
+        effects_list = json.loads(effects_list)
+    if spell_name not in effects_list:
+        effects_list.append(spell_name)
+    _db_set(cursor, "active_effects", effects_list)
+    DB_CONNECTION.commit()
+    return {"field": field, "type": kind, "value": value}
+
+
 def _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc, is_npc_vs_npc=False):
     buffs_applied = {}
     active_names = None
 
     if sp_buffs and DB_CONNECTION is not None and not is_npc:
         cursor = DB_CONNECTION.cursor()
-        stats_dict = _db_val(cursor, "stats", {})
-        if isinstance(stats_dict, str):
-            stats_dict = json.loads(stats_dict)
+        stats_dict = _effective_stats(cursor)
 
         for field, value in sp_buffs.items():
             applied = None
@@ -3875,6 +4962,22 @@ def _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_re
                                 applied = _apply_active_buff(
                                     cursor, result.get("spell_name", ""), field, delta)
 
+            if applied is None and field not in ("armor_class", "hp_temporary") \
+                    and "error" not in buffs_applied:
+                kind = "note"
+                if field in ("damage_resistance", "resistance"):
+                    kind = "resistance"
+                elif field in ("damage_immunity", "immunity"):
+                    kind = "immunity"
+                elif field in ("damage_vulnerability", "vulnerability"):
+                    kind = "vulnerability"
+                elif field == "condition_immunity":
+                    kind = "condition_immunity"
+                elif field in ("saving_throws", "ability_checks", "attack_rolls", "damage_rolls"):
+                    kind = "dice"
+                applied = _store_active_effect(
+                    cursor, result.get("spell_name", ""), kind, field, value)
+
             if applied:
                 if "error" in applied:
                     buffs_applied["error"] = applied
@@ -3895,6 +4998,14 @@ def _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_re
         result["duration"] = sp_duration
         if sp_buffs:
             result["buffs"] = sp_buffs
+        # SRD 5.1: track concentration for a player so damage can force a CON save.
+        if sp_requires_concentration and not is_npc and DB_CONNECTION is not None:
+            conc_spell = result.get("spell_name", "")
+            replaced = _set_concentration(DB_CONNECTION.cursor(), conc_spell)
+            if replaced:
+                result["concentration_replaced"] = replaced
+            if conc_spell:
+                result["concentration"] = conc_spell
         conc_tag = " (Requires Concentration)" if sp_requires_concentration else ""
 
         if buffs_applied and "error" not in buffs_applied:
@@ -4081,6 +5192,10 @@ def _resolve_projectile_spell(
         if e["is_player"]:
             tr = {"name": name, "damage": dealt, "darts": per_target[name]["darts"]}
             if dealt > 0 and cursor:
+                dealt, dmg_note = _apply_player_damage_modifiers(cursor, dealt, damage_type)
+                if dmg_note:
+                    tr["damage_modified"] = dmg_note
+                    tr["damage"] = dealt
                 hp_result = _apply_hp_change(cursor, -dealt)
                 tr["hp_change"] = hp_result
             target_results.append(tr)
@@ -4116,10 +5231,10 @@ def _resolve_projectile_spell(
                 bits.append(f"ray {i}: {d['total_attack']} vs AC {d['ac']} (hit){tag} {d['damage']} {damage_type}".strip())
             else:
                 bits.append(f"ray {i}: {d['total_attack']} vs AC {d['ac']} (miss)")
-        narrative_parts.append(f"{actor} {spell_name}: {total_damage} — {count} {label} — " + " | ".join(bits))
+        narrative_parts.append(f"{actor} {spell_name}{_target_suffix(cursor, target_name, bool(is_npc_attack))}: {total_damage} — {count} {label} — " + " | ".join(bits))
     elif len(entries) == 1:
         vals = per_target[entries[0]["name"]]["darts"]
-        narrative_parts.append(f"{actor} {spell_name}: {total_damage} — {count} darts: " + ", ".join(str(v) for v in vals))
+        narrative_parts.append(f"{actor} {spell_name}{_target_suffix(cursor, target_name, bool(is_npc_attack))}: {total_damage} — {count} darts: " + ", ".join(str(v) for v in vals))
     else:
         parts = []
         for e in entries:
@@ -4161,7 +5276,7 @@ def resolve_magic(
     target_max_hp: int | None = None,
     challenge_rating: float | None = None,
     target_save_modifier: int | None = None,
-    player_save_modifier: int | None = None,
+    player_situational_modifier: int | None = None,
     slot_level: int | None = None,
     is_npc_attack: bool = False,
     is_scroll: bool = False,
@@ -4200,8 +5315,9 @@ def resolve_magic(
     - challenge_rating: optional CR for XP awards (auto-looked up from registry if omitted)
     - target_save_modifier: save bonus for single-target saving_throw spells (omit it for a target
       in the combat registry — the engine uses its declared saves)
-    - player_save_modifier: player's save bonus when is_npc_attack=True with saving throws (omit it
-      to let the engine derive the player's save from their sheet)
+    - player_situational_modifier: a situational bonus/penalty added to the player's save when
+      is_npc_attack=True — the engine derives the base save (ability + proficiency + item bonuses)
+      from the sheet, so do NOT pass the base modifier here
     - spell_attack_modifier / spell_save_dc: omit for a registered NPC caster — the engine uses the
       `spellcasting` block you declared at register_combatants
     - slot_level: upcast slot level (defaults to spell's native level)
@@ -4366,6 +5482,11 @@ def resolve_magic(
     spell_save_dc = int(spell_save_dc or 0)
     spell_attack_modifier = int(spell_attack_modifier or 0)
     enc_disadvantage, encumbrance_sources = _roll_disadvantage(cursor, is_player_caster)
+    if is_player_caster:
+        exh_att = _exhaustion_effects(_exhaustion_level(cursor))
+        if exh_att["attack_disadvantage"]:
+            enc_disadvantage = True
+            encumbrance_sources = [*encumbrance_sources, f"exhaustion {exh_att['level']}"]
 
     # ── armour proficiency, then free-hand check (SRD 5.1) ───────────────────
     if (cursor is not None and is_player_caster and not is_scroll
@@ -4604,10 +5725,7 @@ def resolve_magic(
                 if str(effective_slot) not in sc_data.get("slots", {}):
                     ability_name = sc_data.get("ability", "intelligence").lower()
                     stat_key = {"intelligence": "int", "wisdom": "wis", "charisma": "cha"}.get(ability_name, "int")
-                    stats_dict = _db_val(cursor, "stats", {})
-                    if isinstance(stats_dict, str):
-                        stats_dict = json.loads(stats_dict)
-                    ability_mod = (int(stats_dict.get(stat_key, 10)) - 10) // 2
+                    ability_mod = _ability_mod(_effective_stats(cursor).get(stat_key, 10))
                     dc = 10 + effective_slot
                     scroll_d20 = random.randint(1, 20)
                     scroll_total = scroll_d20 + ability_mod
@@ -4734,7 +5852,7 @@ def resolve_magic(
 
         adv_label = f" ({roll_mode.capitalize()})" if roll_mode else ""
         narrative_parts.append(
-            f"{actor} {spell_name} Attack{adv_label}: {die_label}{total_attack} vs AC {target_ac} ({outcome}) ({d20} + {spell_attack_modifier})"
+            f"{actor} {spell_name} Attack{adv_label}{_target_suffix(cursor, target_name, bool(is_npc_attack))}: {die_label}{total_attack} vs AC {target_ac} ({outcome}) ({d20} + {spell_attack_modifier})"
         )
 
         result["attack_roll"] = d20
@@ -4757,7 +5875,7 @@ def resolve_magic(
                 if miss_die_size is not None:
                     miss_damage = miss_sum + final_mod
                     narrative_parts.append(
-                        f"{actor} {spell_name} Miss Damage: {miss_damage} ({' + '.join(str(r) for r in miss_rolls)})"
+                        f"{actor} {spell_name} Miss Damage{_target_suffix(cursor, target_name, bool(is_npc_attack))}: {miss_damage} ({' + '.join(str(r) for r in miss_rolls)})"
                     )
                     result["miss_damage"] = miss_damage
                     result["miss_damage_rolls"] = miss_rolls
@@ -4804,17 +5922,17 @@ def resolve_magic(
         full_restore = bool(sp_flat_healing and total_healing == 0)
 
         if full_restore:
-            narrative_parts.append(f"{actor} {spell_name} Healing: full HP restore")
+            narrative_parts.append(f"{actor} {spell_name} Healing{_target_suffix(cursor, target_name or actor, bool(is_npc_attack))}: full HP restore")
             result["healing_total"] = "full"
         else:
             if heal_rolls:
                 heal_rolls_str = " + ".join(str(r) for r in heal_rolls)
                 if heal_mod != 0:
-                    heal_narrative = f"{actor} {spell_name} Healing: {total_healing} ({heal_rolls_str} + {heal_mod})"
+                    heal_narrative = f"{actor} {spell_name} Healing{_target_suffix(cursor, target_name or actor, bool(is_npc_attack))}: {total_healing} ({heal_rolls_str} + {heal_mod})"
                 else:
-                    heal_narrative = f"{actor} {spell_name} Healing: {total_healing} ({heal_rolls_str})"
+                    heal_narrative = f"{actor} {spell_name} Healing{_target_suffix(cursor, target_name or actor, bool(is_npc_attack))}: {total_healing} ({heal_rolls_str})"
             else:
-                heal_narrative = f"{actor} {spell_name} Healing: {total_healing}"
+                heal_narrative = f"{actor} {spell_name} Healing{_target_suffix(cursor, target_name or actor, bool(is_npc_attack))}: {total_healing}"
             narrative_parts.append(heal_narrative)
             result["healing_total"] = total_healing
             result["healing_rolls"] = heal_rolls
@@ -4870,7 +5988,7 @@ def resolve_magic(
         hp_pool_total = pool_raw + final_mod
 
         pool_rolls_str = " + ".join(str(r) for r in pool_rolls)
-        pool_narrative = f"{actor} {spell_name} HP Pool: {hp_pool_total}"
+        pool_narrative = f"{actor} {spell_name} HP Pool{_target_suffix(cursor, target_name, bool(is_npc_attack))}: {hp_pool_total}"
         if final_mod != 0:
             pool_narrative += f" ({pool_rolls_str} + {final_mod})"
         else:
@@ -4932,6 +6050,8 @@ def resolve_magic(
             return {"success": False, "error": f"Invalid damage_dice notation: '{final_dice}'. Use format 'XdY' (e.g., '2d6')."}
 
         label = "Healing" if sp_healing else "Damage"
+        dmg_suffix = _target_suffix(cursor, (target_name or actor) if sp_healing else target_name,
+                                    bool(is_npc_attack))
 
         if is_crit:
             crit_rolls = [random.randint(1, primary_die_size) for _ in range(len(primary_rolls))]
@@ -4941,15 +6061,15 @@ def resolve_magic(
                 base_str = " + ".join(str(r) for r in primary_rolls)
                 if final_mod != 0:
                     narrative_parts.append(
-                        f"{actor} {spell_name} {label}: {primary_damage} ({final_dice}: {base_str} + {crit_rolls_str}, {final_mod:+d}) [CRIT]"
+                        f"{actor} {spell_name} {label}{dmg_suffix}: {primary_damage} ({final_dice}: {base_str} + {crit_rolls_str}, {final_mod:+d}) [CRIT]"
                     )
                 else:
                     narrative_parts.append(
-                        f"{actor} {spell_name} {label}: {primary_damage} ({final_dice}: {base_str} + {crit_rolls_str}) [CRIT]"
+                        f"{actor} {spell_name} {label}{dmg_suffix}: {primary_damage} ({final_dice}: {base_str} + {crit_rolls_str}) [CRIT]"
                     )
             else:
                 narrative_parts.append(
-                    f"{actor} {spell_name} {label}: {primary_damage} (flat + {crit_rolls_str} + {final_mod}) [CRIT]"
+                    f"{actor} {spell_name} {label}{dmg_suffix}: {primary_damage} (flat + {crit_rolls_str} + {final_mod}) [CRIT]"
                 )
             result["crit_damage_rolls"] = crit_rolls
         else:
@@ -4957,11 +6077,11 @@ def resolve_magic(
             if primary_rolls:
                 base_str = " + ".join(str(r) for r in primary_rolls)
                 if final_mod != 0:
-                    narrative_parts.append(f"{actor} {spell_name} {label}: {primary_damage} ({final_dice}: {base_str}, {final_mod:+d})")
+                    narrative_parts.append(f"{actor} {spell_name} {label}{dmg_suffix}: {primary_damage} ({final_dice}: {base_str}, {final_mod:+d})")
                 else:
-                    narrative_parts.append(f"{actor} {spell_name} {label}: {primary_damage} ({final_dice}: {base_str})")
+                    narrative_parts.append(f"{actor} {spell_name} {label}{dmg_suffix}: {primary_damage} ({final_dice}: {base_str})")
             else:
-                narrative_parts.append(f"{actor} {spell_name} {label}: {primary_damage}")
+                narrative_parts.append(f"{actor} {spell_name} {label}{dmg_suffix}: {primary_damage}")
 
         result["primary_damage"] = primary_damage
         result["primary_damage_rolls"] = primary_rolls
@@ -4980,7 +6100,7 @@ def resolve_magic(
             extra_base_str = " + ".join(str(r) for r in extra_base_rolls)
             ext_type_label = sp_extra_damage_type.title() if sp_extra_damage_type else "Extra"
             narrative_parts.append(
-                f"{actor} {spell_name} {ext_type_label} Damage: {extra_damage} ({extra_base_str})"
+                f"{actor} {spell_name} {ext_type_label} Damage{dmg_suffix}: {extra_damage} ({extra_base_str})"
             )
             result["extra_damage"] = extra_damage
             result["extra_damage_rolls"] = extra_rolls
@@ -5006,22 +6126,37 @@ def resolve_magic(
             tchp = t.get("current_hp")
             if tchp is None:
                 tchp = _registry_hp(tname) or 0
-            tsave = t.get("save_modifier")
-            if tsave is None:
-                tsave = _registry_save(tname, sp_save_type)
-            if tsave is None:
-                tsave = 0
+            is_player = t.get("is_player", False)
+            save_detail = None
+            if is_player and cursor is not None:
+                # The player's save is engine-derived; any target save_modifier is situational.
+                save_detail = _derived_save(cursor, sp_save_type, t.get("save_modifier") or 0,
+                                            against="spells", damage=sp_damage_type,
+                                            condition=sp_condition)
+                tsave = save_detail["modifier"]
+            else:
+                tsave = t.get("save_modifier")
+                if tsave is None:
+                    tsave = _registry_save(tname, sp_save_type)
+                if tsave is None:
+                    tsave = 0
             tcr = t.get("challenge_rating")
             if tcr is None:
                 tcr = _registry_cr(tname)
-            is_player = t.get("is_player", False)
 
             save_disadvantage, save_sources = _encumbrance(cursor, is_player, sp_save_type)
             cond_save_dis, auto_fail, cond_save_sources = _condition_save_effects(
                 _conditions_for(cursor, tname, is_player=is_player), sp_save_type)
             save_disadvantage = save_disadvantage or cond_save_dis
             save_sources = [*save_sources, *cond_save_sources]
-            save_d20, save_rolls, save_mode, _save_cancelled = _roll_d20(disadvantage=save_disadvantage)
+            save_advantage = bool(save_detail.get("advantage")) if save_detail else False
+            if save_detail is not None:
+                exh = _exhaustion_effects(_exhaustion_level(cursor))
+                if exh["save_disadvantage"]:
+                    save_disadvantage = True
+                    save_sources = [*save_sources, f"exhaustion {exh['level']}"]
+            save_d20, save_rolls, save_mode, _save_cancelled = _roll_d20(
+                advantage=save_advantage, disadvantage=save_disadvantage)
             save_total = save_d20 + tsave
             save_success = save_total >= spell_save_dc and not auto_fail
             save_outcome = "Success" if save_success else "Failure"
@@ -5103,6 +6238,10 @@ def resolve_magic(
                        "save_total": save_total, "save_success": save_success,
                        "damage": t_damage, "remaining_hp": max(0, remaining), "killed": killed}
                 if is_player and t_damage > 0 and cursor:
+                    t_damage, dmg_note = _apply_player_damage_modifiers(cursor, t_damage, sp_damage_type)
+                    if dmg_note:
+                        tr["damage_modified"] = dmg_note
+                        tr["damage"] = t_damage
                     hp_result = _apply_hp_change(cursor, -t_damage)
                     tr["hp_change"] = hp_result
             if auto_fail:
@@ -5118,6 +6257,8 @@ def resolve_magic(
                     total_xp += xp
                     tr["xp_awarded"] = xp
 
+            if save_detail is not None:
+                tr["save"] = save_detail
             target_results.append(tr)
 
         result["targets"] = target_results
@@ -5148,22 +6289,34 @@ def resolve_magic(
 
     # ── SINGLE-TARGET SAVING THROW ──
     if sp_attack_type == "saving_throw":
-        if is_npc_attack and player_save_modifier is not None:
-            save_mod = player_save_modifier
+        saver_name = _target_label(cursor, target_name, bool(is_npc_attack)) or target_name or actor
+        save_detail = None
+        if is_npc_attack and cursor is not None:
+            # The player is the saver: the engine derives the whole save (SRD 5.1).
+            save_detail = _derived_save(cursor, sp_save_type, player_situational_modifier or 0,
+                                        against="spells", damage=sp_damage_type,
+                                        condition=sp_condition)
+            save_mod = save_detail["modifier"]
         elif target_save_modifier is not None:
             save_mod = target_save_modifier
         else:
             save_mod = _registry_save(target_name or actor, sp_save_type)
             if save_mod is None:
                 save_mod = 0
-        saver_name = target_name or actor
         # The player is the one saving when an NPC casts on them.
         save_disadvantage, save_sources = _encumbrance(cursor, is_npc_attack, sp_save_type)
         cond_save_dis, auto_fail, cond_save_sources = _condition_save_effects(
             _conditions_for(cursor, saver_name, is_player=is_npc_attack), sp_save_type)
         save_disadvantage = save_disadvantage or cond_save_dis
         save_sources = [*save_sources, *cond_save_sources]
-        save_d20, save_rolls, save_mode, _save_cancelled = _roll_d20(disadvantage=save_disadvantage)
+        save_advantage = bool(save_detail.get("advantage")) if save_detail else False
+        if save_detail is not None:
+            exh = _exhaustion_effects(_exhaustion_level(cursor))
+            if exh["save_disadvantage"]:
+                save_disadvantage = True
+                save_sources = [*save_sources, f"exhaustion {exh['level']}"]
+        save_d20, save_rolls, save_mode, _save_cancelled = _roll_d20(
+            advantage=save_advantage, disadvantage=save_disadvantage)
         save_total = save_d20 + save_mod
         save_success = save_total >= spell_save_dc and not auto_fail
         if auto_fail:
@@ -5174,6 +6327,11 @@ def resolve_magic(
         result["save_total"] = save_total
         result["save_dc"] = spell_save_dc
         result["save_success"] = save_success
+        if save_detail is not None:
+            result["save"] = save_detail
+        result["save_disadvantage"] = bool(save_disadvantage)
+        if save_disadvantage:
+            result["save_disadvantage_sources"] = save_sources
         save_outcome = "Success" if save_success else "Failure"
 
         narrative_parts.append(
@@ -5222,6 +6380,11 @@ def resolve_magic(
 
     # ── APPLY HP CHANGES (single target) ──
     if is_npc_attack and total_damage > 0 and not sp_healing:
+        total_damage, dmg_note = _apply_player_damage_modifiers(cursor, total_damage, sp_damage_type)
+        if dmg_note:
+            result["damage_modified"] = dmg_note
+            result["damage_total"] = total_damage
+            narrative_parts.append(f"Damage adjusted: {dmg_note}")
         hp_result = _apply_hp_change(cursor, -total_damage)
         result["hp_change"] = hp_result
     elif is_npc_attack and sp_healing:
@@ -5303,6 +6466,9 @@ def resolve_magic(
             if target_name and from_registry:
                 _registry_update_hp(target_name, max(target_remaining, 0))
             elif db_target and cursor:
+                total_damage, dmg_note = _apply_player_damage_modifiers(cursor, total_damage, sp_damage_type)
+                if dmg_note:
+                    result["damage_modified"] = dmg_note
                 hp_result = _apply_hp_change(cursor, -total_damage)
                 result["hp_change"] = hp_result
 

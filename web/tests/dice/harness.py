@@ -45,6 +45,7 @@ def make_player(**overrides):
         "proficiency_bonus": 2,
         "stats": {"str": 16, "dex": 14, "con": 14, "int": 10, "wis": 12, "cha": 8},
         "skills": ["Athletics", "Perception"],
+        "expertise": [],
         "saves": ["Strength", "Constitution"],
         "armor_proficiencies": ["Light armor", "Medium armor", "Shields"],
         "weapon_proficiencies": ["Simple weapons", "Martial weapons"],

@@ -28,6 +28,7 @@ class MagicMissileTest(H.EngineCase):
         self.assertEqual(r["damage_total"], 12)
         self.assertEqual(r["damage_type"], "force")
         self.assertIn("3 darts: 4, 4, 4", r["narrative_format"])
+        self.assertIn("Magic Missile → Goblin: 12", r["narrative_format"])
 
     def test_upcast_level_2_adds_a_dart(self):
         with H.fixed_rolls([3]) as calls:

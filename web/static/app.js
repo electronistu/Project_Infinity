@@ -1195,11 +1195,40 @@ function renderStats(d) {
   }
   statsBox.appendChild(card("Combat", [hpBar(cb.hp_current, cb.hp_max), tileRow(combatTiles)]));
 
+  // SRD 5.1 exhaustion / concentration / death saves are engine state the player must see.
+  const combatNotes = [];
+  if (cb.exhaustion) {
+    const exh = [
+      "",
+      "Level 1: disadvantage on ability checks",
+      "Level 2: speed halved",
+      "Level 3: disadvantage on attack rolls and saving throws",
+      "Level 4: HP maximum halved",
+      "Level 5: speed 0",
+      "Level 6: death",
+    ];
+    combatNotes.push(row("Exhaustion", `${cb.exhaustion}/6`, exh[cb.exhaustion] || ""));
+  }
+  if (cb.concentration) {
+    combatNotes.push(row("Concentration", cb.concentration,
+      "Taking damage forces a CON save (DC 10 or half the damage)."));
+  }
+  const ds = cb.death_saves || {};
+  if (ds.successes || ds.failures) {
+    combatNotes.push(row("Death Saves",
+      `${ds.successes || 0}/3 successes \u00b7 ${ds.failures || 0}/3 failures`));
+  }
+  if (combatNotes.length) statsBox.appendChild(card("Condition", combatNotes));
+
   if (d.stats && d.stats.length) {
     const tiles = d.stats.map((a) => {
       const label = a.name || a.key;
       const mod = (a.modifier === null || a.modifier === undefined || a.modifier === "") ? "" : ` (${a.modifier})`;
-      return valueTile(label, a.value, a.icon, `${label} ${a.value}${mod}`);
+      let note = "";
+      if (a.base_value !== undefined && a.base_value !== null && a.base_value !== a.value) {
+        note = ` — set by ${a.source || "a worn item"} (base ${a.base_value})`;
+      }
+      return valueTile(label, a.value, a.icon, `${label} ${a.value}${mod}${note}`);
     });
     statsBox.appendChild(card("Ability Scores", [tileRow(tiles)]));
   }
@@ -1240,13 +1269,30 @@ function renderStats(d) {
 
   const p = d.proficiencies || {};
   const profKids = [];
-  if (p.skills && p.skills.length) profKids.push(field("Skills", p.skills));
   if (p.saves && p.saves.length) profKids.push(field("Saves", p.saves));
   if (p.weapons && p.weapons.length) profKids.push(field("Weapons", p.weapons));
   if (p.armor && p.armor.length) profKids.push(field("Armor", p.armor));
   if (p.features && p.features.length) profKids.push(field("Features", p.features));
   if (p.languages && p.languages.length) profKids.push(field("Languages", p.languages));
   if (profKids.length) statsBox.appendChild(card("Proficiencies", profKids));
+
+  // SRD 5.1 engine-derived skill modifiers (proficient/Expertise) + passive scores.
+  const dskills = (d.skills || []).filter((s) => s.proficient || s.expertise);
+  const passive = d.passive || {};
+  if (dskills.length || Object.keys(passive).length) {
+    const kids = [];
+    dskills.forEach((s) => {
+      const mod = (s.modifier >= 0 ? "+" : "") + s.modifier;
+      const tip = `${s.name} (${s.ability}) ${mod}` +
+        (s.expertise ? " \u2014 Expertise (double proficiency)" : "");
+      kids.push(row(s.name + (s.expertise ? " (Expertise)" : ""), mod, tip));
+    });
+    const pv = Object.entries(passive).map(
+      ([k, v]) => `${k.charAt(0).toUpperCase()}${k.slice(1)} ${v}`);
+    if (pv.length) kids.push(row("Passive", pv.join(" \u00b7 "),
+      "Passive score = 10 + the derived modifier (Perception, Investigation, Insight)."));
+    statsBox.appendChild(card("Skills", kids));
+  }
 
   if (d.inventory && d.inventory.length) {
     const kids = [carryLine(d.carrying), handsLine(d.equipment), tagList(d.inventory)].filter(Boolean);

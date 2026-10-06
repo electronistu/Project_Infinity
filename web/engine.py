@@ -126,7 +126,7 @@ NPC_TOOL = "register_npcs"
 NARRATIVE_PHASE_TOOLS = frozenset({SCENE_TOOL})
 # Tools whose result may change the combat roster the client shows as tooltips.
 COMBAT_TOOLS = frozenset({"register_combatants", "update_combatant", "resolve_attack",
-                          "resolve_magic"})
+                          "resolve_magic", "modify_exhaustion", "make_death_save"})
 # Scene-imagery instructions live in GameMaster_MCP.md between these markers;
 # they are sent to the GM only when storyline image generation is enabled.
 _SCENE_BLOCK = re.compile(
@@ -206,7 +206,7 @@ _GM_VIEW_KEEP: dict[str, tuple[str, ...]] = {
         "remaining_slots"),
     "update_player_list": (
         "success", "key", "item", "action", "unequipped", "note", "warning",
-        "unknown_base", "unweighed_item", "reverted", "spells_prepared_info"),
+        "unweighed_item", "reverted", "spells_prepared_info"),
     "equip_item": (
         "success", "action", "item", "armor_class_before", "armor_class_after",
         "warnings", "time_cost", "already_equipped", "equipped", "held",
@@ -217,7 +217,9 @@ _GM_VIEW_KEEP: dict[str, tuple[str, ...]] = {
     "rest": ("success", "rest_type", "changes", "hints"),
     "register_combatants": ("success", "initiative_order", "registry_summary"),
     "update_combatant": ("success", "name", "is_player", "hp", "ac", "conditions",
-                         "blocked_conditions", "already_present", "note"),
+                         "exhaustion", "blocked_conditions", "already_present", "note"),
+    "modify_exhaustion": ("success", "exhaustion", "old", "delta", "effects", "max_hp"),
+    "make_death_save": ("success", "roll", "successes", "failures", "outcome", "hp"),
     # Acknowledgements: the GM just made the call, so only the outcome is new.
     "request_scene_image": ("status", "note"),
     "register_npcs": ("status", "count", "note"),
@@ -226,7 +228,7 @@ _GM_VIEW_KEEP: dict[str, tuple[str, ...]] = {
 _GM_VIEW_ERROR_EXTRA = (
     "error", "reason", "gm_instruction", "turn_lost", "action_consumed",
     "current_items", "held", "occupied", "worn", "slot", "available_keys",
-    "attuned", "attunement_slots_free")
+    "attuned", "attunement_slots_free", "conflicting_item", "prerequisite")
 # `carrying` is reduced to the one-line state that drives disadvantage.
 _GM_VIEW_CARRYING = ("status", "speed_penalty", "carried", "capacity")
 

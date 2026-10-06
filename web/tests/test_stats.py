@@ -271,6 +271,27 @@ def main() -> bool:
         and ew["equipment"]["attunement_slots_free"] == 2
         and ew["equipment"]["worn"][0]["name"] == "Cloak of Warding")
 
+    # Ability-score items and engine-derived saves reach the sheet.
+    eff = build_stats({
+        "character_class": "Fighter", "proficiency_bonus": 2,
+        "stats": {"str": 10, "dex": 14, "con": 14, "int": 10, "wis": 12, "cha": 8},
+        "saves": ["Strength", "Constitution"],
+        "inventory": [{"name": "Belt of Hill Giant Strength", "kind": "belt",
+                       "set_str": 21, "attunement": True},
+                      {"name": "Ring of Protection", "kind": "ring",
+                       "ac_bonus": 1, "save_bonus": 1, "attunement": True}],
+        "equipped": {"armor": None, "hands": [None, None],
+                     "worn": ["Belt of Hill Giant Strength", "Ring of Protection"]},
+        "attuned": ["Belt of Hill Giant Strength", "Ring of Protection"],
+    })
+    abilities = {a["key"]: a for a in eff["stats"]}
+    rec("equipment: a set-score item raises the sheet's STR and names its source",
+        abilities["STR"]["value"] == 21
+        and abilities["STR"]["source"] == "Belt of Hill Giant Strength")
+    saves = {s["key"]: s for s in eff["saves"]}
+    rec("equipment: derived saves include ability + proficiency + item",
+        saves["CON"]["total"] == 5 and saves["DEX"]["total"] == 3)
+
     # Regression against the real save, if present.
     real = REPO / "output" / "electronistu.player"
     if real.exists():

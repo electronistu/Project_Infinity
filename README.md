@@ -119,17 +119,19 @@ Most AI RPGs let the language model make up numbers. Project Infinity runs every
 - **Real Rules, Real Dice** — every attack, save, spell, crit, kill and XP award is resolved by the engine in one call; the GM sees the results and cannot generate them.
 - **A Persistent World** — stats, inventory, gold, spell slots, equipped gear and reputation live in a real database; guild standing is kept per kingdom, and saving records a session timeline so a long campaign stays coherent.
 - **What You Wear Matters** — armour class is derived from the equipped set (one suit of armour, two hands, one shield); attunement limits magic items; donning/doffing and hand requirements are enforced; carrying capacity uses the SRD variant encumbrance rules.
+- **Spell & Item Effects** — damage resistance, immunity and vulnerability and condition immunity from worn items **and** active spells are applied automatically when the player takes damage; typed active effects (resistances, spell dice, speed, HP-per-level) are tracked and revert cleanly when they end.
 - **NPCs With Stat Blocks** — the GM registers each combatant once with HP, AC, per-ability saves, declared attacks and resistances; the engine resolves their attacks, damage-type math and conditions.
 - **Multi-Target AoE** — Fireball, Sleep and area spells resolve every target in one call: per-target saves, HP-pool exhaustion, one slot consumed.
-- **Conditions** — blinded, prone, restrained, poisoned, frightened, invisible, paralyzed, petrified, stunned and unconscious drive advantage, forced criticals and failed saves. A condition a spell applies is written onto the combatant automatically; the GM only removes it when it ends.
+- **Conditions** — blinded, prone, restrained, poisoned, frightened, invisible, paralyzed, petrified, stunned and unconscious drive advantage, forced criticals and failed saves. Exhaustion is tracked as a level 0–6 with its full SRD table (checks, speed, attacks/saves, halved HP maximum, death). A condition a spell applies is written onto the combatant automatically; the GM only removes it when it ends.
 - **Refused Actions** — attacking with a weapon not in hand, casting with both hands busy, or casting in non-proficient armour is refused and the action is spent. No do-overs.
 - **Rest & Leveling** — short and long rests and XP thresholds auto-apply hit dice, slots, Arcane Recovery, HP, proficiency and progression per SRD 5.1.
 
 Under the hood:
 
 - **The engine is authoritative.** A local **MCP server** with an in-memory SQLite database, initialised from your `.player`. Every action is a verified tool call; the GM's rules and constraints live in [`GameMaster_MCP.md`](GameMaster_MCP.md).
-- **Dice & checks** — `perform_check` (`d20 + modifier` vs a DC, natural-20/1 criticals) and `roll_dice` (any notation, e.g. `3d6+2`).
-- **State authority** — `modify_player_numeric` and `update_player_list` own all state; HP clamps to `[0, max]`; 0 HP triggers death saves.
+- **Dice & checks** — `perform_check` (`d20 + modifier` vs a DC, natural-20/1 criticals) and `roll_dice` (any notation, e.g. `3d6+2`). Player ability/skill checks are engine-derived (ability + skill proficiency, doubled for Expertise or halved for Jack of All Trades, + item bonuses), and passive Perception/Investigation/Insight (10 + modifier) are exposed on the sheet.
+- **State authority** — `modify_player_numeric` and `update_player_list` own all state; HP clamps to `[0, max]`; dropping to 0 starts death saves (`make_death_save`), massive leftover damage is instant death, and healing any real HP clears the counters.
+- **Exhaustion & concentration** — `modify_exhaustion` tracks the SRD level 0–6 and the engine applies the whole table (checks, speed, attacks/saves, halved HP maximum, death); a long rest removes one level. The engine also tracks the player's concentration spell and rolls the CON save (DC 10 or half the damage) when damage lands, ending the spell on a failure. The sheet's **Condition** card shows the exhaustion level, the active concentration spell and the death-save counters.
 - **Combat authority** — `register_combatants` declares a full stat block once; `resolve_attack` and `resolve_magic` derive AC, saves, damage types and conditions from it; `update_combatant` adjusts the registry mid-fight.
 - **Phased resolution** — the GM resolves all mechanics first (pausing with a sync token), then narrates, so results are mechanically correct before the story is told.
 
@@ -139,7 +141,7 @@ A session loads, in order: the **GM protocol** ([`GameMaster_MCP.md`](GameMaster
 
 During play the GM receives the result of **every tool call**, trimmed to what it does not already hold: the **delta** of a state change, the **exact mechanics** of a roll or attack, and any **error**. Redundant snapshots (inventory, carrying, equipment) are not re-sent; a full sheet is one deliberate `dump_player_db` away. The **client keeps the complete, untrimmed result** for debugging.
 
-The **Mechanics panel is composed by the engine** from those results and appended at the end of the narrative — the GM never writes mechanics, a heading or a placeholder. It shows a green, hoverable **Initiative Order** (tooltip = the order) and each NPC's live sheet as a hover tooltip on their name. The GM narrates the outcomes, emphasizes critical results (a crit, near-death HP, a condition), and explains rules when the player needs them.
+The **Mechanics panel is composed by the engine** from those results and appended at the end of the narrative — the GM never writes mechanics, a heading or a placeholder. Every line names who acted on whom (`Actor → Target`), shows a green, hoverable **Initiative Order** (tooltip = the order) and each NPC's live sheet as a hover tooltip on their name. The GM narrates the outcomes, emphasizes critical results (a crit, near-death HP, a condition), and explains rules when the player needs them.
 
 ### Storyline image continuity
 

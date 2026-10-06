@@ -300,13 +300,44 @@ class EquipToolTest(unittest.TestCase):
             self.assertEqual(r["equipment"]["hands_free"], 2)
             self.assertEqual(H.dbv("_carrying")["unweighed"], [])
 
-    def test_unknown_base_warns(self):
+    def test_unknown_base_without_stats_is_rejected(self):
         with H.load(fighter()):
             r = H.ds.update_player_list(key="inventory", item="Warp Blade: odd", action="add",
                                         base="Bananasword")
+            self.assertFalse(r["success"])
+            self.assertEqual(r["error"], "unknown_base_no_stats")
+            self.assertIn("update_player_list", r["gm_instruction"])
+
+    def test_unknown_base_with_explicit_stats_is_accepted(self):
+        with H.load(fighter()):
+            r = H.ds.update_player_list(key="inventory", item="Warp Blade: odd", action="add",
+                                        base="Bananasword", damage_dice="1d6",
+                                        damage_type="slashing")
             self.assertTrue(r["success"])
-            self.assertEqual(r["unknown_base"], "Bananasword")
-            self.assertIn("Unknown base archetype", r["warning"])
+
+    def test_homebrew_worn_item_with_unknown_base_is_accepted(self):
+        # base names the magic archetype; kind + ac_bonus is enough for a worn item.
+        with H.load(fighter()):
+            r = H.ds.update_player_list(key="inventory", item="Ring of Warding: cold silver",
+                                        action="add", base="Ring of Protection", kind="ring",
+                                        ac_bonus=1, attunement=True)
+            self.assertTrue(r["success"])
+
+    def test_weapon_stats_missing_is_rejected(self):
+        with H.load(fighter()):
+            r = H.ds.update_player_list(key="inventory", item="Warp Spear", action="add",
+                                        properties=["Thrown"])
+            self.assertFalse(r["success"])
+            self.assertEqual(r["error"], "weapon_stats_missing")
+            self.assertIn("damage_dice", r["gm_instruction"])
+
+    def test_worn_bonus_without_kind_is_rejected(self):
+        with H.load(fighter()):
+            r = H.ds.update_player_list(key="inventory", item="Band of Vigour", action="add",
+                                        ac_bonus=1, attunement=True)
+            self.assertFalse(r["success"])
+            self.assertEqual(r["error"], "worn_kind_missing")
+            self.assertIn("kind='ring'", r["gm_instruction"])
 
 
 def swordsman(**overrides):
@@ -355,6 +386,27 @@ class WeaponAttackTest(unittest.TestCase):
                                     target_name="Goblin", target_current_hp=20)
             self.assertEqual(r["attack_modifier"], 6)   # STR +3, proficiency +2, magic +1
             self.assertEqual(r["damage_modifier"], 4)   # STR +3, magic +1
+
+    def test_worn_ring_bonuses_apply_to_attacks(self):
+        payload = swordsman(equipped={"armor": "Chain Mail", "hands": ["Longsword", None],
+                                      "worn": ["Ring of Accuracy"]})
+        payload["inventory"] = [
+            "Longsword", "Dagger", "Shortbow", "Chain Mail", "Shield",
+            {"name": "Ring of Accuracy", "kind": "ring", "attack_bonus": 1, "damage_bonus": 1,
+             "attunement": True},
+        ]
+        with H.load(payload):
+            # Withheld until attuned.
+            r = H.ds.resolve_attack(actor="Tester", weapon="Longsword", target_ac=5,
+                                    target_name="Goblin", target_current_hp=20)
+            self.assertEqual(r["attack_modifier"], 5)   # STR +3, proficiency +2
+            self.assertEqual(r["damage_modifier"], 3)
+            H.ds.attune_item("Ring of Accuracy")
+            r = H.ds.resolve_attack(actor="Tester", weapon="Longsword", target_ac=5,
+                                    target_name="Goblin", target_current_hp=20)
+            self.assertEqual(r["attack_modifier"], 6)   # +1 from the worn ring
+            self.assertEqual(r["damage_modifier"], 4)
+            self.assertIn("Ring of Accuracy", r["item_bonus"]["sources"])
 
     def test_attacking_with_an_unequipped_weapon_is_refused(self):
         with H.load(swordsman()):

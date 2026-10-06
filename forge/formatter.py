@@ -65,6 +65,7 @@ def get_player_json(pc, kingdoms=None) -> str:
         },
         "proficiency_bonus": pc.proficiency_bonus,
         "skills": [s.name for s in pc.skills if s.proficient],
+        "expertise": list(getattr(pc, "expertise", []) or []),
         "saves": [s.name for s in pc.saving_throws if s.proficient],
         "armor_proficiencies": pc.armor_proficiencies,
         "weapon_proficiencies": pc.weapon_proficiencies,

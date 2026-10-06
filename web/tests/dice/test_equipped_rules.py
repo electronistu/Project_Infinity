@@ -178,7 +178,7 @@ MAGIC = [
     {"name": "Voidmail", "base": "Chain Mail", "ac_bonus": 1, "attunement": True, "kind": "armor"},
     {"name": "Cloak of Warding", "kind": "cloak", "ac_bonus": 1, "attunement": True},
     {"name": "Ring of Shielding", "kind": "ring", "ac_bonus": 1, "attunement": True},
-    {"name": "Amulet of Vigour", "kind": "headwear", "ac_bonus": 1, "attunement": True},
+    {"name": "Amulet of Vigour", "kind": "amulet", "ac_bonus": 1, "attunement": True},
 ]
 
 
@@ -208,14 +208,80 @@ class AttunementTest(unittest.TestCase):
             self.assertEqual(r["error"], "attunement_full")
             self.assertEqual(r["attunement_slots_free"], 0)
 
-    def test_one_of_each_kind(self):
-        payload = fighter(inventory=[*MAGIC, {"name": "Cloak of Elvenkind", "kind": "cloak",
-                                              "attunement": True}, "Chain Mail"])
+    def test_two_copies_of_the_same_item_cannot_both_be_attuned(self):
+        # SRD 5.1: "a creature can't attune to more than one copy of an item".
+        payload = fighter(inventory=[
+            {"name": "Ring of Protection", "base": "Ring of Protection", "kind": "ring",
+             "ac_bonus": 1, "attunement": True},
+            {"name": "Ring of Protection (2)", "base": "Ring of Protection", "kind": "ring",
+             "ac_bonus": 1, "attunement": True},
+            "Chain Mail"])
         with H.load(payload):
-            H.ds.attune_item("Cloak of Warding")
-            r = H.ds.attune_item("Cloak of Elvenkind")
-            self.assertEqual(r["error"], "attunement_kind_conflict")
-            self.assertEqual(r["conflicting_item"], "Cloak of Warding")
+            self.assertTrue(H.ds.attune_item("Ring of Protection")["success"])
+            r = H.ds.attune_item("Ring of Protection (2)")
+            self.assertEqual(r["error"], "attunement_duplicate_item")
+            self.assertEqual(r["conflicting_item"], "Ring of Protection")
+
+    def test_different_items_of_the_same_kind_can_both_be_attuned(self):
+        # SRD's "one of each kind" is a wearing limit, not an attunement limit.
+        payload = fighter(inventory=[
+            {"name": "Cloak of Warding", "kind": "cloak", "ac_bonus": 1, "attunement": True},
+            {"name": "Cloak of Elvenkind", "kind": "cloak", "ac_bonus": 1, "attunement": True},
+            "Chain Mail"])
+        with H.load(payload):
+            self.assertTrue(H.ds.attune_item("Cloak of Warding")["success"])
+            self.assertTrue(H.ds.attune_item("Cloak of Elvenkind")["success"])
+
+    def test_class_prerequisite_is_enforced(self):
+        payload = fighter(inventory=[
+            {"name": "Holy Avenger", "base": "Longsword", "kind": "other", "attack_bonus": 3,
+             "attunement": True, "attunement_by": "by a paladin"}, "Chain Mail"])
+        with H.load(payload):
+            r = H.ds.attune_item("Holy Avenger")
+            self.assertEqual(r["error"], "attunement_prerequisite_unmet")
+
+
+class WornSlotTest(unittest.TestCase):
+    def test_only_one_pair_of_boots_can_be_worn(self):
+        payload = fighter(inventory=[
+            {"name": "Boots of Elvenkind", "kind": "boots", "attunement": True},
+            {"name": "Boots of Speed", "kind": "boots", "attunement": True}])
+        with H.load(payload):
+            self.assertTrue(H.ds.equip_item("Boots of Elvenkind")["success"])
+            r = H.ds.equip_item("Boots of Speed")
+            self.assertEqual(r["error"], "worn_slot_taken")
+            self.assertIn("replace=True", r["gm_instruction"])
+            self.assertTrue(H.ds.equip_item("Boots of Speed", replace=True)["success"])
+            self.assertEqual([w["name"] for w in H.dbv("_equipment")["worn"]],
+                             ["Boots of Speed"])
+
+    def test_gloves_and_gauntlets_share_the_hands_slot(self):
+        payload = fighter(inventory=[
+            {"name": "Gloves of Thievery", "kind": "gloves"},
+            {"name": "Gauntlets of Ogre Power", "kind": "gauntlets"}])
+        with H.load(payload):
+            self.assertTrue(H.ds.equip_item("Gloves of Thievery")["success"])
+            self.assertEqual(H.ds.equip_item("Gauntlets of Ogre Power")["error"],
+                             "worn_slot_taken")
+
+    def test_two_rings_can_both_be_worn(self):
+        payload = fighter(inventory=[
+            {"name": "Ring of Shielding", "kind": "ring", "ac_bonus": 1, "attunement": True},
+            {"name": "Ring of Warmth", "kind": "ring", "attunement": True}])
+        with H.load(payload):
+            self.assertTrue(H.ds.equip_item("Ring of Shielding")["success"])
+            self.assertTrue(H.ds.equip_item("Ring of Warmth")["success"])
+            self.assertEqual(len(H.dbv("_equipment")["worn"]), 2)
+
+    def test_amulet_kind_is_worn_and_its_bonus_applies(self):
+        payload = fighter(inventory=[
+            {"name": "Amulet of Vigour", "kind": "amulet", "ac_bonus": 1, "attunement": True}])
+        with H.load(payload):
+            self.assertTrue(H.ds.equip_item("Amulet of Vigour")["success"])
+            self.assertEqual([w["name"] for w in H.dbv("_equipment")["worn"]],
+                             ["Amulet of Vigour"])
+            H.ds.attune_item("Amulet of Vigour")
+            self.assertEqual(H.dbv("armor_class"), 13)  # unarmoured 12 + 1
 
 
 PAIR = [

@@ -42,9 +42,11 @@ states:
               - "Equipment/gear → update_player_list(key='inventory')"
               - "Worn/wielded gear → equip_item (one suit of armour, a shield or weapon in a hand)"
               - "Attacking? resolve_attack(weapon=<the item in hand>) — a refused action is spent"
+              - "Saving throw? perform_check(save=True, ability=...) — the engine derives the modifier; pass NO modifier (situational_modifier only for cover/Bless)"
+              - "Ability/skill check? perform_check(check_name='Athletics', ability='str') — the engine derives the modifier (ability + proficiency/Expertise/Jack of All Trades + item bonuses); pass NO modifier (situational_modifier only for circumstance)"
               - "Starting a fight? register_combatants with EVERY combatant's full stat block"
               - "NPC attacking? resolve_attack(actor=<npc>, attack=<declared attack>, target_name=<target>)"
-              - "Magic item found? update_player_list its stats, then attune_item after a rest"
+              - "Magic item found? update_player_list its FULL effects (base, kind, damage/ac, save_bonus, set_*, kind, effects=[...]), then attune_item after a rest"
               - "Consumables → modify_player_numeric(key='consumables.ITEM', delta=N)"
               - "Reputation → update_player_list(key='reputation.KINGDOM.FACTION')"
               - "All numeric changes (gold, HP) applied?"
@@ -109,7 +111,7 @@ directives:
       rule: "Call register_combatants FIRST if no registry is active — before ANY call to resolve_attack or resolve_magic, even for a single spell or attack. The registry is the only way the engine tracks a creature's HP, AC, saves and conditions between calls."
       declare_everything: "Declare each combatant with its FULL stat block — the engine uses it, so you never repeat those values. Estimate only when the creature genuinely has no stat block. The initiative order and each NPC's full sheet are shown to the player as hover tooltips on their names — never dump a stat block or the order into prose. Never restate a combatant's current HP either — you narrate the outcome and emphasize critical results."
       attacks: "NPC attacking? resolve_attack(actor=<npc>, attack=<declared attack>, target_name=<target>, is_npc_attack=True); repeat it once per attack in a multiattack."
-      conditions: "A condition a tool applied (a spell's Unconscious, etc.) is ALREADY on the combatant — never re-declare it with update_combatant. Use update_combatant(name, conditions_add=[...], conditions_remove=[...], hp_delta=..., max_hp=..., ac=...) for a condition the fiction causes but no tool applied (a shove → prone), to REMOVE a condition when it ends, or to correct one. Adding a condition the creature is immune to is refused."
+      conditions: "A condition a tool applied (a spell's Unconscious, etc.) is ALREADY on the combatant — never re-declare it with update_combatant. Use update_combatant(name, conditions_add=[...], conditions_remove=[...], exhaustion_delta=..., hp_delta=..., max_hp=..., ac=...) for a condition the fiction causes but no tool applied (a shove → prone), to REMOVE a condition when it ends, or to correct one. Adding a condition the creature is immune to is refused. Exhaustion is a LEVEL, not a boolean: add it with exhaustion_delta= or modify_exhaustion(delta=...) and the engine applies its table."
       ending_a_fight: "There is no end-combat call: declare a new registry with register_combatants when the next fight begins."
     initiative:
       rule: "register_combatants rolls initiative for everyone and returns initiative_order; resolve actions in that order, all combatants acting or being skipped each round."
@@ -175,6 +177,14 @@ directives:
       description: "The narrative changes an object's state (a seal broken, a letter read, a lamp lit, a flask emptied) but its list entry keeps the OPENING state — a seal broken in prose, still sealed in the data. Every object the narrative touches must be written in its FINAL state before the sync token."
     - name: Blocked Action Ignored
       description: "A resolve_attack/resolve_magic result with success=false and turn_lost=true is a REFUSED action, not a soft warning. Do not roll the attack or cast the spell anyway: narrate the failure, tell the player why, and spend the turn."
+    - name: Stale Concentration
+      description: "Assuming a concentration spell is still active, or rolling its CON save by hand. The engine tracks concentration and forces the save when the player takes damage — check the result's concentration_check / concentration_broken and narrate accordingly."
+    - name: Hand-computed Save
+      description: "Adding the ability modifier, proficiency bonus, or a Ring/Cloak of Protection or Stone of Good Luck bonus into a player save yourself. Player saves are engine-derived: call perform_check(save=True, ability=...) with no modifier (or resolve_magic with is_npc_attack=True) and let the engine compute it."
+    - name: Hand-computed Check
+      description: "Passing a base modifier for a player ability/skill check, or adding proficiency/Expertise/Jack of All Trades yourself. Player checks are engine-derived: call perform_check(check_name=..., ability=...) with no modifier and let the engine compute it (situational_modifier only for circumstance; `modifier` is for NPCs and custom non-skill checks)."
+    - name: Unmodelled Effect Ignored
+      description: "An equipment block returns 'unmodelled_effects' (a declared resistance/speed/etc. the engine does not apply yet). Narrate it by hand — do not ignore it, and do not assume the engine applied it."
     - name: Invented Gear
       description: "Describing the protagonist wearing or wielding something they do not have equipped — a hood, hooded cloak, cowl, hat, armour, weapon or accessory. The portrait and the equipped set define what they wear; check `_equipment` before naming any garment, and never write 'hooded'/'cloaked'/'armoured' for gear they do not own."
     - name: Invisible Token
@@ -214,6 +224,21 @@ systems:
             rule: "No narrative. Await next player input."
   combat:
     protocol: DND_5E_TURN_BASED
+  rules_tier2:
+    exhaustion:
+      tool: modify_exhaustion
+      rule: "Exhaustion is a LEVEL 0-6 (a condition string is not enough): add or remove it with modify_exhaustion(delta=..., reason=...) or update_combatant(..., exhaustion_delta=...). The engine applies the SRD table — 1 disadvantage on ability checks, 2 speed halved, 3 disadvantage on attack rolls and saving throws, 4 HP maximum halved, 5 speed 0, 6 death — and a long rest removes exactly one level. Use it for forced marches, food/water/suffocation and spells; NEVER hand-apply the penalties."
+    concentration:
+      rule: "The engine tracks the player's concentration spell. When a concentrating player takes damage the engine ROLLS the CON save itself (DC 10 or half the damage) and ends the spell on a failure — never roll or announce a separate save, and never hand-apply the loss. Concentration also ends on Incapacitated/Paralyzed/Petrified/Stunned/Unconscious and death, and casting a second concentration spell replaces the first. Narrate the spell breaking when the result carries concentration_broken (or concentration_replaced)."
+    death:
+      rule: "Instant death and death saves are engine-owned: massive leftover damage (>= the HP maximum) kills outright, dropping to 0 starts death saves, damage at 0 HP is one failure, and healing any real HP clears the counters. At the start of the player's turn while at 0 HP call make_death_save() — never roll it yourself. Level 6 exhaustion is also death."
+  item_effects:
+    rule: "The engine derives saving throws, AC, attacks, damage, carrying, ability scores and spell DC/attack from the item fields you declare. Declare them with update_player_list and NEVER hand-apply them."
+    declares: "Every worn/wielded magic item declares its effects: ac_bonus / attack_bonus / damage_bonus; save_bonus / check_bonus; set_str..set_cha (SET a score as a floor — Amulet of Health, Belt of Giant Strength); str_bonus..cha_bonus with *_bonus_max (a capped INCREASE — Belt of Dwarvenkind, Ioun stones); proficiency_bonus; spell_attack_bonus / spell_dc_bonus; or the general effects=[...] list for anything else (ac_set, scoped/conditional bonuses, resistances, speed). Set attunement=True and kind= (ring/amulet/cloak/belt/...) where the SRD requires it."
+    player_saves: "PLAYER SAVING THROWS ARE ENGINE-DERIVED (SRD 5.1). Call perform_check(save=True, ability='dex', dc=<DC>) and pass NO modifier — the engine adds the effective ability modifier, proficiency (if proficient) and worn/attuned item save bonuses. Add only a situational bonus with situational_modifier= (cover, a rolled Bless total); set against='spells' / damage=<type> / condition=<name> when the save is scoped, so item advantage (Mantle of Spell Resistance) applies. resolve_magic derives the player's save itself when is_npc_attack=True; player_situational_modifier is a situational add-on, not the base. NEVER compute the base save yourself."
+    player_defenses: "Player damage resistance/immunity/vulnerability and condition immunity from worn items AND active spells are applied automatically when the player takes damage. Never apply them yourself. To grant a resistance from a spell, pass the RESOLVED type to resolve_magic (the catalog's 'chosen type (acid, cold…)' is prose): the engine stores it as a typed active effect."
+    checks: "PLAYER ABILITY/SKILL CHECKS ARE ENGINE-DERIVED (SRD 5.1). Call perform_check(check_name='Athletics', ability='str', dc=<DC>) and pass NO modifier — the engine adds the effective ability modifier, skill proficiency (doubled for Expertise, halved for Jack of All Trades) and item check/skill bonuses. `modifier` is only for an NPC or a custom check with no ability and no known skill (e.g. 'Luck'); use situational_modifier= for circumstance. Pass context='climbing'/'swimming' (etc.) so a context-scoped item bonus — Gloves of Swimming and Climbing +5 Athletics to climb/swim — applies. The engine also exposes passive scores (10 + modifier) for Perception/Investigation/Insight."
+    unmodelled: "An effect the engine does not apply yet (only regeneration stays narrated) is returned as 'unmodelled_effects' on the equipment block — narrate it by hand; it is never silently dropped."
   progression:
     rewards: [xp, gold, items, reputation]
     rule: "Award all, announce all."

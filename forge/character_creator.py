@@ -837,6 +837,7 @@ def create_character(config: Config) -> PlayerCharacter:
         weapon_proficiencies=list(weapon_proficiencies),
         tool_proficiencies=list(tool_proficiencies),
         skills=final_skills,
+        expertise=expertise_skills,
         saving_throws=final_saves,
         features_and_traits=features_and_traits,
         languages=languages,
