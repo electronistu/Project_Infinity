@@ -295,6 +295,39 @@ def _clear_equipped(cursor, name) -> bool:
     return changed
 
 
+def _rename_equipped(cursor, old, new) -> bool:
+    """Follow a renamed inventory item through the equipped set and attunement (True if changed).
+
+    A rename must not orphan the item from how it is worn/wielded or from its attunement.
+    """
+    changed = False
+    equipped = _db_val(cursor, "equipped", None)
+    if isinstance(equipped, dict):
+        if equipped.get("armor") == old:
+            equipped["armor"] = new
+            changed = True
+        hands = equipped.get("hands")
+        if isinstance(hands, list):
+            hands = (list(hands) + [None, None])[:2]
+            for index, held in enumerate(hands):
+                if held == old:
+                    hands[index] = new
+                    changed = True
+            equipped["hands"] = hands
+        worn = equipped.get("worn")
+        if isinstance(worn, list) and old in worn:
+            equipped["worn"] = [new if w == old else w for w in worn]
+            changed = True
+        if changed:
+            _db_set(cursor, "equipped", equipped)
+            _recompute_armor_class(cursor)
+    attuned = _db_val(cursor, "attuned", None)
+    if isinstance(attuned, list) and old in attuned:
+        _db_set(cursor, "attuned", [new if a == old else a for a in attuned])
+        changed = True
+    return changed
+
+
 WORN_KINDS = {"cloak", "boots", "gloves", "bracers", "headwear", "ring"}
 
 
@@ -658,6 +691,7 @@ def _apply_hp_change(cursor, delta):
                 "new_value": current_hp,
                 "delta": 0,
                 "hp_status": _format_hp_status(current_hp, total_hp),
+                "max_hp": total_hp,
                 "temporary_hit_points": {"old": thp, "new": new_thp, "absorbed": damage},
                 "message": f"{damage} damage absorbed by temporary HP ({new_thp} THP remaining). {effect_expired}{_format_hp_status(current_hp, total_hp)}",
             }
@@ -690,7 +724,10 @@ def _apply_hp_change(cursor, delta):
         "new_value": new_val,
         "delta": original_delta,
         "hp_status": _format_hp_status(new_val, total_hp),
+        "max_hp": total_hp,
     }
+    if new_val > current_hp:
+        result["healing_applied"] = new_val - current_hp
     if thp_absorbed > 0:
         result["temporary_hit_points"] = {"old": thp, "new": 0, "absorbed": thp_absorbed}
     if clamped:
@@ -1163,7 +1200,10 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
                        attunement: bool | None = None,
                        attunement_by: str | None = None,
                        kind: str | None = None,
-                       pair: bool | None = None) -> dict:
+                       pair: bool | None = None,
+                       appearance: str | None = None,
+                       description: str | None = None,
+                       new_name: str | None = None) -> dict:
     """
     Adds or removes an item from a player list.
 
@@ -1190,6 +1230,15 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
     - pair: True when this entry is ONE HALF of a paired item (boots, bracers, gauntlets, gloves).
       Add both halves as separate inventory entries sharing the same `base`; a single half grants no
       bonus (SRD: paired items confer no benefit unless both are worn).
+    - appearance: (active_effects adds only) the VISUAL look the character takes on while the
+      effect is active, e.g. "a human merchant — a middling, forgettable fellow with a soft jaw,
+      thinning brown hair and plain travelling clothes". The image generator uses it INSTEAD of the
+      character's portrait; for a known covering disguise (Disguise Self, Seeming) the SRD says the
+      illusion also covers clothing, armour and weapons, so the depicted gear is replaced too.
+    - description / new_name: (action='update' only) the corrected description and/or a new name for
+      an existing entry, found by its CURRENT name passed as `item`. The name is the item's IDENTITY
+      ('the stranger's letter', 'the iron token'); transient state (sealed/opened, lit, half-full,
+      emptied, broken) belongs in the DESCRIPTION, never in the name.
 
     DECLARE FULL COMBAT STATS FOR INVENTED ITEMS: the engine derives attack rolls, damage and
     armour class from these fields, so a weapon without damage and no known `base` cannot be used
@@ -1214,11 +1263,19 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
     6. Removing a worn or wielded item from the inventory auto-unequips it and the result reports
        'unequipped'. Replacing a weapon or tool means remove + add the replacement with its stats +
        equip_item — the replacement is NOT auto-equipped.
+    7. UPDATING AN ITEM: action='update' edits an existing entry IN PLACE (description and/or
+       new_name) and keeps its declared stats. Use it whenever an event changes an item — opened,
+       read, unsealed, emptied, lit, transformed, renamed — for EVERY item (notes, letters,
+       containers, loot, quest objects), not only weapons and armour. Unlike remove + add it never
+       drops weight/base/damage/ac fields, and for inventory it follows a rename through the
+       equipped set and attunement. Use remove + add only when the entry is actually being replaced
+       by a different object.
 
     EXAMPLES:
     update_player_list(key='inventory', item='Dagger: A rusty blade (1d4 piercing, Finesse, Light, Thrown (range 20/60))', action='add')
     update_player_list(key='inventory', item='Dagger', action='remove')          ← name only, NOT 'Dagger: A rusty blade...'
     update_player_list(key='inventory', item='Void Crystal: a humming shard of black glass', action='add', weight=2.5)
+    update_player_list(key='inventory', item="the stranger's letter", action='update', description="a folded scrap, the grey seal broken; the contents read — a summons to the Anvil and Ember at third bell")
     update_player_list(key='spellcasting.spells_known', item='Shield', action='remove')
     update_player_list(key='spellcasting.spells_prepared', item='Fireball', action='add')
     update_player_list(key='reputation.eldoria.guard', item='Hero of the City: After defending the city from a dragon attack, {player_name} is a well known hero among people of Eldoria', action='add')
@@ -1264,6 +1321,14 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
         is_prepared_spells = (key == "spellcasting.spells_prepared")
         added_name = None
         removed_equipped = False
+        # Encumbrance is reported only when this change TIPS the character into it (SRD 5.1
+        # variant) — never the default "unencumbered" line.
+        before_carry_status = None
+        if key == "inventory":
+            try:
+                before_carry_status = (_carry_block(cursor) or {}).get("status")
+            except Exception:  # noqa: BLE001 - never fail a list write over reporting
+                before_carry_status = None
 
         if action == "add":
             name = item
@@ -1288,6 +1353,11 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
                         declared[field] = value
             if declared:
                 new_entry = {"name": name, "description": desc, **declared}
+
+            if appearance and key == "active_effects":
+                entry = new_entry if isinstance(new_entry, dict) else {"name": name}
+                entry["appearance"] = str(appearance).strip()
+                new_entry = entry
 
             exists = any((isinstance(e, dict) and e.get("name") == name) or e == name for e in current_list)
             if exists:
@@ -1361,8 +1431,49 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
                         "narrative_format": f"Removed active effect '{item}' and reverted its bonuses.",
                     }
                     return result_early
+        elif action == "update":
+            index = None
+            for i, e in enumerate(current_list):
+                if (isinstance(e, dict) and e.get("name") == item) or e == item:
+                    index = i
+                    break
+            if index is None:
+                available = [e.get("name", str(e)) if isinstance(e, dict) else str(e)
+                             for e in current_list]
+                return {"success": False, "error": "not_found", "key": key, "item": item,
+                        "action": action, "current_items": available}
+            entry = current_list[index]
+            new_desc = description if isinstance(description, str) else None
+            rename = new_name.strip() if isinstance(new_name, str) and new_name.strip() else None
+            if new_desc is None and rename is None:
+                return {"success": False, "error": "nothing_to_update", "key": key, "item": item,
+                        "action": action,
+                        "reason": "Pass description= and/or new_name= to change the entry."}
+            if rename and any(
+                    (isinstance(e, dict) and e.get("name") == rename) or e == rename
+                    for i, e in enumerate(current_list) if i != index):
+                available = [e.get("name", str(e)) if isinstance(e, dict) else str(e)
+                             for e in current_list]
+                return {"success": False, "error": "already_exists", "key": key, "item": rename,
+                        "action": action, "current_items": available}
+            if isinstance(entry, dict):
+                updated = dict(entry)
+                if rename:
+                    updated["name"] = rename
+                if new_desc is not None:
+                    updated["description"] = new_desc
+            else:
+                entry_name = rename or str(entry)
+                updated = ({"name": entry_name, "description": new_desc}
+                           if new_desc is not None else entry_name)
+            current_list[index] = updated
+            if key == "inventory" and rename and rename != item:
+                _rename_equipped(cursor, item, rename)
+            updated_label = rename or (entry.get("name") if isinstance(entry, dict) else str(entry))
         else:
-            return {"success": False, "error": "Invalid action. Use 'add' or 'remove'.", "key": key, "action": action}
+            return {"success": False,
+                    "error": "Invalid action. Use 'add', 'remove' or 'update'.",
+                    "key": key, "action": action}
 
         if '.' in key:
             set_nested_value(data, path_in_obj, current_list)
@@ -1405,8 +1516,8 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
                                  if isinstance(e, dict) and e.get("name") == (added_name or item)), None)
             if isinstance(added_entry, dict):
                 added_base = added_entry.get("base")
-            if added_base and not (equipment.is_armor(added_base)
-                                   or equipment.is_weapon(added_base)):
+            if action == "add" and added_base and not (equipment.is_armor(added_base)
+                                                        or equipment.is_weapon(added_base)):
                 result["unknown_base"] = added_base
                 result["warning"] = (
                     f"Unknown base archetype '{added_base}' — it is stored as given, but the engine "
@@ -1421,11 +1532,17 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
                     f"counts as 0 lb. Re-add it with weight=<pounds> so carrying capacity stays accurate."
                 )
 
-        verb = "Removed from" if action == "remove" else "Added to"
-        narrative = f"{verb} {key}: {item}."
+        if action == "update":
+            narrative = f"Updated {key}: {updated_label}"
+            if new_desc is not None:
+                narrative += f": {new_desc}"
+            narrative += "."
+        else:
+            verb = "Removed from" if action == "remove" else "Added to"
+            narrative = f"{verb} {key}: {item}."
         if result.get("carrying"):
             status = result["carrying"].get("status")
-            if status:
+            if status and status != "unencumbered" and status != before_carry_status:
                 narrative += f" Encumbrance: {status}."
         if result.get("unequipped"):
             narrative += f" {item} was worn or wielded, so it was unequipped."
@@ -1434,6 +1551,11 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
         return result
     except Exception as e:
         return {"success": False, "error": f"Error updating list: {str(e)}", "key": key}
+
+
+def _ac_note(before, after) -> str:
+    """The ' — AC x → y' suffix for a tool narrative, only when the AC actually changed."""
+    return f" — AC {before} → {after}" if before != after else ""
 
 
 @mcp.tool()
@@ -1546,7 +1668,7 @@ def equip_item(item: str, action: str = "equip", slot: str | None = None,
                 "equipped": equipped, "armor_class_before": before, "armor_class_after": after,
                 "equipment": block, "warnings": block.get("warnings", []),
                 "time_cost": time_cost,
-                "narrative_format": f"{item} {label} — AC {before} → {after}"
+                "narrative_format": f"{item} {label}{_ac_note(before, after)}"
                                     + (f" ({time_cost})" if time_cost else ""),
             }
 
@@ -1564,7 +1686,7 @@ def equip_item(item: str, action: str = "equip", slot: str | None = None,
                 return {"success": True, "action": "equip", "item": item, "already_equipped": True,
                         "equipped": equipped, "armor_class_before": before, "armor_class_after": before,
                         "equipment": _equipment_block(cursor), "narrative_format":
-                        f"{item} is already worn — AC {before}"}
+                        f"{item} is already worn"}
             if equipped.get("armor") and not replace:
                 return {"success": False, "error": "armor_slot_occupied", "item": item,
                         "worn": equipped.get("armor"),
@@ -1581,14 +1703,14 @@ def equip_item(item: str, action: str = "equip", slot: str | None = None,
                 return {"success": True, "action": "equip", "item": item, "already_equipped": True,
                         "equipped": equipped, "armor_class_before": before, "armor_class_after": before,
                         "equipment": _equipment_block(cursor), "narrative_format":
-                        f"{item} is already held — AC {before}"}
+                        f"{item} is already held"}
             if target == "worn" or (target is None and _is_worn_slot(item, declared)):
                 if item in worn:
                     return {"success": True, "action": "equip", "item": item,
                             "already_equipped": True, "equipped": equipped,
                             "armor_class_before": before, "armor_class_after": before,
                             "equipment": _equipment_block(cursor),
-                            "narrative_format": f"{item} is already worn — AC {before}"}
+                            "narrative_format": f"{item} is already worn"}
                 worn.append(item)
                 equipped["worn"] = worn
                 equipped["hands"] = hands
@@ -1631,7 +1753,7 @@ def equip_item(item: str, action: str = "equip", slot: str | None = None,
             "equipped": equipped, "armor_class_before": before, "armor_class_after": after,
             "equipment": block, "warnings": block.get("warnings", []),
             "time_cost": time_cost,
-            "narrative_format": f"{item} equipped ({where}) — AC {before} → {after}"
+            "narrative_format": f"{item} equipped ({where}){_ac_note(before, after)}"
                                 + (f" ({time_cost})" if time_cost else ""),
         }
     except Exception as e:
@@ -1997,12 +2119,16 @@ def rest(rest_type: str, prepared_spells: list[str] | None = None) -> dict:
                 _db_set(cursor, "hit_dice_count", str(new_hd))
                 DB_CONNECTION.commit()
                 changes["hp"] = {"old": current_hp, "new": hp_result["new_value"],
-                                 "healed": total_healing, "dice_spent": dice_spent,
+                                 "healed": hp_result["new_value"] - current_hp,
+                                 "healing_applied": hp_result["new_value"] - current_hp,
+                                 "max_hp": total_hp,
+                                 "dice_spent": dice_spent,
                                  "status": hp_result["hp_status"]}
                 changes["hit_dice"] = {"old": hd_count, "new": new_hd, "spent": dice_spent}
             else:
                 changes["hp"] = {"old": current_hp, "new": current_hp,
-                                 "healed": 0, "dice_spent": 0,
+                                 "healed": 0, "healing_applied": 0, "max_hp": total_hp,
+                                 "dice_spent": 0,
                                  "status": _format_hp_status(current_hp, total_hp)}
                 changes["hit_dice"] = {"old": hd_count, "new": hd_count, "spent": 0}
 
@@ -2075,6 +2201,7 @@ def rest(rest_type: str, prepared_spells: list[str] | None = None) -> dict:
 
             _db_set(cursor, "current_hit_points", str(total_hp))
             changes["hp"] = {"old": current_hp, "new": total_hp,
+                             "healing_applied": total_hp - current_hp, "max_hp": total_hp,
                              "status": _format_hp_status(total_hp, total_hp)}
 
             hd_regained = max(level // 2, 1)
@@ -2379,6 +2506,93 @@ def _registry_max_hp(target_name: str) -> int:
     if entry:
         return entry["max_hp"]
     return 0
+
+
+def _resolve_target_hp(target_name, is_player, cursor, override_current=None, override_max=None):
+    """(current_hp, max_hp, warning) for a healing target.
+
+    Precedence: the GM's override, the combat registry (NPCs), the player's sheet, then any
+    value the action carried. The ceiling is never silently taken from the current HP unless
+    nothing else is known, and the caller is told when that happens.
+    """
+    current = override_current
+    maximum = override_max
+
+    if is_player:
+        if cursor is not None:
+            if current is None:
+                current = int(_db_val(cursor, "current_hit_points", 0))
+            if maximum is None:
+                maximum = int(_db_val(cursor, "total_hit_points", 1))
+    else:
+        entry = _COMBAT_REGISTRY.get(target_name) if target_name else None
+        if entry is not None:
+            if current is None:
+                current = entry.get("current_hp")
+            if maximum is None:
+                maximum = entry.get("max_hp")
+
+    if current is None and target_name:
+        current = _registry_hp(target_name)
+    if maximum is None and target_name:
+        maximum = _registry_max_hp(target_name) or None
+
+    warning = None
+    if current is None:
+        current = 0
+        warning = f"Unknown current HP for {target_name or 'the target'}."
+    if not maximum:
+        maximum = int(current)
+        if warning is None:
+            warning = (f"Unknown max HP for {target_name or 'the target'}; pass target_max_hp "
+                       f"if it is wounded.")
+    current = int(current)
+    maximum = max(int(maximum), 1)
+    if current > maximum:
+        current = maximum
+        warning = warning or (f"{target_name or 'Target'} is above its declared max HP "
+                              f"({maximum}); using the declared ceiling.")
+    return current, maximum, warning
+
+
+def _heal_target(target_name, amount, cursor, *, is_player=False,
+                 override_current=None, override_max=None, full=False):
+    """Apply healing to one target, capped at its maximum HP.
+
+    Returns `{name, healing_total, healing_applied, remaining_hp, max_hp}` plus `hp_change`
+    (player) and/or `warning`. `full=True` restores to the ceiling regardless of `amount`.
+    """
+    current, maximum, warning = _resolve_target_hp(
+        target_name, is_player, cursor, override_current, override_max)
+    rolled = (maximum - current) if full else int(amount)
+    applied = max(0, min(int(rolled), maximum - current))
+
+    entry = {
+        "name": target_name,
+        "healing_total": int(rolled),
+        "healing_applied": applied,
+        "remaining_hp": current + applied,
+        "max_hp": maximum,
+    }
+    if warning:
+        entry["warning"] = warning
+
+    if is_player:
+        if cursor is not None:
+            if applied > 0:
+                hp_result = _apply_hp_change(cursor, applied)
+                entry["hp_change"] = hp_result
+                entry["remaining_hp"] = hp_result["new_value"]
+        else:
+            entry["warning"] = entry.get("warning") or "No player database; healing was not applied."
+    elif target_name:
+        if _registry_hp(target_name) is None:
+            entry["warning"] = entry.get("warning") or (
+                f"{target_name} is not in the combat registry, so the healing was not written "
+                f"to any combatant.")
+        else:
+            _registry_update_hp(target_name, entry["remaining_hp"])
+    return entry
 
 
 # ── stat blocks: saves, attacks, conditions, damage types ────────────────────
@@ -3944,6 +4158,7 @@ def resolve_magic(
     target_ac: int | None = None,
     target_name: str = "",
     target_current_hp: int | None = None,
+    target_max_hp: int | None = None,
     challenge_rating: float | None = None,
     target_save_modifier: int | None = None,
     player_save_modifier: int | None = None,
@@ -3978,7 +4193,10 @@ def resolve_magic(
     - spell_save_dc: save DC for saving_throw spells
     - target_ac: target AC (required for attack_roll spells)
     - target_name: optional name for HP lookup via combat registry
-    - target_current_hp: optional current HP (auto-looked up from registry if omitted)
+    - target_current_hp: optional current HP (auto-looked up from registry if omitted; pass it for
+      a wounded creature)
+    - target_max_hp: optional maximum HP ceiling for healing (auto-looked up from the registry, or
+      the player's sheet, if omitted; pass it for a wounded creature)
     - challenge_rating: optional CR for XP awards (auto-looked up from registry if omitted)
     - target_save_modifier: save bonus for single-target saving_throw spells (omit it for a target
       in the combat registry — the engine uses its declared saves)
@@ -4040,6 +4258,12 @@ def resolve_magic(
        cast ANY spell — refused before any roll or slot use (success=false,
        error='armor_not_proficient', turn_lost=true; no slot spent). The armour's type must be in
        armor_proficiencies ('Light armor', 'Medium armor', 'Heavy armor', 'Shields'); a shield counts.
+    13. HEALING AND MAX HP: healing is capped at the target's maximum HP. Every healing result
+       declares `max_hp` and `remaining_hp` automatically — from the combat registry for NPCs and
+       from `total_hit_points` for the player — so you never pass a ceiling unless the creature is
+       already wounded (then pass `target_current_hp` and `target_max_hp`, which win). `healing_total`
+       is the amount rolled; `healing_applied` is what actually landed. Temporary hit points are a
+       SEPARATE pool that may exceed the maximum (e.g. False Life) and are reported on their own.
 
     EXAMPLES:
     resolve_magic(spell_name='Fireball', actor='{player_name}',
@@ -4206,6 +4430,7 @@ def resolve_magic(
         sp_requires_concentration = spell.get("requires_concentration", False)
         sp_duration = spell.get("duration", "Instantaneous")
         sp_buffs = spell.get("buffs", None)
+        sp_temp_hp = spell.get("temporary_hp", False)
     else:
         if attack_type is None or damage_dice is None:
             return {
@@ -4241,6 +4466,7 @@ def resolve_magic(
         sp_requires_concentration = False
         sp_duration = "Instantaneous"
         sp_buffs = None
+        sp_temp_hp = False
 
     # ── DUPLICATE ACTIVE EFFECT CHECK ──
     if sp_buffs and DB_CONNECTION is not None:
@@ -4552,6 +4778,20 @@ def resolve_magic(
         result["target_killed"] = None
         return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc, is_npc_vs_npc)
 
+    # ── TEMPORARY-HP-ONLY SPELLS (False Life, ...) ──
+    # These grant a temporary pool that is allowed to EXCEED the maximum HP. They restore no
+    # real hit points; the hp_temporary buff below applies the pool.
+    if sp_healing and sp_temp_hp:
+        narrative_parts.append(
+            f"{actor} {spell_name} — temporary hit points only, no hit points restored")
+        result["healing_total"] = 0
+        result["healing_applied"] = 0
+        result["temporary_hp_only"] = True
+        result["damage_type"] = sp_damage_type
+        return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs,
+                                      sp_requires_concentration,
+                                      is_npc_attack or is_npc_vs_npc, is_npc_vs_npc)
+
     if sp_healing and not is_npc_attack and not is_npc_vs_npc and sp_attack_type == "automatic":
         heal_die_size, heal_rolls, heal_raw = _parse_and_roll_dice(final_dice)
         if heal_die_size is None:
@@ -4561,106 +4801,65 @@ def resolve_magic(
             ability_bonus = _caster_spellcasting_mod(cursor)
         heal_mod = final_mod + ability_bonus
         total_healing = heal_raw + heal_mod
+        full_restore = bool(sp_flat_healing and total_healing == 0)
 
-        if sp_flat_healing and total_healing == 0:
-            heal_narrative = f"{actor} {spell_name} Healing: full HP restore"
-            narrative_parts.append(heal_narrative)
+        if full_restore:
+            narrative_parts.append(f"{actor} {spell_name} Healing: full HP restore")
             result["healing_total"] = "full"
-
-            if targets and len(targets) > 0:
-                healed_list = []
-                for t in targets:
-                    tname = t.get("name", "Unknown")
-                    is_player = t.get("is_player", False)
-                    tchp = t.get("current_hp")
-                    if tchp is None:
-                        tchp = _registry_hp(tname) or 0
-                    max_hp = _registry_max_hp(tname) or tchp
-                    delta = max_hp - tchp
-                    if is_player and cursor:
-                        hp_result = _apply_hp_change(cursor, delta) if delta > 0 else None
-                        healed_list.append({"name": tname, "healing": delta, "hp_change": hp_result})
-                        narrative_parts.append(f"{tname} healed for {delta} HP" if hp_result else f"{tname} already at full HP")
-                    elif not is_player and tname:
-                        _registry_update_hp(tname, max_hp)
-                        healed_list.append({"name": tname, "healing": delta, "remaining_hp": max_hp, "max_hp": max_hp})
-                        narrative_parts.append(f"{tname} fully restored ({delta} HP)")
-                result["targets_healed"] = healed_list
-            elif target_name:
-                registry_hp = _registry_hp(target_name)
-                if registry_hp is not None:
-                    max_hp = _registry_max_hp(target_name) or registry_hp
-                    new_hp = max_hp
-                    _registry_update_hp(target_name, new_hp)
-                    result["target_healed"] = {"name": target_name, "healing": new_hp - registry_hp, "remaining_hp": new_hp, "max_hp": max_hp}
-                    narrative_parts.append(f"{target_name} fully restored ({new_hp - registry_hp} HP)")
-                else:
-                    full_hp = int(_db_val(cursor, "total_hit_points", 0))
-                    hp_result = _apply_hp_change(cursor, full_hp - int(_db_val(cursor, "current_hit_points", 0))) if cursor else None
-                    if hp_result:
-                        result["hp_change"] = hp_result
-            else:
-                full_hp = int(_db_val(cursor, "total_hit_points", 0))
-                current_hp = int(_db_val(cursor, "current_hit_points", 0))
-                delta = full_hp - current_hp
-                hp_result = _apply_hp_change(cursor, delta) if cursor and delta > 0 else None
-                if hp_result:
-                    result["hp_change"] = hp_result
-                    narrative_parts.append(f"Healed {delta} HP")
-
-            result["healing_rolls"] = []
-            result["damage_type"] = sp_damage_type
-            return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc, is_npc_vs_npc)
-
-        if heal_rolls:
-            heal_rolls_str = " + ".join(str(r) for r in heal_rolls)
-            if heal_mod != 0:
-                heal_narrative = f"{actor} {spell_name} Healing: {total_healing} ({heal_rolls_str} + {heal_mod})"
-            else:
-                heal_narrative = f"{actor} {spell_name} Healing: {total_healing} ({heal_rolls_str})"
         else:
-            heal_narrative = f"{actor} {spell_name} Healing: {total_healing}"
-        narrative_parts.append(heal_narrative)
-        result["healing_total"] = total_healing
-        result["healing_rolls"] = heal_rolls
+            if heal_rolls:
+                heal_rolls_str = " + ".join(str(r) for r in heal_rolls)
+                if heal_mod != 0:
+                    heal_narrative = f"{actor} {spell_name} Healing: {total_healing} ({heal_rolls_str} + {heal_mod})"
+                else:
+                    heal_narrative = f"{actor} {spell_name} Healing: {total_healing} ({heal_rolls_str})"
+            else:
+                heal_narrative = f"{actor} {spell_name} Healing: {total_healing}"
+            narrative_parts.append(heal_narrative)
+            result["healing_total"] = total_healing
+            result["healing_rolls"] = heal_rolls
         result["damage_type"] = sp_damage_type
 
+        def _heal_one(tname, is_player, override_current, override_max):
+            entry = _heal_target(
+                tname, total_healing, cursor, is_player=is_player,
+                override_current=override_current, override_max=override_max,
+                full=full_restore)
+            applied = entry["healing_applied"]
+            if applied > 0:
+                narrative_parts.append(
+                    f"{tname} fully restored ({applied} HP)" if full_restore
+                    else f"{tname} healed for {applied} HP")
+            else:
+                narrative_parts.append(f"{tname} already at full HP")
+            return entry
+
+        applied_total = 0
         if targets and len(targets) > 0:
             healed_list = []
             for t in targets:
                 tname = t.get("name", "Unknown")
-                is_player = t.get("is_player", False)
-                tchp = t.get("current_hp")
-                if tchp is None:
-                    tchp = _registry_hp(tname) or 0
-                max_hp = _registry_max_hp(tname) or tchp
-                new_hp = min(tchp + total_healing, max_hp)
-                if is_player and cursor:
-                    delta = new_hp - tchp
-                    hp_result = _apply_hp_change(cursor, delta)
-                    healed_list.append({"name": tname, "healing": delta, "hp_change": hp_result})
-                    narrative_parts.append(f"{tname} healed for {delta} HP")
-                elif not is_player and tname:
-                    _registry_update_hp(tname, new_hp)
-                    healed_list.append({"name": tname, "healing": new_hp - tchp, "remaining_hp": new_hp, "max_hp": max_hp})
-                    narrative_parts.append(f"{tname} healed for {new_hp - tchp} HP")
+                is_player = bool(t.get("is_player", False)) or _is_player_actor(cursor, tname)
+                entry = _heal_one(tname, is_player, t.get("current_hp"), t.get("max_hp"))
+                applied_total += entry["healing_applied"]
+                healed_list.append(entry)
             result["targets_healed"] = healed_list
         elif target_name:
-            registry_hp = _registry_hp(target_name)
-            if registry_hp is not None:
-                max_hp = _registry_max_hp(target_name) or registry_hp
-                new_hp = min(registry_hp + total_healing, max_hp)
-                _registry_update_hp(target_name, new_hp)
-                result["target_healed"] = {"name": target_name, "healing": new_hp - registry_hp, "remaining_hp": new_hp, "max_hp": max_hp}
-                narrative_parts.append(f"{target_name} healed for {new_hp - registry_hp} HP")
-            else:
-                hp_result = _apply_hp_change(cursor, total_healing) if cursor else None
-                if hp_result:
-                    result["hp_change"] = hp_result
+            is_player = _is_player_actor(cursor, target_name)
+            entry = _heal_one(target_name, is_player, target_current_hp, target_max_hp)
+            applied_total = entry["healing_applied"]
+            result["target_healed"] = entry
+            if entry.get("warning"):
+                result["healing_warning"] = entry["warning"]
         else:
-            hp_result = _apply_hp_change(cursor, total_healing) if cursor else None
-            if hp_result:
-                result["hp_change"] = hp_result
+            self_name = (_db_val(cursor, "name", actor) if cursor else actor) or actor
+            entry = _heal_one(self_name, True, None, target_max_hp)
+            applied_total = entry["healing_applied"]
+            result["target_healed"] = entry
+
+        result["healing_applied"] = applied_total
+        if full_restore:
+            result["healing_rolls"] = []
         return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc, is_npc_vs_npc)
 
     # ── HP POOL (Sleep, Color Spray) ──
@@ -4865,32 +5064,53 @@ def resolve_magic(
                     _COMBAT_REGISTRY.get(tname), t_damage, sp_damage_type)
                 if dmg_note:
                     narrative_parts.append(f"{tname} damage adjusted: {dmg_note}")
-            remaining = min(tchp + t_damage, _registry_max_hp(tname) or tchp) if sp_healing else tchp - t_damage
-            killed = False if sp_healing else (remaining <= 0 if tchp > 0 else False)
+            heal_entry = None
+            if sp_healing:
+                heal_entry = _heal_target(
+                    tname, t_damage, cursor, is_player=is_player,
+                    override_current=t.get("current_hp"), override_max=t.get("max_hp"))
+                remaining = heal_entry["remaining_hp"]
+                killed = False
+                if heal_entry["healing_applied"] > 0:
+                    narrative_parts.append(f"{tname} healed for {heal_entry['healing_applied']} HP")
+                elif not sp_no_damage:
+                    narrative_parts.append(f"{tname} already at full HP")
+            else:
+                remaining = tchp - t_damage
+                killed = (remaining <= 0 if tchp > 0 else False)
+                if not is_player and tname:
+                    _registry_update_hp(tname, max(remaining, 0))
+                if killed:
+                    killed_count += 1
+                    if not is_player:
+                        _registry_kill(tname)
+                    max_hp = _registry_max_hp(tname) if tname else 0
+                    display_max = f"/{max_hp}" if max_hp else ""
+                    narrative_parts.append(f"{tname} HP: 0{display_max} (KILLED)")
 
-            if not is_player and tname:
-                _registry_update_hp(tname, remaining if sp_healing else max(remaining, 0))
-            if killed:
-                killed_count += 1
-                if not is_player:
-                    _registry_kill(tname)
-                max_hp = _registry_max_hp(tname) if tname else 0
-                display_max = f"/{max_hp}" if max_hp else ""
-                narrative_parts.append(f"{tname} HP: 0{display_max} (KILLED)")
-
-            tr = {"name": tname, "save_roll": save_d20, "save_modifier": tsave,
-                   "save_total": save_total, "save_success": save_success,
-                   "damage": t_damage, "remaining_hp": max(0, remaining), "killed": killed}
+            if heal_entry is not None:
+                tr = {"name": tname, "save_roll": save_d20, "save_modifier": tsave,
+                      "save_total": save_total, "save_success": save_success,
+                      "damage": t_damage,
+                      "healing_total": heal_entry["healing_total"],
+                      "healing_applied": heal_entry["healing_applied"],
+                      "remaining_hp": remaining, "max_hp": heal_entry["max_hp"],
+                      "killed": False}
+                if heal_entry.get("hp_change"):
+                    tr["hp_change"] = heal_entry["hp_change"]
+            else:
+                tr = {"name": tname, "save_roll": save_d20, "save_modifier": tsave,
+                       "save_total": save_total, "save_success": save_success,
+                       "damage": t_damage, "remaining_hp": max(0, remaining), "killed": killed}
+                if is_player and t_damage > 0 and cursor:
+                    hp_result = _apply_hp_change(cursor, -t_damage)
+                    tr["hp_change"] = hp_result
             if auto_fail:
                 tr["save_auto_failed"] = True
             if save_rolls:
                 tr[f"save_{save_mode}_rolls"] = save_rolls
             if save_sources:
                 tr["disadvantage_sources"] = list(save_sources)
-
-            if is_player and t_damage > 0 and cursor:
-                hp_result = _apply_hp_change(cursor, -t_damage)
-                tr["hp_change"] = hp_result
 
             if killed and tcr is not None:
                 xp = CR_XP_TABLE.get(tcr, 0)
@@ -4903,6 +5123,9 @@ def resolve_magic(
         result["targets"] = target_results
         if not sp_healing:
             result["killed_count"] = killed_count
+        else:
+            result["healing_total"] = total_damage
+            result["healing_applied"] = sum(t.get("healing_applied", 0) for t in target_results)
         if sp_condition and condition_targets:
             result["condition"] = sp_condition
             if sp_condition_duration:
@@ -5002,9 +5225,19 @@ def resolve_magic(
         hp_result = _apply_hp_change(cursor, -total_damage)
         result["hp_change"] = hp_result
     elif is_npc_attack and sp_healing:
-        hp_result = _apply_hp_change(cursor, total_damage)
-        result["hp_change"] = hp_result
-        narrative_parts.append(f"Healed {target_name or 'Player'}: {hp_result['hp_status']}")
+        player_name = (target_name or (_db_val(cursor, "name", "Player") if cursor else "Player"))
+        entry = _heal_target(player_name, total_damage, cursor, is_player=True,
+                             override_max=target_max_hp)
+        result["healing_total"] = entry["healing_total"]
+        result["healing_applied"] = entry["healing_applied"]
+        result["target_healed"] = entry
+        if entry.get("hp_change"):
+            result["hp_change"] = entry["hp_change"]
+        if entry.get("warning"):
+            result["healing_warning"] = entry["warning"]
+        narrative_parts.append(
+            f"Healed {player_name} for {entry['healing_applied']} HP "
+            f"({entry['remaining_hp']}/{entry['max_hp']})")
     elif is_npc_vs_npc and total_damage > 0 and not sp_healing:
         from_registry = False
         if target_current_hp is None and target_name:
@@ -5035,15 +5268,20 @@ def resolve_magic(
     elif is_npc_vs_npc and sp_healing:
         result["npc_vs_npc"] = True
         result["target_killed"] = None
-        registry_hp = _registry_hp(target_name) if target_name else None
-        if registry_hp is not None:
-            max_hp = _registry_max_hp(target_name) or registry_hp
-            new_hp = min(registry_hp + total_damage, max_hp)
-            _registry_update_hp(target_name, new_hp)
-            result["target_healed"] = {"name": target_name, "healing": new_hp - registry_hp, "remaining_hp": new_hp, "max_hp": max_hp}
-            narrative_parts.append(f"{actor} heals {target_name} for {new_hp - registry_hp} HP")
+        entry = _heal_target(target_name, total_damage, cursor, is_player=False,
+                             override_current=target_current_hp, override_max=target_max_hp)
+        result["healing_total"] = entry["healing_total"]
+        result["healing_applied"] = entry["healing_applied"]
+        result["target_healed"] = entry
+        if entry.get("warning"):
+            result["healing_warning"] = entry["warning"]
+        if entry["healing_applied"] > 0:
+            narrative_parts.append(
+                f"{actor} heals {target_name} for {entry['healing_applied']} HP "
+                f"({entry['remaining_hp']}/{entry['max_hp']})")
         else:
-            narrative_parts.append(f"{actor} heals {target_name or 'target'} for {total_damage} HP.")
+            narrative_parts.append(
+                f"{actor}'s heal has no effect on {target_name or 'target'} (already at full HP).")
     elif not is_npc_attack and not is_npc_vs_npc and not sp_healing:
         from_registry = False
         db_target = False
@@ -5091,18 +5329,23 @@ def resolve_magic(
         else:
             result["target_killed"] = None
     elif not is_npc_attack and not is_npc_vs_npc and sp_healing:
-        registry_hp = _registry_hp(target_name) if target_name else None
-        if registry_hp is not None:
-            max_hp = _registry_max_hp(target_name) or registry_hp
-            new_hp = min(registry_hp + total_damage, max_hp)
-            _registry_update_hp(target_name, new_hp)
-            result["target_healed"] = {"name": target_name, "healing": new_hp - registry_hp, "remaining_hp": new_hp, "max_hp": max_hp}
-            narrative_parts.append(f"{target_name} healed for {new_hp - registry_hp} HP")
+        tname = target_name or (_db_val(cursor, "name", actor) if cursor else actor)
+        is_player = _is_player_actor(cursor, tname)
+        entry = _heal_target(tname, total_damage, cursor, is_player=is_player,
+                             override_current=target_current_hp, override_max=target_max_hp)
+        result["healing_total"] = entry["healing_total"]
+        result["healing_applied"] = entry["healing_applied"]
+        result["target_healed"] = entry
+        if entry.get("hp_change"):
+            result["hp_change"] = entry["hp_change"]
+        if entry.get("warning"):
+            result["healing_warning"] = entry["warning"]
+        if entry["healing_applied"] > 0:
+            narrative_parts.append(
+                f"{tname} healed for {entry['healing_applied']} HP "
+                f"({entry['remaining_hp']}/{entry['max_hp']})")
         else:
-            hp_result = _apply_hp_change(cursor, total_damage) if cursor else None
-            if hp_result:
-                result["hp_change"] = hp_result
-                narrative_parts.append(f"Healed {target_name} for {total_damage} HP")
+            narrative_parts.append(f"{tname} already at full HP")
     else:
         result["target_killed"] = None
         if is_npc_vs_npc:

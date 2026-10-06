@@ -51,6 +51,8 @@ states:
               - "ALL combatants (player, allies, hostiles) have acted this round?"
               - "Quest completion? Award XP."
               - "Every narrative event has a corresponding tool call?"
+              - "Item opened / read / unsealed / emptied / lit / transformed? → update_player_list(action='update') with its END state"
+              - "Any list entry whose name or description the narrative changed? → reconcile it"
 <!-- SCENE:ON -->
               - "Will attach exactly one request_scene_image to this turn's narrative (see imagery) — this is NOT a mechanical tool call."
 <!-- SCENE:END -->
@@ -95,6 +97,10 @@ directives:
     resume: "If the player's input is small or purely mechanical (a buff, an attack, an item, a single line), continue from your exact last narrated line. Do not re-open, re-establish, or re-describe the scene."
     scene_gate: "Re-describe a place or time only when it genuinely changes, and signal the change explicitly. Before narrating, compare your draft with your last narrative and delete any beat that already appeared."
     hook: "Vary or omit the closing hook; do not end every turn with the same tag line."
+  state_continuity:
+    end_state: "Every tool call describes the world as the turn's events LEAVE it, not as it began. Before the sync token, walk the events you intend to narrate beat by beat and resolve each consequence to its FINAL form — above all an item's final state — then emit the tool calls for that end state."
+    item_identity: "An item's NAME is its stable identity ('the stranger's letter', 'the iron token'); transient state (sealed/opened, lit, half-full, emptied, broken) belongs in its DESCRIPTION. Never encode state into the name."
+    item_mutation: "When an event changes an item — opened, read, unsealed, emptied, lit, transformed, renamed — reconcile its entry in place: update_player_list(action='update', item=<its current name>, description=<the END state>, new_name=<only if the identity itself changes>). This applies to EVERY item — notes, letters, containers, loot, quest objects — not only weapons and armour: it edits in place and keeps the entry's declared stats. Use remove + add only when a different object replaces it."
   narration:
     carrying: "Whenever a tool returns a 'carrying' block and the status changes, narrate the load and the disadvantage it imposes."
     equipment: "Narrate the visible gear from the 'equipment' block when it changes."
@@ -165,6 +171,8 @@ directives:
       description: "Imagining narrative events during Mechanical Resolution Phase but failing to translate all of them into tool calls before the sync token."
     - name: Silent Assumption
       description: "Treating a gift, loot, or story-driven item as not needing mechanical resolution. All state changes require tool calls."
+    - name: Stale Item State
+      description: "The narrative changes an object's state (a seal broken, a letter read, a lamp lit, a flask emptied) but its list entry keeps the OPENING state — a seal broken in prose, still sealed in the data. Every object the narrative touches must be written in its FINAL state before the sync token."
     - name: Blocked Action Ignored
       description: "A resolve_attack/resolve_magic result with success=false and turn_lost=true is a REFUSED action, not a soft warning. Do not roll the attack or cast the spell anyway: narrate the failure, tell the player why, and spend the turn."
     - name: Invented Gear

@@ -827,6 +827,7 @@ class GameSession:
             "location": location, "sublocation": sublocation,
             "time_of_day": "", "weather": "", "characters": {},
             "establishing": "", "main_npcs": [], "npcs": npcs, "seed_change": "",
+            **(await self._scene_player_hints()),
             "turn": self.turn_counter,
         })
 
@@ -933,6 +934,7 @@ class GameSession:
                 "main_npcs": main_npcs,
                 "npcs": npcs,
                 "seed_change": str(args.get("seed_change") or ""),
+                **(await self._scene_player_hints()),
                 "turn": self.turn_counter,
             })
 
@@ -1066,3 +1068,26 @@ class GameSession:
     async def _call_tool_text(self, name: str, args: dict) -> str:
         result = await self.session.call_tool(name, arguments=args)
         return "\n".join(b.text for b in result.content if hasattr(b, "text"))
+
+    async def _scene_player_hints(self) -> dict:
+        """Live character bits for the scene image, from the engine's authoritative DB.
+
+        The `.player` file is only a save-time snapshot (and drops active effects), so the scene
+        server cannot see the live state. Returns `{active_effects, equipped}` so an
+        appearance-changing effect (Disguise Self) and the current gear reach the image prompt.
+        """
+        try:
+            text = await self._call_tool_text("dump_player_db", {})
+            player = json.loads(text)
+        except Exception:  # noqa: BLE001 - never fail a turn over optional scene hints
+            return {}
+        if not isinstance(player, dict):
+            return {}
+        hints: dict = {}
+        effects = player.get("active_effects")
+        if isinstance(effects, list):
+            hints["active_effects"] = effects
+        equipped = player.get("equipped")
+        if isinstance(equipped, dict):
+            hints["equipped"] = equipped
+        return hints

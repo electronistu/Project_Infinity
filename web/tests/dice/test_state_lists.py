@@ -125,5 +125,66 @@ class ActiveEffectRevertTest(H.EngineCase):
         self.assertNotIn("Mage Armor", H.dbv("active_effects"))
 
 
+class UpdateEntryTest(H.EngineCase):
+    """action='update': edit an item's description (and name) in place, end-state style."""
+
+    player_factory = staticmethod(H.fighter_l5)
+
+    def _entry(self, name):
+        return next((e for e in H.dbv("inventory")
+                     if isinstance(e, dict) and e.get("name") == name), None)
+
+    def test_update_patches_the_description_without_remove_add(self):
+        H.ds.update_player_list("inventory", "Wax-Sealed Letter: a folded scrap, grey seal intact", "add")
+        r = H.ds.update_player_list(
+            "inventory", "Wax-Sealed Letter", "update",
+            description="a folded scrap, the grey seal broken; the contents read — a summons")
+        self.assertTrue(r["success"])
+        entry = self._entry("Wax-Sealed Letter")
+        self.assertEqual(entry["description"],
+                         "a folded scrap, the grey seal broken; the contents read — a summons")
+        self.assertIn("Updated inventory: Wax-Sealed Letter", r["narrative_format"])
+        self.assertIn("carrying", r)  # inventory updates still report the derived blocks
+
+    def test_update_keeps_declared_stats(self):
+        H.ds.update_player_list("inventory", "Iron Token: a blank disc", "add", weight=0.2)
+        H.ds.update_player_list("inventory", "Iron Token", "update",
+                                description="a disc stamped with a crown")
+        entry = self._entry("Iron Token")
+        self.assertEqual(entry["weight"], 0.2)
+        self.assertEqual(entry["description"], "a disc stamped with a crown")
+
+    def test_rename_follows_the_equipped_set(self):
+        H.ds.equip_item(item="Longsword")
+        ac_before = H.dbv("armor_class")
+        r = H.ds.update_player_list("inventory", "Longsword", "update", new_name="Borin's Longsword")
+        self.assertTrue(r["success"])
+        self.assertEqual(H.dbv("equipped")["hands"][0], "Borin's Longsword")
+        self.assertEqual(H.dbv("armor_class"), ac_before)
+        self.assertIsNone(self._entry("Longsword"))
+
+    def test_update_errors(self):
+        self.assertEqual(
+            H.ds.update_player_list("inventory", "Ghost", "update", description="x")["error"],
+            "not_found")
+        self.assertEqual(
+            H.ds.update_player_list("inventory", "Longsword", "update")["error"],
+            "nothing_to_update")
+        self.assertEqual(
+            H.ds.update_player_list("inventory", "Longsword", "update", new_name="Shield")["error"],
+            "already_exists")
+
+class NestedListUpdateTest(H.EngineCase):
+    player_factory = staticmethod(H.wizard_l3)
+
+    def test_update_edits_a_nested_list_entry_in_place(self):
+        H.ds.update_player_list("spellcasting.spells_known", "Shield: abjuration", "add")
+        r = H.ds.update_player_list("spellcasting.spells_known", "Shield", "update",
+                                    description="abjuration — a reaction barrier")
+        self.assertTrue(r["success"])
+        known = H.dbv("spellcasting")["spells_known"]
+        self.assertIn({"name": "Shield", "description": "abjuration — a reaction barrier"}, known)
+
+
 if __name__ == "__main__":
     unittest.main()

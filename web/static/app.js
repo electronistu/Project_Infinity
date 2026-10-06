@@ -718,6 +718,21 @@ function sceneFigure(evt) {
     : "Scene illustration";
   img.decoding = "async";
   fig.appendChild(img);
+  // Caption: the area (never the kingdom), then the place (location — sublocation), then
+  // time of day, then weather. Every empty part is dropped; no caption when none are set.
+  const area = String(evt.area || "").trim();
+  const loc = String(evt.location || "").trim();
+  const sub = String(evt.sublocation || "").trim();
+  const place = loc && sub ? `${loc} — ${sub}` : (loc || sub);
+  const meta = [evt.time_of_day, evt.weather]
+    .map((v) => String(v || "").trim()).filter(Boolean);
+  const caption = [area, place, ...meta].filter(Boolean).join(" · ");
+  if (caption) {
+    const cap = document.createElement("figcaption");
+    cap.className = "scene-caption";
+    cap.textContent = caption;
+    fig.appendChild(cap);
+  }
   attachHoverZoom(fig, img, "#transcript");
   return { fig, img };
 }
@@ -751,6 +766,8 @@ async function requestSceneImage(evt, fig, img) {
     main_npcs: evt.main_npcs || [],
     npcs: evt.npcs || [],
     seed_change: evt.seed_change || "",
+    active_effects: evt.active_effects || [],
+    equipped: evt.equipped || undefined,
     model: state.imageModel || undefined,
   };
   try {

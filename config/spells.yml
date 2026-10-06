@@ -3969,11 +3969,11 @@
   level: 1
   school: necromancy
   attack_type: automatic
-  damage_dice: 1d4
-  damage_modifier: 4
+  damage_dice: 0d0
+  damage_modifier: 0
   damage_type: healing
   healing: true
-  flat_healing: true
+  temporary_hp: true
   no_damage: true
   higher_levels: +5_temp
   duration: 1 hour

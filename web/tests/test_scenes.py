@@ -120,6 +120,33 @@ async def main() -> bool:
     rec("legacy caption dropped from the scene event",
         bool(scene) and "caption" not in scene[0], str(scene))
 
+    # The .player file is only a save snapshot (and drops active effects), so the engine
+    # attaches the LIVE active effects + equipped gear to the scene event.
+    class _LiveMCP(_FakeMCP):
+        async def call_tool(self, name, arguments=None):
+            if name == "dump_player_db":
+                return _Result(json.dumps({
+                    "active_effects": [{"name": "Disguise Self (active)",
+                                         "description": "a human merchant, forgettable"}],
+                    "equipped": {"armor": None, "worn": [], "hands": ["Dagger", None]},
+                }))
+            return _Result('{"status":"requested"}')
+
+    gs_live = GameSession(base_dir=REPO, model="test", scene_images=True)
+    gs_live.session = _LiveMCP()
+    gs_live._scene_requested_turn = False
+    await gs_live._execute_tool({"function": {
+        "name": "request_scene_image",
+        "arguments": {"description": "haggling", "location": "Market", "sublocation": "",
+                      "establishing": "an open market square"},
+    }})
+    live = [e for e in drain(gs_live._evt_q) if e.get("type") == "scene_request"]
+    rec("scene_request carries the LIVE active effects + equipped gear",
+        bool(live) and live[0].get("active_effects") == [{"name": "Disguise Self (active)",
+                                                         "description": "a human merchant, forgettable"}]
+        and live[0].get("equipped") == {"armor": None, "worn": [], "hands": ["Dagger", None]},
+        str(live))
+
     import dice_server as ds  # noqa: E402
     tools = await ds.mcp.list_tools()
     scene_tool = next((t for t in tools if t.name == "request_scene_image"), None)

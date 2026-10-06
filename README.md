@@ -74,7 +74,7 @@ The Google entries appear only when `GEMINI_API_KEY` is set.
 Image generation is **opt-in** and **cached** — nothing is drawn unless you ask. Tick **images** on the start screen (or in the Load dialog) to enable:
 
 - **Character portrait** — shown on the start screen and sheet; the **↻** button repaints it from your current level and gear.
-- **Storyline scenes** — one cinematic 16:9 illustration per turn. Each place keeps a hidden establishing reference, so places and regulars stay consistent; **hover an illustration to see it full size**.
+- **Storyline scenes** — one cinematic 16:9 illustration per turn. Each place keeps a hidden establishing reference, so places and regulars stay consistent; **hover an illustration to see it full size**. Each is captioned with its area, place, time of day and weather.
 - **Sheet icons** — the shared, cross-character library used by the sheet (items, spells, skills, abilities, conditions).
 
 Both image models are Google Gemini (the same `GEMINI_API_KEY`): **Nano Banana 2** (`gemini-3.1-flash-image`) draws portraits and scenes; **Nano Banana 2 Lite** (`gemini-3.1-flash-lite-image`) draws sheet icons. The start screen also sets the sheet's icon treatment: **cached icons only; no generation**, **cached icons + generate on new ones**, or **text only**.
@@ -108,7 +108,7 @@ The GM is an AI and can miss an update. If you spot one:
 1. **Press Sync first** — a full database refresh; the GM reviews your state and may self-correct.
 2. **If that doesn't work, tell the GM directly**, exactly as you would a human DM.
 
-This works for any missed mechanic: gold, inventory, spell slots, hit dice, conditions, or items.
+This works for any missed mechanic: gold, inventory, spell slots, hit dice, conditions, or an item whose state changed (a note opened, a lamp lit).
 
 ---
 
@@ -149,6 +149,7 @@ The **Mechanics panel is composed by the engine** from those results and appende
 - **Returning and permanent changes** — a revisited place is drawn from the same seed; a lasting change (it burned down) regenerates it.
 - **Names in, looks injected** — each recurring NPC is declared once with a stable **physical** look (no pose, position or action) and the engine injects it, so a face never drifts. A place's **main NPCs** are declared as a list, each with a **role**. Recurring characters are declared as they appear; one-off extras need none.
 - **Time, weather, and no posing** — the GM declares time and weather; the seed stays timeless and weather-neutral. Everyone is caught in the action, never facing the camera.
+- **Disguises** — while an appearance-changing effect (Disguise Self, Alter Self) is active, the scene shows that appearance instead of your portrait.
 
 ---
 

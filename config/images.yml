@@ -71,14 +71,31 @@ scene_seed_change: >-
   Apply this permanent change to the place: {change}. Keep the architecture, layout, colours
   and everything else consistent with the attached image.
 
-# Visible action prompt. Placeholders: {location_line} {description} {race} {class} {gear}
-# {world} {location} {sublocation} {mood}. The locked `style:` above is appended.
+# Visible action prompt. Placeholders: {location_line} {description} {protagonist_line}
+# {race} {class} {gear} {world} {address_line} {mood}. The locked `style:` above is appended.
 scene: >-
   {location_line} A cinematic widescreen illustration of this moment: {description}
-  The protagonist is a {race} {class}. {gear} Location: {address_line}. World
+  {protagonist_line} Location: {address_line}. World
   setting: {world}. {atmosphere_line} {characters_line} Mood: {mood}. Wide establishing
   composition, dramatic atmospheric lighting, sense of place and depth, painterly detail. No
   text, letters, numbers, runes, watermarks, logos, borders or user-interface elements.
+# The normal protagonist sentence, used when no appearance-changing effect is active.
+scene_protagonist: "The protagonist is a {race} {class}. {gear}"
+# Used INSTEAD of scene_protagonist while an appearance-changing effect is active (Disguise Self,
+# Alter Self, Seeming): the effect's look text replaces race/class/gear and the portrait is not fed.
+scene_appearance_line: >-
+  The protagonist's appearance is currently: {appearance} Draw exactly that appearance; the
+  protagonist's usual face, hair, build and clothing are hidden by the illusion.
+# Appended when the effect's illusion also covers gear (Disguise Self, Seeming — SRD).
+scene_appearance_gear: >-
+  The illusion covers clothing, armour and weapons: depict only the garments and gear described
+  in that appearance, never the protagonist's usual equipment.
+# Which active effects change the protagonist's appearance, and whether they cover gear.
+# true = the SRD illusion includes clothing/armor/weapons; false = the physical form only.
+appearance_effects:
+  disguise self: true
+  seeming: true
+  alter self: false
 # Explicit time/weather from the GM's `time_of_day` / `weather` fields; a part is
 # omitted when the field is empty.
 scene_time_line: "Time of day: {time_of_day}."
@@ -102,6 +119,16 @@ scene_action_from_seed: >-
   a hearth scattered, spilled ale, a fire. Objects the action touches may be broken or displaced;
   the room is never rearranged. (2) the protagonist's portrait — that same character, in the
   described action.
+# Same, but with NO portrait attached (an appearance-changing effect is active): only the seed.
+scene_action_from_seed_solo: >-
+  Attached reference: the establishing view of {location} — {sublocation}: this IS the picture
+  — reproduce it unchanged (same camera, framing, architecture, furniture, props, colours,
+  arrangement), then place the characters into it. Change nothing about the space itself,
+  except the three things the moment legitimately changes: the time of day (relight the same
+  scene for day or night), the weather (rain, fog, snow, wind — the same room under a different
+  sky), and the action's own transient damage or mess — a table split, a chair toppled, a hearth
+  scattered, spilled ale, a fire. Objects the action touches may be broken or displaced; the
+  room is never rearranged.
 # Appended to every action prompt: removing the previous-action reference stops the
 # model COPYING a figure, but not its habit of FILLING a room.
 scene_no_extra_figures: >-

@@ -189,6 +189,10 @@ class SceneBody(BaseModel):
     main_npcs: list = []
     npcs: list = []
     seed_change: str = ""
+    # Live character bits from the engine (the .player file is only a save-time snapshot, and it
+    # drops active effects): the current gear and any appearance-changing effect.
+    active_effects: list = []
+    equipped: dict | None = None
     model: str | None = None
 
 
@@ -455,6 +459,10 @@ async def generate_scene(body: SceneBody):
     if not stem:
         raise HTTPException(status_code=400, detail="session has no active save")
     player, world = _scene_context(session)
+    if isinstance(body.active_effects, list):
+        player["active_effects"] = body.active_effects
+    if isinstance(body.equipped, dict):
+        player["equipped"] = body.equipped
     async with _scene_lock:
         try:
             result = await asyncio.to_thread(

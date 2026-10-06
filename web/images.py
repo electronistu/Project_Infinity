@@ -50,9 +50,18 @@ _REFERENCE_LINE = (
 )
 _DEFAULT_SCENE = (
     "{location_line} A cinematic widescreen illustration of this moment: {description} "
-    "The protagonist is a {race} {class}. {gear} Location: {location}. World setting: {world}. "
+    "{protagonist_line} Location: {location}. World setting: {world}. "
     "Mood: {mood}. Wide establishing composition, dramatic atmospheric lighting. "
     "No text, letters, numbers, runes, watermarks, logos or borders."
+)
+_PROTAGONIST_LINE = "The protagonist is a {race} {class}. {gear}"
+_SCENE_APPEARANCE_LINE = (
+    "The protagonist's appearance is currently: {appearance} Draw exactly that appearance; the "
+    "protagonist's usual face, hair, build and clothing are hidden by the illusion."
+)
+_SCENE_APPEARANCE_GEAR = (
+    "The illusion covers clothing, armour and weapons: depict only the garments and gear described "
+    "in that appearance, never the protagonist's usual equipment."
 )
 _SCENE_PORTRAIT_LINE = (
     "The attached portrait is the protagonist — keep the same face, hair colour and build; place "
@@ -299,6 +308,65 @@ def _gear_line(player) -> str:
     if hands:
         clauses.append(f"Wielding {_join_names(hands)}.")
     return " ".join(clauses)
+
+
+# Effects that change how the protagonist LOOKS. The value says whether the illusion also covers
+# clothing/armour/weapons: the SRD says Disguise Self and Seeming do, while Alter Self changes only
+# the physical form. `appearance_override` returns `{look, covers_gear}` for the image prompt.
+_APPEARANCE_EFFECTS_DEFAULT = {
+    "disguise self": True,
+    "seeming": True,
+    "alter self": False,
+}
+
+
+def _normalise_effect_name(name) -> str:
+    """An effect key without a trailing '(active)' and with collapsed whitespace."""
+    text = re.sub(r"\(.*?\)", " ", str(name or ""))
+    return re.sub(r"\s+", " ", text).strip().lower()
+
+
+def _strip_duration(text) -> str:
+    """Drop a trailing 'Lasts …' / 'Duration: …' clause from an effect description."""
+    cleaned = re.sub(r"\s+", " ", str(text or "")).strip()
+    cleaned = re.sub(r"\s*(?:Lasts?\b|Duration:?)\s*[^.]*\.?\s*$", "", cleaned,
+                     flags=re.IGNORECASE)
+    return cleaned.strip()
+
+
+def appearance_override(player, known=None) -> dict | None:
+    """`{look, covers_gear}` when an active effect changes the protagonist's appearance.
+
+    An explicit `appearance` field on the effect wins; otherwise the effect's description is
+    used when its name matches `known` (or the built-in table). Returns `None` when nothing applies,
+    in which case the portrait stays the identity reference.
+    """
+    effects = player.get("active_effects") if isinstance(player, dict) else None
+    if not isinstance(effects, list):
+        return None
+    table = _APPEARANCE_EFFECTS_DEFAULT if known is None else known
+    for entry in effects:
+        if not isinstance(entry, dict):
+            continue
+        name = _normalise_effect_name(entry.get("name"))
+        declared = re.sub(r"\s+", " ", str(entry.get("appearance") or "")).strip()
+        if declared:
+            return {"look": declared, "covers_gear": bool(table.get(name, True))}
+        if name in table:
+            look = _strip_duration(entry.get("description"))
+            if look:
+                return {"look": look, "covers_gear": bool(table[name])}
+    return None
+
+
+def _appearance_effects_config(cfg) -> dict | None:
+    """`appearance_effects` from config as `{normalised name: covers_gear}` (None = built-in)."""
+    raw = cfg.get("appearance_effects")
+    if isinstance(raw, dict):
+        return {_normalise_effect_name(k): bool(v) for k, v in raw.items()}
+    if isinstance(raw, list):
+        return {_normalise_effect_name(name): True for name in raw}
+    return None
 
 
 def _friendly_error(exc: Exception) -> str:
@@ -705,6 +773,16 @@ _SCENE_ACTION_FROM_SEED = (
     "or displaced; the room is never rearranged. (2) the protagonist's portrait — that same "
     "character, in the described action."
 )
+_SCENE_ACTION_FROM_SEED_SOLO = (
+    "Attached reference: the establishing view of {location} — {sublocation}: this IS the picture "
+    "— reproduce it unchanged (same camera, framing, architecture, furniture, props, colours, "
+    "arrangement), then place the characters into it. Change nothing about the space itself, "
+    "except the three things the moment legitimately changes: the time of day (relight the same "
+    "scene for day or night), the weather (rain, fog, snow, wind — the same room under a different "
+    "sky), and the action's own transient damage or mess — a table split, a chair toppled, a hearth "
+    "scattered, spilled ale, a fire. Objects the action touches may be broken or displaced; the "
+    "room is never rearranged."
+)
 _SCENE_NO_EXTRA_FIGURES = (
     "Draw only the protagonist and the characters listed above: no other person, face, silhouette, "
     "figure, reflection or background crowd may appear."
@@ -806,6 +884,17 @@ class SceneService(GeminiImageBackend):
         ).strip()
         self.protagonist_guard = str(
             cfg.get("scene_protagonist_guard") or _SCENE_PROTAGONIST_GUARD
+        ).strip()
+        self.protagonist_template = str(cfg.get("scene_protagonist") or _PROTAGONIST_LINE).strip()
+        self.appearance_line = str(
+            cfg.get("scene_appearance_line") or _SCENE_APPEARANCE_LINE
+        ).strip()
+        self.appearance_gear_guard = str(
+            cfg.get("scene_appearance_gear") or _SCENE_APPEARANCE_GEAR
+        ).strip()
+        self.appearance_effects = _appearance_effects_config(cfg)
+        self.action_from_seed_solo = str(
+            cfg.get("scene_action_from_seed_solo") or _SCENE_ACTION_FROM_SEED_SOLO
         ).strip()
         self.time_line = str(cfg.get("scene_time_line") or _SCENE_TIME_LINE).strip()
         self.weather_line = str(cfg.get("scene_weather_line") or _SCENE_WEATHER_LINE).strip()
@@ -1017,23 +1106,36 @@ class SceneService(GeminiImageBackend):
     def action_prompt(self, player: dict, world: str, description: str, mood: str,
                       kingdom: str = "", area: str = "", location: str = "", sublocation: str = "",
                       ref_kind: str = "", time_of_day: str = "", weather: str = "",
-                      characters=None) -> str:
+                      characters=None, appearance=None) -> str:
         player = player or {}
         loc = self._clean(location) or "an unnamed place"
         sub = self._clean(sublocation)
         if ref_kind == "seed":
-            ref_line = self.action_from_seed.format(location=loc, sublocation=sub or loc)
+            template = self.action_from_seed_solo if appearance else self.action_from_seed
+            ref_line = template.format(location=loc, sublocation=sub or loc)
         elif ref_kind == "portrait":
             ref_line = self.portrait_reference
         else:
             ref_line = ""
-        if ref_kind and self.protagonist_guard:
+        if ref_kind and self.protagonist_guard and not appearance:
             ref_line = (ref_line + " " + self.protagonist_guard).strip()
+        race = str(player.get("race") or "") or "adventurer"
+        char_class = str(player.get("character_class") or "") or "adventurer"
+        gear = _gear_line(player)
+        if appearance and appearance.get("look"):
+            protagonist_line = self.appearance_line.format(appearance=appearance["look"])
+            if appearance.get("covers_gear") and self.appearance_gear_guard:
+                protagonist_line = (protagonist_line + " " + self.appearance_gear_guard).strip()
+            gear = ""
+        else:
+            protagonist_line = self.protagonist_template.format(
+                race=race, **{"class": char_class}, gear=gear).strip()
         fields = {
             "description": self._clean(description),
-            "race": str(player.get("race") or "") or "adventurer",
-            "class": str(player.get("character_class") or "") or "adventurer",
-            "gear": _gear_line(player),
+            "race": race,
+            "class": char_class,
+            "gear": gear,
+            "protagonist_line": protagonist_line,
             "world": self._clean(world) or "a fantasy realm",
             "kingdom": self._clean(kingdom), "area": self._clean(area),
             "location": loc, "sublocation": sub or loc,
@@ -1074,10 +1176,11 @@ class SceneService(GeminiImageBackend):
     def generate_action(self, player: dict, world: str, description: str, mood: str,
                         kingdom: str = "", area: str = "", location: str = "", sublocation: str = "",
                         ref_kind: str = "", refs=None, model: str | None = None,
-                        time_of_day: str = "", weather: str = "", characters=None) -> bytes:
+                        time_of_day: str = "", weather: str = "", characters=None,
+                        appearance=None) -> bytes:
         prompt = self.action_prompt(player, world, description, mood, kingdom, area, location,
                                     sublocation, ref_kind=ref_kind, time_of_day=time_of_day,
-                                    weather=weather, characters=characters)
+                                    weather=weather, characters=characters, appearance=appearance)
         raw = self._generate_bytes(prompt, aspect_ratio=self.aspect_ratio, refs=refs,
                                    ref_media_resolution=self.ref_media_resolution,
                                    model=model or self.model)
@@ -1195,17 +1298,23 @@ class SceneService(GeminiImageBackend):
 
         # Always draw from the place's empty establishing seed + the portrait. Chaining
         # from the previous action made the model duplicate the figures already in it.
+        # An appearance-changing effect (Disguise Self, ...) replaces the portrait: the disguise
+        # text is authoritative and the real portrait is deliberately NOT attached.
+        appearance = appearance_override(player, self.appearance_effects)
         if seed:
             ref_kind, place_ref = "seed", self._file_bytes(stem, seed)
-        else:
+        elif not appearance:
             ref_kind, place_ref = "portrait", None
-        portrait = self._read_portrait(stem)
+        else:
+            ref_kind, place_ref = "", None
+        portrait = None if appearance else self._read_portrait(stem)
         refs = [r for r in (place_ref, portrait) if r]
 
         resolved = self._resolve_characters(characters, seed, cast)
         raw = self.generate_action(player, world, description, mood, kingdom, area, location,
                                    sublocation, ref_kind=ref_kind, refs=refs, model=effective,
-                                   time_of_day=time_of_day, weather=weather, characters=resolved)
+                                   time_of_day=time_of_day, weather=weather, characters=resolved,
+                                   appearance=appearance)
         ext = (sniff_image(raw) or ("png", "image/png"))[0]
         slug = self._action_slug(kingdom, area, location, sublocation)
         ImageService._write_image(self.scenes_dir(stem) / f"{slug}.{ext}", raw)
@@ -1220,6 +1329,7 @@ class SceneService(GeminiImageBackend):
                       "description": seed.get("description", "")} if seed_created or seed_regenerated else None),
             "used_seed": ref_kind == "seed",
             "used_portrait_reference": bool(portrait),
+            "appearance_applied": bool(appearance),
             "npcs_added": npcs_added,
             "kingdom": str(kingdom or ""), "area": str(area or ""),
             "location": str(location or ""), "sublocation": str(sublocation or ""),

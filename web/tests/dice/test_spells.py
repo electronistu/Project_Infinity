@@ -90,6 +90,61 @@ class HealingAndBuffTest(H.EngineCase):
         self.assertEqual(r["healing_total"], 7)  # 1d4 (3) + WIS (+4)
 
 
+def wounded_cleric_l5():
+    """Father Aldric at 37/38 HP — one point missing, so healing must cap at 38."""
+    p = H.cleric_l5()
+    p["current_hit_points"] = 37
+    return p
+
+
+class HealingCapTest(H.EngineCase):
+    """Healing is capped at max HP and always declares the ceiling automatically."""
+
+    player_factory = staticmethod(wounded_cleric_l5)  # WIS 18 -> +4
+
+    def test_healing_declares_max_hp_and_caps_at_it(self):
+        with H.fixed_rolls([6]):
+            r = H.ds.resolve_magic(spell_name="Cure Wounds", actor="Father Aldric", slot_level=1,
+                                   target_name="Father Aldric")
+        self.assertEqual(r["healing_total"], 10)   # 1d8 (6) + WIS (+4)
+        self.assertEqual(r["healing_applied"], 1)  # only 1 HP was missing
+        healed = r["target_healed"]
+        self.assertEqual(healed["max_hp"], 38)
+        self.assertEqual(healed["remaining_hp"], 38)
+        self.assertEqual(H.dbv("current_hit_points"), 38)
+
+    def test_healing_at_full_hp_reports_zero_applied(self):
+        with H.fixed_rolls([6]):
+            H.ds.resolve_magic(spell_name="Cure Wounds", actor="Father Aldric", slot_level=1,
+                               target_name="Father Aldric")
+        with H.fixed_rolls([6]):
+            r = H.ds.resolve_magic(spell_name="Cure Wounds", actor="Father Aldric", slot_level=1,
+                                   target_name="Father Aldric")
+        self.assertEqual(r["healing_total"], 10)
+        self.assertEqual(r["healing_applied"], 0)
+        self.assertEqual(r["target_healed"]["remaining_hp"], 38)
+        self.assertEqual(r["target_healed"]["max_hp"], 38)
+
+    def test_gm_max_hp_override_for_a_wounded_target(self):
+        # A creature the engine has no sheet for: the GM supplies current + max.
+        with H.fixed_rolls([6]):
+            r = H.ds.resolve_magic(spell_name="Cure Wounds", actor="Father Aldric", slot_level=1,
+                                   target_name="Wounded Peasant",
+                                   target_current_hp=4, target_max_hp=20)
+        healed = r["target_healed"]
+        self.assertEqual(healed["max_hp"], 20)
+        self.assertEqual(healed["remaining_hp"], 14)
+        self.assertEqual(healed["healing_applied"], 10)
+        self.assertIn("warning", healed)  # not in the registry -> written nowhere
+
+    def test_unknown_npc_heal_never_touches_the_player(self):
+        before = H.dbv("current_hit_points")
+        with H.fixed_rolls([6]):
+            H.ds.resolve_magic(spell_name="Cure Wounds", actor="Father Aldric", slot_level=1,
+                               target_name="Absent Peasant")
+        self.assertEqual(H.dbv("current_hit_points"), before)
+
+
 class TempHpTest(H.EngineCase):
     player_factory = staticmethod(H.wizard_l3)
 
@@ -99,6 +154,24 @@ class TempHpTest(H.EngineCase):
                                    target_name="Senna")
         self.assertEqual(H.dbv("temporary_hit_points"), 7)
         self.assertIn("False Life", H.dbv("active_effects"))
+
+    def test_false_life_does_not_heal_real_hp(self):
+        H.ds.modify_player_numeric(key="current_hit_points", delta=-9)  # 13 -> 4
+        before = H.dbv("current_hit_points")
+        with H.rolls_always(3):   # 1d4 + 4 -> 7 temporary HP
+            r = H.ds.resolve_magic(spell_name="False Life", actor="Senna", slot_level=1,
+                                   target_name="Senna")
+        self.assertEqual(H.dbv("current_hit_points"), before)  # real HP untouched
+        self.assertEqual(H.dbv("temporary_hit_points"), 7)
+        self.assertTrue(r["temporary_hp_only"])
+        self.assertEqual(r["healing_applied"], 0)
+
+    def test_temporary_hp_may_exceed_max_hp(self):
+        with H.rolls_always(3):
+            H.ds.resolve_magic(spell_name="False Life", actor="Senna", slot_level=1,
+                               target_name="Senna")
+        self.assertEqual(H.dbv("current_hit_points"), 13)      # already at max
+        self.assertEqual(H.dbv("temporary_hit_points"), 7)    # pool sits ABOVE max
 
 
 class BuffTest(H.EngineCase):

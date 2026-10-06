@@ -57,7 +57,7 @@ async def main() -> int:
 
     def _fake_action(player, world, description, mood, kingdom, area, location, sublocation,
                      ref_kind="", refs=None, model=None, time_of_day="", weather="",
-                     characters=None):
+                     characters=None, appearance=None):
         scene_refs.append((kingdom, area, ref_kind, time_of_day, weather, characters))
         scene_models_seen.append(model)
         return b"\xff\xd8\xff\xe0" + b"j" * 24

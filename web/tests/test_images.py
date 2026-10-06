@@ -18,7 +18,7 @@ from PIL import Image as PILImage  # noqa: E402
 
 from web.images import (  # noqa: E402
     ImageService, SceneService, known_scene_places, known_scene_locations, known_npc_names,
-    _gear_line, _veterancy_line,
+    _gear_line, _veterancy_line, appearance_override,
 )
 
 RESULTS = []
@@ -452,6 +452,52 @@ def main() -> bool:
         rec("known_scene_locations lists distinct locations",
             known_scene_locations(tmp, "scenetest") == ["Hask's Smithy", "Lantern Row"],
             str(known_scene_locations(tmp, "scenetest")))
+
+        # ── appearance-changing effects: the disguise replaces the portrait ──
+        disguised = dict(PLAYER)
+        disguised["equipped"] = {"armor": "Chain Mail", "worn": [], "hands": ["Longsword", None]}
+        disguised["active_effects"] = [{
+            "name": "Disguise Self (active)",
+            "description": ("You have altered your appearance to that of a human merchant — a "
+                            "middling, forgettable fellow with a soft jaw, thinning brown hair "
+                            "and plain travelling clothes. Lasts 1 hour."),
+        }]
+        ov = appearance_override(disguised)
+        rec("Disguise Self yields an appearance override that covers gear",
+            bool(ov) and ov["covers_gear"] and "human merchant" in ov["look"], str(ov))
+        rec("the trailing 'Lasts ...' clause is stripped",
+            ov is not None and "Lasts" not in ov["look"], str(ov))
+        alter = appearance_override({"active_effects": [{"name": "Alter Self",
+                                                          "description": "a taller, greyer elf"}]})
+        rec("Alter Self overrides the form but NOT the gear",
+            bool(alter) and alter["covers_gear"] is False, str(alter))
+        rec("no override without an appearance effect", appearance_override(PLAYER) is None)
+        explicit = appearance_override({"active_effects": [
+            {"name": "Homebrew Mask", "appearance": "a pale, voiceless stranger"}]})
+        rec("an explicit appearance field wins",
+            bool(explicit) and explicit["look"] == "a pale, voiceless stranger", str(explicit))
+
+        captured.clear()
+        ra = sc3.ensure_scene("scenetest", disguised, "world", description="haggling at a stall",
+                              location="Lantern Row", sublocation="")
+        rec("a disguised action does NOT attach the portrait reference",
+            ra["appearance_applied"] and not ra["used_portrait_reference"]
+            and len(captured[-1][1]) == 1, str(ra))
+        rec("the disguise look replaces the protagonist in the prompt",
+            "human merchant" in captured[-1][0]
+            and "fixed by the attached portrait" not in captured[-1][0], captured[-1][0][:300])
+        rec("the SRD illusion replaces clothing/armour/weapons in the prompt",
+            "Longsword" not in captured[-1][0]
+            and "The illusion covers clothing, armour and weapons" in captured[-1][0])
+        rec("the seed reference drops the portrait sentence",
+            "protagonist's portrait" not in captured[-1][0])
+
+        captured.clear()
+        sc3.ensure_scene("scenetest", {**PLAYER, "equipped": disguised["equipped"]}, "world",
+                         description="training", location="Lantern Row", sublocation="")
+        rec("without a disguise the real gear and the portrait are still used",
+            "Longsword" in captured[-1][0] and "attached portrait" in captured[-1][0]
+            and len(captured[-1][1]) == 2)
 
         # v3 -> v6 migration: the action list (and its files) is abandoned; a legacy
         # string main_npc becomes a one-item main_npcs list (no name -> no expansion).

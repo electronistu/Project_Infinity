@@ -16,6 +16,8 @@ class ShortRestTest(H.EngineCase):
         self.assertEqual(r["changes"]["hit_dice"]["spent"], 3)
         self.assertEqual(r["changes"]["hit_dice"]["new"], 0)
         self.assertEqual(H.dbv("current_hit_points"), 13)
+        self.assertEqual(r["changes"]["hp"]["max_hp"], 13)
+        self.assertEqual(r["changes"]["hp"]["healing_applied"], 8)  # rolled 9, capped at max
 
     def test_short_rest_arcane_recovery_for_wizard(self):
         H.ds.modify_player_numeric("spellcasting.slots.1", -3)  # 1st-level 4 -> 1
@@ -36,6 +38,8 @@ class LongRestTest(H.EngineCase):
         r = H.ds.rest("long")
         self.assertTrue(r["success"])
         self.assertEqual(H.dbv("current_hit_points"), 13)
+        self.assertEqual(r["changes"]["hp"]["healing_applied"], 5)
+        self.assertEqual(r["changes"]["hp"]["max_hp"], 13)
         self.assertEqual(H.dbv("spellcasting")["slots"]["1"], 4)
         self.assertEqual(H.dbv("active_effects"), [])
         self.assertEqual(H.dbv("armor_class"), 13)  # buff reverted
