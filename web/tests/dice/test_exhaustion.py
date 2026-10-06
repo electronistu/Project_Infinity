@@ -108,10 +108,12 @@ class ExhaustionSourceTest(H.EngineCase):
         self.assertEqual(r["exhaustion"], 1)
         self.assertEqual(H.dbv("exhaustion"), 1)
 
-    def test_condition_add_exhaustion_is_one_level(self):
+    def test_condition_add_exhaustion_is_ignored(self):
+        # `exhaustion` is a level, not a condition — use exhaustion_delta.
         H.ds.register_combatants([])
         H.ds.update_combatant(name="Borin", conditions_add=["exhaustion"])
-        self.assertEqual(H.dbv("exhaustion"), 1)
+        self.assertIsNone(H.dbv("exhaustion"))
+        self.assertNotIn("exhaustion", H.ds._COMBAT_REGISTRY["Borin"]["conditions"])
 
 
 if __name__ == "__main__":

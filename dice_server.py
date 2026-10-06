@@ -1553,30 +1553,24 @@ def _validate_spell_slot(cursor, slot_key, delta):
 
 @mcp.tool()
 def modify_player_numeric(key: str, delta: int) -> dict:
-    """
-    Increments or decrements a numeric player attribute. Supports dotted notation for nested paths.
+    """Increments or decrements a numeric player attribute. Supports dotted notation for nested paths.
 
     PARAMETERS:
     - key: dotted path to the numeric field (e.g. 'gold', 'spellcasting.slots.1', 'consumables.Bolts')
     - delta: integer increment (negative to decrement)
 
     PROJECT-SPECIFIC BEHAVIORS:
-    1. current_hit_points: Clamped to [0, total_hit_points]. At 0, returns death_saves flag and Unconscious status.
-    2. spellcasting.slots.N: Validates slot availability before decrementing. Returns error with available slots if empty.
-    3. consumables.ITEM: Auto-creates at 0 if missing. At 0 or below, auto-removed with DEPLETION message.
-       Values are clamped to 0 — items cannot have negative quantity.
-    4. xp: Crossing a level threshold auto-applies ALL numeric level-up changes (level, proficiency, hit dice,
-       HP rolls, spell slots, DC, attack modifier). You MUST still manually apply class features,
-       cantrips/spells known, ASIs (levels 4/8/12/16/19), and subclass features via update_player_list.
-    5. capacity_multiplier: scales carrying capacity for effects such as enhance ability (Bull's
-       Strength): set it to 2 while the effect is active and back to 1 when it ends; a long rest
-       resets it to 1.
+    1. current_hit_points: clamped to [0, total_hit_points]. At 0, returns death_saves and Unconscious.
+    2. spellcasting.slots.N: validates availability; returns available slots on error.
+    3. consumables.ITEM: auto-creates at 0; auto-removed with DEPLETION at 0 or below (never negative).
+    4. xp: crossing a threshold auto-applies level, proficiency, hit dice, HP, slots, DC and attack
+       modifier. Class features, cantrips/spells known, ASIs and subclass features stay manual.
+    5. capacity_multiplier: scales carrying capacity (2 for Bull's Strength, back to 1 when it ends;
+       a long rest resets it).
 
     EXAMPLES:
     modify_player_numeric(key='gold', delta=-10)
     modify_player_numeric(key='spellcasting.slots.1', delta=-1)
-    modify_player_numeric(key='consumables.Bolts', delta=-1)
-    modify_player_numeric(key='consumables.Arrows', delta=20)
     modify_player_numeric(key='xp', delta=50)
     """
     global DB_CONNECTION
@@ -1817,35 +1811,30 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
                        appearance: str | None = None,
                        description: str | None = None,
                        new_name: str | None = None) -> dict:
-    """
-    Adds or removes an item from a player list.
+    """Adds, removes or edits an entry in a player list.
 
     PARAMETERS:
     - key: dotted path to the list (e.g. 'inventory', 'spellcasting.spells_known', 'reputation.eldoria.guard')
-    - item: for add — 'Name: Description' (description optional); for remove — name ONLY (never include the description)
-    - action: 'add' or 'remove'
-    - weight: (inventory adds only) the item's weight in POUNDS, e.g. weight=2.5. Declare it for
-      anything the SRD weight catalog does not know — magic items, loot, homebrew gear (see
-      behaviour 5). SRD items are already weighed, so leave it out for those.
-    - base: (inventory adds only) the SRD archetype this item is built on, e.g. base='Dagger'
-      for 'Voidfang, a magic dagger'. Declare it on every weapon and suit of armour so properties,
-      hands, weight and AC resolve even when the name is reflavoured.
-    - damage_dice / damage_type / properties: a weapon's combat stats (e.g. damage_dice='1d4',
-      damage_type='piercing', properties=['Finesse', 'Light', 'Thrown']).
+    - item: for add — 'Name: Description' (description optional); for remove — name ONLY
+    - action: 'add', 'remove' or 'update'
+    - weight: (inventory adds) the item's weight in POUNDS for anything the SRD weight catalog does not
+      know (magic items, loot, homebrew). Leave it out for SRD items.
+    - base: (inventory adds) the SRD archetype this item is built on, e.g. base='Dagger' for
+      'Voidfang, a magic dagger'. Declare it on every weapon and suit of armour so properties, hands,
+      weight and AC resolve even when the name is reflavoured.
+    - damage_dice / damage_type / properties: a weapon's combat stats
+      (e.g. damage_dice='1d4', damage_type='piercing', properties=['Finesse', 'Light', 'Thrown']).
     - ac / dex_cap / strength_req: an armour's stats (e.g. ac=16, dex_cap=0, strength_req=13).
-    - ac_bonus / attack_bonus / damage_bonus: magic bonuses, declared explicitly (never parsed
-      from a '+1' in the name). They apply only while the item is ATTUNED (set attunement=True) and,
-      for a paired item, only while both halves are worn.
-    - save_bonus / check_bonus: a flat bonus to ALL saving throws / ALL ability checks (Ring of
-      Protection, Cloak of Protection, Stone of Good Luck). The engine applies them; the GM never
-      adds them to a save it derives.
-    - set_str / set_dex / set_con / set_int / set_wis / set_cha: SET an ability score as a floor
-      (SRD: "is 19 while you wear this; no effect if already 19 or higher") — Amulet of Health CON 19,
-      Gauntlets of Ogre Power STR 19, Headband of Intellect INT 19, Belt of Giant Strength STR 21-29.
-    - str_bonus ... cha_bonus (+ *_bonus_max): INCREASE an ability score by a flat amount, optionally
-      up to a maximum (Belt of Dwarvenkind CON +2 to max 20, Ioun stones +2 to max 20, Hammer of
-      Thunderbolts STR +4 to max 30). Example: con_bonus=2, con_bonus_max=20.
-    - proficiency_bonus: an item bonus to the character's proficiency bonus (Ioun Stone, Mastery +1).
+    - ac_bonus / attack_bonus / damage_bonus: magic bonuses, declared explicitly (never parsed from a
+      '+1' in the name). They apply only while the item is ATTUNED (attunement=True) and, for a paired
+      item, only while both halves are worn.
+    - save_bonus / check_bonus: a flat bonus to ALL saving throws / ALL ability checks. The engine
+      applies them; the GM never adds them to a derived save/check.
+    - set_str / set_dex / set_con / set_int / set_wis / set_cha: SET an ability score as a floor (no
+      effect if already equal or higher).
+    - str_bonus ... cha_bonus (with *_bonus_max): INCREASE an ability score by a flat amount, optionally
+      capped, e.g. con_bonus=2, con_bonus_max=20.
+    - proficiency_bonus: an item bonus to the character's proficiency bonus.
     - spell_attack_bonus / spell_dc_bonus: item bonuses to spell attack rolls / spell save DC.
     - effects: the GENERAL form — a list of typed effect entries for anything the flat fields cannot
       express: {type, ...fields, when}. Types: ability_set, ability_bonus (+max), save_bonus,
@@ -1855,74 +1844,53 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
       regeneration, speed, speed_grant, grant_proficiency. `when` predicates: no_armor, no_shield,
       no_armor_or_shield, while_holding, requires_items (with items=[...]), vs_spells,
       vs_damage:<type>, vs_condition:<name>. Example: effects=[{"type":"ac_bonus","value":2,
-      "when":"no_armor_or_shield"}]. An effect the engine does not apply yet is reported back as
+      "when":"no_armor_or_shield"}]. An effect the engine does not apply yet is returned as
       'unmodelled_effects' so it is never silently lost.
-    - attunement: True when the item's magic requires attunement (SRD 5.1: at most 3 attuned
-      items, and no more than one copy of an item). attunement_by optionally names a prerequisite
-      (class, spellcaster, creature type, alignment). Bonuses declared WITHOUT attunement apply
-      immediately, as SRD magic items that do not require it (e.g. a +1 weapon).
-    - kind: what the item is worn as — 'armor', 'cloak', 'boots', 'gloves', 'gauntlets',
-      'bracers', 'headwear', 'ring', 'amulet', 'belt', 'other'. Required for a worn magic item so it
-      is donned, not held.
-    - pair: True when this entry is ONE HALF of a paired item (boots, bracers, gauntlets, gloves).
-      Add both halves as separate inventory entries sharing the same `base`; a single half grants no
-      bonus (SRD: paired items confer no benefit unless both are worn).
-    - appearance: (active_effects adds only) the VISUAL look the character takes on while the
-      effect is active, e.g. "a human merchant — a middling, forgettable fellow with a soft jaw,
-      thinning brown hair and plain travelling clothes". The image generator uses it INSTEAD of the
-      character's portrait; for a known covering disguise (Disguise Self, Seeming) the SRD says the
-      illusion also covers clothing, armour and weapons, so the depicted gear is replaced too.
+    - attunement: True when the item's magic requires attunement; attunement_by optionally names a
+      prerequisite (class, spellcaster, creature type, alignment). Bonuses declared WITHOUT attunement
+      apply immediately.
+    - kind: what the item is worn as — 'armor', 'cloak', 'boots', 'gloves', 'gauntlets', 'bracers',
+      'headwear', 'ring', 'amulet', 'belt', 'other'. Required for a worn magic item so it is donned,
+      not held.
+    - pair: True when this entry is ONE HALF of a paired item. Add both halves as separate entries
+      sharing the same `base`; a single half grants no bonus.
+    - appearance: (active_effects adds only) the VISUAL look the character takes on while the effect
+      is active. The image generator uses it INSTEAD of the portrait, and for a known covering disguise
+      it also replaces the depicted clothing, armour and weapons.
     - description / new_name: (action='update' only) the corrected description and/or a new name for
-      an existing entry, found by its CURRENT name passed as `item`. The name is the item's IDENTITY
-      ('the stranger's letter', 'the iron token'); transient state (sealed/opened, lit, half-full,
-      emptied, broken) belongs in the DESCRIPTION, never in the name.
+      the entry found by its CURRENT name passed as `item`. The name is the item's IDENTITY; transient
+      state (sealed/opened, lit, half-full, emptied, broken) belongs in the DESCRIPTION, never the name.
 
     DECLARE FULL COMBAT STATS FOR ALL ITEMS: the engine derives attack rolls, damage, armour class,
-    saving throws, ability scores and attunement from these fields, and a declared value always wins
-    over the catalog, so declare them on EVERY weapon, suit of armour, shield and worn magic item
-    (ring, amulet, cloak, boots, gloves, bracers, headwear, belt) — SRD or invented. Declare `base`,
-    the damage/ac fields, `properties`, `kind` and any bonuses (including save_bonus / set_* /
-    *_bonus) in the same add; a weapon without damage and no known `base` cannot be used to attack.
+    saving throws, ability scores and attunement from these fields, and a declared value wins over the
+    catalog. Declare `base`, the damage/ac fields, `properties`, `kind` and any bonuses in the same add;
+    a weapon without damage and no known `base` cannot attack.
 
     PROJECT-SPECIFIC BEHAVIORS:
     1. Prepared casters: capacity enforced on spells_prepared (max = spellcasting_ability_mod + level).
-       At capacity, the add is rejected with the current spell list.
     2. Removing from active_effects auto-reverts any stat deltas applied by that effect.
-    3. CONSUMABLES: NEVER use this tool for consumable quantities — use modify_player_numeric(key='consumables.ITEM', delta=N) instead.
-    4. Reputation: use key='reputation.KINGDOM.FACTION' with lowercase kingdom/faction names and no apostrophes.
-       Each entry is a 'Title: Description' pair. A missing FACTION under an existing kingdom is
-       created automatically; a bare 'reputation.KINGDOM' writes to the 'misc' bucket. Unknown
-       kingdoms are rejected — never invent a kingdom name.
-    5. INVENTORY WEIGHT (SRD 5.1): every inventory change returns a 'carrying' block
-       (carried, capacity, push_drag_lift, thresholds, status, speed, unweighed). Variant
-       encumbrance is enforced: above 5x STR you are ENCUMBERED (speed -10 ft); above 10x STR
-       you are HEAVILY ENCUMBERED (speed -20 ft, and the engine rolls attack rolls and
-       STR/DEX/CON checks and saves with disadvantage for you). Coins count: 50 coins = 1 lb.
-       An add of an unknown item without 'weight' is accepted, counts as 0 lb and comes back
-       as 'unweighed_item' with a warning — re-add it with weight=<pounds> to fix the total.
-    6. Removing a worn or wielded item from the inventory auto-unequips it and the result reports
-       'unequipped'. Replacing a weapon or tool means remove + add the replacement with its stats +
-       equip_item — the replacement is NOT auto-equipped.
-    7. UPDATING AN ITEM: action='update' edits an existing entry IN PLACE (description and/or
-       new_name) and keeps its declared stats. Use it whenever an event changes an item — opened,
-       read, unsealed, emptied, lit, transformed, renamed — for EVERY item (notes, letters,
-       containers, loot, quest objects), not only weapons and armour. Unlike remove + add it never
-       drops weight/base/damage/ac fields, and for inventory it follows a rename through the
-       equipped set and attunement. Use remove + add only when the entry is actually being replaced
-       by a different object.
+    3. CONSUMABLES: NEVER use this tool for consumable quantities — use
+       modify_player_numeric(key='consumables.ITEM', delta=N).
+    4. Reputation: key='reputation.KINGDOM.FACTION' with lowercase names and no apostrophes. A missing
+       FACTION under an existing kingdom is created; a bare 'reputation.KINGDOM' writes to 'misc'.
+       Unknown kingdoms are rejected.
+    5. INVENTORY WEIGHT: every inventory change returns a 'carrying' block (carried, capacity,
+       push_drag_lift, thresholds, status, speed, unweighed) and variant encumbrance is enforced
+       automatically. An unknown item added without 'weight' counts as 0 lb and returns
+       'unweighed_item' — re-add it with weight=<pounds> to fix the total.
+    6. Removing a worn/wielded item from the inventory auto-unequips it ('unequipped'). Replacing a
+       weapon or tool means remove + add the replacement with its stats + equip_item — the replacement
+       is NOT auto-equipped.
+    7. UPDATING AN ITEM: action='update' edits an entry IN PLACE (description and/or new_name) and
+       keeps its declared stats. Use it whenever an event changes an item — opened, read, unsealed,
+       emptied, lit, transformed, renamed — for EVERY item, not only weapons and armour. Use
+       remove + add only when the entry is actually replaced by a different object.
 
     EXAMPLES:
     update_player_list(key='inventory', item='Dagger: A rusty blade', action='add', base='Dagger', damage_dice='1d4', damage_type='piercing', properties=['Finesse', 'Light', 'Thrown (range 20/60)'])
     update_player_list(key='inventory', item='Ring of Warding: a band of cold silver', action='add', base='Ring of Protection', kind='ring', ac_bonus=1, save_bonus=1, attunement=True)
-    update_player_list(key='inventory', item='Amulet of Health: a jade serpent on a silver chain', action='add', base='Amulet of Health', kind='amulet', set_con=19, attunement=True)
-    update_player_list(key='inventory', item='Belt of Hill Giant Strength: a broad leather belt', action='add', base='Belt of Giant Strength', kind='belt', set_str=21, attunement=True)
-    update_player_list(key='inventory', item='Bracers of Defense: lacquered wicker bracers', action='add', base='Bracers of Defense', kind='bracers', attunement=True, effects=[{'type': 'ac_bonus', 'value': 2, 'when': 'no_armor_or_shield'}])
-    update_player_list(key='inventory', item='Dagger', action='remove')          ← name only, NOT 'Dagger: A rusty blade...'
-    update_player_list(key='inventory', item='Void Crystal: a humming shard of black glass', action='add', weight=2.5)
-    update_player_list(key='inventory', item="the stranger's letter", action='update', description="a folded scrap, the grey seal broken; the contents read — a summons to the Anvil and Ember at third bell")
-    update_player_list(key='spellcasting.spells_known', item='Shield', action='remove')
-    update_player_list(key='spellcasting.spells_prepared', item='Fireball', action='add')
-    update_player_list(key='reputation.eldoria.guard', item='Hero of the City: After defending the city from a dragon attack, {player_name} is a well known hero among people of Eldoria', action='add')
+    update_player_list(key='inventory', item='Dagger', action='remove')
+    update_player_list(key='inventory', item="the stranger's letter", action='update', description="a folded scrap, the grey seal broken")
     """
     global DB_CONNECTION
     if DB_CONNECTION is None:
@@ -2213,43 +2181,33 @@ def _ac_note(before, after) -> str:
 @mcp.tool()
 def equip_item(item: str, action: str = "equip", slot: str | None = None,
                replace: bool = False, instant: bool = False) -> dict:
-    """
-    Equips or unequips something the character is carrying (SRD 5.1: one suit of armour, two hands).
+    """Equips or unequips something the character is carrying.
 
     PARAMETERS:
     - item: the item's name exactly as it appears in the inventory
     - action: 'equip' (default) or 'unequip'
-    - slot: optional target — 'main_hand', 'off_hand', 'armor' or 'worn'. Omit to let the engine
-      choose (armour goes to the armour slot; anything else takes a free hand). Cloaks, boots,
-      gloves, gauntlets, bracers, headwear, rings and amulets go to the 'worn' container; clothing
-      (Common Clothes, Vestments, Robes) is worn automatically and listed there.
-    - replace: when the slot or the second hand is already taken, set True to stow whatever was
-      there instead of being refused. The stowed item stays in the inventory.
-    - instant: allow an armour change during combat. By default donning/doffing armour is REFUSED
-      while a fight is running (SRD: light 1 min, medium 5 min, heavy 10 min to don) — use instant=True
-      only for magic or a GM call. Shields take one action and are always allowed.
+    - slot: optional target — 'main_hand', 'off_hand', 'armor' or 'worn'. Omit to let the engine choose
+      (armour -> armour slot; anything else -> a free hand). Cloaks, boots, gloves, gauntlets, bracers,
+      headwear, rings and amulets go to 'worn'; clothing is worn automatically.
+    - replace: when the slot or second hand is already taken, set True to stow whatever was there
+      instead of being refused. The stowed item stays in the inventory.
+    - instant: allow an armour change during combat. By default donning/doffing armour is REFUSED in a
+      fight — use instant=True only for magic or a GM call. Shields take one action and are always allowed.
 
     PROJECT-SPECIFIC BEHAVIORS:
-    1. 5e has NO equipment slots — only two hands plus one suit of armour. A shield is an item held
-       in a hand, and a two-handed weapon needs BOTH hands to attack with, so equipping one
-       requires the other hand to be free (or replace=True).
-    2. Equipping recomputes armour_class from the equipped set and returns it before → after, plus
-       the SRD time_cost for armour/shields. Worn armour replaces the unarmoured formula; heavy
-       armour adds no Dexterity at all (and no penalty for a negative one). Only one suit of armour
-       and one shield benefit a creature (a second shield is held but confers nothing).
-    3. Unequipping never drops the item: it stays in the inventory.
+    1. 5e has NO equipment slots — only two hands plus one suit of armour. A shield is held in a hand;
+       a two-handed weapon needs BOTH hands to attack, so equipping it requires the other hand free
+       (or replace=True).
+    2. Equipping recomputes armour_class from the equipped set and returns before -> after plus
+       time_cost. Only one suit of armour and one shield benefit a creature.
+    3. Unequipping never drops the item.
     4. The item must already be in the inventory (update_player_list); this tool only moves it.
-    5. The result carries the derived 'equipment' block (hands, hands_free, base_ac, ac_breakdown,
-       warnings).
-    6. The in-combat refusal checks the registry: a fight whose hostiles are all dead no longer
-       counts as combat, so armour may be changed.
+    5. The result carries the derived 'equipment' block (hands, hands_free, base_ac, ac_breakdown, warnings).
+    6. The in-combat refusal checks the registry: a fight whose hostiles are all dead no longer counts.
 
     EXAMPLES:
     equip_item(item='Chain Mail')
-    equip_item(item='Shield')
     equip_item(item='Greatsword', replace=True)
-    equip_item(item='Longsword', slot='off_hand')
-    equip_item(item='Shield', action='unequip')
     """
     global DB_CONNECTION
     if DB_CONNECTION is None:
@@ -2431,28 +2389,22 @@ def equip_item(item: str, action: str = "equip", slot: str | None = None,
 
 @mcp.tool()
 def attune_item(item: str, action: str = "attune", instant: bool = False) -> dict:
-    """
-    Attunes to (or breaks attunement with) a magic item (SRD 5.1: at most 3, one copy of an item).
+    """Attunes to (or breaks attunement with) a magic item.
 
     PARAMETERS:
     - item: the item's name exactly as it appears in the inventory
     - action: 'attune' (default) or 'unattune'
-    - instant: allow it during combat. By default attuning takes a short rest, so it is REFUSED
-      while a fight is running.
+    - instant: allow it during combat. By default attuning takes a short rest, so it is REFUSED in a fight.
 
     PROJECT-SPECIFIC BEHAVIORS:
-    1. A creature can be attuned to no more than THREE magic items and to no more than one copy of
-       an item (e.g. two Ring of Protection). Attuning also fails if the item's declared
-       `attunement_by` prerequisite (class, spellcaster, creature type, alignment) is unmet.
+    1. At most THREE attuned magic items, and at most one copy of an item. Attuning fails if the item's
+       declared `attunement_by` prerequisite (class, spellcaster, creature type, alignment) is unmet.
     2. Only items declared with attunement=True can be attuned; their ac_bonus / attack_bonus /
-       damage_bonus apply only while attuned (until then the derived bonuses stay off and the
-       'equipment' block warns 'not_attuned').
+       damage_bonus apply only while attuned (until then the 'equipment' block warns 'not_attuned').
     3. The item must be in the inventory first (update_player_list).
 
     EXAMPLES:
     attune_item(item='Voidmail')
-    attune_item(item='Ring of Protection')
-    attune_item(item='Voidmail', action='unattune')
     """
     global DB_CONNECTION
     if DB_CONNECTION is None:
@@ -2559,14 +2511,11 @@ def attune_item(item: str, action: str = "attune", instant: bool = False) -> dic
 
 @mcp.tool()
 def dump_player_db() -> dict:
-    """
-    Returns a full dump of the current in-memory player database for state refresh.
+    """Returns a full dump of the current in-memory player database for state refresh.
 
-    The dump includes a derived `_carrying` block (SRD 5.1 carrying capacity, encumbrance
-    status and effective speed), a derived `_equipment` block (worn armour, hands,
-    hands free, and the armour-class breakdown) and a derived `_passive` block (passive
-    Perception/Investigation/Insight = 10 + the engine-derived check modifier). All are computed,
-    never saved: the save file does not contain them.
+    The derived `_carrying` (capacity, encumbrance status, effective speed), `_equipment` (worn armour,
+    hands, hands free, armour-class breakdown) and `_passive` (passive Perception/Investigation/Insight
+    = 10 + the derived modifier) blocks are computed, never saved.
     """
     global DB_CONNECTION
     if DB_CONNECTION is None:
@@ -2604,83 +2553,48 @@ def request_scene_image(description: str, kingdom: str = "", area: str = "",
                         establishing: str = "", main_npcs: list[dict] | None = None,
                         npcs: list[dict] | None = None,
                         seed_change: str = "", mood: str = "") -> dict:
-    """Request a storyline illustration of the turn's moment. Emit exactly one per
-    narrative turn, attached to the narrative prose (the system prompt's imagery
-    protocol says when).
+    """Request a storyline illustration of the turn's moment. Emit exactly one per narrative turn,
+    attached to the narrative prose (the system prompt's imagery protocol says when).
 
-    TWO IMAGES PER PLACE. On entering a NEW location/sublocation, ask for its
-    establishing view too by filling `establishing`; the engine then makes an empty
-    'seed' image (never shown to the player). Afterwards only the action image is
-    produced, and every one of them is drawn FRESH from that hidden establishing view
-    — never from the previous action — so a figure can never be duplicated and the
-    cast comes only from your `characters` dict. Only ask for a seed when the place is
-    NOT already in the KNOWN IMAGE PLACES list; if a new place's seed is missing the
-    tool returns a WARNING and you must call again with `establishing`.
+    PLACES. A place is kingdom -> area -> location -> sublocation. On entering a NEW location or
+    sublocation (not in the KNOWN IMAGE PLACES list), also fill `establishing` so the engine can make the
+    hidden 'seed' image (never shown). Every action image is drawn FRESH from that seed — never from the
+    previous action — so figures can never duplicate. If a new place's seed is missing the tool returns a
+    WARNING; call again with `establishing`.
 
     PARAMETERS:
-    - description: what HAPPENS — the protagonist's action, and any notable transient event
-      (e.g. the place is on fire). NAME every NPC ('Corvin watches the protagonist read'), never
-      identify them by look ('a thin man in a damp grey coat watches'). Never describe a person's
-      look, the place, its furniture or its light, the time or the weather — the seed carries the
-      place, `time_of_day`/`weather` carry the light, and a declared NPC's look comes from the
-      registry. You MAY say where the protagonist is standing or sitting. DO restate anything
-      from earlier in this scene that is still true and still visible (spilled ale, a broken
-      table, blood, a body, an open door) — nothing carries over from the previous image on its
-      own.
-    - kingdom: the realm the place lies in. Declare it ONLY when creating the seed (together
-      with `establishing`); otherwise omit it and reuse the known place. Reuse the exact known
-      name.
-    - area: the city, town, settlement or general region within the kingdom — whatever fits
-      (e.g. 'Eldoria City', 'Millbrook', 'the Eldoria–Silverwood border'). Declare it ONLY when
-      creating the seed (together with `establishing`). Reuse the exact known name.
-    - location: the place (building, street or area). Reuse the exact known name.
-    - sublocation: the exact room or spot within it ("" for an open place). Reuse the exact
-      known name; a different room is a different place.
-    - time_of_day: the time of day or night, e.g. 'dawn', 'midday', 'dusk', 'deep night'. Fed
-      to the image generator so the lighting is right.
-    - weather: the weather or conditions, e.g. 'heavy rain', 'dense fog', 'clear skies',
-      'a howling blizzard'. Fed to the image generator.
-    - characters: a dict of EVERY NPC/creature on stage -> what they are doing or how they
-      act toward the protagonist. The KEY is the NPC's **name** (exactly as declared — see
-      `npcs` / `register_npcs`; never repeat their look here); the VALUE carries the action.
-      Use EXACT counts, never 'a few' (e.g. 'three dockhands'). The engine injects the stored
-      description for every declared name, so continuity does not depend on your wording.
-      Exclude the protagonist (their portrait is attached). Example: {'Maera': 'drawing ale,
-      watching the door', 'the harbourmaster': 'handing over a sealed writ'}.
-    - establishing: a short description of the place, given ONLY when its seed does not
-      exist yet. It must be empty and unpopulated — no people, creatures or animals — and
-      weather-free and timeless: no rain, fog or snow, and no time of day ('at dusk'), because
-      the seed is permanent and weather-neutral; those belong in `weather` / `time_of_day`.
-    - main_npcs: the place's main NPCs, given ONLY when creating the seed, as a LIST of
-      {'name': ..., 'role': ..., 'description': ...} — one person per entry (e.g. the
-      innkeeper and her grandson are two entries; a smith with two apprentices is the smith
-      plus an entry for each apprentice). `role` is that person's function in the place
-      ('the innkeeper', 'the smith', 'the table-runner'), and it is shown back to you in the
-      KNOWN IMAGE PLACES list. `description` is the stable PHYSICAL look only — gender,
-      build, distinguishing features, clothing/gear they always wear; never a pose, a
-      position in the room, a current action, or a helper. Pass [] if the place has none.
-      Afterwards refer to each by name in `characters`.
-    - npcs: recurring storyline NPCs declared in this same call, as a list of {'name': ...,
-      'description': ...}. `description` is the stable physical look only (never a pose or an
-      action — the same rule as `main_npcs`). Use it when someone recurring first appears; the
-      same names can also be declared ahead of time with register_npcs. After that, use the
-      NAME ONLY everywhere — never repeat the description.
-    - seed_change: a PERMANENT change to the place (e.g. 'it burned down'). Regenerates the
-      hidden seed immediately, so this image and every later one already show the change.
+    - description: what HAPPENS — the protagonist's action and any notable transient event. NAME every
+      NPC ('Corvin watches the protagonist read'); never identify anyone by look. Never describe a
+      person's look, the place, its furniture, its light, the time or the weather — the seed carries the
+      place, `time_of_day`/`weather` carry the light, and a declared NPC's look comes from the registry.
+      You MAY say where the protagonist stands or sits. DO restate anything from earlier in the scene
+      that is still visible (spilled ale, a broken table, blood, a body, an open door).
+    - kingdom / area: declare ONLY when creating the seed (with `establishing`); reuse the exact known
+      names otherwise.
+    - location / sublocation: the place and exact room/spot ('' for an open place). Reuse the exact known
+      names; a different room is a different place.
+    - time_of_day / weather: fed straight to the image generator (e.g. 'dusk', 'heavy rain'). Keep them
+      out of `description`.
+    - characters: dict of EVERY NPC/creature on stage -> their action toward the protagonist. KEY is the
+      declared NAME; never repeat their look. Use EXACT counts ('three dockhands'), never 'a few'.
+      Exclude the protagonist. A one-off extra needs no declaration — a short look in the key is
+      used for that image only.
+    - establishing: an empty, unpopulated, weather-free and timeless description of the place — no
+      people, no rain/fog/snow, no time of day. Only when the seed does not exist yet.
+    - main_npcs: the place's main NPCs, only when creating the seed, as a LIST of {'name', 'role',
+      'description'} — one person per entry. `role` is their function in the place; `description` is the
+      stable PHYSICAL look only (never a pose, position, action or helper).
+    - npcs: recurring NPCs declared in this same call, as a list of {'name', 'description'} — same
+      stable-look rule. Afterwards refer to them by NAME ONLY.
+    - seed_change: a PERMANENT change to the place ('it burned down') regenerates the hidden seed immediately.
     - mood: a short mood word for the light/atmosphere.
 
-    Refer to the player/main character as 'the protagonist' (the image prompt maps the
-    attached portrait onto that word): say where the protagonist is and what they are
-    doing — they face the action, not the camera, and their back to the camera is fine —
-    but NEVER describe their physical appearance (face, hair, build, race,
-    clothing) — the portrait is attached automatically. Describe clothing, armour,
-    weapons and accessories ONLY from what they actually have equipped (check
-    `_equipment` in your latest dump_player_db if unsure): never invent a hood,
-    hooded cloak, cowl, hat, helmet, armour or other item they do not have, and
-    never write 'hooded'/'cloaked'/'armoured' unless it is equipped.
+    Refer to the player as 'the protagonist'. Say where they are and what they do (they face the action,
+    back to camera is fine), but NEVER describe their physical appearance — the portrait is attached
+    automatically. Describe clothing/armour/weapons ONLY from what they actually have equipped (check
+    `_equipment`); never invent a hood, cloak, cowl, hat, helmet, armour or other item.
 
-    This does not change game state and the engine does not wait for the picture;
-    it is rendered and shown with your narrative.
+    This does not change game state and the engine does not wait for the picture.
     """
     return {
         "status": "requested",
@@ -2733,26 +2647,23 @@ def register_npcs(npcs: list[dict]) -> dict:
 
 @mcp.tool()
 def rest(rest_type: str, prepared_spells: list[str] | None = None) -> dict:
-    """
-    Applies a short or long rest. All numeric changes auto-applied to the database.
+    """Applies a short or long rest. All numeric changes auto-applied to the database.
 
     PARAMETERS:
     - rest_type: "short" or "long"
     - prepared_spells: (long rest only, optional) full replacement list of spell names to prepare.
-      Validated against max capacity. Wizards validated against spellbook. Known casters ignored/error.
+      Validated against max capacity. Wizards validated against spellbook.
 
     PROJECT-SPECIFIC BEHAVIORS:
-    1. Short rest: auto-spends hit dice one-by-one until HP full or no dice remain.
-       Warlocks: full Pact Magic restore. Wizards: Arcane Recovery auto-applied
-       (ceil(level/2) combined slot levels, greedily from lowest expended, cannot recover 6th+ slots).
-    2. Long rest: full HP, regain max(level//2, 1) hit dice (capped at level), all slots restored,
-       all active effects cleared with stat deltas reverted.
+    1. Short rest: auto-spends hit dice until HP is full or none remain. Warlocks restore Pact Magic;
+       Wizards auto-apply Arcane Recovery (ceil(level/2) combined slot levels, lowest first, not 6th+).
+    2. Long rest: full HP, regain max(level//2, 1) hit dice (capped at level), all slots restored, all
+       active effects cleared with stat deltas reverted, and one exhaustion level removed.
     3. Long rest rejected if HP is 0.
     4. Returns hints for class features that need manual recharge.
 
     EXAMPLES:
     rest(rest_type='short')
-    rest(rest_type='long')
     rest(rest_type='long', prepared_spells=['Magic Missile', 'Shield', 'Mage Armor', 'Burning Hands'])
     """
     global DB_CONNECTION
@@ -3037,24 +2948,20 @@ def rest(rest_type: str, prepared_spells: list[str] | None = None) -> dict:
 
 @mcp.tool()
 def modify_exhaustion(delta: int, reason: str | None = None) -> dict:
-    """
-    Add or remove SRD 5.1 exhaustion levels on the player (0-6).
+    """Add or remove exhaustion levels on the player (0-6).
 
     PARAMETERS:
-    - delta: signed number of levels (+1 for a forced march, a spell, etc.; -1 for a long rest or
-      greater restoration)
+    - delta: signed number of levels
     - reason: (optional) short note for the narrative
 
     PROJECT-SPECIFIC BEHAVIORS:
-    1. The engine applies the level table: 1 disadvantage on ability checks, 2 speed halved,
-       3 disadvantage on attack rolls and saving throws, 4 HP maximum halved, 5 speed 0, 6 death.
-    2. A long rest removes exactly one level automatically (see rest); use this tool for every
-       other source (food/water/suffocation, spells, forced marches).
-    3. Level 6 marks the character dead.
+    1. The engine applies the full level table and re-derives HP maximum, speed and roll disadvantage;
+       never hand-apply the penalties.
+    2. A long rest removes exactly one level automatically; use this tool for every other source.
+    3. Level 6 is death.
 
     EXAMPLES:
     modify_exhaustion(delta=1, reason='forced march')
-    modify_exhaustion(delta=-2, reason='greater restoration')
     """
     global DB_CONNECTION
     if DB_CONNECTION is None:
@@ -3094,15 +3001,13 @@ def modify_exhaustion(delta: int, reason: str | None = None) -> dict:
 
 @mcp.tool()
 def make_death_save() -> dict:
-    """
-    Rolls a death saving throw for a player at 0 HP (SRD 5.1): d20, 10 or higher succeeds.
+    """Rolls a death saving throw for a player at 0 HP.
 
     PROJECT-SPECIFIC BEHAVIORS:
-    1. Three successes stabilise the character (counters clear, still at 0 HP).
-    2. Three failures kill the character.
-    3. A natural 20 regains 1 HP and clears the counters; a natural 1 counts as two failures.
-    4. Healing any real HP clears the counters automatically, and taking damage at 0 HP adds a
-       failure automatically, so only call this at the start of the player's turn while at 0 HP.
+    1. Three successes stabilise (counters clear, still 0 HP); three failures kill. A natural 20 regains
+       1 HP and clears the counters; a natural 1 counts as two failures.
+    2. Healing any real HP clears the counters, and damage at 0 HP adds a failure automatically — so
+       only call this at the start of the player's turn while at 0 HP.
 
     EXAMPLES:
     make_death_save()
@@ -3153,20 +3058,17 @@ def make_death_save() -> dict:
 
 @mcp.tool()
 def roll_dice(dice_notation: str, modifier: int = 0, actor: str = "{player_name}") -> dict:
-    """
-    Rolls dice for damage, healing, loot quantity, or any random magnitude.
+    """Rolls dice for damage, healing, loot quantity, or any random magnitude.
 
     PARAMETERS:
-    - dice_notation: dice only (e.g. '3d4'), do NOT include modifiers in this string
-    - modifier: flat bonus/penalty to add to the roll total
+    - dice_notation: dice only (e.g. '3d4') — do NOT include modifiers in this string
+    - modifier: flat bonus/penalty added to the roll total
     - actor: who is rolling — character name for player, NPC/creature name for NPCs
 
-    RULES:
-    - Use this for "how much?" scenarios only. For success/failure checks, use perform_check.
+    Use this for "how much?" only. For success/failure use perform_check.
 
     EXAMPLES:
     roll_dice(actor='Senna', dice_notation='3d4', modifier=3)
-    roll_dice(actor='Goblin Brute', dice_notation='1d6', modifier=2)
     """
     try:
         if actor == "{player_name}" and DB_CONNECTION is not None:
@@ -3209,55 +3111,39 @@ def perform_check(modifier: int | None = None, dc: int = 0, check_name: str = "C
                   save: bool = False, situational_modifier: int | None = None,
                   context: str | None = None, against: str | None = None,
                   damage: str | None = None, condition: str | None = None) -> dict:
-    """
-    Performs a skill check or saving throw (d20 + modifier vs DC).
+    """Performs a skill check or saving throw (d20 + modifier vs DC).
 
     PARAMETERS:
-    - modifier: bonus to add to the d20 roll. For a player ability/skill CHECK it is IGNORED when
-      `check_name` names a skill or `ability` is given — the engine derives the whole modifier
-      (like saves). It is only used for an NPC, or for a custom player check with no ability and no
-      known skill (e.g. 'Luck').
+    - modifier: bonus to the d20. For a player ability/skill CHECK it is IGNORED when `check_name`
+      names a skill or `ability` is given — the engine derives the whole modifier. Used only for an NPC,
+      or a custom player check with no ability and no known skill (e.g. 'Luck').
     - dc: difficulty class to beat
-    - check_name: label for the check (e.g. 'Athletics', 'Perception', 'Dexterity save')
+    - check_name: label for the check (e.g. 'Athletics', 'Dexterity save')
     - actor: who is performing the check — character name for player, NPC/creature name for NPCs
-    - ability: (optional) the ability the check uses — 'str', 'dex', 'con', 'int', 'wis' or 'cha'.
-      REQUIRED for a player save (save=True). For a player ability check, pass it (or a skill name)
-      and the engine picks the ability modifier and any skill proficiency itself.
-    - grapple: set True when this check is an attempt to GRAPPLE a creature (SRD: it needs at least
-      one free hand). The check is refused, and the action spent, when both hands are full. Do not
-      set it for escaping a grapple — that needs no free hand.
-    - save: set True for a SAVING THROW. The engine then computes the player's modifier itself
-      (effective ability modifier + proficiency bonus if proficient + item save bonuses) and adds
-      'situational_modifier'. Do not pass `modifier` for a save.
-    - situational_modifier: a bonus/penalty the situation adds to a player check or save (cover, a
-      flat Bless total, ...). Added on top of the engine-derived modifier.
-    - context: an ability-check context for item `skill_bonus` effects with a `context:<tag>`
-      predicate (e.g. context='climbing' for Gloves of Swimming and Climbing).
-    - against / damage / condition: scope a player SAVE for item `save_advantage` effects
-      ('spells', a damage type, a condition); e.g. Mantle of Spell Resistance is `vs_spells`.
+    - ability: (optional) 'str'|'dex'|'con'|'int'|'wis'|'cha'. REQUIRED for a player save (save=True).
+    - grapple: set True for a GRAPPLE attempt. Refused, and the action spent, when both hands are full.
+      Do NOT set it for escaping a grapple.
+    - save: set True for a SAVING THROW. The engine computes the player's modifier itself (effective
+      ability + proficiency + item bonuses) and adds 'situational_modifier'. Do not pass `modifier`.
+    - situational_modifier: a situational bonus/penalty added on top of the derived modifier (cover,
+      a flat Bless total, ...).
+    - context: an ability-check context for item `skill_bonus` effects with a `context:<tag>` predicate.
+    - against / damage / condition: scope a player SAVE for item `save_advantage` effects.
 
     RULES:
-    - For weapon/unarmed attacks, use resolve_attack instead.
-    - For spell attacks, use resolve_magic.
+    - Weapon/unarmed attacks: use resolve_attack. Spell attacks: use resolve_magic.
 
     PROJECT-SPECIFIC BEHAVIORS:
-    1. HEAVILY ENCUMBERED (SRD 5.1 variant): if the player carries more than 10x STR, this check is
-       rolled with disadvantage when `ability` is 'str', 'dex' or 'con'. The response then carries
-       'disadvantage_sources' and both dice in 'disadvantage_rolls'.
-    2. NOT PROFICIENT WITH WORN ARMOUR (SRD 5.1): disadvantage on STR/DEX checks; the response names
-       the source in 'disadvantage_sources'.
-    3. GRAPPLE (grapple=True): refused with turn_lost=true when no hand is free — no roll is made.
-    4. PLAYER CHECKS ARE ENGINE-DERIVED: for a skill or ability check the modifier comes from the
-       sheet (effective ability modifier + skill proficiency, doubled for Expertise or halved for
-       Jack of All Trades + worn/attuned item check/skill bonuses), so the GM never computes it.
-       PLAYER SAVES ARE ENGINE-DERIVED (save=True) the same way (ability + proficiency + item save
-       bonuses). A worn Stone of Good Luck adds its +1 to every ability check and save.
+    1. HEAVILY ENCUMBERED or non-proficient armour: STR/DEX/CON checks roll with disadvantage when
+       applicable; the response carries 'disadvantage_sources' and both dice.
+    2. GRAPPLE (grapple=True): refused with turn_lost=true when no hand is free — no roll is made.
+    3. PLAYER CHECKS AND SAVES ARE ENGINE-DERIVED: the modifier comes from the sheet (effective ability
+       + skill proficiency, doubled for Expertise / halved for Jack of All Trades + item bonuses), so
+       the GM never computes it.
 
     EXAMPLES:
     perform_check(actor='Thorin', dc=15, check_name='Athletics', ability='str')
     perform_check(actor='Thorin', dc=15, check_name='Dexterity save', ability='dex', save=True)
-    perform_check(actor='Senna', dc=13, check_name='Constitution save', ability='con', save=True,
-                  situational_modifier=2)
     """
     cursor = DB_CONNECTION.cursor() if DB_CONNECTION is not None else None
     is_player = _is_player_actor(cursor, actor)
@@ -3555,7 +3441,7 @@ _INCAPACITATING_CONDITIONS = {"incapacitated", "paralyzed", "petrified", "stunne
 
 
 def _registry_save(target_name: str, ability) -> int | None:
-    """Save modifier for a registry target: per-ability `saves`, else the legacy `save_modifier`."""
+    """Save modifier for a registry target from its per-ability `saves`."""
     entry = _COMBAT_REGISTRY.get(target_name)
     if not entry:
         return None
@@ -3564,12 +3450,6 @@ def _registry_save(target_name: str, ability) -> int | None:
     if isinstance(saves, dict) and key in saves:
         try:
             return int(saves[key])
-        except (TypeError, ValueError):
-            pass
-    legacy = entry.get("save_modifier")
-    if legacy is not None:
-        try:
-            return int(legacy)
         except (TypeError, ValueError):
             pass
     return None
@@ -3627,9 +3507,6 @@ def _apply_combat_condition(cursor, name, condition):
     entry = _COMBAT_REGISTRY.get(name)
     if entry is None:
         if cursor is not None and _is_player_name(cursor, name):
-            if cond == "exhaustion":
-                _apply_exhaustion_change(cursor, 1)
-                return "added", None
             current = _player_conditions(cursor)
             if cond in current:
                 return "present", None
@@ -3644,9 +3521,6 @@ def _apply_combat_condition(cursor, name, condition):
     if entry.get("is_player"):
         if cursor is None:
             return "not_registered", None
-        if cond == "exhaustion":
-            _apply_exhaustion_change(cursor, 1)
-            return "added", None
         current = _player_conditions(cursor)
         if cond in current:
             return "present", None
@@ -3662,11 +3536,6 @@ def _apply_combat_condition(cursor, name, condition):
     immunities = {str(c).strip().lower() for c in (entry.get("condition_immunities") or [])}
     if cond in immunities:
         return "immune", None
-    if cond == "exhaustion":
-        entry["exhaustion"] = min(EXHAUSTION_MAX, int(entry.get("exhaustion") or 0) + 1)
-        current = {str(c).strip().lower() for c in (entry.get("conditions") or [])}
-        entry["conditions"] = sorted(current | {"exhaustion"})
-        return "added", None
     current = {str(c).strip().lower() for c in (entry.get("conditions") or [])}
     if cond in current:
         return "present", None
@@ -3827,7 +3696,6 @@ def _normalize_combatant(c, add_to_existing=False) -> dict:
         "current_hp": int(c["hp"]),
         "max_hp": max_hp,
         "ac": int(c["ac"]),
-        "save_modifier": c.get("save_modifier"),
         "saves": {k: int(v) for k, v in saves.items()
                   if k in ABILITY_KEYS and isinstance(v, (int, float))},
         "challenge_rating": c.get("challenge_rating"),
@@ -3884,7 +3752,6 @@ def _player_registry_entry(cursor) -> dict:
         "current_hp": int(_db_val(cursor, "current_hit_points", 1)),
         "max_hp": int(_db_val(cursor, "total_hit_points", 1)),
         "ac": int(_db_val(cursor, "armor_class", 10)),
-        "save_modifier": None,
         "saves": saves,
         "challenge_rating": None,
         "initiative_modifier": mods["dex"] + int(state.get("initiative_bonus") or 0),
@@ -3988,17 +3855,16 @@ def _registry_summary_list() -> list[dict]:
 
 @mcp.tool()
 def register_combatants(combatants: list[dict], add_to_existing: bool = False) -> dict:
-    """
-    Registers all combatants for a battle and rolls initiative for everyone. Player is auto-registered.
+    """Registers all combatants for a battle and rolls initiative. Player is auto-registered.
 
     DECLARE EVERY COMBATANT FULLY. You will not be asked for these values again: the engine derives
-    attacks, saves, armour class and damage from this block, so hand it the real stats. Estimate
-    only when the creature genuinely has no stat block.
+    attacks, saves, armour class and damage from this block, so hand it the real stats. Estimate only
+    when the creature genuinely has no stat block.
 
     PARAMETERS:
-    - combatants: list of NPC dicts. Required: `name`, `hp`, `ac`. Everything else optional:
+    - combatants: list of NPC dicts. Required: `name`, `hp`, `ac`. Optional:
       - name (str): must match target_name / actor in resolve_attack / resolve_magic calls
-      - hp (int): starting (current) hit points
+      - hp (int): starting hit points
       - max_hp (int): maximum, defaults to hp
       - ac (int): armour class
       - initiative_modifier (int, required unless add_to_existing=True): DEX modifier
@@ -4006,60 +3872,39 @@ def register_combatants(combatants: list[dict], add_to_existing: bool = False) -
       - challenge_rating (float): CR for XP awards
       - role (str): 'hostile' | 'ally' | 'neutral' (default 'hostile')
       - speed (int)
-      - saves (dict): one modifier per ability, e.g. {"str": -1, "dex": 2, "con": 0,
-        "int": 0, "wis": -1, "cha": -1} — used for every saving throw the creature makes
-      - save_modifier (int): legacy single save bonus (used only when `saves` is absent)
-      - damage_resistances / damage_immunities / damage_vulnerabilities (list of str): damage types;
-        'all' is allowed. The engine halves/zeroes/doubles incoming damage automatically
-      - condition_immunities (list of str): conditions the creature cannot gain
+      - saves (dict): one modifier per ability, e.g. {"str": -1, "dex": 2, "con": 0, "int": 0, "wis": -1, "cha": -1}
+      - damage_resistances / damage_immunities / damage_vulnerabilities (list of str): 'all' is allowed
+      - condition_immunities (list of str)
       - attacks (list of dicts): each {name, base?, attack_bonus, damage_dice, damage_modifier?,
-        damage_type?, properties?, reach?, range?} — resolve_attack(actor=…, attack=…, …) uses these
-      - multiattack (int or str): how many attacks per Attack action (reported, not enforced)
+        damage_type?, properties?, reach?, range?} — resolve_attack(actor=..., attack=..., ...) uses these
+      - multiattack (int or str): attacks per Attack action (reported, not enforced)
       - spellcasting (dict): {ability, save_dc, attack_modifier} for NPC casters
-      - conditions (list of str): starting conditions (blinded, prone, restrained, poisoned, ...)
-      - exhaustion (int 0-6): starting exhaustion level (drives ability-check/attack/save
-        disadvantage, speed and the HP maximum)
+      - conditions (list of str): starting conditions
+      - exhaustion (int 0-6): starting exhaustion level
       - traits (list of str): free-text special abilities, for reference
-    - add_to_existing (bool, default False): adds to the existing registry without wiping it. No
-      initiative rolled for the arrivals; existing HP/saves/conditions are preserved.
+    - add_to_existing (bool, default False): adds to the existing registry without wiping it or
+      re-rolling initiative.
 
     PROJECT-SPECIFIC BEHAVIORS:
-    1. resolve_attack / resolve_magic auto-lookup a target's HP, AC, CR and save modifiers from the
-       registry — you do not need to pass target_current_hp, target_ac or a save every call.
-       HP is carried forward between hits automatically.
-    2. resolve_attack(actor='Goblin', attack='Scimitar', target_name='Borin') derives the NPC's
-       attack bonus and damage from its declared `attacks`. Omit attack= only for an improvised or
-       undeclared action, in which case pass attack_modifier and damage_dice directly.
-    3. Calling this again without add_to_existing overwrites the registry entirely — that is how a
-       fight ends and a new one begins. There is no separate end-combat call.
+    1. resolve_attack / resolve_magic auto-look up a target's HP, AC, CR and saves from the registry —
+       you do not need to pass target_current_hp, target_ac or a save every call. HP carries forward.
+    2. resolve_attack(actor='Goblin', attack='Scimitar', target_name='Borin') derives the NPC's attack
+       and damage from its declared `attacks`. Omit attack= only for an improvised action, passing
+       attack_modifier and damage_dice directly.
+    3. Calling this again without add_to_existing overwrites the registry — that is how a fight ends and
+       a new one begins. There is no separate end-combat call.
     4. Conditions declared here and changed via update_combatant drive advantage/disadvantage, auto
-       failures and critical hits against helpless targets (blinded, prone, restrained, paralyzed,
-       petrified, stunned, unconscious, poisoned, frightened, invisible).
-    5. narrative_format is a single line ending in "Initiative Order"; the player sees it as a
-       hover tooltip, and each NPC's FULL stat sheet rides a separate `sheets` payload shown as
-       client-side name tooltips. Never dump a stat block or the order into prose; HP is not
-       restated there either.
+       failures and critical hits automatically.
+    5. narrative_format is a single line ending in "Initiative Order"; each NPC's full sheet rides a
+       separate `sheets` payload shown as client-side name tooltips. Never dump a stat block or the
+       order into prose.
 
     EXAMPLES:
     register_combatants(combatants=[
         {"name": "Goblin", "hp": 7, "ac": 15, "initiative_modifier": 2, "challenge_rating": 0.25,
-         "role": "hostile", "speed": 30,
-         "saves": {"str": -1, "dex": 2, "con": 0, "int": 0, "wis": -1, "cha": -1},
-         "attacks": [
-             {"name": "Scimitar", "attack_bonus": 4, "damage_dice": "1d6", "damage_modifier": 2,
-              "damage_type": "slashing", "reach": 5, "properties": ["Finesse", "Light"]},
-             {"name": "Shortbow", "base": "Shortbow", "attack_bonus": 4, "damage_dice": "1d6",
-              "damage_modifier": 2, "damage_type": "piercing", "range": "80/320"}]},
-        {"name": "Ogre", "hp": 59, "ac": 11, "initiative_modifier": -1, "challenge_rating": 2,
-         "damage_resistances": ["fire"], "multiattack": 1,
-         "attacks": [{"name": "Greatclub", "attack_bonus": 6, "damage_dice": "2d8",
-                      "damage_modifier": 4, "damage_type": "bludgeoning", "reach": 5}]},
+         "role": "hostile", "attacks": [{"name": "Scimitar", "attack_bonus": 4, "damage_dice": "1d6",
+         "damage_modifier": 2, "damage_type": "slashing"}]},
     ])
-
-    register_combatants(combatants=[
-        {"name": "Guard Reinforce 1", "hp": 11, "ac": 16, "role": "hostile"},
-        {"name": "Guard Reinforce 2", "hp": 11, "ac": 16, "role": "hostile"},
-    ], add_to_existing=True)
     """
     global _COMBAT_REGISTRY, DB_CONNECTION
 
@@ -4148,37 +3993,27 @@ def update_combatant(name: str, conditions_add: list[str] | None = None,
                      conditions_remove: list[str] | None = None,
                      hp_delta: int | None = None, max_hp: int | None = None,
                      ac: int | None = None, exhaustion_delta: int | None = None) -> dict:
-    """
-    Changes a registered combatant mid-fight: conditions, exhaustion and (NPC) HP / defence.
+    """Changes a registered combatant mid-fight: conditions, exhaustion and (NPC) HP / defence.
 
     PARAMETERS:
     - name: the combatant exactly as registered
-    - conditions_add / conditions_remove: SRD conditions, e.g. ['prone', 'restrained']. Adding a
-      condition the creature is immune to is refused (reported in 'blocked_conditions').
-      `exhaustion` here means one level (+1 / clear).
-    - exhaustion_delta: (int) add or remove exhaustion levels (SRD 5.1, 0-6). For the player this
-      updates the sheet and re-derives the HP maximum; for an NPC it updates the registry entry.
+    - conditions_add / conditions_remove: conditions to add/remove. Adding an immune condition is
+      refused (returned in 'blocked_conditions'). A condition a TOOL already applied is returned under
+      `already_present` and changes nothing.
+    - exhaustion_delta: (int) add or remove exhaustion levels (0-6). For the player this updates the
+      sheet and re-derives the HP maximum; for an NPC it updates the registry entry.
     - hp_delta: (NPCs only) signed change; clamped to [0, max_hp], sets 'killed' at 0
     - max_hp / ac: (NPCs only) correct the declared values
 
     PROJECT-SPECIFIC BEHAVIORS:
-    1. Conditions drive the engine automatically: blinded/prone/restrained/poisoned/frightened/
-       invisible modify attack rolls, paralyzed/petrified/stunned/unconscious auto-fail STR/DEX
-       saves and are hit critically in melee, petrified resists all damage.
-    2. A condition a TOOL applied (a spell's Paralyzed, Sleep's Unconscious) is already on the
-       combatant — never re-declare it. Adding one that is already present returns it under
-       `already_present` and changes nothing.
-    3. Exhaustion is a level: `conditions_add=['exhaustion']` adds one level and `exhaustion_delta`
-       adjusts it; level 4 halves the HP maximum, level 6 is death.
-    4. The player's conditions are stored on their sheet; use modify_player_numeric for player HP.
-    5. There is no end-combat call — declare a new registry with register_combatants when one is
-       needed.
+    1. Conditions drive the engine automatically (advantage/disadvantage, auto-failed saves, melee crits
+       against helpless targets, petrified resists all damage).
+    2. The player's conditions live on their sheet; use modify_player_numeric for player HP.
+    3. There is no end-combat call — declare a new registry with register_combatants when one is needed.
 
     EXAMPLES:
     update_combatant(name='Goblin', conditions_add=['prone'])
-    update_combatant(name='Ogre', hp_delta=-13)
     update_combatant(name='{player_name}', exhaustion_delta=1)
-    update_combatant(name='{player_name}', conditions_add=['restrained'])
     """
     global DB_CONNECTION
     entry = _COMBAT_REGISTRY.get(name)
@@ -4204,21 +4039,16 @@ def update_combatant(name: str, conditions_add: list[str] | None = None,
     # Exhaustion is a level, not a boolean condition.
     cond_add = [str(c).strip().lower() for c in (conditions_add or []) if str(c).strip()]
     cond_remove = [str(c).strip().lower() for c in (conditions_remove or [])]
-    add_levels = cond_add.count("exhaustion") + int(exhaustion_delta or 0)
+    add_levels = int(exhaustion_delta or 0)
     if is_player:
         if add_levels:
             _apply_exhaustion_change(cursor, add_levels, reason="update_combatant")
-        if "exhaustion" in cond_remove:
-            _db_set(cursor, "exhaustion", "0")
-            DB_CONNECTION.commit()
-            _recompute_exhaustion_hp(cursor)
         entry["exhaustion"] = _exhaustion_level(cursor)
         current = _player_conditions(cursor)
     else:
         entry["exhaustion"] = max(0, min(EXHAUSTION_MAX,
             int(entry.get("exhaustion") or 0) + add_levels))
-        if "exhaustion" in cond_remove:
-            entry["exhaustion"] = 0
+    # `exhaustion` is a level, not a condition: adjust it with exhaustion_delta.
     cond_add = [c for c in cond_add if c != "exhaustion"]
     cond_remove = [c for c in cond_remove if c != "exhaustion"]
 
@@ -4307,87 +4137,51 @@ def resolve_attack(
     attack: str | None = None,
     damage_type: str | None = None,
 ) -> dict:
-    """
-    Resolves a full weapon/unarmed attack: attack roll, damage, HP application, kill detection, XP award.
+    """Resolves a full weapon/unarmed attack: attack roll, damage, HP application, kill detection, XP award.
 
     PARAMETERS:
     - actor: who is attacking — character name for player, NPC name for NPCs
-    - weapon: (player attacks) the item the player attacks with, named exactly as it appears in the
-      inventory. The engine derives attack_modifier, damage dice and damage modifier from it, its
-      SRD archetype (or declared `base`) and the character's stats/proficiency. If it is not in
-      hand the attack is REFUSED (no roll) — the action is spent, see behaviour 11.
-    - attack: (NPC attacks) the name of a declared attack in the NPC's registry entry, e.g.
-      'Scimitar'. The engine derives attack bonus, damage dice, damage modifier and damage type
-      from it (declare a `base` to fill any gap). Refused when the actor is not registered or the
-      attack is not declared.
-    - damage_type: the damage type (e.g. 'fire'). Used for resistances/immunities/vulnerabilities;
-      filled automatically from weapon= or attack= when omitted.
+    - weapon: (player attacks) the item the player attacks with, named exactly as in the inventory. The
+      engine derives attack_modifier, damage dice/modifier from it, its SRD archetype (or declared
+      `base`) and the character's stats/proficiency. If it is not in hand the attack is REFUSED (no
+      roll); the action is spent.
+    - attack: (NPC attacks) the name of a declared attack in the NPC's registry entry. The engine
+      derives the bonus, dice and type from it. Refused when the actor is not registered or the attack
+      is not declared.
+    - damage_type: used for resistances/immunities/vulnerabilities; filled automatically from weapon=
+      or attack= when omitted.
     - off_hand: set True for the bonus-action attack of TWO-WEAPON FIGHTING. Both hands must hold a
-      different light melee weapon; the damage takes no ability modifier unless it is negative.
-      Refused otherwise (the bonus action is spent).
-    - target_ac: omit it for a target in the combat registry — the engine uses the AC you declared
-      at register_combatants (falls back to 10).
-    - attack_modifier: bonus to the d20 attack roll (omit when passing weapon; an explicit value
-      always wins)
-    - target_ac: target's armor class
-    - damage_dice: primary damage dice (e.g. '1d8'), doubled on crit (omit when passing weapon)
-    - damage_modifier: flat bonus added to damage (omit when passing weapon; an explicit 0 is kept)
-    - target_name: optional name for HP lookup via combat registry
-    - target_current_hp: optional current HP (auto-looked up from registry if omitted)
-    - challenge_rating: optional CR for XP awards (auto-looked up from registry if omitted)
-    - extra_damage_dice: bonus damage dice NOT doubled on crit (e.g. elemental riders, sneak attack)
+      different light melee weapon; the damage takes no ability modifier unless negative. Refused otherwise.
+    - target_ac: target's armour class (omit for a registry target — the engine uses the registered AC).
+    - attack_modifier / damage_dice / damage_modifier: explicit values (omit when passing weapon; an
+      explicit value always wins).
+    - target_name: optional name for HP lookup via the combat registry
+    - target_current_hp: optional current HP (auto-looked up from the registry if omitted)
+    - challenge_rating: optional CR for XP awards (auto-looked up if omitted)
+    - extra_damage_dice: bonus damage dice NOT doubled on crit
     - extra_damage_modifier: flat bonus for extra damage (default 0)
     - is_npc_attack: NPC attacking player — damage auto-applied to player HP, no slot consumed
     - is_npc_vs_npc: NPC attacking NPC — no player HP modified, no XP auto-awarded
     - advantage: roll 2d20 take highest
-    - force_crit: any successful hit becomes a crit (for unconscious/paralyzed targets within 5 feet)
+    - force_crit: any successful hit becomes a crit
 
     PROJECT-SPECIFIC BEHAVIORS:
-    1. Combat registry: if register_combatants was called, target_current_hp and challenge_rating
-       auto-lookup from the registry. Registry HP is updated after each hit — sequential hits on
-       the same target use the correct reduced HP.
-    2. Extra damage dice are NOT doubled on crit. Put everything in damage_dice if you want all dice doubled.
-    3. Temporary HP on the player is drained before real HP when is_npc_attack=True.
-    4. XP auto-awarded on kill (unless is_npc_vs_npc=True). Uses the CR/XP table internally.
-    5. EQUIPPED WEAPONS (SRD 5.1): pass weapon='<item>' for a player attack and the engine derives
-       the roll from the equipped item (ability + proficiency + magic bonuses, damage from its
-       dice/base). If the item is not in hand the attack is REFUSED without a roll: the result has
-       success=false, error='item_not_equipped' (or 'item_not_carried' / 'weapon_stats_unknown'),
-       turn_lost=true and a gm_instruction.
-    6. A Versatile weapon uses its two-handed damage die while the other hand is free. A one-handed
-       Ammunition weapon (hand crossbow, sling, blowgun) cannot be fired while the other hand holds
-       something — it needs a free hand to load (error 'cannot_reload').
-    7. Conditions on either side drive the roll automatically (blinded, prone, restrained, poisoned,
-       frightened, invisible, paralyzed, petrified, stunned, unconscious): advantage/disadvantage,
-       and a critical hit against a helpless target in melee. Damage against a registered NPC is
-       adjusted by its declared resistances/immunities/vulnerabilities and reported as
-       'damage_modified'.
-    8. A player attacking in armour/shields they are not proficient with rolls at disadvantage
-       (reported in 'disadvantage_sources').
+    1. Registry: target_current_hp and challenge_rating auto-look up; registry HP updates after each
+       hit, so sequential hits use the correct reduced HP.
+    2. XP is auto-awarded on kill (unless is_npc_vs_npc=True).
+    3. EQUIPPED WEAPONS: a refused attack returns success=false, error='item_not_equipped' (or
+       'item_not_carried' / 'weapon_stats_unknown'), turn_lost=true and a gm_instruction.
+    4. A Versatile weapon uses its two-handed die while the other hand is free. A one-handed Ammunition
+       weapon cannot be fired while the other hand holds something (error 'cannot_reload').
+    5. Conditions on either side drive the roll automatically (advantage/disadvantage, melee crits
+       against helpless targets); damage against a registered NPC is adjusted by its declared
+       resistances/immunities/vulnerabilities and reported as 'damage_modified'.
+    6. A player attacking in armour/shields they are not proficient with rolls at disadvantage (reported
+       in 'disadvantage_sources').
 
     EXAMPLES:
-    resolve_attack(actor='{player_name}', weapon='Longsword', target_ac=13,
-                   target_name='Goblin', target_current_hp=12, challenge_rating=0.5)
-
+    resolve_attack(actor='{player_name}', weapon='Longsword', target_ac=13, target_name='Goblin', target_current_hp=12, challenge_rating=0.5)
     resolve_attack(actor='Goblin', attack='Scimitar', target_name='{player_name}', is_npc_attack=True)
-
-    resolve_attack(actor='{player_name}', attack_modifier=4, target_ac=13,
-                   damage_dice='1d8', damage_modifier=2, target_name='Goblin',
-                   target_current_hp=12, challenge_rating=0.5)
-
-    resolve_attack(actor='Goblin', attack_modifier=4, target_ac=13,
-                   damage_dice='1d6', damage_modifier=2, target_name='{player_name}',
-                   is_npc_attack=True)
-
-    resolve_attack(actor='{player_name}', attack_modifier=5, target_ac=15,
-                   damage_dice='1d4', damage_modifier=3,
-                   extra_damage_dice='1d6', extra_damage_modifier=0,
-                   target_name='Orc Brute', target_current_hp=25,
-                   challenge_rating=0.5)
-
-    resolve_attack(actor='Town Guard', attack_modifier=4, target_ac=13,
-                   damage_dice='1d8', damage_modifier=2, target_name='Goblin',
-                   target_current_hp=12, is_npc_vs_npc=True)
     """
     global DB_CONNECTION
     if DB_CONNECTION is None:
@@ -5298,160 +5092,69 @@ def resolve_magic(
     targets: list[dict] | None = None,
     components: str | None = None,
 ) -> dict:
-    """
-    Resolves a full spell: spell slot management, attack/save, damage/healing, HP application, kill detection, XP award.
+    """Resolves a full spell: slot management, attack/save, damage/healing, HP application, kill detection, XP award.
 
     PARAMETERS:
     - spell_name: spell name (looked up in config/spells.yml; custom spells need attack_type + damage_dice)
     - actor: who is casting — character name for player, NPC name for NPCs
-    - spell_attack_modifier: bonus to d20 for attack_roll spells
-    - spell_save_dc: save DC for saving_throw spells
-    - target_ac: target AC (required for attack_roll spells)
-    - target_name: optional name for HP lookup via combat registry
-    - target_current_hp: optional current HP (auto-looked up from registry if omitted; pass it for
-      a wounded creature)
-    - target_max_hp: optional maximum HP ceiling for healing (auto-looked up from the registry, or
-      the player's sheet, if omitted; pass it for a wounded creature)
-    - challenge_rating: optional CR for XP awards (auto-looked up from registry if omitted)
-    - target_save_modifier: save bonus for single-target saving_throw spells (omit it for a target
-      in the combat registry — the engine uses its declared saves)
-    - player_situational_modifier: a situational bonus/penalty added to the player's save when
-      is_npc_attack=True — the engine derives the base save (ability + proficiency + item bonuses)
-      from the sheet, so do NOT pass the base modifier here
+    - attack_type: "attack_roll", "saving_throw" or "automatic" (from the DB or an override)
+    - save_type: ability for a saving throw (e.g. 'dex', 'wis')
+    - save_half: half damage on a successful save (default True)
     - spell_attack_modifier / spell_save_dc: omit for a registered NPC caster — the engine uses the
-      `spellcasting` block you declared at register_combatants
-    - slot_level: upcast slot level (defaults to spell's native level)
+      `spellcasting` block declared at register_combatants.
+    - target_ac: target AC (required for attack_roll spells)
+    - target_name / target_current_hp / target_max_hp: registry lookup by name; pass the HP values for a
+      wounded creature (a healing ceiling is resolved from the registry or the player's sheet).
+    - challenge_rating: optional CR for XP awards (auto-looked up if omitted)
+    - target_save_modifier: save bonus for a single-target saving_throw spell (omit for a registry
+      target — the engine uses its declared saves)
+    - player_situational_modifier: a situational add-on to the player's save when is_npc_attack=True (the
+      engine derives the base save; do NOT pass the base modifier)
+    - slot_level: upcast slot level (defaults to the spell's native level)
+    - is_scroll: cast from a scroll — no slot consumed; above-level scrolls require an ability check
     - is_npc_attack: NPC casting on player — damage auto-applied to player HP, no slot consumed
-    - is_scroll: cast from scroll — no slot consumed, ability check for scrolls above caster level (DMG p.200)
-    - attack_type: "attack_roll", "saving_throw", or "automatic" (from DB or override)
-    - save_type: ability for saving throw (e.g. 'dex', 'wis')
-    - save_half: half damage on successful save (default True)
-    - damage_dice: custom damage dice (override, needed for spells not in DB)
-    - damage_modifier: flat damage bonus (default 0)
-    - damage_type: damage type label (e.g. 'fire', 'force')
-    - cantrip_scaling: enable auto-scaling at levels 5/11/17
-    - higher_levels: upcast scaling string (e.g. '+1d6')
-    - healing: spell heals instead of dealing damage
-    - aoe: spell affects an area
-    - ritual: cast as ritual — no slot consumed
     - is_npc_vs_npc: NPC casting on NPC — no player HP modified, no XP auto-awarded
     - caster_level: caster level for NPC-vs-NPC cantrip scaling
-    - advantage: roll 2d20 take highest (attack_roll only)
-    - force_crit: successful hit becomes crit (attack_roll only, unconscious/paralyzed targets within 5 feet)
-    - targets: list of dicts for AoE multi-target resolution. Fields vary by spell type:
-        HP pool (Sleep/Color Spray): {"name": str, "current_hp": int}
-        Saving throw (Fireball/etc.): {"name": str, "current_hp": int, "save_modifier": int, "challenge_rating": float}
-          Add {"is_player": True} to auto-apply damage to player HP in the DB.
-        Projectiles (Magic Missile / Scorching Ray / Eldritch Blast): {"name": str, "darts": int}
-          'darts' must be given on every target and total the spell's projectile count
-          (3 for Magic Missile at 1st level, +1 per upcast level). Omit 'darts' (or omit
-          'targets') to send every projectile at a single target.
+    - damage_dice / damage_modifier / damage_type: custom damage (override; needed for unknown spells)
+    - cantrip_scaling: auto-scale damage at levels 5/11/17
+    - higher_levels: upcast scaling string (e.g. '+1d6')
+    - healing: the spell heals instead of dealing damage
+    - aoe: the spell affects an area
+    - ritual: cast as a ritual — no slot consumed
+    - advantage / force_crit: attack_roll only
+    - components: component override for a homebrew/custom spell (else config/components.yml; unknown = V,S,M)
+    - targets: list of dicts for multi-target resolution. Fields vary by spell type:
+        HP pool: {"name": str, "current_hp": int}
+        Saving throw: {"name": str, "current_hp": int, "save_modifier": int, "challenge_rating": float};
+          add {"is_player": True} to auto-apply damage to player HP.
+        Projectiles: {"name": str, "darts": int}; 'darts' must total the spell's projectile count.
+          Omit 'darts'/'targets' to send every projectile at one target.
 
     PROJECT-SPECIFIC BEHAVIORS:
-    1. Slot validation happens BEFORE dice are rolled. Empty slots return an error with available slots.
-    2. Known spells from DB auto-consume a slot. Cantrips, rituals, scrolls, and NPC attacks do not.
-    3. Duplicate active buff spells (e.g. casting Shield while Shield is already active) are rejected
-       BEFORE slot consumption.
-    4. Multi-target AoE: damage is rolled ONCE, individual saves per target, one slot consumed.
-       HP is tracked through the combat registry. XP summed from all kills with CRs.
-    5. HP pool spells (Sleep): targets sorted by HP ascending, pool drained in order.
-    6. Extra damage dice are NOT doubled on crit.
-    7. Temporary HP on the player is drained before real HP when is_npc_attack=True.
-    8. Scrolls above caster's available slot level trigger an ability check (d20 + spellcasting mod vs DC 10 + spell level).
-       On failure, scroll is wasted and spell does not take effect.
-    9. A spellbook caster (wizard-style) whose Spellbook item is missing from the inventory cannot cast leveled
-       spells (cantrips still work) and cannot prepare spells until the book is recovered.
-    10. Multi-projectile spells resolve each projectile separately: automatic spells (Magic Missile)
-       never roll to hit and strike simultaneously; attack-roll spells (Scorching Ray, Eldritch Blast)
-       roll a separate attack per projectile. 'darts' splits them across targets.
-    11. FREE HAND (SRD 5.1 components): a player spell with somatic (S) or material (M) components
-       cannot be cast with both hands occupied — the engine REFUSES it before any dice or slot use
-       (success=false, error='both_hands_occupied', turn_lost=true, gm_instruction; no slot spent).
-       A spell with only V needs no hand. Components come from config/components.yml, else the
-       components='...' you pass (use it for homebrew/custom spells); an unknown spell is treated as
-       V,S,M.
-    12. ARMOUR PROFICIENCY (SRD 5.1): a player wearing armour they are not proficient with cannot
-       cast ANY spell — refused before any roll or slot use (success=false,
-       error='armor_not_proficient', turn_lost=true; no slot spent). The armour's type must be in
-       armor_proficiencies ('Light armor', 'Medium armor', 'Heavy armor', 'Shields'); a shield counts.
-    13. HEALING AND MAX HP: healing is capped at the target's maximum HP. Every healing result
-       declares `max_hp` and `remaining_hp` automatically — from the combat registry for NPCs and
-       from `total_hit_points` for the player — so you never pass a ceiling unless the creature is
-       already wounded (then pass `target_current_hp` and `target_max_hp`, which win). `healing_total`
-       is the amount rolled; `healing_applied` is what actually landed. Temporary hit points are a
-       SEPARATE pool that may exceed the maximum (e.g. False Life) and are reported on their own.
+    1. Slot validation happens BEFORE dice; empty slots return the available slots. Known spells
+       auto-consume a slot; cantrips, rituals, scrolls and NPC attacks do not.
+    2. Duplicate active buff spells are rejected BEFORE slot consumption.
+    3. Multi-target AoE: damage rolled ONCE, individual saves per target, one slot. HP is tracked through
+       the registry; XP summed from all kills.
+    4. HP-pool spells: targets sorted by HP ascending, pool drained in order.
+    5. Extra damage dice are NOT doubled on crit.
+    6. Temporary HP on the player is drained before real HP when is_npc_attack=True.
+    7. Multi-projectile spells resolve each projectile separately; automatic spells strike
+       simultaneously, attack-roll spells roll per projectile.
+    8. FREE HAND: a player spell with somatic/material components is REFUSED with both hands occupied
+       (success=false, error='both_hands_occupied', turn_lost=true; no slot spent). Components come from
+       config/components.yml, else the components= you pass; an unknown spell is V,S,M.
+    9. ARMOUR PROFICIENCY: a player in armour they are not proficient with cannot cast ANY spell —
+       refused before any roll or slot use (error='armor_not_proficient').
+    10. HEALING AND MAX HP: healing is capped at the target's maximum. Every healing result declares
+       `max_hp` and `remaining_hp`; `healing_total` is what was rolled, `healing_applied` is what
+       landed. Temporary hit points are a separate pool that may exceed the maximum.
 
     EXAMPLES:
-    resolve_magic(spell_name='Fireball', actor='{player_name}',
-                  spell_save_dc=15,
-                  targets=[
-                      {"name": "Goblin", "current_hp": 7, "save_modifier": 2, "challenge_rating": 0.25},
-                      {"name": "Goblin", "current_hp": 7, "save_modifier": 2, "challenge_rating": 0.25},
-                      {"name": "Hobgoblin", "current_hp": 11, "save_modifier": 1, "challenge_rating": 0.5},
-                  ])
-
-    resolve_magic(spell_name='Fireball', actor='Evil Wizard',
-                  is_npc_attack=True, spell_save_dc=15,
-                  targets=[
-                      {"name": "{player_name}", "current_hp": 7, "save_modifier": 3, "is_player": True},
-                      {"name": "Captain Holt", "current_hp": 30, "save_modifier": 4},
-                      {"name": "Town Guard", "current_hp": 25, "save_modifier": 2},
-                  ])
-
-    resolve_magic(spell_name='Sleep', actor='{player_name}',
-                  targets=[
-                      {"name": "Guard 1", "current_hp": 11},
-                      {"name": "Guard 2", "current_hp": 11},
-                      {"name": "Guard 3", "current_hp": 11},
-                  ])
-
-    resolve_magic(spell_name='Fireball', actor='{player_name}',
-                  spell_save_dc=15,
-                  target_name='Goblin Shaman', target_current_hp=24,
-                  challenge_rating=1)
-
-    resolve_magic(spell_name='Fireball', actor='{player_name}',
-                  spell_save_dc=15,
-                  target_name='Ogre', target_current_hp=60,
-                  challenge_rating=2, slot_level=5)
-
-    resolve_magic(spell_name='Fire Bolt', actor='{player_name}',
-                  spell_attack_modifier=6, target_ac=14,
-                  target_name='Orc', target_current_hp=18,
-                  challenge_rating=0.5)
-
-    resolve_magic(spell_name='Detect Magic', actor='{player_name}',
-                  attack_type='saving_throw', save_type='wis',
-                  spell_save_dc=13, ritual=True)
-
-    resolve_magic(spell_name='Void Blast', actor='{player_name}',
-                  spell_attack_modifier=7, target_ac=16,
-                  attack_type='attack_roll',
-                  damage_dice='3d10', damage_type='force',
-                  target_name='Shadow Wraith', target_current_hp=40,
-                  challenge_rating=4, slot_level=3)
-
-    resolve_magic(spell_name='Magic Missile', actor='Evil Wizard',
-                  is_npc_attack=True,
-                  attack_type='automatic',
-                  damage_dice='3d4', damage_modifier=3,
-                  damage_type='force',
-                  target_name='{player_name}')
-
-    resolve_magic(spell_name='Fireball', actor='Dark Wizard',
-                  spell_save_dc=15, target_save_modifier=2,
-                  target_name='Town Guard', target_current_hp=30,
-                  is_npc_vs_npc=True, caster_level=7)
-
-    resolve_magic(spell_name='Fire Bolt', actor='Dark Wizard',
-                  spell_attack_modifier=6, target_ac=14,
-                  target_name='Town Guard', target_current_hp=20,
-                  is_npc_vs_npc=True, caster_level=11)
-
-    resolve_magic(spell_name='Inflict Wounds', actor='{player_name}',
-                  spell_attack_modifier=4, target_ac=10,
-                  target_name='Sleeping Guard', target_current_hp=6,
-                  challenge_rating=0, advantage=True, force_crit=True)
+    resolve_magic(spell_name='Fireball', actor='{player_name}', spell_save_dc=15,
+                  targets=[{"name": "Goblin", "current_hp": 7, "save_modifier": 2, "challenge_rating": 0.25}])
+    resolve_magic(spell_name='Fire Bolt', actor='{player_name}', spell_attack_modifier=6, target_ac=14,
+                  target_name='Orc', target_current_hp=18, challenge_rating=0.5)
     """
     global DB_CONNECTION
     spells_db = _load_spells()

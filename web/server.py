@@ -584,8 +584,6 @@ async def ws_endpoint(websocket: WebSocket, sid: str):
                 await session.resume()
             elif mtype == "save":
                 await session.submit_save()
-            elif mtype == "sync":
-                await session.submit_slash("/sync")
             elif mtype == "stats":
                 await session.submit_slash("/stats")
             elif mtype == "flags":

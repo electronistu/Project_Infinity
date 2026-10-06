@@ -146,14 +146,14 @@ class SaveLookupTest(H.EngineCase):
                                    targets=[{"name": "Goblin"}])
         self.assertEqual(r["targets"][0]["save_modifier"], 2)   # registry DEX save
 
-    def test_legacy_single_save_modifier_is_used(self):
+    def test_legacy_single_save_modifier_is_ignored(self):
         guard = {"name": "Guard", "hp": 11, "ac": 16, "initiative_modifier": 1, "save_modifier": 3}
         with H.fixed_rolls([15, 6]):
             H.ds.register_combatants([guard])
         with H.fixed_rolls([10]):
             r = H.ds.resolve_magic(spell_name="Burning Hands", actor="Borin", spell_save_dc=15,
                                    save_type="dex", targets=[{"name": "Guard"}])
-        self.assertEqual(r["targets"][0]["save_modifier"], 3)
+        self.assertEqual(r["targets"][0]["save_modifier"], 0)  # legacy field dropped
 
     def test_npc_caster_dc_and_player_save_are_derived(self):
         with H.fixed_rolls([15, 6, 7]):

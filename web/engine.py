@@ -98,7 +98,6 @@ HELP_TEXT = (
     "/help  - show this help\n"
     "/stats - show the current character sheet\n"
     "/save  - write the character sheet to your .player file (active effects reverted)\n"
-    "/sync  - force a database sync with the GM\n"
     "/quit  - end the session\n\n"
     "Anything else is sent to the Game Master as an action."
 )
@@ -269,7 +268,7 @@ def _gm_tool_view(name: str, text: str) -> str:
     return json.dumps(view, ensure_ascii=True)
 
 
-def _clean_sync_tokens(text: str) -> str:
+def _clean_pause_tokens(text: str) -> str:
     for token in PAUSE_TOKENS:
         text = text.replace(token, "")
     return text.strip()
@@ -485,7 +484,7 @@ class GameSession:
                         "tools": [t["function"]["name"] for t in self.tools_schema],
                     })
 
-                    # ── Awakening: WWF -> tools -> sync token -> resume -> opening scene ──
+                    # ── Awakening: WWF -> tools -> pause token -> resume -> opening scene ──
                     # (The opening illustration is requested by the GM itself, in
                     # the awakening tool batch — see GameMaster_MCP.md.)
                     await self._emit({"type": "busy", "value": True})
@@ -560,14 +559,6 @@ class GameSession:
             except (json.JSONDecodeError, TypeError):
                 db_data = {}
             await self._emit({"type": "stats", "data": build_stats(db_data) if isinstance(db_data, dict) else {}})
-        elif cmd == "/sync":
-            await self._emit({"type": "busy", "value": True})
-            self._mechanics_lines = []
-            try:
-                await self._run_role("{{_SYNC_DATABASE}}", "sync")
-                await self._emit({"type": "notice", "title": "Sync", "text": "Database synchronized."})
-            finally:
-                await self._emit({"type": "busy", "value": False})
         elif cmd == "/save":
             await self._handle_save_command()
         elif cmd == "/quit":
@@ -672,7 +663,7 @@ class GameSession:
                           "text": f"Summarising turns {start}-{target_turn} for the save..."})
         prompt = TIMELINE_PROMPT.replace("X-Y", f"{start}-{target_turn}")
         text = await self._plain_summary(prompt)
-        entry = _clean_sync_tokens(text or "")
+        entry = _clean_pause_tokens(text or "")
         if entry and "**Key Events**" in entry:
             append_timeline_file(self.timeline_path, entry)
             self.last_timeline_turn = target_turn

@@ -85,7 +85,6 @@ Everything is cached under `output/images/{stem}/` and regenerates only when the
 
 | Control | Where | What it does |
 |---------|-------|--------------|
-| **Sync** | Header | Force a full database sync so the GM's memory matches your actual state |
 | **Save** | Header | Save the game in place (see below) |
 | **Load** | Header | Load a saved game — from the start screen or mid-session |
 | **End** | Header | End the session (**Save & end**, **End without saving**, or Cancel) |
@@ -103,12 +102,9 @@ Everything is cached under `output/images/{stem}/` and regenerates only when the
 
 ### When the GM forgets something
 
-The GM is an AI and can miss an update. If you spot one:
+The GM is an AI and can miss an update. If you spot one, **tell the GM directly** — exactly as you would a human DM. The engine is authoritative, so a direct instruction is all it takes to correct your state (or the GM will re-derive it on the next rule call).
 
-1. **Press Sync first** — a full database refresh; the GM reviews your state and may self-correct.
-2. **If that doesn't work, tell the GM directly**, exactly as you would a human DM.
-
-This works for any missed mechanic: gold, inventory, spell slots, hit dice, conditions, or an item whose state changed (a note opened, a lamp lit).
+This works for any missed mechanic: gold, inventory, spell slots, hit dice, conditions, or an item whose state changed (a note opened, a lamp lit). The sheet's **Refresh** button reloads your own view straight from the engine at any time.
 
 ---
 
@@ -128,12 +124,12 @@ Most AI RPGs let the language model make up numbers. Project Infinity runs every
 
 Under the hood:
 
-- **The engine is authoritative.** A local **MCP server** with an in-memory SQLite database, initialised from your `.player`. Every action is a verified tool call; the GM's rules and constraints live in [`GameMaster_MCP.md`](GameMaster_MCP.md).
+- **The engine is authoritative.** A local **MCP server** with an in-memory SQLite database, initialised from your `.player`. Every action is a verified tool call; the GM's protocol lives in [`GameMaster_MCP.md`](GameMaster_MCP.md), and each engine tool's contract is its own description (surfaced from `dice_server.py`).
 - **Dice & checks** — `perform_check` (`d20 + modifier` vs a DC, natural-20/1 criticals) and `roll_dice` (any notation, e.g. `3d6+2`). Player ability/skill checks are engine-derived (ability + skill proficiency, doubled for Expertise or halved for Jack of All Trades, + item bonuses), and passive Perception/Investigation/Insight (10 + modifier) are exposed on the sheet.
 - **State authority** — `modify_player_numeric` and `update_player_list` own all state; HP clamps to `[0, max]`; dropping to 0 starts death saves (`make_death_save`), massive leftover damage is instant death, and healing any real HP clears the counters.
 - **Exhaustion & concentration** — `modify_exhaustion` tracks the SRD level 0–6 and the engine applies the whole table (checks, speed, attacks/saves, halved HP maximum, death); a long rest removes one level. The engine also tracks the player's concentration spell and rolls the CON save (DC 10 or half the damage) when damage lands, ending the spell on a failure. The sheet's **Condition** card shows the exhaustion level, the active concentration spell and the death-save counters.
 - **Combat authority** — `register_combatants` declares a full stat block once; `resolve_attack` and `resolve_magic` derive AC, saves, damage types and conditions from it; `update_combatant` adjusts the registry mid-fight.
-- **Phased resolution** — the GM resolves all mechanics first (pausing with a sync token), then narrates, so results are mechanically correct before the story is told.
+- **Phased resolution** — the GM resolves all mechanics first (pausing between the two phases on a system handshake), then narrates, so results are mechanically correct before the story is told.
 
 ### What the Game Master sees
 

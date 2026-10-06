@@ -53,8 +53,7 @@ function stripTokens(s) {
   return String(s)
     .replace(/\{\{_NEED_AN_OTHER_PROMPT\}\}/g, "")
     .replace(/\{\{_NEED_ANOTHER_PROMPT\}\}/g, "")
-    .replace(/\{\{_CONTINUE_EXECUTION\}\}/g, "")
-    .replace(/\{\{_SYNC_DATABASE\}\}/g, "");
+    .replace(/\{\{_CONTINUE_EXECUTION\}\}/g, "");
 }
 
 function fmtNum(n) { return Number(n || 0).toLocaleString(); }
@@ -1387,7 +1386,6 @@ function updateComposer() {
   input.disabled = !enabled;
   sendBtn.disabled = !enabled;
   $("refresh-stats").disabled = !(state.connected && state.ready);
-  $("sync-open").disabled = !(state.connected && state.ready);
   $("end-session").disabled = !state.sessionId;
 }
 
@@ -1399,12 +1397,6 @@ function requestStats() {
   if (!state.connected || !state.ready) return;
   state.lastCommandType = "stats";
   send({ type: "stats" });
-}
-
-function requestSync() {
-  if (!state.connected || !state.ready) return;
-  state.lastCommandType = "sync";
-  send({ type: "sync" });
 }
 
 function submitInput() {
@@ -1439,7 +1431,7 @@ function handleEvent(evt) {
       break;
 
     case "assistant_start":
-      if (evt.label === "timeline" || evt.label === "sync") {
+      if (evt.label === "timeline") {
         state.cur = null; // not shown as chat; timeline surfaces via its own event
       } else if (!state.cur) {
         // One GM bubble per turn: continuation rounds (tool calls, thinking-only
@@ -2425,7 +2417,6 @@ async function init() {
   $("refresh-stats").addEventListener("click", requestStats);
   $("collapse-all").addEventListener("click", () => setAllCollapsed(true));
   $("expand-all").addEventListener("click", () => setAllCollapsed(false));
-  $("sync-open").addEventListener("click", requestSync);
   $("end-session").addEventListener("click", openEnd);
   $("end-cancel").addEventListener("click", closeEnd);
   $("end-discard").addEventListener("click", endWithoutSaving);
