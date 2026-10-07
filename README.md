@@ -54,7 +54,7 @@ Pick a world and a model, then begin. Type actions in plain English — the GM h
 
 ### Choosing a model
 
-The start screen offers curated models and a sampling temperature.
+The start screen offers curated models and, for the Ollama Cloud models, a sampling temperature.
 
 | Model | Provider | Context |
 |-------|----------|---------|
@@ -67,7 +67,7 @@ The start screen offers curated models and a sampling temperature.
 | `gemini-3.5-flash-lite` | Google | 1,048,576 |
 | `gemini-3.1-pro-preview` | Google | 1,048,576 |
 
-The Google entries appear only when `GEMINI_API_KEY` is set.
+The Google entries appear only when `GEMINI_API_KEY` is set. Gemini ignores custom sampling: `temperature`/`top_p`/`top_k` are deprecated and fixed to the model's optimal defaults, so the temperature control is disabled for Gemini models and each model uses its own `thinking_level` (reasoning effort). Ollama models keep the temperature control.
 
 ### Images
 
@@ -77,7 +77,7 @@ Image generation is **opt-in** and **cached** — nothing is drawn unless you as
 - **Storyline scenes** — one cinematic 16:9 illustration per turn. Each place keeps a hidden establishing reference, so places and regulars stay consistent; **hover an illustration to see it full size**. Each is captioned with its area, place, time of day and weather.
 - **Sheet icons** — the shared, cross-character library used by the sheet (items, spells, skills, abilities, conditions).
 
-Both image models are Google Gemini (the same `GEMINI_API_KEY`): **Nano Banana 2** (`gemini-3.1-flash-image`) draws portraits and scenes; **Nano Banana 2 Lite** (`gemini-3.1-flash-lite-image`) draws sheet icons. The start screen also sets the sheet's icon treatment: **cached icons only; no generation**, **cached icons + generate on new ones**, or **text only**.
+Both image models are Google Gemini (the same `GEMINI_API_KEY`): **Nano Banana 2.1** (`gemini-nano-banana-2.1`) draws portraits and scenes at `medium` thinking effort; **Nano Banana 2 Lite** (`gemini-3.1-flash-lite-image`) draws sheet icons. The start screen also sets the sheet's icon treatment: **cached icons only; no generation**, **cached icons + generate on new ones**, or **text only**.
 
 Everything is cached under `output/images/{stem}/` and regenerates only when the data behind it changes. A portrait is drawn from your character's **equipped** gear only. (Transcript illustrations are drawn fresh each turn and are not kept.)
 

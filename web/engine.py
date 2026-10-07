@@ -278,7 +278,7 @@ class GameSession:
     """One in-memory, long-lived game session (single user, local server)."""
 
     def __init__(self, base_dir, model: str, context_window: int = DEFAULT_CONTEXT_WINDOW,
-                 temperature: float = 1.0, think=None, verbose: bool = False,
+                 temperature: float = 1.0, think=None, thinking_level=None, verbose: bool = False,
                  debug: bool = False, scene_images: bool = False, provider: str = "ollama"):
         self.base_dir = Path(base_dir)
         self.model = model
@@ -286,6 +286,9 @@ class GameSession:
         self.context_window = context_window
         self.temperature = temperature
         self.think = think
+        # Gemini 3.x thinking effort (None = the model's own default). Ollama
+        # keeps `think`; Gemini also uses `think` for thought summaries.
+        self.thinking_level = thinking_level
         self.verbose = verbose
         self.debug = debug
         # Set at session start; gates the GM's scene-imagery instructions + tool.
@@ -402,7 +405,7 @@ class GameSession:
                 self._gemini = GeminiChat(os.environ.get("GEMINI_API_KEY") or "")
             return self._gemini.stream(
                 messages, self.model, tools=tools,
-                temperature=self.temperature, think=self.think,
+                thinking_level=self.thinking_level, think=self.think,
             )
         return stream_chat(
             self._client, self.model, messages, tools,
@@ -641,7 +644,7 @@ class GameSession:
                 self._gemini = GeminiChat(os.environ.get("GEMINI_API_KEY") or "")
             events = self._gemini.stream(
                 messages, self.model, tools=None,
-                temperature=self.temperature, think=self.think, persist=False,
+                thinking_level=self.thinking_level, think=self.think, persist=False,
             )
         else:
             events = stream_chat(
@@ -889,6 +892,10 @@ class GameSession:
         await self._emit({"type": "tool_result", "name": name, "text": text,
                           "gm_text": gm_text, "is_error": is_error})
         self.messages.append({"role": "tool", "content": gm_text, "name": name})
+        # Echo the Gemini function_call id alongside the result (strict matching on
+        # Gemini 3.x). Ollama has no call ids, so it never sees this key.
+        if self.provider == "gemini" and fn.get("id"):
+            self.messages[-1]["id"] = str(fn.get("id"))
         # The engine composes the turn's Mechanics block from narrative_format; the client
         # shows it where the GM placed the {{_MECHANICS}} token.
         mech = self._collect_mechanics(text)

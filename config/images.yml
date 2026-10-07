@@ -7,16 +7,22 @@
 # when the source fields it was built from change.
 #
 # Use GA model ids only. The `-preview` ids were retired 2026-06-25;
-# `gemini-2.5-flash-image` retires 2026-10-02. Lite is 1K-only.
+# `gemini-2.5-flash-image` retires 2026-10-02 and `gemini-3.1-flash-image`
+# (Nano Banana 2) is deprecated in favour of `gemini-nano-banana-2.1`. Lite is
+# 1K-only; NB2.1 is 1K/2K/4K (no 0.5K).
 #
 # `model` is the DEFAULT for in-story images (character portrait + storyline
-# scenes): scenes feed a location reference plus the portrait, and Nano Banana 2
-# handles multiple references far better than Lite. `icon_model` is the DEFAULT
-# for sheet icons (single subject, no references) where Lite is cheapest.
-model: gemini-3.1-flash-image
+# scenes): scenes feed a location reference plus the portrait, and Nano Banana 2.1
+# fuses multiple references (up to 14). `icon_model` is the DEFAULT for sheet
+# icons (single subject, no references) where Lite is cheapest.
+model: gemini-nano-banana-2.1
 icon_model: gemini-3.1-flash-lite-image
 aspect_ratio: "3:4"
 image_size: "1K"
+# Gemini 3 image models always think; pin the level instead of inheriting the
+# model default (NB2.1 defaults to "medium"; NB2 defaulted to "minimal"). Applies
+# to seeds, actions and portraits. Supported: minimal | medium | high.
+image_thinking_level: "medium"
 
 # Locked art direction so every asset in a save looks like it belongs to one
 # game. Gemini will happily render text, so forbid it explicitly.

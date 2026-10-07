@@ -60,7 +60,7 @@ def make_service(tmp: Path, key=None):
     svc = ImageService(tmp)
     calls = {"n": 0}
 
-    def fake(prompt, aspect_ratio=None, refs=None, ref_media_resolution=None, model=None):  # noqa: ARG001 - stub
+    def fake(prompt, aspect_ratio=None, refs=None, ref_media_resolution=None, model=None, thinking_level=None):  # noqa: ARG001 - stub
         calls["n"] += 1
         return _PNG
 
@@ -193,7 +193,7 @@ def main() -> bool:
 
         # The Lite model returns JPEG; store it under the right extension/mime.
         svc3 = ImageService(tmp)
-        svc3._generate_bytes = lambda prompt, aspect_ratio=None, refs=None, ref_media_resolution=None, model=None: b"\xff\xd8\xff\xe0" + b"j" * 32  # type: ignore[assignment]
+        svc3._generate_bytes = lambda prompt, aspect_ratio=None, refs=None, ref_media_resolution=None, model=None, thinking_level=None: b"\xff\xd8\xff\xe0" + b"j" * 32  # type: ignore[assignment]
         svc3.ensure_portrait("jpgsniff", PLAYER)
         rec("jpeg bytes stored as portrait.jpg", svc3.portrait_path("jpgsniff").name == "portrait.jpg")
         rec("portrait_file sniffs image/jpeg", svc3.portrait_file("jpgsniff")[1] == "image/jpeg")
@@ -213,6 +213,26 @@ def main() -> bool:
         afc = getattr(cfg, "automatic_function_calling", None) if cfg else None
         rec("automatic function calling disabled", afc is not None and afc.disable is True)
         rec("model id sent", fake.captured.get("model") == svc2.model)
+        rec("default story model is Nano Banana 2.1", svc2.model == "gemini-nano-banana-2.1", svc2.model)
+        rec("image_size sent", ic is not None and ic.image_size == "1K")
+        tc = getattr(cfg, "thinking_config", None) if cfg else None
+        tl = getattr(tc.thinking_level, "value", tc.thinking_level) if tc else None
+        rec("thinking_level pinned on the SDK path", str(tl).lower() == "medium", repr(tl))
+        # The level is model-specific: only NB2.1 accepts "medium"; Lite/Pro/unknown omit it.
+        for mid, expect in (("gemini-nano-banana-2.1", "medium"),
+                            ("gemini-3.1-flash-lite-image", None),
+                            ("gemini-3-pro-image", None),
+                            ("gemini-3.1-flash-image", None),
+                            ("bogus-image-model", None)):
+            svc_x = ImageService(tmp)
+            fake_x = _FakeClient()
+            svc_x._client_or_raise = lambda f=fake_x: f  # type: ignore[assignment]
+            svc_x._generate_bytes("x", model=mid)
+            cfg_x = fake_x.captured.get("config")
+            tc_x = getattr(cfg_x, "thinking_config", None) if cfg_x else None
+            lvl_x = getattr(tc_x.thinking_level, "value", tc_x.thinking_level) if tc_x else None
+            rec(f"thinking level for {mid}",
+                (str(lvl_x).lower() if lvl_x else None) == expect, repr(lvl_x))
         rec("SDK path wrote the image bytes", svc2.portrait_path("cfgtest").read_bytes() == _PNG)
 
         # Image-reference continuity: the previous portrait is sent as input.
@@ -369,7 +389,7 @@ def main() -> bool:
         sc3 = SceneService(tmp)
         captured = []
 
-        def _scene_bytes(prompt, aspect_ratio=None, refs=None, ref_media_resolution=None, model=None):
+        def _scene_bytes(prompt, aspect_ratio=None, refs=None, ref_media_resolution=None, model=None, thinking_level=None):
             captured.append((prompt, refs, ref_media_resolution))
             return jpeg(800, 450)
 

@@ -25,6 +25,7 @@ const state = {
   imagesEnabled: false,                 // opt-in; portrait + storyline scene images
   imageStatus: { available: false },    // server capability (/api/images/status)
   imageModels: [],                      // [{id,label}] offered by /api/models
+  models: [],                           // [{id,label,provider}] offered by /api/models
   imageModel: "",                       // in-story (portrait + scenes) model id
   iconModel: "",                        // sheet-icon model id
   thinkEnabled: false,                  // thinking pane SHOWN (display-only; the model always thinks)
@@ -1601,7 +1602,10 @@ function showStartError(msg) {
 
 async function startSession(save) {
   const model = $("model-select").value;
-  const temperature = parseFloat($("temp-input").value);
+  // Gemini ignores custom sampling (its sampling is fixed to the model's optimal
+  // defaults), so its temperature input is disabled and no value is sent.
+  const tempInput = $("temp-input");
+  const temperature = tempInput.disabled ? null : parseFloat(tempInput.value);
   if (state.sessionId) {
     try { await fetch(`/api/sessions/${state.sessionId}`, { method: "DELETE" }); } catch (e) { /* ignore */ }
   }
@@ -1686,15 +1690,31 @@ async function loadModels() {
     sel.appendChild(o);
   });
   $("temp-input").value = (m.default_temperature != null) ? m.default_temperature : 1.0;
+  state.models = m.models || [];
+  updateTemperatureControl();
 
   state.imageModels = m.image_models || [];
   const imageDefault = m.default_image_model || "";
   const iconDefault = m.default_icon_model || "";
   document.querySelectorAll(".image-model-select").forEach((el) => {
     el.innerHTML = "";
+    const desired = (state.imageStatus && state.imageStatus.thinking_level) || "";
     state.imageModels.forEach((x) => {
       const o = document.createElement("option");
       o.value = x.id; o.textContent = x.label || x.id;
+      // The pinned thinking level is model-specific: NB2.1 takes medium, Lite does
+      // not, and Pro takes none. Flag what each choice will actually use.
+      const levels = Array.isArray(x.thinking_levels) ? x.thinking_levels : null;
+      if (levels) {
+        if (!levels.length) {
+          o.textContent += " — no thinking level";
+        } else if (desired && !levels.includes(desired)) {
+          o.textContent += ` — thinking: ${x.thinking_level || levels[0]}`;
+        }
+        o.title = levels.length
+          ? `Thinking levels: ${levels.join(", ")}`
+          : "This model has no thinking-level setting";
+      }
       el.appendChild(o);
     });
     el.dataset.default = imageDefault;
@@ -1712,6 +1732,23 @@ async function loadModels() {
   state.imageModel = pick(state.imageModel, imageDefault);
   state.iconModel = pick(state.iconModel, iconDefault);
   applyModelSelects();
+}
+
+/* Gemini 3.x ignores custom sampling (temperature/top_p/top_k); the model uses
+   its optimal defaults and a per-model `thinking_level`. Disable the temperature
+   control for Gemini models so the UI does not imply it has an effect. */
+function updateTemperatureControl() {
+  const input = $("temp-input");
+  const spec = (state.models || []).find((x) => x.id === $("model-select").value);
+  const gemini = !!spec && spec.provider === "gemini";
+  input.disabled = gemini;
+  const label = input.closest("label");
+  if (label) {
+    label.title = gemini
+      ? "Gemini uses its own optimal sampling; thinking effort is set per model"
+      : "Sampling temperature (Ollama models)";
+    label.classList.toggle("disabled", gemini);
+  }
 }
 
 /* ── image generation (opt-in; cached portraits) ─────────── */
@@ -2455,6 +2492,7 @@ async function init() {
   $("load-open").addEventListener("click", openLoad);
   $("world-delete").addEventListener("click", () => deleteWorld($("world-select").value));
   $("world-select").addEventListener("change", updateStartPortrait);
+  $("model-select").addEventListener("change", updateTemperatureControl);
   document.querySelectorAll(".images-toggle").forEach((el) => {
     el.addEventListener("change", (e) => setImagesEnabled(e.target.checked));
   });

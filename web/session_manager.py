@@ -6,7 +6,7 @@ import uuid
 from pathlib import Path
 
 from .engine import GameSession
-from .models import DEFAULT_MODEL, DEFAULT_TEMPERATURE, resolve_model
+from .models import DEFAULT_MODEL, DEFAULT_TEMPERATURE, gemini_thinking_level, resolve_model
 
 IDLE_TTL_SECONDS = 3600      # close sessions idle for an hour
 SWEEP_INTERVAL_SECONDS = 60
@@ -53,6 +53,7 @@ class SessionManager:
             context_window=context,
             temperature=temp,
             think=think,
+            thinking_level=gemini_thinking_level(spec),
             scene_images=scene_images,
             provider=provider,
         )
@@ -92,6 +93,7 @@ class SessionManager:
             "turn_counter": session.turn_counter,
             "temperature": session.temperature,
             "think": session.think,
+            "thinking_level": session.thinking_level,
             "created": meta.get("created"),
             "last_activity": meta.get("last"),
         }

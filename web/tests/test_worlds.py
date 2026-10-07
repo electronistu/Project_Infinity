@@ -132,12 +132,12 @@ async def main() -> int:
                 any(m.get("provider") == "gemini" for m in models.get("models", [])))
             image_ids = [x.get("id") for x in models.get("image_models", [])]
             rec("/api/models returns image models + defaults",
-                "gemini-3.1-flash-image" in image_ids and "gemini-3.1-flash-lite-image" in image_ids
+                "gemini-nano-banana-2.1" in image_ids and "gemini-3.1-flash-lite-image" in image_ids
                 and models.get("default_image_model") in image_ids
                 and models.get("default_icon_model") in image_ids,
                 str(models.get("default_image_model")) + "/" + str(models.get("default_icon_model")))
-            rec("in-story default is Nano Banana 2",
-                models.get("default_image_model") == "gemini-3.1-flash-image")
+            rec("in-story default is Nano Banana 2.1",
+                models.get("default_image_model") == "gemini-nano-banana-2.1")
             rec("POST scene unknown image model -> 400",
                 (await c.post("/api/scene", json={"session_id": "scenetest", "description": "x",
                                                    "model": "not-a-model"})).status_code == 400)
@@ -243,7 +243,7 @@ async def main() -> int:
                     "three dockhands": "drinking and looking up"},
                 str(scene_refs[-1:]))
             rec("POST scene uses the config story model by default",
-                scene_models_seen[-1] == "gemini-3.1-flash-image", str(scene_models_seen[-1:]))
+                scene_models_seen[-1] == "gemini-nano-banana-2.1", str(scene_models_seen[-1:]))
             rec("action written under the save's image dir", bool(list(scenes_path.glob("action-*"))))
             rec("hidden seed written under the save's image dir", bool(list(scenes_path.glob("seed-*"))))
             url = body.get("action", {}).get("url", "")

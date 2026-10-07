@@ -132,9 +132,8 @@ def _is_retryable(exc: Exception) -> bool:
 class GeminiChat:
     """Stateful streaming Gemini backend for one game session."""
 
-    def __init__(self, api_key: str, temperature: float = 1.0):
+    def __init__(self, api_key: str):
         self.api_key = api_key or ""
-        self.temperature = temperature
         self._client = None
         self._contents: list = []
         self._system_instruction: str | None = None
@@ -193,10 +192,16 @@ class GeminiChat:
                     response = {"result": response}
             except (json.JSONDecodeError, TypeError):
                 response = {"result": payload}
-            # Gemini has no `tool` role: a function response is user input.
+            # Gemini has no `tool` role: a function response is user input. The
+            # `id` must echo the matching function_call (strict call/response
+            # matching on Gemini 3.x); older models omit it.
+            function_response = genai_types.FunctionResponse(
+                name=str(msg.get("name") or ""), response=response)
+            call_id = str(msg.get("id") or "")
+            if call_id:
+                function_response.id = call_id
             return genai_types.Content(role="user", parts=[
-                genai_types.Part.from_function_response(
-                    name=str(msg.get("name") or ""), response=response)])
+                genai_types.Part(function_response=function_response)])
         return None
 
     def _sync(self, messages: list[dict]) -> None:
@@ -232,9 +237,11 @@ class GeminiChat:
 
     # ── request config ─────────────────────────────────────────────────────
 
-    def _config(self, system, tools, temperature, think):
+    def _config(self, system, tools, think, thinking_level):
+        # Gemini 3.x: `temperature`/`top_p`/`top_k` are deprecated (fixed to the
+        # model's optimal defaults) and the numeric `thinking_budget` is retired in
+        # favour of `thinking_level`. None = the model's own default.
         kwargs = {
-            "temperature": self.temperature if temperature is None else float(temperature),
             "automatic_function_calling": genai_types.AutomaticFunctionCallingConfig(disable=True),
         }
         tool = convert_tools_to_gemini(tools) if tools else None
@@ -242,13 +249,18 @@ class GeminiChat:
             kwargs["tools"] = [tool]
         if system:
             kwargs["system_instruction"] = system
+        thinking = {}
+        if thinking_level:
+            thinking["thinking_level"] = thinking_level
         if think:
-            kwargs["thinking_config"] = genai_types.ThinkingConfig(include_thoughts=True)
+            thinking["include_thoughts"] = True
+        if thinking:
+            kwargs["thinking_config"] = genai_types.ThinkingConfig(**thinking)
         return genai_types.GenerateContentConfig(**kwargs)
 
     # ── one API round-trip ─────────────────────────────────────────────────
 
-    async def _stream_once(self, model, contents, system, tools, temperature, think):
+    async def _stream_once(self, model, contents, system, tools, think, thinking_level):
         """Yield normalized events; the final `__round` event carries the result.
 
         On the Gemini Developer API a streamed `function_call` arrives complete
@@ -262,7 +274,7 @@ class GeminiChat:
         }
         seen: set = set()
         try:
-            config = self._config(system, tools, temperature, think)
+            config = self._config(system, tools, think, thinking_level)
             client = self._client_or_raise()
             stream = await client.aio.models.generate_content_stream(
                 model=model, contents=_sanitize_contents(contents), config=config,
@@ -292,11 +304,14 @@ class GeminiChat:
                         args = getattr(call, "args", None) or {}
                         if not isinstance(args, dict):
                             args = {}
-                        signature = (call.name, json.dumps(args, sort_keys=True, default=str))
+                        call_id = getattr(call, "id", None)
+                        signature = (call.name, call_id,
+                                     json.dumps(args, sort_keys=True, default=str))
                         if signature not in seen:
                             seen.add(signature)
                             info["tool_calls"].append(
-                                {"function": {"name": call.name, "arguments": args}})
+                                {"function": {"name": call.name,
+                                              "arguments": args, "id": call_id}})
                     text = getattr(part, "text", None)
                     if text:
                         if getattr(part, "thought", False):
@@ -318,7 +333,7 @@ class GeminiChat:
 
     # ── public interface (mirrors ollama_stream.stream_chat) ──────────────
 
-    async def stream(self, messages, model, tools=None, temperature=None, think=None,
+    async def stream(self, messages, model, tools=None, think=None, thinking_level=None,
                      persist: bool = True, max_retries: int = 3):
         if genai is None or genai_types is None:
             yield {"type": "error", "message": "google-genai is not installed."}
@@ -327,7 +342,7 @@ class GeminiChat:
         if not persist:
             system, contents = self._convert_all(messages)
             async for evt in self._stream_once(model, contents, system, None,
-                                              temperature, think):
+                                              think, thinking_level):
                 if evt.get("type") != "__round":
                     yield evt
             return
@@ -339,7 +354,7 @@ class GeminiChat:
             attempt += 1
             info = None
             async for evt in self._stream_once(model, self._contents, self._system_instruction,
-                                               tools, temperature, think):
+                                               tools, think, thinking_level):
                 if evt.get("type") == "__round":
                     info = evt["info"]
                 else:

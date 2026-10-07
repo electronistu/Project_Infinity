@@ -36,6 +36,8 @@ except ImportError:  # pragma: no cover - surfaced as "unavailable" instead
     genai = None
     genai_types = None
 
+from .models import image_thinking_level
+
 
 _DEFAULT_MODEL = "gemini-3.1-flash-lite-image"
 _DEFAULT_PORTRAIT = (
@@ -249,6 +251,16 @@ def _int_or(value, default: int) -> int:
         return default
 
 
+def _thinking_level(cfg) -> str | None:
+    """The configured Gemini image `thinking_level` (None = model default).
+
+    NB2.1 defaults to `medium`; pinning it keeps the effort explicit and lets
+    the seed/portrait and action calls diverge later.
+    """
+    level = str(cfg.get("image_thinking_level") or "").strip().lower()
+    return level or None
+
+
 def _veterancy_line(level) -> str:
     """A visual experience descriptor from the character level (affects the look).
 
@@ -369,25 +381,28 @@ def _appearance_effects_config(cfg) -> dict | None:
     return None
 
 
-def _friendly_error(exc: Exception) -> str:
+def _friendly_error(exc: Exception, model: str | None = None) -> str:
+    name = f"[{model}] " if model else ""
     text = str(exc)
     low = text.lower()
     if "api key" in low or "api_key" in low or "unauthor" in low or "permission" in low:
-        return "The Gemini API key was rejected."
+        return f"{name}The Gemini API key was rejected."
     if "429" in text or "quota" in low or "rate" in low:
-        return "The image service is rate-limited — try again shortly."
+        return f"{name}The image service is rate-limited — try again shortly."
     if "safety" in low or "blocked" in low:
-        return "The image model declined to render this character."
-    return f"Image generation failed: {text[:200]}"
+        return f"{name}The image model declined to render this character."
+    return f"{name}Image generation failed: {text[:200]}"
 
 
 class GeminiImageBackend:
     """The one place that talks to Gemini for images (shared by all services)."""
 
-    def __init__(self, model: str, aspect_ratio: str, image_size: str):
+    def __init__(self, model: str, aspect_ratio: str, image_size: str,
+                 thinking_level: str | None = None):
         self.model = model
         self.aspect_ratio = aspect_ratio
         self.image_size = image_size
+        self.thinking_level = thinking_level
         self._api_key = os.environ.get("GEMINI_API_KEY") or ""
         self._client = None
 
@@ -399,6 +414,7 @@ class GeminiImageBackend:
             "available": self.available(),
             "model": self.model,
             "aspect_ratio": self.aspect_ratio,
+            "thinking_level": self.thinking_level,
         }
 
     def _client_or_raise(self):
@@ -409,22 +425,32 @@ class GeminiImageBackend:
         return self._client
 
     def _generate_bytes(self, prompt: str, aspect_ratio: str | None = None,
-                        refs=None, ref_media_resolution=None, model: str | None = None) -> bytes:
+                        refs=None, ref_media_resolution=None, model: str | None = None,
+                        thinking_level: str | None = None) -> bytes:
         client = self._client_or_raise()
         effective_model = model or self.model
-        config = genai_types.GenerateContentConfig(
-            response_modalities=["IMAGE"],
+        # Gemini 3 image models cannot disable thinking; pin the level so the
+        # model default (NB2.1 = "medium") is explicit rather than inherited.
+        # The level is model-specific (Lite rejects "medium", Pro takes none), so
+        # validate it against the actual model or the request 400s.
+        requested = thinking_level if thinking_level is not None else self.thinking_level
+        level = image_thinking_level(effective_model, requested)
+        kwargs = {
+            "response_modalities": ["IMAGE"],
             # NOTE: output_mime_type is Enterprise-only and is rejected by the
             # Gemini Developer API — never pass it here.
-            image_config=genai_types.ImageConfig(
+            "image_config": genai_types.ImageConfig(
                 aspect_ratio=aspect_ratio or self.aspect_ratio,
                 image_size=self.image_size,
             ),
             # Image generation uses no tools; disable automatic function calling
             # so the SDK takes its plain path (and stops logging the "use Chat"
             # recommendation).
-            automatic_function_calling=genai_types.AutomaticFunctionCallingConfig(disable=True),
-        )
+            "automatic_function_calling": genai_types.AutomaticFunctionCallingConfig(disable=True),
+        }
+        if level:
+            kwargs["thinking_config"] = genai_types.ThinkingConfig(thinking_level=level)
+        config = genai_types.GenerateContentConfig(**kwargs)
         resolution = ref_media_resolution
         if isinstance(resolution, str):
             resolution = getattr(genai_types.PartMediaResolutionLevel, resolution, resolution)
@@ -451,9 +477,9 @@ class GeminiImageBackend:
                         model=effective_model, contents=_contents(False), config=config,
                     )
                 except Exception as exc2:  # noqa: BLE001
-                    raise ImageError(_friendly_error(exc2)) from exc2
+                    raise ImageError(_friendly_error(exc2, effective_model)) from exc2
             else:
-                raise ImageError(_friendly_error(exc)) from exc
+                raise ImageError(_friendly_error(exc, effective_model)) from exc
 
         candidates = getattr(response, "candidates", None) or []
         content = getattr(candidates[0], "content", None) if candidates else None
@@ -477,6 +503,7 @@ class ImageService(GeminiImageBackend):
             str(cfg.get("model") or _DEFAULT_MODEL),
             str(cfg.get("aspect_ratio") or "3:4"),
             str(cfg.get("image_size") or "1K"),
+            _thinking_level(cfg),
         )
         self.style = str(cfg.get("style") or "").strip()
         self.portrait_template = str(cfg.get("portrait") or "").strip()
@@ -529,7 +556,7 @@ class ImageService(GeminiImageBackend):
     def source_hash(self, kind: str, payload: dict, model: str | None = None) -> str:
         blob = json.dumps(
             {"kind": kind, "model": model or self.model, "aspect": self.aspect_ratio,
-             "style": self.style, "payload": payload},
+             "style": self.style, "thinking_level": self.thinking_level, "payload": payload},
             sort_keys=True, default=str,
         )
         return hashlib.sha1(blob.encode("utf-8")).hexdigest()
@@ -607,7 +634,7 @@ class ImageService(GeminiImageBackend):
         prompt = self.portrait_prompt(player, has_ref=bool(refs))
         raw = downscale_image(
             self._generate_bytes(prompt, refs=refs, ref_media_resolution=self.ref_media_resolution,
-                                 model=effective),
+                                 model=effective, thinking_level=self.thinking_level),
             self.portrait_max_side,
         )
         # The Developer API returns JPEG for the Lite model (PNG isn't guaranteed),
@@ -627,6 +654,7 @@ class ImageService(GeminiImageBackend):
             "model": effective,
             "aspect_ratio": self.aspect_ratio,
             "image_size": self.image_size,
+            "thinking_level": self.thinking_level,
             "prompt": prompt,
             "source_hash": digest,
             "created": int(time.time()),
@@ -863,6 +891,7 @@ class SceneService(GeminiImageBackend):
             str(cfg.get("model") or _DEFAULT_MODEL),
             str(cfg.get("scene_aspect_ratio") or "16:9"),
             str(cfg.get("image_size") or "1K"),
+            _thinking_level(cfg),
         )
         self.output_dir = Path(output_dir) if output_dir else None
         # Scenes share the portrait's locked painterly style unless overridden.
@@ -1185,7 +1214,8 @@ class SceneService(GeminiImageBackend):
                                   change, has_seed_ref=bool(refs))
         raw = self._generate_bytes(prompt, aspect_ratio=self.aspect_ratio, refs=refs,
                                    ref_media_resolution=self.ref_media_resolution,
-                                   model=model or self.model)
+                                   model=model or self.model,
+                                   thinking_level=self.thinking_level)
         return downscale_image(raw, self.max_side) if self.max_side else raw
 
     def generate_action(self, player: dict, world: str, description: str, mood: str,
@@ -1198,7 +1228,8 @@ class SceneService(GeminiImageBackend):
                                     weather=weather, characters=characters, appearance=appearance)
         raw = self._generate_bytes(prompt, aspect_ratio=self.aspect_ratio, refs=refs,
                                    ref_media_resolution=self.ref_media_resolution,
-                                   model=model or self.model)
+                                   model=model or self.model,
+                                   thinking_level=self.thinking_level)
         return downscale_image(raw, self.max_side) if self.max_side else raw
 
     # ── orchestration ───────────────────────────────────────────────────────

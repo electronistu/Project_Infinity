@@ -460,6 +460,8 @@ button.wide { width: 100%; margin-top: 10px; }
   text-transform: none; letter-spacing: 0; font-family: var(--sans); font-size: 12px; color: var(--muted); }
 .images-chk input { width: auto; margin: 0; accent-color: var(--accent); }
 .images-chk:has(input:disabled) { opacity: .55; cursor: not-allowed; }
+/* temperature is Ollama-only; disabled (dimmed) when a Gemini model is selected */
+.start-card label:has(> input:disabled) { opacity: .55; }
 
 /* image-generation model pickers (story/portrait vs icons) */
 .model-row { display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 12px;

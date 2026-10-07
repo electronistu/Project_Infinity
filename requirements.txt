@@ -9,6 +9,7 @@ fastapi>=0.115
 uvicorn>=0.34
 
 # Image generation (cached character portraits / icons)
-google-genai>=2.0
+# 2.25+ for ThinkingConfig(thinking_level=...) and FunctionResponse(id=...)
+google-genai>=2.25
 python-dotenv>=1.0
 Pillow>=10.0

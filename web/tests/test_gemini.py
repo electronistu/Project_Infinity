@@ -76,8 +76,8 @@ def text_part(text, thought=False):
     return gt.Part(text=text, thought=True) if thought else gt.Part(text=text)
 
 
-def call_part(name, args):
-    return gt.Part(function_call=gt.FunctionCall(name=name, args=args))
+def call_part(name, args, call_id=None):
+    return gt.Part(function_call=gt.FunctionCall(name=name, args=args, id=call_id))
 
 
 def some_tool_turn(contents):
@@ -237,6 +237,46 @@ async def test_persist_false():
         chat._contents == before and chat._consumed == consumed)
 
 
+async def test_config_sampling_and_thinking():
+    chat = make_chat([[_Chunk([text_part("ok")])]])
+    await collect(chat, [{"role": "user", "content": "u"}])
+    cfg = chat._client.aio.models.calls[0]["config"]
+    rec("no temperature reaches the Gemini API",
+        getattr(cfg, "temperature", None) is None, repr(getattr(cfg, "temperature", None)))
+    rec("no top_p/top_k reach the Gemini API",
+        getattr(cfg, "top_p", None) is None and getattr(cfg, "top_k", None) is None)
+    rec("no thinking_level without one", getattr(cfg, "thinking_config", None) is None,
+        str(getattr(cfg, "thinking_config", None)))
+
+    chat2 = make_chat([[_Chunk([text_part("ok")])]])
+    await collect(chat2, [{"role": "user", "content": "u"}], think=True, thinking_level="medium")
+    tc = chat2._client.aio.models.calls[0]["config"].thinking_config
+    level = getattr(tc.thinking_level, "value", tc.thinking_level) if tc else None
+    rec("thinking_level is forwarded", str(level).lower() == "medium", repr(level))
+    rec("include_thoughts is forwarded with the level", bool(tc) and tc.include_thoughts is True,
+        str(tc))
+
+
+async def test_function_response_id():
+    chat = make_chat([[_Chunk([call_part("roll_dice", {"sides": 20}, "call_1")]),
+                       _Chunk([text_part("It hits.")])]])
+    messages = [{"role": "user", "content": "attack"}]
+    events = await collect(chat, messages, tools=TOOLS)
+    calls = [e for e in events if e["type"] == "tool_calls"][0]["calls"]
+    rec("the function_call id is surfaced", calls[0]["function"].get("id") == "call_1",
+        str(calls[0]))
+    messages = messages + [
+        {"role": "assistant", "content": "", "tool_calls": calls},
+        {"role": "tool", "content": "18", "name": "roll_dice", "id": "call_1"},
+    ]
+    await collect(chat, messages, tools=TOOLS)
+    sent = chat._client.aio.models.calls[1]["contents"]
+    responses = [p.function_response for c in sent for p in (c.parts or [])
+                 if p.function_response]
+    rec("the function response echoes the call id", bool(responses) and responses[0].id == "call_1",
+        str([r.id for r in responses]))
+
+
 async def test_error_paths():
     chat = GeminiChat("")
     chat._client = _FakeClient([])
@@ -291,6 +331,8 @@ async def main() -> int:
     await test_persist_false_over_tool_history()
     await test_malformed_retry()
     await test_persist_false()
+    await test_config_sampling_and_thinking()
+    await test_function_response_id()
     await test_error_paths()
     test_tool_conversion()
     print(f"\n  RESULT: {'PASS' if all(RESULTS) else 'FAIL'}  ({sum(RESULTS)}/{len(RESULTS)})")

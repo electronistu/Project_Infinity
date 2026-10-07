@@ -2,12 +2,12 @@
   "name": "Electronistu",
   "level": 1,
   "xp": 0,
-  "gold": 115,
+  "gold": 15,
   "character_class": "Wizard",
   "race": "High Elf",
   "background": "Criminal",
   "alignment": "Chaotic Neutral",
-  "gender": "Male",
+  "gender": "male",
   "armor_class": 13,
   "current_hit_points": 5,
   "total_hit_points": 5,
@@ -24,11 +24,11 @@
   },
   "proficiency_bonus": 2,
   "skills": [
+    "Perception",
     "Deception",
     "Investigation",
-    "Perception",
-    "Arcana",
-    "Stealth"
+    "Stealth",
+    "Arcana"
   ],
   "expertise": [],
   "saves": [
@@ -37,15 +37,15 @@
   ],
   "armor_proficiencies": [],
   "weapon_proficiencies": [
-    "Shortsword",
-    "Dagger",
-    "Shortbow",
-    "Dart",
     "Quarterstaff",
-    "Sling",
-    "Longsword",
+    "Dagger",
     "Light Crossbow",
-    "Longbow"
+    "Longsword",
+    "Shortbow",
+    "Longbow",
+    "Dart",
+    "Shortsword",
+    "Sling"
   ],
   "tool_proficiencies": [
     "Dice Set",
@@ -67,6 +67,12 @@
     "Criminal Contact"
   ],
   "inventory": [
+    {
+      "name": "Dagger",
+      "description": "1d4 piercing, Finesse, Light, Thrown, Range 20/60"
+    },
+    "Arcane Focus",
+    "Explorer's Pack",
     "Spellbook",
     "Crowbar",
     "Dark Common Clothes"
@@ -74,7 +80,7 @@
   "equipped": {
     "armor": null,
     "hands": [
-      null,
+      "Dagger",
       null
     ],
     "worn": [
