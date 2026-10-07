@@ -60,6 +60,61 @@ class CombatantTest(H.EngineCase):
         self.assertEqual(player["role"], "ally")
         self.assertEqual(player["speed"], 30)
 
+    def test_scalar_traits_are_not_split_into_characters(self):
+        # A model may send `traits` as a bare string; it must become ONE entry,
+        # never one entry per character (the "S; n; e; a; k" tooltip bug).
+        npc = {"name": "Marek Voss", "hp": 22, "ac": 13, "initiative_modifier": 2,
+               "challenge_rating": 1, "role": "hostile", "traits": "Sneak Attack 2d6."}
+        r = self._register([npc])
+        self.assertEqual(H.ds._COMBAT_REGISTRY["Marek Voss"]["traits"], ["Sneak Attack 2d6."])
+        sheet = next(s for s in r["sheets"] if s["name"] == "Marek Voss")["lines"]
+        self.assertIn("  Traits: Sneak Attack 2d6.", sheet)
+        self.assertNotIn("S; n; e", "\n".join(sheet))
+
+    def test_scalar_damage_fields_and_conditions_are_coerced(self):
+        npc = {"name": "Emberling", "hp": 10, "ac": 12, "initiative_modifier": 0,
+               "damage_resistances": "fire", "condition_immunities": "poisoned",
+               "conditions": "Prone"}
+        self._register([npc])
+        entry = H.ds._COMBAT_REGISTRY["Emberling"]
+        self.assertEqual(entry["damage_resistances"], ["fire"])
+        self.assertEqual(entry["condition_immunities"], ["poisoned"])
+        self.assertEqual(entry["conditions"], ["prone"])
+
+    def test_list_traits_are_unchanged(self):
+        npc = {"name": "Brute", "hp": 10, "ac": 12, "initiative_modifier": 0,
+               "traits": ["Pack Tactics", "Keen Smell"]}
+        r = self._register([npc])
+        self.assertEqual(H.ds._COMBAT_REGISTRY["Brute"]["traits"], ["Pack Tactics", "Keen Smell"])
+        sheet = next(s for s in r["sheets"] if s["name"] == "Brute")["lines"]
+        self.assertIn("  Traits: Pack Tactics; Keen Smell", sheet)
+
+    def test_scalar_attack_properties_are_not_split(self):
+        npc = {"name": "Duellist", "hp": 10, "ac": 13, "initiative_modifier": 3,
+               "attacks": [{"name": "Rapier", "attack_bonus": 5, "damage_dice": "1d8",
+                            "damage_modifier": 3, "damage_type": "piercing",
+                            "properties": "Finesse, Light"}]}
+        r = self._register([npc])
+        self.assertEqual(H.ds._COMBAT_REGISTRY["Duellist"]["attacks"][0]["properties"],
+                         ["Finesse, Light"])
+        sheet = "\n".join(next(s for s in r["sheets"] if s["name"] == "Duellist")["lines"])
+        self.assertIn("Finesse, Light", sheet)
+        self.assertNotIn("F; i; n", sheet)
+
+    def test_string_ammunition_property_is_detected_as_ranged(self):
+        # Before the fix a string property was split into characters and never matched.
+        self.assertTrue(H.ds._npc_attack_is_ranged({"properties": "Ammunition"}))
+        self.assertFalse(H.ds._npc_attack_is_ranged({"properties": "Finesse"}))
+
+    def test_bare_dict_attacks_are_accepted(self):
+        npc = {"name": "Solo", "hp": 10, "ac": 12, "initiative_modifier": 0,
+               "attacks": {"name": "Club", "attack_bonus": 3, "damage_dice": "1d4",
+                           "damage_type": "bludgeoning"}}
+        r = self._register([npc])
+        self.assertEqual(len(H.ds._COMBAT_REGISTRY["Solo"]["attacks"]), 1)
+        sheet = "\n".join(next(s for s in r["sheets"] if s["name"] == "Solo")["lines"])
+        self.assertIn("Club", sheet)
+
 
 class AutoLookupTest(H.EngineCase):
     player_factory = staticmethod(H.fighter_l5)

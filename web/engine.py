@@ -36,6 +36,7 @@ from mcp.client.stdio import stdio_client  # noqa: E402
 from ollama import AsyncClient  # noqa: E402
 
 from .images import known_npc_names, known_scene_places  # noqa: E402
+from .tool_schema import compact_schema  # noqa: E402
 from forge.world import render_world_text  # noqa: E402
 from .ollama_stream import stream_chat  # noqa: E402
 from .stats import build_stats  # noqa: E402
@@ -110,7 +111,7 @@ def _tool_schema(tool) -> dict:
         "function": {
             "name": tool.name,
             "description": tool.description,
-            "parameters": params,
+            "parameters": compact_schema(params),
         },
     }
 

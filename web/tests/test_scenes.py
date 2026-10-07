@@ -270,14 +270,15 @@ async def main() -> bool:
     real_on = render_protocol(real, True)
     real_off = render_protocol(real, False)
     rec("base continuity block is always sent",
-        "continuity:" in real_on and "continuity:" in real_off)
+        "Advance, never restart" in real_on and "Advance, never restart" in real_off)
     rec("gated scene wording only when scenes are on",
-        "Re-narrated Turn" in real_on and "Re-narrated Turn" not in real_off)
+        "exactly ONE per narrative turn" in real_on
+        and "exactly ONE per narrative turn" not in real_off)
     rec("the image call ends the turn (gated wording)",
         "ENDS the turn" in real_on and "ENDS the turn" not in real_off)
     rec("the GM is told mechanics are displayed, not transcribed (no tokens)",
-        "already displayed in the mechanics section" in real_on and "{{_MECHANICS}}" not in real_on
-        and "already displayed in the mechanics section" in real_off)
+        "already displayed by the engine" in real_on and "{{_MECHANICS}}" not in real_on
+        and "already displayed by the engine" in real_off)
 
     # A narrative-phase tool call ends the turn: no second model round, so the
     # GM cannot re-narrate the whole turn (the duplicate-answer regression).
