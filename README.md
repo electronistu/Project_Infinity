@@ -42,7 +42,7 @@ Open **http://127.0.0.1:8000**. The server binds to localhost only. Flags: `--ho
 
 ### 5. Create a character
 
-Choose **Create character** on the start screen. The in-browser **Character Forge** walks the full SRD 5.1 creation flow — race, class, background, point-buy stats, skills, spells, starting equipment — and writes `output/yourcharacter.player`. The world (its history and kingdoms) is fixed for every save in [`config/world.yml`](config/world.yml).
+Choose **Create character** on the start screen. The in-browser **Character Forge** walks the full SRD 5.1 creation flow — name, difficulty, race, class, background, point-buy stats, skills, spells, starting equipment — and writes `output/yourcharacter.player`. **Hard** plays strict SRD as written (a lone hero in a party-of-four world); **Easy** keeps the same strict resolution but tells the GM to scale the *adventure* (encounters, tactics, pacing, DCs) for a solo hero. The world (its history and kingdoms) is fixed for every save in [`config/world.yml`](config/world.yml).
 
 ### 6. Play
 

@@ -135,6 +135,7 @@ def _world_list() -> list[dict]:
             entry["character"] = data.get("name")
             entry["class"] = data.get("character_class")
             entry["level"] = data.get("level")
+            entry["difficulty"] = data.get("difficulty") or "hard"
         except Exception:  # noqa: BLE001
             pass
         entries.append(entry)

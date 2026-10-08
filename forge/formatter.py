@@ -49,6 +49,7 @@ def get_player_json(pc, kingdoms=None) -> str:
         "background": pc.background,
         "alignment": pc.alignment,
         "gender": pc.gender,
+        "difficulty": getattr(pc, "difficulty", "hard") or "hard",
         "armor_class": pc.armor_class,
         "current_hit_points": pc.current_hit_points,
         "total_hit_points": pc.total_hit_points,

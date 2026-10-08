@@ -423,6 +423,16 @@ def create_character(config: Config) -> PlayerCharacter:
     name = ui.input_dialog_val("Enter your character's name:", default="Adventurer")
     gender = ui.input_dialog_val("Enter your character's gender:", default="Unknown", max_length=15)
 
+    difficulty = ui.select_single(
+        "Choose your difficulty",
+        ["hard", "easy"],
+        display_fn=lambda d: (
+            "Hard — strict SRD as written (a lone hero in a party-of-four world)"
+            if d == "hard" else
+            "Easy — the Game Master scales the adventure for a solo hero"
+        ),
+    ) or "hard"
+
     chosen_race = select_from_list("Choose your Race", config.races)
     if not chosen_race:
         console.print("[red]No races available. Aborting.[/]")
@@ -824,6 +834,7 @@ def create_character(config: Config) -> PlayerCharacter:
         background=chosen_background.name,
         alignment=chosen_alignment,
         gender=gender,
+        difficulty=difficulty,
         stats=player_stats,
         speed=speed,
         current_hit_points=hit_points,

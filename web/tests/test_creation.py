@@ -175,8 +175,10 @@ def main() -> int:
     ok &= player.exists() and data.get("name") == DIRECT_NAME
     ok &= not (OUTPUT / f"{terminal['slug']}.wwf").exists()  # no .wwf any more
     ok &= bool(data.get("reputation"))  # world scaffold seeds reputation
+    ok &= data.get("difficulty") == "hard"  # auto_answer picks the first option
     print(f"  [direct] {player.name} | {data.get('race')} {data.get('character_class')} "
-          f"HP {data.get('current_hit_points')} AC {data.get('armor_class')}")
+          f"HP {data.get('current_hit_points')} AC {data.get('armor_class')} "
+          f"difficulty {data.get('difficulty')}")
 
     terminal2, _ = run_bridge_creation(DIRECT_NAME)
     created += [OUTPUT / terminal2["player"]]

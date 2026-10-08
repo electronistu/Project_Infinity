@@ -17,6 +17,21 @@ class InventoryListTest(H.EngineCase):
         H.ds.update_player_list("inventory", "Rope: 50 feet of hempen rope", "add")
         self.assertIn({"name": "Rope", "description": "50 feet of hempen rope"}, H.dbv("inventory"))
 
+    def test_add_with_description_keyword_is_dict(self):
+        r = H.ds.update_player_list("inventory", "the client's letter", "add",
+                                    description="a folded page", weight=0)
+        self.assertTrue(r["success"])
+        self.assertIn({"name": "the client's letter", "description": "a folded page",
+                       "weight": 0.0}, H.dbv("inventory"))
+
+    def test_add_description_keyword_wins_over_inline(self):
+        H.ds.update_player_list("inventory", "Rope: inline text", "add", description="field text")
+        self.assertIn({"name": "Rope", "description": "field text"}, H.dbv("inventory"))
+
+    def test_add_plain_entry_stays_a_string_without_description(self):
+        H.ds.update_player_list("inventory", "Torch", "add")
+        self.assertIn("Torch", H.dbv("inventory"))
+
     def test_duplicate_rejected(self):
         H.ds.update_player_list("inventory", "Rope", "add")
         r = H.ds.update_player_list("inventory", "Rope", "add")
@@ -61,6 +76,13 @@ class ReputationListTest(H.EngineCase):
         self.assertTrue(r["success"])
         entry = H.dbv("reputation")["eldoria"]["guard"]
         self.assertIn({"name": "Saved a patrol", "description": "earned their trust"}, entry)
+
+    def test_add_reputation_entry_with_description_keyword(self):
+        r = H.ds.update_player_list("reputation.eldoria.guard", "Paid a bribe", "add",
+                                    description="the watch looks the other way")
+        self.assertTrue(r["success"])
+        self.assertIn({"name": "Paid a bribe", "description": "the watch looks the other way"},
+                      H.dbv("reputation")["eldoria"]["guard"])
 
     def test_missing_faction_under_existing_kingdom_is_created(self):
         r = H.ds.update_player_list("reputation.eldoria.spies", "Bought a secret: paid in coin", "add")

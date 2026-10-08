@@ -133,6 +133,12 @@ _SCENE_BLOCK = re.compile(
     r"(?ms)^[ \t]*<!-- SCENE:ON -->.*?^[ \t]*<!-- SCENE:END -->[ \t]*\n?"
 )
 _SCENE_MARKERS = re.compile(r"(?m)^[ \t]*<!-- SCENE:(?:ON|END) -->[ \t]*\n?")
+# Easy-mode balancing rules live between these markers; they are sent to the GM
+# only when the character was created at "easy" difficulty (see `.player`).
+_EASY_BLOCK = re.compile(
+    r"(?ms)^[ \t]*<!-- EASY:ON -->.*?^[ \t]*<!-- EASY:END -->[ \t]*\n?"
+)
+_EASY_MARKERS = re.compile(r"(?m)^[ \t]*<!-- EASY:(?:ON|END) -->[ \t]*\n?")
 
 
 def _scene_key(location, sublocation) -> tuple[str, str]:
@@ -175,11 +181,28 @@ def format_known_places(places: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def render_protocol(text: str, scene_images: bool) -> str:
-    """Strip the scene markers; drop the enclosed rules when scenes are off."""
+def render_protocol(text: str, scene_images: bool, difficulty: str = "hard") -> str:
+    """Strip the scene and difficulty markers; drop the enclosed rules when off."""
+    out = text or ""
     if scene_images:
-        return _SCENE_MARKERS.sub("", text or "")
-    return _SCENE_BLOCK.sub("", text or "")
+        out = _SCENE_MARKERS.sub("", out)
+    else:
+        out = _SCENE_BLOCK.sub("", out)
+    if str(difficulty or "").strip().lower() == "easy":
+        out = _EASY_MARKERS.sub("", out)
+    else:
+        out = _EASY_BLOCK.sub("", out)
+    return out
+
+
+def _player_difficulty(player_path: str) -> str:
+    """Read the character's difficulty from the `.player` JSON; default "hard"."""
+    try:
+        with open(player_path, "r", encoding="utf-8") as f:
+            value = str((json.load(f) or {}).get("difficulty", "") or "").strip().lower()
+        return value if value in ("hard", "easy") else "hard"
+    except (OSError, ValueError, TypeError):
+        return "hard"
 
 
 def filter_tools(tools: list[dict], scene_images: bool) -> list[dict]:
@@ -294,6 +317,8 @@ class GameSession:
         self.debug = debug
         # Set at session start; gates the GM's scene-imagery instructions + tool.
         self.scene_images = bool(scene_images)
+        # Set at session start from the character's `.player`; gates the EASY GM rules.
+        self.difficulty = "hard"
 
         self.player_path: str | None = None
         self.timeline_path: str | None = None
@@ -345,6 +370,7 @@ class GameSession:
         self.player_path = stem + ".player"
         self.timeline_path = stem + ".timeline"
         self.active_name = os.path.splitext(os.path.basename(str(path)))[0]
+        self.difficulty = _player_difficulty(self.player_path)
         self._task = asyncio.create_task(self._run())
 
     async def events(self):
@@ -442,7 +468,7 @@ class GameSession:
                     # Continue turn numbering where the loaded timeline left off.
                     self.turn_counter = self.last_timeline_turn = _max_timeline_turn(existing_timeline)
 
-                    self.messages = [{"role": "system", "content": render_protocol(lock_content, self.scene_images)}]
+                    self.messages = [{"role": "system", "content": render_protocol(lock_content, self.scene_images, self.difficulty)}]
                     if existing_timeline:
                         self.messages.append({
                             "role": "system",
@@ -483,6 +509,7 @@ class GameSession:
                         "player": os.path.basename(self.player_path),
                         "model": self.model,
                         "provider": self.provider,
+                        "difficulty": self.difficulty,
                         "context_window": self.context_window,
                         "turn": self.turn_counter,
                         "tools": [t["function"]["name"] for t in self.tools_schema],

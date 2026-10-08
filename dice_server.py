@@ -1825,8 +1825,9 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
     WHEN: gear/items/spells/reputation/effects change.
     FIELDS (only the non-obvious; declare a weapon's/armour's stats WITH the add):
     - key: dotted list path, e.g. 'inventory', 'spellcasting.spells_known', 'reputation.KINGDOM.FACTION'.
-    - item: add -> 'Name: Description' (description optional); remove -> name only.
+    - item: add -> 'Name' or 'Name: Description'; remove -> name only.
     - action: 'add' | 'remove' | 'update'.
+    - description: the item's flavour/state text -- on add AND update; preferred over the inline 'Name: Description' form. The NAME is identity; transient state (sealed/opened, lit, half-full, emptied, broken) belongs here.
     - base: the SRD archetype the item is built on (e.g. base='Dagger'). Set it on EVERY weapon and suit of armour so properties/hands/weight/AC resolve even when the name is reflavoured.
     - damage_dice/damage_type/properties: a weapon's stats. ac/dex_cap/strength_req: an armour's stats.
     - weight: pounds, only for items the SRD weight catalog does not know (magic items, loot, homebrew).
@@ -1839,7 +1840,7 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
     - kind: the worn slot -- armor, cloak, boots, gloves, gauntlets, bracers, headwear, ring, amulet, belt, other. Required for a worn magic item so it is donned, not held.
     - pair: True when this entry is ONE HALF of a paired item. Add both halves sharing the same `base`; a single half grants no bonus.
     - appearance: (active_effects adds) the look the character takes on; the image uses it INSTEAD of the portrait, and a known covering disguise also replaces the depicted clothing/armour/weapons.
-    - description/new_name: (update only) edit in place, stats kept. The NAME is identity; transient state (sealed/opened, lit, half-full, emptied, broken) belongs in the DESCRIPTION.
+    - new_name: (update only) rename in place; declared stats are kept.
 
     RULES:
     - Declare `base` + the damage/ac fields + `properties` + `kind` + any bonuses in the SAME add: the engine derives attacks, damage, AC, saves, ability scores and attunement from them, and a declared value wins over the catalog. A weapon with no damage and no known base cannot attack.
@@ -1910,6 +1911,10 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
             desc = ""
             if ":" in item:
                 name, desc = [p.strip() for p in item.split(":", 1)]
+            # An explicit `description=` wins over the inline 'Name: Description' form
+            # (the GM usually passes the field rather than embedding it in `item`).
+            if isinstance(description, str) and description.strip():
+                desc = description.strip()
             added_name = name
 
             new_entry = {"name": name, "description": desc} if (desc or ":" in item) else name

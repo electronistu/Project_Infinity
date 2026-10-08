@@ -848,7 +848,7 @@ function descTag(item) {
     s.setAttribute("aria-describedby", "item-tooltip");
     s.setAttribute("aria-label", prepared ? `${name} (prepared)` : `${name} (${slotLabel.toLowerCase()})`);
   }
-  if (desc) {
+  if (tip) {
     s.setAttribute("data-desc", tip);
     s.setAttribute("tabindex", "0");
     s.setAttribute("aria-describedby", "item-tooltip");
@@ -1863,7 +1863,9 @@ function updateStartPortrait() {
   if (w && w.portrait) {
     img.src = w.portrait + "?t=" + portraitBust(w);
     img.alt = (w.character || "Character") + " portrait";
-    meta.textContent = [w.character, w.class, w.level != null ? "L" + w.level : ""].filter(Boolean).join(" · ");
+    meta.textContent = [w.character, w.class, w.level != null ? "L" + w.level : "",
+                        w.difficulty === "easy" ? "Easy" : (w.difficulty === "hard" ? "Hard" : "")]
+      .filter(Boolean).join(" · ");
     panel.classList.remove("hidden");
   } else {
     panel.classList.add("hidden");
@@ -2029,7 +2031,8 @@ function renderLoadList() {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "load-item";
-    const who = w.character ? `${w.character} — ${w.class || "?"} L${w.level == null ? "?" : w.level}` : "unknown character";
+    const diff = w.difficulty === "easy" ? "Easy" : (w.difficulty === "hard" ? "Hard" : "");
+    const who = w.character ? `${w.character} — ${w.class || "?"} L${w.level == null ? "?" : w.level}${diff ? " · " + diff : ""}` : "unknown character";
     const when = w.modified ? new Date(w.modified * 1000).toLocaleString() : "";
     const thumb = w.portrait
       ? `<img class="load-thumb" src="${escapeHtml(w.portrait)}?t=${portraitBust(w)}" alt="" />`

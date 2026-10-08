@@ -303,6 +303,7 @@ def main() -> bool:
             {"name": "Ring of Warding", "kind": "ring", "ac_bonus": 1, "save_bonus": 1,
              "attunement": True},
             "Shield", "Rope",
+            {"name": "the client's letter", "description": "a folded page", "weight": 0},
         ],
         "equipped": {"armor": None, "hands": [None, None], "worn": []},
     })
@@ -325,6 +326,8 @@ def main() -> bool:
         and "+1 to saving throws" in dinv["Ring of Warding"]
         and "while attuned" in dinv["Ring of Warding"])
     rec("plain loot keeps an empty tooltip", dinv["Rope"] == "")
+    rec("a plain entry with only a description renders it",
+        dinv["the client's letter"] == "a folded page")
 
     dt2 = build_stats({
         "inventory": [{"name": "Ring of Warding", "kind": "ring", "ac_bonus": 1,
