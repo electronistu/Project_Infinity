@@ -181,8 +181,7 @@ class SceneBody(BaseModel):
     kind: str = "story"
     kingdom: str = ""
     area: str = ""
-    location: str = ""
-    sublocation: str = ""
+    place: list[str] = []
     time_of_day: str = ""
     weather: str = ""
     characters: dict[str, str] = {}
@@ -421,8 +420,12 @@ async def generate_scene(body: SceneBody):
     mood = " ".join(str(body.mood or "").split())[:120]
     kingdom = " ".join(str(body.kingdom or "").split())[:80]
     area = " ".join(str(body.area or "").split())[:80]
-    location = " ".join(str(body.location or "").split())[:120]
-    sublocation = " ".join(str(body.sublocation or "").split())[:120]
+    place: list[str] = []
+    if isinstance(body.place, list):
+        for entry in body.place[:8]:
+            segment = " ".join(str(entry or "").split())[:120]
+            if segment:
+                place.append(segment)
     time_of_day = " ".join(str(body.time_of_day or "").split())[:60]
     weather = " ".join(str(body.weather or "").split())[:120]
     characters: dict[str, str] = {}
@@ -469,7 +472,7 @@ async def generate_scene(body: SceneBody):
             result = await asyncio.to_thread(
                 scene_service.ensure_scene, stem, player, world,
                 description=description, mood=mood, kingdom=kingdom, area=area,
-                location=location, sublocation=sublocation,
+                place=place,
                 time_of_day=time_of_day, weather=weather, characters=characters,
                 establishing=establishing, main_npcs=main_npcs, npcs=npcs,
                 seed_change=seed_change, model=model,

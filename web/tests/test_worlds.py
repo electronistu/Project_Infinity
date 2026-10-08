@@ -50,12 +50,12 @@ async def main() -> int:
     scene_refs = []
     scene_models_seen = []
 
-    def _fake_seed(world, kingdom, area, location, sublocation, establishing,
+    def _fake_seed(world, kingdom, area, place, establishing,
                    change="", refs=None, model=None):
         scene_models_seen.append(model)
         return b"\xff\xd8\xff\xe0" + b"s" * 24
 
-    def _fake_action(player, world, description, mood, kingdom, area, location, sublocation,
+    def _fake_action(player, world, description, mood, kingdom, area, place,
                      ref_kind="", refs=None, model=None, time_of_day="", weather="",
                      characters=None, appearance=None):
         scene_refs.append((kingdom, area, ref_kind, time_of_day, weather, characters))
@@ -203,7 +203,7 @@ async def main() -> int:
             r = await c.post("/api/scene", json={
                 "session_id": "scenetest", "description": "a forge at dusk",
                 "mood": "tense", "kingdom": "Kingdom of Eldoria", "area": "Eldoria City",
-                "location": "Hask's Smithy", "sublocation": "the forge",
+                "place": ["Hask's Smithy", "the forge"],
                 "time_of_day": "dusk", "weather": "light rain",
                 "characters": {"Gorson": "hammering at the anvil",
                                "Maera": "drawing ale",
@@ -224,7 +224,7 @@ async def main() -> int:
                 body.get("used_seed") is True and body.get("used_portrait_reference") is True, str(body))
             seeded = known_scene_places(OUTPUT_DIR, "_scenetest")
             rec("POST scene stores the main NPCs (name + role + description) on the seed",
-                any(p["location"] == "Hask's Smithy"
+                any(p["place"] == ["Hask's Smithy", "the forge"]
                     and p["main_npcs"] == [{"name": "Gorson", "role": "the smith",
                                             "description": "a burly smith"}]
                     for p in seeded), str(seeded))
@@ -255,7 +255,7 @@ async def main() -> int:
                 not list(scenes_path.glob("action-*")), str(list(scenes_path.glob("action-*"))))
             r2 = await c.post("/api/scene", json={
                 "session_id": "scenetest", "description": "the smithy, embers dying",
-                "mood": "tense", "location": "Hask's Smithy", "sublocation": "the forge",
+                "mood": "tense", "place": ["Hask's Smithy", "the forge"],
                 "model": "gemini-3-pro-image",
             })
             again = r2.json()
@@ -267,7 +267,7 @@ async def main() -> int:
                 and "used_last_action" not in again, str(again))
             r3 = await c.post("/api/scene", json={
                 "session_id": "scenetest", "description": "on the road",
-                "location": "Lantern Row", "sublocation": "",
+                "place": ["Lantern Row"],
             })
             rec("a different place writes its own seed and action",
                 r3.status_code == 200

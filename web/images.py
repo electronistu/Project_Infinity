@@ -707,18 +707,28 @@ def _seed_main_npcs(entry) -> list[dict]:
     return _npc_list(raw)
 
 
+def _place_path(place) -> list[str]:
+    """Normalize a place path: trimmed, non-empty string segments (deepest last)."""
+    if isinstance(place, str):
+        place = [place]
+    if not isinstance(place, (list, tuple)):
+        return []
+    return [str(p).strip() for p in place if str(p or "").strip()]
+
+
 def _manifest_entries(data) -> list[dict]:
-    """Normalize a scene manifest (v1 flat / v2-v6) to a list of seed dicts."""
+    """Normalize a scene manifest (v1 flat / v2-v7) to a list of seed dicts."""
     if not isinstance(data, dict):
         return []
-    if data.get("version") in (2, 3, 4, 5, 6) and isinstance(data.get("seeds"), dict):
+    if data.get("version") in (2, 3, 4, 5, 6, 7) and isinstance(data.get("seeds"), dict):
         return [e for e in data["seeds"].values() if isinstance(e, dict)]
     # v1: {location_slug: entry}
-    return [e for e in data.values() if isinstance(e, dict) and e.get("location")]
+    return [e for e in data.values() if isinstance(e, dict)
+            and (e.get("location") or e.get("place"))]
 
 
 def known_scene_places(output_dir, stem: str) -> list[dict]:
-    """Seeded places for a save: {kingdom, area, location, sublocation, description}."""
+    """Seeded places for a save: {kingdom, area, place, description, main_npcs}."""
     path = Path(output_dir) / "images" / stem / "scenes" / "manifest.json"
     if not path.exists():
         return []
@@ -726,23 +736,23 @@ def known_scene_places(output_dir, stem: str) -> list[dict]:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return []
-    seen: set[tuple[str, str, str, str]] = set()
+    seen: set[tuple[str, str, tuple[str, ...]]] = set()
     out: list[dict] = []
     for entry in _manifest_entries(data):
         kingdom = str(entry.get("kingdom") or "").strip()
         area = str(entry.get("area") or "").strip()
-        location = str(entry.get("location") or "").strip()
-        sublocation = str(entry.get("sublocation") or "").strip()
-        key = (kingdom.lower(), area.lower(), location.lower(), sublocation.lower())
-        if not location or key in seen:
+        place = _place_path(entry.get("place"))
+        if not place:
+            place = _place_path([entry.get("location"), entry.get("sublocation")])
+        key = (kingdom.lower(), area.lower(), tuple(p.lower() for p in place))
+        if not place or key in seen:
             continue
         seen.add(key)
-        out.append({"kingdom": kingdom, "area": area, "location": location,
-                    "sublocation": sublocation,
+        out.append({"kingdom": kingdom, "area": area, "place": place,
                     "description": str(entry.get("description") or "").strip(),
                     "main_npcs": _seed_main_npcs(entry)})
     return sorted(out, key=lambda p: (p["kingdom"].lower(), p["area"].lower(),
-                                      p["location"].lower(), p["sublocation"].lower()))
+                                      [s.lower() for s in p["place"]]))
 
 
 def known_npc_names(output_dir, stem: str) -> set[str]:
@@ -767,11 +777,12 @@ def known_npc_names(output_dir, stem: str) -> set[str]:
 
 
 def known_scene_locations(output_dir, stem: str) -> list[str]:
-    """Distinct location names already seeded for a save (back-compat helper)."""
+    """Distinct place-path labels already seeded for a save (back-compat helper)."""
     seen: list[str] = []
-    for place in known_scene_places(output_dir, stem):
-        if place["location"] and place["location"].lower() not in {s.lower() for s in seen}:
-            seen.append(place["location"])
+    for entry in known_scene_places(output_dir, stem):
+        label = " — ".join(entry.get("place") or [])
+        if label and label.lower() not in {s.lower() for s in seen}:
+            seen.append(label)
     return sorted(seen, key=str.lower)
 
 
@@ -873,12 +884,12 @@ _DEFAULT_SCENE_ACTION = (
 
 class SceneService(GeminiImageBackend):
     """Generates + persists a hidden, permanent establishing **seed** per place
-    `(kingdom, area, location, sublocation)` and a visible **action** image drawn
+    `(kingdom, area, place path)` and a visible **action** image drawn
     fresh from that seed + the portrait. Actions are never referenced by later
     actions (that made the model duplicate the figures already in the frame) and
     are deleted as soon as they have been served once.
 
-    `output/images/{stem}/scenes/manifest.json` is the v6 manifest:
+    `output/images/{stem}/scenes/manifest.json` is the v7 manifest:
         {version, seeds: {key: entry}, cast: {name_slug: {name, description, role}}, current: {...}}
     Each seed entry carries `main_npcs` = a list of {name, description, role}. The seed is
     never served to the client; it is the only persisted scene asset. The `cast` map keeps
@@ -959,20 +970,20 @@ class SceneService(GeminiImageBackend):
         return self.scenes_dir(stem) / "manifest.json"
 
     @staticmethod
-    def _key(kingdom, area, location, sublocation) -> str:
-        return "|".join(_slug(p) for p in (kingdom, area, location, sublocation))
+    def _key(kingdom, area, place) -> str:
+        return "|".join(_slug(p) for p in (kingdom, area, *_place_path(place)))
 
     def _read_manifest(self, stem: str) -> dict:
         path = self.manifest_path(stem)
-        empty = {"version": 6, "seeds": {}, "cast": {}, "current": {}}
+        empty = {"version": 7, "seeds": {}, "cast": {}, "current": {}}
         if not path.exists():
             return empty
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             return empty
-        if isinstance(data, dict) and data.get("version") in (2, 3, 4, 5, 6) and isinstance(data.get("seeds"), dict):
-            if data.get("version") not in (4, 5, 6):
+        if isinstance(data, dict) and data.get("version") in (2, 3, 4, 5, 6, 7) and isinstance(data.get("seeds"), dict):
+            if data.get("version") not in (4, 5, 6, 7):
                 # Action images became ephemeral one-shot files in v4: clean up any left over.
                 for entry in (data.get("actions") or []):
                     try:
@@ -987,7 +998,13 @@ class SceneService(GeminiImageBackend):
                 entry.pop("last_cast", None)
                 entry["main_npcs"] = _seed_main_npcs(entry)
                 entry.pop("main_npc", None)
-                seeds[key] = entry
+                place = _place_path(entry.get("place"))
+                if not place:
+                    place = _place_path([entry.get("location"), entry.get("sublocation")])
+                entry["place"] = place
+                entry.pop("location", None)
+                entry.pop("sublocation", None)
+                seeds[self._key(entry.get("kingdom"), entry.get("area"), place)] = entry
             cast: dict = {}
             raw_cast = data.get("cast")
             if isinstance(raw_cast, dict):
@@ -995,28 +1012,36 @@ class SceneService(GeminiImageBackend):
                     fields = _npc_fields(entry)
                     if fields["name"]:
                         cast[_slug(fields["name"])] = fields
-            return {"version": 6, "seeds": seeds, "cast": cast, "current": data.get("current") or {}}
+            current = data.get("current")
+            if isinstance(current, dict) and current:
+                cplace = _place_path(current.get("place"))
+                if not cplace:
+                    cplace = _place_path([current.get("location"), current.get("sublocation")])
+                current = {k: v for k, v in current.items() if k not in ("location", "sublocation")}
+                current["place"] = cplace
+            else:
+                current = {}
+            return {"version": 7, "seeds": seeds, "cast": cast, "current": current}
         # v1 flat manifest: {location_slug: entry}
         seeds: dict = {}
         now = int(time.time())
         for slug, entry in (data or {}).items():
             if not isinstance(entry, dict):
                 continue
-            location = str(entry.get("location") or "").strip()
-            if not location:
+            place = _place_path([entry.get("location"), entry.get("sublocation")])
+            if not place:
                 continue
             kingdom = str(entry.get("kingdom") or "").strip()
             area = str(entry.get("area") or "").strip()
-            sublocation = str(entry.get("sublocation") or "").strip()
-            seeds[self._key(kingdom, area, location, sublocation)] = {
+            seeds[self._key(kingdom, area, place)] = {
                 "file": entry.get("file"), "slug": slug, "kingdom": kingdom, "area": area,
-                "location": location, "sublocation": sublocation,
+                "place": place,
                 "description": str(entry.get("description") or ""),
                 "main_npcs": _npc_list(entry.get("main_npc")),
                 "created": entry.get("created") or now,
                 "mime": entry.get("mime") or "image/png",
             }
-        return {"version": 6, "seeds": seeds, "cast": {}, "current": {}}
+        return {"version": 7, "seeds": seeds, "cast": {}, "current": {}}
 
     def _write_manifest(self, stem: str, data: dict) -> None:
         path = self.manifest_path(stem)
@@ -1046,11 +1071,11 @@ class SceneService(GeminiImageBackend):
         return None
 
     @staticmethod
-    def _seed_by_place(seeds: dict, location: str, sublocation: str, current=None):
-        """Resolve a seed from location/sublocation when kingdom/area are omitted."""
-        loc, sub = _slug(location), _slug(sublocation)
+    def _seed_by_place(seeds: dict, place, current=None):
+        """Resolve a seed from its place path when kingdom/area are omitted."""
+        want = [_slug(p) for p in _place_path(place)]
         matches = [(k, v) for k, v in (seeds or {}).items()
-                   if _slug(v.get("location")) == loc and _slug(v.get("sublocation")) == sub]
+                   if [_slug(x) for x in _place_path(v.get("place"))] == want]
         if not matches:
             return None, None
         cur = current or {}
@@ -1092,11 +1117,9 @@ class SceneService(GeminiImageBackend):
     def _clean(text) -> str:
         return re.sub(r"\s+", " ", str(text or "")).strip()
 
-    def _address_line(self, kingdom: str, area: str, location: str, sublocation: str) -> str:
-        loc = self._clean(location)
-        sub = self._clean(sublocation)
-        place = f"{loc} — {sub}" if loc and sub else (loc or sub)
-        parts = [p for p in (place, self._clean(area), self._clean(kingdom)) if p]
+    def _address_line(self, kingdom: str, area: str, place) -> str:
+        label = " — ".join(_place_path(place))
+        parts = [p for p in (label, self._clean(area), self._clean(kingdom)) if p]
         return ", ".join(parts) or "an unnamed place"
 
     def _atmosphere_line(self, time_of_day: str, weather: str) -> str:
@@ -1125,13 +1148,14 @@ class SceneService(GeminiImageBackend):
             return ""
         return self.characters_header + "\n" + "\n".join(rows)
 
-    def seed_prompt(self, world: str, kingdom: str = "", area: str = "", location: str = "",
-                    sublocation: str = "", establishing: str = "", change: str = "",
+    def seed_prompt(self, world: str, kingdom: str = "", area: str = "", place=None,
+                    establishing: str = "", change: str = "",
                     has_seed_ref: bool = False) -> str:
-        loc = self._clean(location) or "an unnamed place"
-        sub = self._clean(sublocation)
+        path = _place_path(place)
+        loc = self._clean(path[0]) if path else "an unnamed place"
+        sub = self._clean(" — ".join(path[1:]))
         fields = {
-            "address_line": self._address_line(kingdom, area, location, sublocation),
+            "address_line": self._address_line(kingdom, area, path),
             "kingdom": self._clean(kingdom), "area": self._clean(area),
             "location": loc, "sublocation": sub or loc,
             "establishing": self._clean(establishing),
@@ -1146,12 +1170,13 @@ class SceneService(GeminiImageBackend):
         return (body + " " + self.style).strip() if self.style else body
 
     def action_prompt(self, player: dict, world: str, description: str, mood: str,
-                      kingdom: str = "", area: str = "", location: str = "", sublocation: str = "",
+                      kingdom: str = "", area: str = "", place=None,
                       ref_kind: str = "", time_of_day: str = "", weather: str = "",
                       characters=None, appearance=None) -> str:
         player = player or {}
-        loc = self._clean(location) or "an unnamed place"
-        sub = self._clean(sublocation)
+        path = _place_path(place)
+        loc = self._clean(path[0]) if path else "an unnamed place"
+        sub = self._clean(" — ".join(path[1:]))
         if ref_kind == "seed":
             template = self.action_from_seed_solo if appearance else self.action_from_seed
             ref_line = template.format(location=loc, sublocation=sub or loc)
@@ -1181,7 +1206,7 @@ class SceneService(GeminiImageBackend):
             "world": self._clean(world) or "a fantasy realm",
             "kingdom": self._clean(kingdom), "area": self._clean(area),
             "location": loc, "sublocation": sub or loc,
-            "address_line": self._address_line(kingdom, area, location, sublocation),
+            "address_line": self._address_line(kingdom, area, path),
             "mood": self._clean(mood) or "tense and atmospheric",
             "atmosphere_line": self._atmosphere_line(time_of_day, weather),
             "characters_line": self._characters_line(characters),
@@ -1207,10 +1232,10 @@ class SceneService(GeminiImageBackend):
 
     # ── generation ──────────────────────────────────────────────────────────
 
-    def generate_seed(self, world: str, kingdom: str = "", area: str = "", location: str = "",
-                      sublocation: str = "", establishing: str = "", change: str = "", refs=None,
+    def generate_seed(self, world: str, kingdom: str = "", area: str = "", place=None,
+                      establishing: str = "", change: str = "", refs=None,
                       model: str | None = None) -> bytes:
-        prompt = self.seed_prompt(world, kingdom, area, location, sublocation, establishing,
+        prompt = self.seed_prompt(world, kingdom, area, place, establishing,
                                   change, has_seed_ref=bool(refs))
         raw = self._generate_bytes(prompt, aspect_ratio=self.aspect_ratio, refs=refs,
                                    ref_media_resolution=self.ref_media_resolution,
@@ -1219,12 +1244,12 @@ class SceneService(GeminiImageBackend):
         return downscale_image(raw, self.max_side) if self.max_side else raw
 
     def generate_action(self, player: dict, world: str, description: str, mood: str,
-                        kingdom: str = "", area: str = "", location: str = "", sublocation: str = "",
+                        kingdom: str = "", area: str = "", place=None,
                         ref_kind: str = "", refs=None, model: str | None = None,
                         time_of_day: str = "", weather: str = "", characters=None,
                         appearance=None) -> bytes:
-        prompt = self.action_prompt(player, world, description, mood, kingdom, area, location,
-                                    sublocation, ref_kind=ref_kind, time_of_day=time_of_day,
+        prompt = self.action_prompt(player, world, description, mood, kingdom, area, place,
+                                    ref_kind=ref_kind, time_of_day=time_of_day,
                                     weather=weather, characters=characters, appearance=appearance)
         raw = self._generate_bytes(prompt, aspect_ratio=self.aspect_ratio, refs=refs,
                                    ref_media_resolution=self.ref_media_resolution,
@@ -1234,21 +1259,28 @@ class SceneService(GeminiImageBackend):
 
     # ── orchestration ───────────────────────────────────────────────────────
 
-    def _seed_slug(self, kingdom: str, area: str, location: str, sublocation: str) -> str:
-        h = hashlib.sha1(self._key(kingdom, area, location, sublocation).encode("utf-8")).hexdigest()[:6]
-        return f"seed-{_slug(location)[:16] or 'place'}-{_slug(sublocation)[:16] or 'main'}-{h}"
+    def _seed_slug(self, kingdom: str, area: str, place) -> str:
+        path = _place_path(place)
+        h = hashlib.sha1(self._key(kingdom, area, path).encode("utf-8")).hexdigest()[:6]
+        head = _slug(path[0])[:16] if path else "place"
+        tail = _slug(path[-1])[:16] if len(path) > 1 else "main"
+        return f"seed-{head}-{tail}-{h}"
 
-    def _action_slug(self, kingdom: str, area: str, location: str, sublocation: str) -> str:
+    def _action_slug(self, kingdom: str, area: str, place) -> str:
         """A unique name per request — actions are one-shot and never revisited."""
-        h = hashlib.sha1(self._key(kingdom, area, location, sublocation).encode("utf-8")).hexdigest()[:6]
+        path = _place_path(place)
+        h = hashlib.sha1(self._key(kingdom, area, path).encode("utf-8")).hexdigest()[:6]
         token = hashlib.sha1(str(time.time_ns()).encode("ascii")).hexdigest()[:8]
-        return f"action-{_slug(location)[:16] or 'place'}-{_slug(sublocation)[:16] or 'main'}-{h}-{token}"
+        head = _slug(path[0])[:16] if path else "place"
+        tail = _slug(path[-1])[:16] if len(path) > 1 else "main"
+        return f"action-{head}-{tail}-{h}-{token}"
 
-    def _store_seed(self, stem: str, manifest: dict, kingdom: str, area: str, location: str,
-                    sublocation: str, description: str, main_npcs, raw: bytes,
+    def _store_seed(self, stem: str, manifest: dict, kingdom: str, area: str, place,
+                    description: str, main_npcs, raw: bytes,
                     existing=None) -> dict:
+        path = _place_path(place)
         ext, mime = sniff_image(raw) or ("png", "image/png")
-        slug = (existing or {}).get("slug") or self._seed_slug(kingdom, area, location, sublocation)
+        slug = (existing or {}).get("slug") or self._seed_slug(kingdom, area, path)
         file = f"{slug}.{ext}"
         directory = self.scenes_dir(stem)
         for other in _PORTRAIT_EXTS:
@@ -1258,11 +1290,11 @@ class SceneService(GeminiImageBackend):
         ImageService._write_image(directory / file, raw)
         entry = {
             "file": file, "slug": slug, "kingdom": str(kingdom or ""), "area": str(area or ""),
-            "location": str(location or ""), "sublocation": str(sublocation or ""),
+            "place": path,
             "description": str(description or ""), "main_npcs": _npc_list(main_npcs),
             "mime": mime, "created": int(time.time()),
         }
-        manifest.setdefault("seeds", {})[self._key(kingdom, area, location, sublocation)] = entry
+        manifest.setdefault("seeds", {})[self._key(kingdom, area, path)] = entry
         return entry
 
     @staticmethod
@@ -1294,8 +1326,8 @@ class SceneService(GeminiImageBackend):
         return resolved
 
     def ensure_scene(self, stem: str, player: dict, world: str, description: str = "",
-                     mood: str = "", kingdom: str = "", area: str = "", location: str = "",
-                     sublocation: str = "", establishing: str = "", main_npcs=None,
+                     mood: str = "", kingdom: str = "", area: str = "", place=None,
+                     establishing: str = "", main_npcs=None,
                      seed_change: str = "", npcs=None,
                      time_of_day: str = "", weather: str = "", characters=None,
                      model: str | None = None) -> dict:
@@ -1315,28 +1347,31 @@ class SceneService(GeminiImageBackend):
                     cast[_slug(fields["name"])] = fields
                     npcs_added.append(fields["name"])
         seeds = manifest.setdefault("seeds", {})
-        seed = seeds.get(self._key(kingdom, area, location, sublocation))
+        path = _place_path(place)
+        seed = seeds.get(self._key(kingdom, area, path))
         if seed is None and not establishing:
             # kingdom/area omitted (an action call, or a seed change) -> resolve from the place.
-            key, found = self._seed_by_place(seeds, location, sublocation, manifest.get("current"))
+            key, found = self._seed_by_place(seeds, path, manifest.get("current"))
             if found is not None:
                 seed = found
                 kingdom = str(found.get("kingdom") or "")
                 area = str(found.get("area") or "")
+                path = _place_path(found.get("place")) or path
         seed_created = seed_regenerated = False
         if seed is None:
-            raw = self.generate_seed(world, kingdom, area, location, sublocation,
-                                     establishing or f"An atmospheric view of {sublocation or location}.",
+            label = " — ".join(path) or "an unnamed place"
+            raw = self.generate_seed(world, kingdom, area, path,
+                                     establishing or f"An atmospheric view of {label}.",
                                      model=effective)
-            seed = self._store_seed(stem, manifest, kingdom, area, location, sublocation,
+            seed = self._store_seed(stem, manifest, kingdom, area, path,
                                     establishing, main_npcs, raw)
             seed_created = True
         elif seed_change:
             old = self._file_bytes(stem, seed)
-            raw = self.generate_seed(world, kingdom, area, location, sublocation,
+            raw = self.generate_seed(world, kingdom, area, path,
                                      establishing or str(seed.get("description") or ""),
                                      change=seed_change, refs=[old] if old else None, model=effective)
-            seed = self._store_seed(stem, manifest, kingdom, area, location, sublocation,
+            seed = self._store_seed(stem, manifest, kingdom, area, path,
                                     establishing or str(seed.get("description") or ""),
                                     main_npcs if main_npcs else _seed_main_npcs(seed), raw,
                                     existing=seed)
@@ -1357,17 +1392,16 @@ class SceneService(GeminiImageBackend):
         refs = [r for r in (place_ref, portrait) if r]
 
         resolved = self._resolve_characters(characters, seed, cast)
-        raw = self.generate_action(player, world, description, mood, kingdom, area, location,
-                                   sublocation, ref_kind=ref_kind, refs=refs, model=effective,
+        raw = self.generate_action(player, world, description, mood, kingdom, area, path,
+                                   ref_kind=ref_kind, refs=refs, model=effective,
                                    time_of_day=time_of_day, weather=weather, characters=resolved,
                                    appearance=appearance)
         ext = (sniff_image(raw) or ("png", "image/png"))[0]
-        slug = self._action_slug(kingdom, area, location, sublocation)
+        slug = self._action_slug(kingdom, area, path)
         ImageService._write_image(self.scenes_dir(stem) / f"{slug}.{ext}", raw)
         created = int(time.time())
         manifest["current"] = {"kingdom": str(kingdom or ""), "area": str(area or ""),
-                               "location": str(location or ""), "sublocation": str(sublocation or ""),
-                               "updated": created}
+                               "place": path, "updated": created}
         self._write_manifest(stem, manifest)
         return {
             "action": {"url": f"/api/scenes/{stem}/{slug}", "created": created},
@@ -1378,6 +1412,6 @@ class SceneService(GeminiImageBackend):
             "appearance_applied": bool(appearance),
             "npcs_added": npcs_added,
             "kingdom": str(kingdom or ""), "area": str(area or ""),
-            "location": str(location or ""), "sublocation": str(sublocation or ""),
+            "place": path,
             "seed_created": seed_created, "seed_regenerated": seed_regenerated,
         }

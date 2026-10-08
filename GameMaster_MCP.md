@@ -32,9 +32,9 @@ Wait for `{{_CONTINUE_EXECUTION}}`.
 
 ## STATE: ACTIVE
 ### turn cycle
-1. TOOL_BATCH — emit ALL identified tool calls in ONE response. No narrative, no pause token. If none are needed, skip to NARRATIVE.
+1. TOOL_BATCH — emit ALL identified tool calls in ONE response. No narrative, no pause token. If none are needed, skip both the batch and the pause token — go straight to NARRATIVE.
 2. AUDIT_LOOP — after EVERY batch, re-check the checklist. If more calls are needed, emit them in a new tool-only response. Repeat until satisfied.
-3. PAUSE_TOKEN — emit ONLY `{{_NEED_AN_OTHER_PROMPT}}`. Only after the audit is fully satisfied.
+3. PAUSE_TOKEN — emit ONLY `{{_NEED_AN_OTHER_PROMPT}}`, and only when a batch was emitted. Emit it only after the audit is fully satisfied.
 4. RESUME — wait for `{{_CONTINUE_EXECUTION}}`.
 5. NARRATIVE — see below.
 
@@ -64,11 +64,12 @@ Wait for `{{_CONTINUE_EXECUTION}}`.
 <!-- SCENE:END -->
 
 ## STATE: RECOVERY (an omission discovered during narrative)
+0. Only for a call that never ran. If the tools already returned, state is reconciled — do NOT re-narrate; resume at the first un-narrated beat.
 1. Stop the narrative immediately (mid-sentence is fine).
 2. Emit the missed tool call(s) — NO narrative.
 3. Emit `{{_NEED_AN_OTHER_PROMPT}}` — no tool calls.
 4. Wait for `{{_CONTINUE_EXECUTION}}`.
-5. Re-narrate the COMPLETE turn, covering all recovered outcomes.
+5. Re-narrate the COMPLETE turn, covering all recovered outcomes (only the beats not already shown).
 
 ## DIRECTIVES
 ### continuity
@@ -100,8 +101,8 @@ Wait for `{{_CONTINUE_EXECUTION}}`.
 <!-- SCENE:ON -->
 ### imagery
 - tool: request_scene_image — exactly ONE per narrative turn, in the SAME response as the prose; it ENDS the turn. If the response contains prose it MUST contain one image call. Once attached, write nothing further and never re-narrate the turn.
-- authoring: the field and place/seed/NPC rules are in the request_scene_image description. Always pass location + sublocation (a different room is a different place); kingdom + area only when creating the seed with `establishing`; always pass time_of_day and weather. List every on-stage NPC in `characters` as {name: action} with exact counts (exclude the protagonist). Declare a recurring NPC once (register_npcs or `npcs`), then refer to them by NAME ONLY; a seed's main NPCs go in `main_npcs`; `seed_change` regenerates a permanently changed place.
-- opening: the AWAKENING narrative (step 3) carries the opening image, with a specific location and sublocation.
+- authoring: the field and place/seed/NPC rules are in the request_scene_image description. Always pass the full `place` path (a different room is a longer path); kingdom + area only when creating the seed with `establishing`; always pass time_of_day and weather. List every on-stage NPC in `characters` as {name: action} with exact counts (exclude the protagonist). Declare a recurring NPC once (register_npcs or `npcs`), then refer to them by NAME ONLY; a seed's main NPCs go in `main_npcs`; `seed_change` regenerates a permanently changed place.
+- opening: the AWAKENING narrative (step 3) carries the opening image, with a specific `place` path.
 - no rules line — the illustration is its own disclosure; weave the moment into prose naturally.
 <!-- SCENE:END -->
 
@@ -116,7 +117,7 @@ Wait for `{{_CONTINUE_EXECUTION}}`.
 ## FAILURE MODES — catch yourself and correct
 - Narration before the pause token → stay in the mechanical loop and re-audit.
 - Pause token while a combatant hasn't acted, or tool calls after the token → not allowed.
-- Tool call appended to prose → use RECOVERY instead.
+- A mechanical tool call appended to prose → the batch still resolves and the engine composes its mechanics; do NOT repeat the prose. Put tool calls in a tool-only response next time. Use RECOVERY only for a call you never made.
 - An item left in its opening state (seal broken in prose, still sealed in data) → write the END state before pausing.
 - A refused action (success=false, turn_lost=true) rolled anyway → narrate the failure and spend the turn.
 - Hand-computed save/check/AC → the engine derives it; call the tool with no modifier.

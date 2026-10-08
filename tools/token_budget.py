@@ -118,11 +118,35 @@ def _public(row):
     return {k: v for k, v in row.items() if k not in _TEXT_KEYS}
 
 
+def _synthetic_places(n: int) -> list[dict]:
+    """N representative places for the KNOWN IMAGE PLACES priming measure."""
+    out = []
+    for i in range(n):
+        out.append({
+            "kingdom": "Eldoria" if i % 3 else "Zarthus",
+            "area": "Eldoria City" if i % 3 else "Zarthus City",
+            "place": [f"District {i // 3}", f"Landmark {i}"],
+            "description": "",
+            "main_npcs": [{"name": f"NPC{i}A", "role": "the keeper", "description": ""},
+                          {"name": f"NPC{i}B", "role": "the table-runner", "description": ""}],
+        })
+    return out
+
+
+def known_places_block(n: int, count):
+    """The awakening KNOWN IMAGE PLACES message for N places (header + tree)."""
+    from web.engine import KNOWN_PLACES_HEADER, format_known_places
+    text = KNOWN_PLACES_HEADER + "\n" + format_known_places(_synthetic_places(n))
+    return text, count(text)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="GM static-prefix token budget")
     ap.add_argument("--json", action="store_true", help="machine-readable output")
     ap.add_argument("--budget", type=int, default=None,
                     help="fail (exit 1) if the scenes-on static prefix exceeds this many tokens")
+    ap.add_argument("--places", type=int, default=20,
+                    help="KNOWN IMAGE PLACES to measure in the priming (0 to skip)")
     args = ap.parse_args()
 
     label, count = _counter()
@@ -141,6 +165,9 @@ def main() -> int:
     compact_schema_tokens = sum(r["schema_tokens"] for r in rows)
     on_tokens = tool_tokens + proto_on_tokens
     off_tokens = tool_tokens + proto_off_tokens
+    places_text, places_tokens = (known_places_block(args.places, count)
+                                  if args.places > 0 else ("", 0))
+    total_on_tokens = on_tokens + places_tokens
 
     if args.json:
         print(json.dumps({
@@ -152,7 +179,10 @@ def main() -> int:
             "schema_saved_tokens": raw_schema_tokens - compact_schema_tokens,
             "protocol_on_chars": len(proto_on), "protocol_on_tokens": proto_on_tokens,
             "protocol_off_chars": len(proto_off), "protocol_off_tokens": proto_off_tokens,
+            "known_places_n": args.places,
+            "known_places_chars": len(places_text), "known_places_tokens": places_tokens,
             "total_on_tokens": on_tokens, "total_off_tokens": off_tokens,
+            "total_on_with_places_tokens": total_on_tokens,
         }, indent=2))
     else:
         print("GM STATIC PREFIX -- token budget")
@@ -170,13 +200,19 @@ def main() -> int:
               f"(saved {raw_schema_tokens - compact_schema_tokens} tok)\n")
         print(f"GameMaster_MCP.md  scenes ON : {len(proto_on):6d} chars  {proto_on_tokens:6d} tok")
         print(f"GameMaster_MCP.md  scenes OFF: {len(proto_off):6d} chars  {proto_off_tokens:6d} tok")
+        if args.places > 0:
+            print(f"KNOWN IMAGE PLACES (N={args.places}) : {len(places_text):6d} chars  "
+                  f"{places_tokens:6d} tok")
         print(f"\nSTATIC PREFIX  scenes ON : {tool_chars + len(proto_on):7d} chars  "
               f"{on_tokens:6d} tok")
         print(f"STATIC PREFIX  scenes OFF: {tool_chars + len(proto_off):7d} chars  "
               f"{off_tokens:6d} tok")
+        if args.places > 0:
+            print(f"TOTAL          scenes ON : {tool_chars + len(proto_on) + len(places_text):7d} chars  "
+                  f"{total_on_tokens:6d} tok  (incl. {args.places} places)")
 
-    if args.budget is not None and on_tokens > args.budget:
-        print(f"\nBUDGET EXCEEDED: {on_tokens} > {args.budget} tokens (scenes on)", file=sys.stderr)
+    if args.budget is not None and total_on_tokens > args.budget:
+        print(f"\nBUDGET EXCEEDED: {total_on_tokens} > {args.budget} tokens (scenes on)", file=sys.stderr)
         return 1
     return 0
 

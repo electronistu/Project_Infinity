@@ -133,7 +133,7 @@ Under the hood:
 
 ### What the Game Master sees
 
-A session loads, in order: the **GM protocol** ([`GameMaster_MCP.md`](GameMaster_MCP.md)); the **world** (history and kingdoms from [`config/world.yml`](config/world.yml) — there is no per-save world file); the save's **timeline**; and, when images are on, the **known image places** — a `kingdom → area → location → sublocation` tree with each place's description and its **main NPCs' names and roles** (e.g. *The Drowned Lantern → Common Room · main NPCs: Maera (the innkeeper), the grandson (the table-runner)*). The character is then pulled live from the database — stats, HP, inventory, equipped gear and the carrying/encumbrance block.
+A session loads, in order: the **GM protocol** ([`GameMaster_MCP.md`](GameMaster_MCP.md)); the **world** (history and kingdoms from [`config/world.yml`](config/world.yml) — there is no per-save world file); the save's **timeline**; and, when images are on, the **known image places** — a `kingdom → area → place path` tree (realm → settlement → district → spot → any nested rooms, any depth) with each place's description and its **main NPCs' names and roles** (e.g. *The Drowned Lantern → Common Room · main NPCs: Maera (the innkeeper), the grandson (the table-runner)*). The character is then pulled live from the database — stats, HP, inventory, equipped gear and the carrying/encumbrance block.
 
 During play the GM receives the result of **every tool call**, trimmed to what it does not already hold: the **delta** of a state change, the **exact mechanics** of a roll or attack, and any **error**. Redundant snapshots (inventory, carrying, equipment) are not re-sent; a full sheet is one deliberate `dump_player_db` away. The **client keeps the complete, untrimmed result** for debugging.
 
@@ -141,7 +141,7 @@ The **Mechanics panel is composed by the engine** from those results and appende
 
 ### Storyline image continuity
 
-- **A place has an address** — `kingdom → area → location → sublocation`, named once and reused exactly.
+- **A place has an address** — `kingdom → area → place path` (realm → settlement → district → spot → nested rooms, any depth), named once and reused exactly.
 - **Every place gets a hidden "seed"** — an empty, permanent establishing view, never shown to you.
 - **Moments are drawn from the seed, never the previous picture** — the action image reproduces the establishing view with you and the cast, so rooms never rearrange and figures can never duplicate. Only the time of day, the weather and the moment's own damage may differ; nothing absent from the seed is invented. Action images are served once and discarded; the seed is the only scene picture a save keeps.
 - **Returning and permanent changes** — a revisited place is drawn from the same seed; a lasting change (it burned down) regenerates it.

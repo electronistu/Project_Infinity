@@ -713,17 +713,17 @@ function sceneFigure(evt) {
   const fig = document.createElement("figure");
   fig.className = "scene-figure loading";
   const img = document.createElement("img");
-  img.alt = evt.location
-    ? (evt.sublocation ? `Scene: ${evt.location} — ${evt.sublocation}` : `Scene: ${evt.location}`)
-    : "Scene illustration";
+  const path = Array.isArray(evt.place)
+    ? evt.place.map((s) => String(s || "").trim()).filter(Boolean)
+    : [];
+  const label = path.join(" — ");
+  img.alt = label ? `Scene: ${label}` : "Scene illustration";
   img.decoding = "async";
   fig.appendChild(img);
-  // Caption: the area (never the kingdom), then the place (location — sublocation), then
-  // time of day, then weather. Every empty part is dropped; no caption when none are set.
+  // Caption: the area (never the kingdom), then the place path, then time of day,
+  // then weather. Every empty part is dropped; no caption when none are set.
   const area = String(evt.area || "").trim();
-  const loc = String(evt.location || "").trim();
-  const sub = String(evt.sublocation || "").trim();
-  const place = loc && sub ? `${loc} — ${sub}` : (loc || sub);
+  const place = label;
   const meta = [evt.time_of_day, evt.weather]
     .map((v) => String(v || "").trim()).filter(Boolean);
   const caption = [area, place, ...meta].filter(Boolean).join(" · ");
@@ -757,8 +757,7 @@ async function requestSceneImage(evt, fig, img) {
     kind: evt.kind || "story",
     kingdom: evt.kingdom || "",
     area: evt.area || "",
-    location: evt.location || "",
-    sublocation: evt.sublocation || "",
+    place: Array.isArray(evt.place) ? evt.place : [],
     time_of_day: evt.time_of_day || "",
     weather: evt.weather || "",
     characters: evt.characters || {},

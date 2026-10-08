@@ -2506,7 +2506,7 @@ def dump_player_db() -> dict:
 
 @mcp.tool()
 def request_scene_image(description: str, kingdom: str = "", area: str = "",
-                        location: str = "", sublocation: str = "",
+                        place: list[str] | None = None,
                         time_of_day: str = "", weather: str = "",
                         characters: dict[str, str] | None = None,
                         establishing: str = "", main_npcs: list[dict] | None = None,
@@ -2517,8 +2517,8 @@ def request_scene_image(description: str, kingdom: str = "", area: str = "",
     WHEN: every narrative turn -- exactly ONE, in the SAME response as the prose; it ENDS the turn.
     FIELDS:
     - description: what HAPPENS -- the protagonist's action and notable transient events. NAME every NPC; never identify anyone by look. Never describe a person's look, the place, its furniture, its light, the time or the weather (the seed carries the place, time_of_day/weather carry the light, a declared NPC's look comes from the registry). You MAY say where the protagonist stands or sits. DO restate anything still visible from earlier (spilled ale, blood, a body, an open door).
-    - location/sublocation: the place and exact room/spot ('' for an open place); reuse known names -- a different room is a different place.
-    - kingdom/area: only when creating the seed (with `establishing`); otherwise reuse the exact known names.
+    - place: the ordered path of nested places BELOW the settlement, deepest last, at least 2 entries -- [district/neighbourhood, the exact building/room, (any room inside it, ...)]. A different room is a longer path. Reuse the exact path you have used; keep the levels distinct (a district is a `place` entry, never the `area`).
+    - kingdom = the realm; area = the settlement (city/town); both only when creating the seed (with `establishing`), else reuse the exact known names.
     - time_of_day/weather: fed straight to the generator (e.g. 'dusk', 'heavy rain'); keep them out of `description`.
     - characters: dict of EVERY on-stage NPC -> their action toward the protagonist. Key = the declared NAME; never repeat a look; exact counts ('three dockhands'), never 'a few'; exclude the protagonist. A one-off extra needs no declaration (a short look in the key is used for that image only).
     - establishing: an empty, people-free, weather-free, timeless description of a NEW place (only when its seed does not exist yet).
@@ -2527,7 +2527,7 @@ def request_scene_image(description: str, kingdom: str = "", area: str = "",
     - seed_change: a PERMANENT change to the place regenerates its seed immediately.
     - mood: a short mood word for the light/atmosphere.
 
-    PLACES: kingdom -> area -> location -> sublocation. On entering a NEW location/sublocation (not in KNOWN IMAGE PLACES), also pass `establishing` so the engine builds the hidden seed (never shown); every action image is drawn FRESH from that seed. A missing seed returns a WARNING -- call again with `establishing`.
+    PLACES: kingdom -> area -> place path (realm -> settlement -> district -> spot -> any nested rooms). Example: kingdom `Eldoria`, area `Eldoria City`, place `["Ropehaven Wharf", "Warehouse Nine", "the counting office"]`. On entering a NEW place (not in KNOWN IMAGE PLACES), also pass `establishing` so the engine builds the hidden seed (never shown); every action image is drawn FRESH from that seed. A missing seed returns a WARNING -- call again with `establishing`.
 
     PLAYER: refer to them as 'the protagonist'; say where they are and what they do (facing the action, back to camera is fine), but NEVER describe their appearance -- the portrait is attached automatically. Describe clothing/armour/weapons ONLY from what they actually have equipped (check `_equipment`); never invent a hood, cloak, cowl, hat, helmet, armour or other item.
 
@@ -2537,8 +2537,7 @@ def request_scene_image(description: str, kingdom: str = "", area: str = "",
         "status": "requested",
         "kingdom": kingdom or "",
         "area": area or "",
-        "location": location or "",
-        "sublocation": sublocation or "",
+        "place": place or [],
         "characters": len(characters) if isinstance(characters, dict) else 0,
         "main_npcs": len(main_npcs) if isinstance(main_npcs, list) else 0,
         "npcs": len(npcs) if isinstance(npcs, list) else 0,

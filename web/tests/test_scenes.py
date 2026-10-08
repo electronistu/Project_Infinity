@@ -66,25 +66,31 @@ async def main() -> bool:
         len(filter_tools(tools, True)) == 3)
 
     tree = format_known_places([
-        {"kingdom": "Kingdom of Eldoria", "area": "Eldoria City", "location": "The Drowned Lantern",
-         "sublocation": "Common Room", "description": "low-ceilinged, peat fire",
+        {"kingdom": "Kingdom of Eldoria", "area": "Eldoria City",
+         "place": ["The Drowned Lantern", "Common Room"], "description": "low-ceilinged, peat fire",
          "main_npcs": [
              {"name": "Maera", "role": "the innkeeper",
               "description": "a one-eared, broad-shouldered barkeep"},
              {"name": "the grandson", "role": "the table-runner",
               "description": "a wiry young man"}]},
-        {"kingdom": "Kingdom of Eldoria", "area": "Eldoria City", "location": "The Drowned Lantern",
-         "sublocation": "", "description": ""},
-        {"kingdom": "Borderlands", "area": "", "location": "Waystone", "sublocation": "", "description": ""},
+        {"kingdom": "Kingdom of Eldoria", "area": "Eldoria City",
+         "place": ["The Drowned Lantern"], "description": ""},
+        {"kingdom": "Kingdom of Eldoria", "area": "Eldoria City",
+         "place": ["Ropehaven Wharf", "Warehouse Nine", "the counting office"],
+         "description": "a locked strongroom"},
+        {"kingdom": "Borderlands", "area": "", "place": ["Waystone"], "description": ""},
     ])
-    rec("priming tree nests kingdom > area > location > sublocation",
+    rec("priming tree nests kingdom > area > place path",
         "- Kingdom of Eldoria" in tree and "    - Eldoria City" in tree
         and "        - The Drowned Lantern" in tree
-        and "            - Common Room — low-ceilinged, peat fire · main NPCs: "
+        and "            - Common Room · main NPCs: "
             "Maera (the innkeeper), the grandson (the table-runner)" in tree
-        and "- Borderlands" in tree and "    - (unknown area)" in tree, tree)
-    rec("the priming shows the place main NPCs' names + roles, never the descriptions",
-        "broad-shouldered barkeep" not in tree and "wiry young man" not in tree, tree)
+        and "        - Ropehaven Wharf" in tree and "            - Warehouse Nine" in tree
+        and "                - the counting office" in tree
+        and "- Borderlands" in tree and "    - (unknown settlement)" in tree, tree)
+    rec("the priming feeds names + NPC roles only, never the descriptions",
+        "broad-shouldered barkeep" not in tree and "wiry young man" not in tree
+        and "low-ceilinged, peat fire" not in tree and "a locked strongroom" not in tree, tree)
 
     gs = GameSession(base_dir=REPO, model="test", scene_images=True)
     gs.session = _FakeMCP()
@@ -95,7 +101,7 @@ async def main() -> bool:
         # A legacy `caption` is still tolerated (dropped) even though the field is gone.
         "arguments": {"description": "a forge at dusk", "caption": "Forge",
                       "kingdom": "Kingdom of Eldoria", "area": "Eldoria City",
-                      "location": "Hask & Daughters Smithy", "sublocation": "the forge",
+                      "place": ["Hask & Daughters Smithy", "the forge"],
                       "time_of_day": "dusk", "weather": "light rain",
                       "characters": {"the smith": "hammering at the anvil"},
                       "establishing": "a hot forge",
@@ -107,11 +113,11 @@ async def main() -> bool:
     rec("scene_request emitted for the GM tool",
         len(scene) == 1 and scene[0]["description"] == "a forge at dusk" and scene[0]["kind"] == "story",
         str(scene))
-    rec("scene_request carries kingdom/area/location/sublocation + time/weather + characters",
+    rec("scene_request carries kingdom/area/place + time/weather + characters",
         bool(scene) and scene[0].get("kingdom") == "Kingdom of Eldoria"
         and scene[0].get("area") == "Eldoria City"
-        and scene[0].get("location") == "Hask & Daughters Smithy"
-        and scene[0].get("sublocation") == "the forge" and scene[0].get("establishing") == "a hot forge"
+        and scene[0].get("place") == ["Hask & Daughters Smithy", "the forge"]
+        and scene[0].get("establishing") == "a hot forge"
         and scene[0].get("time_of_day") == "dusk" and scene[0].get("weather") == "light rain"
         and scene[0].get("main_npcs") == [{"name": "Gorson", "role": "the smith",
                                           "description": "a soot-stained man"}]
@@ -137,7 +143,7 @@ async def main() -> bool:
     gs_live._scene_requested_turn = False
     await gs_live._execute_tool({"function": {
         "name": "request_scene_image",
-        "arguments": {"description": "haggling", "location": "Market", "sublocation": "",
+        "arguments": {"description": "haggling", "place": ["Market"],
                       "establishing": "an open market square"},
     }})
     live = [e for e in drain(gs_live._evt_q) if e.get("type") == "scene_request"]
@@ -152,7 +158,7 @@ async def main() -> bool:
     scene_tool = next((t for t in tools if t.name == "request_scene_image"), None)
     props = list((scene_tool.inputSchema or {}).get("properties", {})) if scene_tool else []
     rec("scene tool speaks names + declarations, not descriptions",
-        props == ["description", "kingdom", "area", "location", "sublocation", "time_of_day",
+        props == ["description", "kingdom", "area", "place", "time_of_day",
                   "weather", "characters", "establishing", "main_npcs", "npcs", "seed_change",
                   "mood"], str(props))
     rec("register_npcs is exposed to the GM", any(t.name == "register_npcs" for t in tools))
@@ -186,7 +192,7 @@ async def main() -> bool:
     rec("register_npcs is buffered for the next scene call",
         [p["name"] for p in gs_note._pending_npcs] == ["Maera"], str(gs_note._pending_npcs))
     await gs_note._execute_tool({"function": {"name": "request_scene_image", "arguments": {
-        "description": "x", "location": "L", "sublocation": "s", "establishing": "a cold hall",
+        "description": "x", "place": ["L", "s"], "establishing": "a cold hall",
         "characters": {"Maera": "pouring", "the harbourmaster": "watching"}}}})
     note = [e for e in drain(gs_note._evt_q)
             if e.get("type") == "tool_result" and "NOTE:" in str(e.get("text") or "")]
@@ -200,20 +206,20 @@ async def main() -> bool:
     gs7.session = _FakeMCP()
     gs7._scene_requested_turn = False
     await gs7._execute_tool({"function": {"name": "request_scene_image", "arguments": {
-        "description": "x", "location": "Brand New Hall", "sublocation": "the antechamber"}}})
+        "description": "x", "place": ["Brand New Hall", "the antechamber"]}}})
     evts7 = drain(gs7._evt_q)
     warns = [e for e in evts7 if e.get("type") == "tool_result" and e.get("is_error")]
     rec("a new place without establishing is rejected with a warning",
         len(warns) == 1 and "establishing" in warns[0]["text"]
         and not any(e.get("type") == "scene_request" for e in evts7), str(evts7))
     await gs7._execute_tool({"function": {"name": "request_scene_image", "arguments": {
-        "description": "x", "location": "Brand New Hall", "sublocation": "the antechamber",
+        "description": "x", "place": ["Brand New Hall", "the antechamber"],
         "establishing": "a cold stone hall"}}})
     rec("the same place is accepted once establishing is supplied",
         any(e.get("type") == "scene_request" for e in drain(gs7._evt_q)))
     gs7._scene_requested_turn = False
     await gs7._execute_tool({"function": {"name": "request_scene_image", "arguments": {
-        "description": "y", "location": "Brand New Hall", "sublocation": "the antechamber"}}})
+        "description": "y", "place": ["Brand New Hall", "the antechamber"]}}})
     rec("a place seeded this session needs no establishing again",
         any(e.get("type") == "scene_request" for e in drain(gs7._evt_q)))
 
@@ -279,6 +285,14 @@ async def main() -> bool:
     rec("the GM is told mechanics are displayed, not transcribed (no tokens)",
         "already displayed by the engine" in real_on and "{{_MECHANICS}}" not in real_on
         and "already displayed by the engine" in real_off)
+    rec("recovery is scoped to calls that never ran",
+        "Only for a call that never ran" in real_on
+        and "Only for a call that never ran" in real_off)
+    rec("an inline patch no longer routes into RECOVERY",
+        "Use RECOVERY only for a call you never made" in real_off
+        and "Tool call appended to prose → use RECOVERY instead" not in real_off)
+    rec("tool-free turns skip the pause token",
+        "skip both the batch and the pause token" in real_off)
 
     # A narrative-phase tool call ends the turn: no second model round, so the
     # GM cannot re-narrate the whole turn (the duplicate-answer regression).
@@ -319,10 +333,10 @@ async def main() -> bool:
         if len(rounds8) == 1:
             return ("You push open the door.", "", [{"function": {
                 "name": "request_scene_image", "arguments": {
-                    "description": "entering", "location": "New Hall", "sublocation": "the door"}}}], False)
+                    "description": "entering", "place": ["New Hall", "the door"]}}}], False)
         return ("You step into the cold hall.", "", [{"function": {
             "name": "request_scene_image", "arguments": {
-                "description": "entering", "location": "New Hall", "sublocation": "the door",
+                "description": "entering", "place": ["New Hall", "the door"],
                 "establishing": "a cold stone hall"}}}], False)
 
     gs8._stream_assistant = _stream8  # type: ignore[assignment]
@@ -348,6 +362,136 @@ async def main() -> bool:
     out6 = await gs6._chat_with_tools("turn")
     rec("mechanical tool rounds still loop to the narrative",
         len(rounds6) == 2 and out6 == "The blade bites deep.", f"rounds={rounds6}")
+
+    # An accepted image call with NO prose must not be re-prompted with a bare tool
+    # result: the engine asks for the missing narration once.
+    gs9 = GameSession(base_dir=REPO, model="test", scene_images=True)
+    rounds9: list[str] = []
+
+    async def _exec9(tc):
+        pass
+
+    async def _stream9(label, quiet=False):
+        rounds9.append(label)
+        if len(rounds9) == 1:
+            return ("", "", [{"function": {"name": "request_scene_image",
+                                     "arguments": {"description": "a beat"}}}], False)
+        return ("You fasten the collar and speak.", "", [], False)
+
+    gs9._execute_tool = _exec9  # type: ignore[assignment]
+    gs9._stream_assistant = _stream9  # type: ignore[assignment]
+    out9 = await gs9._chat_with_tools("turn")
+    rec("image-only accepted round recovers the missing prose",
+        len(rounds9) == 2 and out9 == "You fasten the collar and speak.", f"rounds={rounds9}")
+    rec("the recovery nudge is an engine control message",
+        any(m.get("role") == "user"
+            and "attached the illustration but wrote no prose" in (m.get("content") or "")
+            for m in gs9.messages))
+
+    # The quiet corrective round is image-only by design: it must not recover or loop.
+    gs10 = GameSession(base_dir=REPO, model="test", scene_images=True)
+    rounds10: list[str] = []
+
+    async def _exec10(tc):
+        pass
+
+    async def _stream10(label, quiet=False):
+        rounds10.append(label)
+        return ("", "", [{"function": {"name": "request_scene_image",
+                              "arguments": {"description": "a beat"}}}], False)
+
+    gs10._execute_tool = _exec10  # type: ignore[assignment]
+    gs10._stream_assistant = _stream10  # type: ignore[assignment]
+    out10 = await gs10._chat_with_tools("scene-fix", quiet=True)
+    rec("quiet corrective image round neither recovers nor loops",
+        len(rounds10) == 1 and out10 == "", f"rounds={rounds10}")
+
+    # The recovery is bounded: a second image-only round ends the turn with no prose.
+    gs11 = GameSession(base_dir=REPO, model="test", scene_images=True)
+    rounds11: list[str] = []
+
+    async def _exec11(tc):
+        pass
+
+    async def _stream11(label, quiet=False):
+        rounds11.append(label)
+        return ("", "", [{"function": {"name": "request_scene_image",
+                              "arguments": {"description": "a beat"}}}], False)
+
+    gs11._execute_tool = _exec11  # type: ignore[assignment]
+    gs11._stream_assistant = _stream11  # type: ignore[assignment]
+    out11 = await gs11._chat_with_tools("turn")
+    rec("image-only without prose recovers at most once",
+        len(rounds11) == 2 and out11 == "", f"rounds={rounds11}")
+
+    # A mechanical tool appended to prose must not trigger another model round: that
+    # re-prompt is what makes the GM re-narrate the whole turn (duplicate segment).
+    gs12 = GameSession(base_dir=REPO, model="test", scene_images=True)
+    rounds12: list[str] = []
+
+    async def _exec12(tc):
+        pass
+
+    async def _stream12(label, quiet=False):
+        rounds12.append(label)
+        if len(rounds12) == 1:
+            return ("You set the strongbox on the table.", "", [
+                {"function": {"name": "roll_dice", "arguments": {}}},
+                {"function": {"name": "update_player_list", "arguments": {}}}], False)
+        return ("DUPLICATE NARRATIVE", "", [], False)
+
+    gs12._execute_tool = _exec12  # type: ignore[assignment]
+    gs12._stream_assistant = _stream12  # type: ignore[assignment]
+    out12 = await gs12._chat_with_tools("turn")
+    rec("prose + mechanical tools ends the turn (no re-prompt)",
+        len(rounds12) == 1 and out12 == "You set the strongbox on the table.", f"rounds={rounds12}")
+
+    # Prose + a scene tool + a mechanical tool in one round is terminal too.
+    gs13 = GameSession(base_dir=REPO, model="test", scene_images=True)
+    rounds13: list[str] = []
+
+    async def _exec13(tc):
+        pass
+
+    async def _stream13(label, quiet=False):
+        rounds13.append(label)
+        if len(rounds13) == 1:
+            return ("The lock gives with a click.", "", [
+                {"function": {"name": "request_scene_image", "arguments": {"description": "a room"}}},
+                {"function": {"name": "modify_player_numeric", "arguments": {}}}], False)
+        return ("DUPLICATE NARRATIVE", "", [], False)
+
+    gs13._execute_tool = _exec13  # type: ignore[assignment]
+    gs13._stream_assistant = _stream13  # type: ignore[assignment]
+    out13 = await gs13._chat_with_tools("turn")
+    rec("prose + scene + mechanical tools ends the turn (no re-prompt)",
+        len(rounds13) == 1 and out13 == "The lock gives with a click.", f"rounds={rounds13}")
+
+    # After prose has been shown, a rejected-scene re-call must NOT trigger the
+    # prose-recovery nudge: the turn's narrative already exists.
+    gs14 = GameSession(base_dir=REPO, model="test", scene_images=True)
+    gs14.session = _FakeMCP()
+    gs14._scene_requested_turn = False
+    rounds14: list[str] = []
+
+    async def _stream14(label, quiet=False):
+        rounds14.append(label)
+        if len(rounds14) == 1:
+            gs14._narrative_emitted_turn = True  # the real _stream_assistant does this
+            return ("You push open the door.", "", [{"function": {
+                "name": "request_scene_image", "arguments": {
+                    "description": "entering", "place": ["Cold Hall", "the door"]}}}], False)
+        return ("", "", [{"function": {
+            "name": "request_scene_image", "arguments": {
+                "description": "entering", "place": ["Cold Hall", "the door"],
+                "establishing": "a cold stone hall"}}}], False)
+
+    gs14._stream_assistant = _stream14  # type: ignore[assignment]
+    out14 = await gs14._chat_with_tools("turn")
+    rec("prose then tool-only corrected scene: no second narrative, no recovery nudge",
+        len(rounds14) == 2 and out14 == ""
+        and not any("attached the illustration but wrote no prose" in (m.get("content") or "")
+                    for m in gs14.messages), f"rounds={rounds14}")
 
     # Tool results: the GM reads a trimmed view (new info + mechanics + errors); the
     # client keeps the full result for debugging.

@@ -2,34 +2,34 @@
   "name": "Electronistu",
   "level": 1,
   "xp": 0,
-  "gold": 15,
+  "gold": 145,
   "character_class": "Wizard",
   "race": "High Elf",
   "background": "Criminal",
   "alignment": "Chaotic Neutral",
   "gender": "male",
   "difficulty": "easy",
-  "armor_class": 13,
-  "current_hit_points": 8,
-  "total_hit_points": 8,
+  "armor_class": 10,
+  "current_hit_points": 5,
+  "total_hit_points": 5,
   "hit_dice_count": 1,
   "hit_dice_size": 6,
   "speed": 30,
   "stats": {
-    "str": 8,
-    "dex": 17,
-    "con": 15,
+    "str": 15,
+    "dex": 10,
+    "con": 8,
     "int": 16,
     "wis": 8,
-    "cha": 8
+    "cha": 15
   },
   "proficiency_bonus": 2,
   "skills": [
-    "Investigation",
     "Arcana",
     "Perception",
-    "Stealth",
-    "Deception"
+    "Investigation",
+    "Deception",
+    "Stealth"
   ],
   "expertise": [],
   "saves": [
@@ -38,15 +38,15 @@
   ],
   "armor_proficiencies": [],
   "weapon_proficiencies": [
-    "Dagger",
-    "Quarterstaff",
-    "Shortsword",
-    "Longbow",
     "Dart",
-    "Sling",
     "Light Crossbow",
+    "Longbow",
     "Shortbow",
-    "Longsword"
+    "Shortsword",
+    "Dagger",
+    "Longsword",
+    "Sling",
+    "Quarterstaff"
   ],
   "tool_proficiencies": [
     "Dice Set",
@@ -68,12 +68,6 @@
     "Criminal Contact"
   ],
   "inventory": [
-    {
-      "name": "Dagger",
-      "description": "1d4 piercing, Finesse, Light, Thrown, Range 20/60"
-    },
-    "Arcane Focus",
-    "Explorer's Pack",
     "Spellbook",
     "Crowbar",
     "Dark Common Clothes"
@@ -81,7 +75,7 @@
   "equipped": {
     "armor": null,
     "hands": [
-      "Dagger",
+      null,
       null
     ],
     "worn": [
@@ -147,7 +141,7 @@
       "Sleep"
     ],
     "spells_prepared": [
-      "Disguise Self",
+      "Detect Magic",
       "False Life",
       "Magic Missile",
       "Sleep"
