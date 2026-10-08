@@ -1,26 +1,30 @@
 # forge/formatter.py
-# Player file (`.player`) writer. The world scaffold is static (config/world.yml)
-# and injected by the engine, so no WWF file is generated any more.
+# Player file (`.player`) writer. The character carries the game it plays and, in the era
+# game, the era it is in; the world scaffold itself is `config/world.yml` or `config/eras/`
+# and is injected by the engine. The reputation map is seeded from the world or the era it
+# starts in -- `build_reputation` or `web.eras.era_reputation_seed`.
 
 
 import json
 
 
-def _build_reputation(kingdoms) -> dict:
-    """Builds an empty reputation dictionary with all kingdom/faction entries as empty lists."""
+def build_reputation(kingdoms) -> dict:
+    """The classic game's empty reputation map: one bucket per kingdom and guild.
+
+    The keys here are the ones the GM will later write to (`reputation.<kingdom>.<faction>`),
+    so they have to match `config/world.yml` exactly -- which is why this is rebuilt from the
+    world rather than kept anywhere.
+    """
     KNOWN_FACTIONS = {"Guard", "Mage", "Assassin", "Merchant", "Thief", "Alchemist's League",
-                       "Ranger's Conclave", "Order of Scribes"}
-    rep = {}
+                      "Ranger's Conclave", "Order of Scribes"}
+    rep: dict = {}
     for kingdom in kingdoms:
         kname = kingdom.name.lower()
-        rep[kname] = {}
-        rep[kname]["ruler"] = []
+        rep[kname] = {"ruler": []}
         for guild in kingdom.guilds:
-            gname = guild.name
             for faction in KNOWN_FACTIONS:
-                if gname.endswith(faction):
-                    key = faction.lower().replace("'", "")
-                    rep[kname][key] = []
+                if guild.name.endswith(faction):
+                    rep[kname][faction.lower().replace("'", "")] = []
                     break
     rep["others"] = {}
     return rep
@@ -38,10 +42,13 @@ def _player_item(item):
     return entry
 
 
-def get_player_json(pc, kingdoms=None) -> str:
+def get_player_json(pc, reputation=None, era=None, arrival=None, mode=None) -> str:
     player_data = {
         "name": pc.name,
         "level": pc.level,
+        "mode": mode or getattr(pc, "mode", "") or "",
+        "era": era or "",
+        "arrival": arrival or "",
         "xp": pc.xp,
         "gold": pc.gold,
         "character_class": pc.character_class,
@@ -80,7 +87,7 @@ def get_player_json(pc, kingdoms=None) -> str:
         ],
         "equipped": getattr(pc, "equipped", {}) or {},
         "consumables": pc.consumables if pc.consumables else {},
-        "reputation": _build_reputation(kingdoms) if kingdoms else {},
+        "reputation": reputation or {},
     }
     if pc.spellcasting_ability:
         spell_data = {

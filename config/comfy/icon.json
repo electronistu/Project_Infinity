@@ -1,0 +1,52 @@
+{
+  "format": "infinity-workflow/1",
+  "note": "The vendored graph for the LOCAL icon engine (D27/P11a). The weights themselves live OUTSIDE the repo: ComfyUI/models/checkpoints/sdxl_lightning_4step.safetensors. `nodes` names the patch points; the client fills them in and posts `workflow` alone to ComfyUI's /prompt API.",
+  "nodes": {
+    "checkpoint": "1",
+    "canvas": "2",
+    "positive": "3",
+    "negative": "4",
+    "sampler": "5"
+  },
+  "workflow": {
+    "1": {
+      "class_type": "CheckpointLoaderSimple",
+      "inputs": { "ckpt_name": "sdxl_lightning_4step.safetensors" }
+    },
+    "2": {
+      "class_type": "EmptyLatentImage",
+      "inputs": { "width": 1024, "height": 1024, "batch_size": 1 }
+    },
+    "3": {
+      "class_type": "CLIPTextEncode",
+      "inputs": { "text": "", "clip": ["1", 1] }
+    },
+    "4": {
+      "class_type": "CLIPTextEncode",
+      "inputs": { "text": "", "clip": ["1", 1] }
+    },
+    "5": {
+      "class_type": "KSampler",
+      "inputs": {
+        "seed": 0,
+        "steps": 8,
+        "cfg": 2.0,
+        "sampler_name": "euler",
+        "scheduler": "sgm_uniform",
+        "denoise": 1.0,
+        "model": ["1", 0],
+        "positive": ["3", 0],
+        "negative": ["4", 0],
+        "latent_image": ["2", 0]
+      }
+    },
+    "6": {
+      "class_type": "VAEDecode",
+      "inputs": { "samples": ["5", 0], "vae": ["1", 2] }
+    },
+    "7": {
+      "class_type": "SaveImage",
+      "inputs": { "filename_prefix": "infinity-icon", "images": ["6", 0] }
+    }
+  }
+}

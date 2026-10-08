@@ -41,7 +41,7 @@ def preclean(name):
             path.unlink()
 
 
-def auto_answer(step, counters, name):
+def auto_answer(step, counters, name, prefer=""):
     kind = step["kind"]
     if kind == "text":
         counters["text"] += 1
@@ -54,6 +54,10 @@ def auto_answer(step, counters, name):
         # Spend exactly 27: three 15s (9 each) + three 8s (0 each).
         return {a["key"]: (15 if i < 3 else 8) for i, a in enumerate(step["abilities"])}
     if kind == "single":
+        if prefer:
+            for opt in step["options"]:
+                if prefer.lower() in str(opt.get("label", "")).lower():
+                    return opt["id"]
         return step["options"][0]["id"]
     if kind == "multi":
         count = step.get("min_choices") or 1
@@ -63,7 +67,7 @@ def auto_answer(step, counters, name):
 
 # ── direct bridge ─────────────────────────────────────────────────────────
 
-def run_bridge_creation(name):
+def run_bridge_creation(name, prefer=""):
     bridge = CreationBridge(load_config(), OUTPUT)
     thread = threading.Thread(target=_run_creation, args=(bridge,), daemon=True)
     thread.start()
@@ -76,7 +80,7 @@ def run_bridge_creation(name):
             break
         prompt = steps[-1]
         prompts += 1
-        bridge.submit_answer(auto_answer(prompt, counters, name))
+        bridge.submit_answer(auto_answer(prompt, counters, name, prefer))
     thread.join(timeout=30)
     return terminal, prompts
 
@@ -174,7 +178,14 @@ def main() -> int:
     data = json.loads(player.read_text(encoding="utf-8"))
     ok &= player.exists() and data.get("name") == DIRECT_NAME
     ok &= not (OUTPUT / f"{terminal['slug']}.wwf").exists()  # no .wwf any more
-    ok &= bool(data.get("reputation"))  # world scaffold seeds reputation
+    # auto_answer takes the first option, and the first game the Forge offers is Classic --
+    # so this run also proves the default end to end: no era at all, and the world's own
+    # reputation map, built from config/world.yml's kingdoms.
+    ok &= data.get("mode") == "classic"
+    ok &= bool(data.get("reputation"))
+    ok &= isinstance(data["reputation"].get("eldoria"), dict)
+    ok &= data.get("era") == "" and data.get("arrival") == ""
+    ok &= any("game" in str(p).lower() for p in prompts) if isinstance(prompts, list) else True
     ok &= data.get("difficulty") == "hard"  # auto_answer picks the first option
     # Age is stored and never pre-adulthood (auto_answer answers at the race's adulthood).
     _race_name = str(data.get("race") or "")
@@ -208,6 +219,54 @@ def main() -> int:
         created += [player3]
         ok &= player3.exists()
         print(f"  [http] {player3.name}")
+
+    # ── the SRD race roster: all nine, including the floating choices ──
+    from forge.config_loader import load_config as _load
+
+    races_now = [r.name for r in _load().races]
+    rec_ok = [r for r in ("Gnome", "Half-Elf", "Half-Orc", "Tiefling") if r in races_now]
+    ok &= rec_ok == ["Gnome", "Half-Elf", "Half-Orc", "Tiefling"]
+    print(f"  [races] all nine SRD races: {ok} -> {races_now}")
+    gnome = next((r for r in _load().races if r.name == "Gnome"), None)
+    half = next((r for r in _load().races if r.name == "Half-Elf"), None)
+    ok &= bool(gnome) and [s.name for s in gnome.subraces] == ["Forest Gnome", "Rock Gnome"]
+    ok &= bool(half) and half.asi_choices is not None and half.asi_choices.count == 2 \
+        and "Charisma" in (half.asi_choices.exclude or []) and half.skill_choices == 2
+    print(f"  [races] gnome subraces + half-elf floating ASIs/skills: {ok}")
+
+    # A half-elf end to end: the two floating +1s land, and the sheet is valid.
+    preclean("Halfie")
+    terminal_h, _ = run_bridge_creation("Halfie", prefer="Half-Elf")
+    ok &= bool(terminal_h) and terminal_h.get("type") == "done"
+    if terminal_h and terminal_h.get("type") == "done":
+        hp = OUTPUT / terminal_h["player"]
+        created += [hp]
+        hdata = json.loads(hp.read_text(encoding="utf-8"))
+        stats = hdata.get("stats") or {}
+        # point-buy: three 15s + three 8s, +2 CHA and two floating +1s => 73 total
+        total = sum(int(stats.get(k, 0)) for k in ("str", "dex", "con", "int", "wis", "cha"))
+        ok &= hdata.get("race") == "Half-Elf" and total == 73 and stats.get("cha") == 10
+        ok &= len(hdata.get("skills") or []) >= 6  # background + class + the two racial
+        print(f"  [races] half-elf built: {hdata.get('race')} total {total} "
+              f"cha {stats.get('cha')} skills {len(hdata.get('skills') or [])}")
+
+    # The other game, chosen at creation: the era ladder, an arrival rolled from that era's
+    # own list, and the era's own reputation seed -- proof that the question decides.
+    preclean("Time Traveller Probe")
+    terminal_t, _ = run_bridge_creation("Time Traveller Probe", prefer="Time Traveler")
+    ok &= bool(terminal_t) and terminal_t.get("type") == "done"
+    if terminal_t and terminal_t.get("type") == "done":
+        tp = OUTPUT / terminal_t["player"]
+        created += [tp]
+        tdata = json.loads(tp.read_text(encoding="utf-8"))
+        from web.eras import era_arrivals, playable_eras
+
+        ok &= tdata.get("mode") == "time_traveler"
+        ok &= tdata.get("era") in playable_eras()  # rolled at creation, not START_ERA
+        ok &= tdata.get("arrival") in era_arrivals(tdata.get("era") or "")
+        ok &= list(tdata.get("reputation") or {}) == [tdata.get("era")]
+        print(f"  [modes] time traveler built: mode {tdata.get('mode')} era {tdata.get('era')} "
+              f"arrival {tdata.get('arrival')!r}")
 
     for path in created:
         try:

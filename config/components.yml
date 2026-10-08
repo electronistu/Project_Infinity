@@ -21,7 +21,9 @@
 - {name: Antimagic Field, components: VSM}
 - {name: Antipathy/Sympathy, components: VSM}
 - {name: Arcane Eye, components: VSM}
+- {name: Arcane Hand, components: VSM}
 - {name: Arcane Lock, components: VSM}
+- {name: Arcane Sword, components: VSM}
 - {name: Arcanist's Magic Aura, components: VSM}
 - {name: Astral Projection, components: VSM}
 - {name: Augury, components: VSM}
@@ -31,7 +33,7 @@
 - {name: Barkskin, components: VSM}
 - {name: Beacon of Hope, components: VS}
 - {name: Bestow Curse, components: VS}
-- {name: Bigby's Hand, components: VSM}
+- {name: Black Tentacles, components: VSM}
 - {name: Blade Barrier, components: VS}
 - {name: Bless, components: VSM}
 - {name: Blight, components: VS}
@@ -97,7 +99,6 @@
 - {name: Dominate Beast, components: VS}
 - {name: Dominate Monster, components: VS}
 - {name: Dominate Person, components: VS}
-- {name: Drawmij's Instant Summons, components: VSM}
 - {name: Dream, components: VSM}
 - {name: Druidcraft, components: VS}
 - {name: Earthquake, components: VSM}
@@ -107,11 +108,11 @@
 - {name: Entangle, components: VS}
 - {name: Enthrall, components: VS}
 - {name: Etherealness, components: VS}
-- {name: Evard's Black Tentacles, components: VSM}
 - {name: Expeditious Retreat, components: VS}
 - {name: Eyebite, components: VS}
 - {name: Fabricate, components: VS}
 - {name: Faerie Fire, components: V}
+- {name: Faithful Hound, components: VSM}
 - {name: False Life, components: VSM}
 - {name: Fear, components: VSM}
 - {name: Feather Fall, components: VM}
@@ -136,6 +137,7 @@
 - {name: Forcecage, components: VSM}
 - {name: Foresight, components: VSM}
 - {name: Freedom of Movement, components: VSM}
+- {name: Freezing Sphere, components: VSM}
 - {name: Gaseous Form, components: VSM}
 - {name: Gate, components: VSM}
 - {name: Geas, components: V}
@@ -163,6 +165,7 @@
 - {name: Hellish Rebuke, components: VS}
 - {name: Heroes' Feast, components: VSM}
 - {name: Heroism, components: VS}
+- {name: Hideous Laughter, components: VSM}
 - {name: Hold Monster, components: VSM}
 - {name: Hold Person, components: VSM}
 - {name: Holy Aura, components: VSM}
@@ -175,12 +178,12 @@
 - {name: Incendiary Cloud, components: VS}
 - {name: Inflict Wounds, components: VS}
 - {name: Insect Plague, components: VSM}
+- {name: Instant Summons, components: VSM}
 - {name: Invisibility, components: VSM}
+- {name: Irresistible Dance, components: V}
 - {name: Jump, components: VSM}
 - {name: Knock, components: V}
 - {name: Legend Lore, components: VSM}
-- {name: Leomund's Secret Chest, components: VSM}
-- {name: Leomund's Tiny Hut, components: VSM}
 - {name: Lesser Restoration, components: VS}
 - {name: Levitate, components: VSM}
 - {name: Light, components: VM}
@@ -215,14 +218,8 @@
 - {name: Misty Step, components: V}
 - {name: Modify Memory, components: VS}
 - {name: Moonbeam, components: VSM}
-- {name: Mordenkainen's Faithful Hound, components: VSM}
-- {name: Mordenkainen's Private Sanctum, components: VSM}
-- {name: Mordenkainen's Sword, components: VSM}
 - {name: Move Earth, components: VSM}
 - {name: Nondetection, components: VSM}
-- {name: Otiluke's Freezing Sphere, components: VSM}
-- {name: Otiluke's Resilient Sphere, components: VSM}
-- {name: Otto's Irresistible Dance, components: V}
 - {name: Pass Without Trace, components: VSM}
 - {name: Passwall, components: VSM}
 - {name: Phantasmal Killer, components: VS}
@@ -239,6 +236,7 @@
 - {name: Prestidigitation, components: VS}
 - {name: Prismatic Spray, components: VS}
 - {name: Prismatic Wall, components: VS}
+- {name: Private Sanctum, components: VSM}
 - {name: Produce Flame, components: VS}
 - {name: Programmed Illusion, components: VSM}
 - {name: Project Image, components: VSM}
@@ -252,6 +250,7 @@
 - {name: Regenerate, components: VSM}
 - {name: Reincarnate, components: VSM}
 - {name: Remove Curse, components: VS}
+- {name: Resilient Sphere, components: VSM}
 - {name: Resistance, components: VSM}
 - {name: Resurrection, components: VSM}
 - {name: Reverse Gravity, components: VSM}
@@ -261,6 +260,7 @@
 - {name: Sanctuary, components: VSM}
 - {name: Scorching Ray, components: VS}
 - {name: Scrying, components: VSM}
+- {name: Secret Chest, components: VSM}
 - {name: See Invisibility, components: VSM}
 - {name: Seeming, components: VS}
 - {name: Sending, components: VSM}
@@ -293,13 +293,14 @@
 - {name: Sunbeam, components: VSM}
 - {name: Sunburst, components: VSM}
 - {name: Symbol, components: VSM}
-- {name: Tasha's Hideous Laughter, components: VSM}
 - {name: Telekinesis, components: VS}
+- {name: Telepathic Bond, components: VSM}
 - {name: Teleport, components: V}
 - {name: Teleportation Circle, components: VM}
 - {name: Thaumaturgy, components: V}
 - {name: Thunderwave, components: VS}
 - {name: Time Stop, components: V}
+- {name: Tiny Hut, components: VSM}
 - {name: Tongues, components: VM}
 - {name: Transport via Plants, components: VS}
 - {name: Tree Stride, components: VS}

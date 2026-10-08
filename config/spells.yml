@@ -163,19 +163,6 @@
   duration: Instantaneous
   requires_concentration: false
   description: You touch a living creature that has 0 hit points. The creature becomes stable.
-- name: Thorn Whip
-  level: 0
-  school: transmutation
-  attack_type: attack_roll
-  damage_dice: 1d6
-  damage_modifier: 0
-  damage_type: piercing
-  cantrip_scaling: true
-  cantrip_scale_dice: 1d6
-  duration: Instantaneous
-  requires_concentration: false
-  description: You create a long, vine-like whip that lashes out at a creature within range. On a hit, you pull the target
-    up to 10 feet closer to you.
 - name: Vicious Mockery
   level: 0
   school: enchantment
@@ -657,18 +644,6 @@
   higher_levels: +1d8
   description: A wave of thunderous force sweeps out from you. Each creature in a 15-foot cube makes a Constitution saving
     throw. On failure, it takes thunder damage and is pushed 10 feet.
-- name: Witch Bolt
-  level: 1
-  school: evocation
-  attack_type: attack_roll
-  damage_dice: 1d12
-  damage_modifier: 0
-  damage_type: lightning
-  duration: Concentration, up to 1 minute
-  requires_concentration: true
-  higher_levels: +1d12
-  description: A beam of crackling blue energy lances out. On hit, the target takes lightning damage. On each of your subsequent
-    turns, you can use an action to deal 1d12 lightning automatically.
 - name: Acid Arrow
   level: 2
   school: evocation
@@ -764,21 +739,6 @@
   requires_concentration: true
   description: Each humanoid in a 20-foot radius must make a Charisma save. On failure, you suppress any charm or frightened
     effects, or make creatures indifferent about hostile targets.
-- name: Cloud of Daggers
-  level: 2
-  school: conjuration
-  attack_type: automatic
-  damage_dice: 4d4
-  damage_modifier: 0
-  damage_type: slashing
-  aoe: true
-  aoe_shape: cube
-  aoe_size: 5-foot cube
-  duration: Concentration, up to 1 minute
-  requires_concentration: true
-  higher_levels: +2d4
-  description: You fill a 5-foot cube with spinning daggers. A creature takes 4d4 slashing when it first enters on a turn
-    or ends its turn there.
 - name: Continual Flame
   level: 2
   school: evocation
@@ -1115,19 +1075,6 @@
     stealth_checks: '+10'
   description: A veil of shadows and silence emanates from you. You and creatures within 30 feet get +10 to Dexterity (Stealth)
     checks and cannot be tracked except by magical means.
-- name: Phantasmal Force
-  level: 2
-  school: illusion
-  attack_type: saving_throw
-  save_type: int
-  save_half: false
-  damage_dice: 1d6
-  damage_modifier: 0
-  damage_type: psychic
-  duration: Concentration, up to 1 minute
-  requires_concentration: true
-  description: You craft an illusion so vivid it takes root in the target's mind. It must make an Intelligence save. On failure,
-    it sees and feels whatever you imagine and takes 1d6 psychic each turn it interacts with the illusion.
 - name: Prayer of Healing
   add_spellcasting_mod: true
   level: 2
@@ -1395,22 +1342,6 @@
   requires_concentration: true
   description: You create an invisible sensor in a familiar or obvious location visible or audible to you. You can see or
     hear (but not both) through the sensor. Can be blocked by lead.
-- name: Conjure Barrage
-  level: 3
-  school: conjuration
-  attack_type: saving_throw
-  save_type: dex
-  save_half: true
-  damage_dice: 3d8
-  damage_modifier: 0
-  damage_type: piercing
-  aoe: true
-  aoe_shape: cone
-  aoe_size: 60-foot cone
-  duration: Instantaneous
-  requires_concentration: false
-  description: You throw a nonmagical weapon or fire ammunition into the air, creating a cone of identical spectral weapons.
-    Creatures in the cone make a Dexterity save. The damage type matches the weapon/ammunition used.
 - name: Counterspell
   level: 3
   school: abjuration
@@ -1573,7 +1504,7 @@
   requires_concentration: true
   description: A twisting pattern of colors fills a 30-foot cube. Creatures seeing it must make a Wisdom save. On failure,
     they become charmed and incapacitated with speed 0. The effect ends if the creature takes damage or is shaken awake.
-- name: Leomund's Tiny Hut
+- name: Tiny Hut
   level: 3
   school: evocation
   attack_type: automatic
@@ -1997,7 +1928,7 @@
   requires_concentration: true
   description: A beast you can see must make a Wisdom save or be charmed. You establish a telepathic link and can issue precise
     commands. It obeys to the best of its ability. It repeats the save when damaged.
-- name: Evard's Black Tentacles
+- name: Black Tentacles
   level: 4
   school: conjuration
   attack_type: saving_throw
@@ -2066,22 +1997,6 @@
   requires_concentration: true
   description: You transform centipedes, spiders, scorpions, or beetles into giant versions. They obey verbal commands and
     fight with you.
-- name: Grasping Vine
-  level: 4
-  school: conjuration
-  attack_type: saving_throw
-  save_type: dex
-  save_half: false
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  condition: Pulled
-  condition_duration: Instant
-  duration: Concentration, up to 1 minute
-  requires_concentration: true
-  description: A vine sprouts from the ground. As a bonus action, you can direct it to pull a creature within 30 feet. The
-    creature makes a Dexterity save or is pulled 20 feet toward the vine.
 - name: Greater Invisibility
   level: 4
   school: illusion
@@ -2150,7 +2065,7 @@
   extra_higher_levels: +1d6
   description: Hail of rock-hard ice pounds the ground. Creatures take bludgeoning and cold damage. The area becomes difficult
     terrain until the end of your next turn.
-- name: Leomund's Secret Chest
+- name: Secret Chest
   level: 4
   school: conjuration
   attack_type: automatic
@@ -2174,7 +2089,7 @@
   requires_concentration: true
   description: You sense the direction of a familiar creature within 1,000 feet. This spell cannot locate creatures blocked
     by running water.
-- name: Otiluke's Resilient Sphere
+- name: Resilient Sphere
   level: 4
   school: evocation
   attack_type: saving_throw
@@ -3649,21 +3564,6 @@
     or cost. Alternatively, you can wish for any other effect. The GM has great latitude in ruling what occurs. Beyond duplicating
     a spell, you suffer stress: Strength drops to 3 for 2d4 days, 1d10 necrotic per spell level cast until a long rest, and
     a 33% chance you can never cast Wish again.'
-- name: Blade Ward
-  level: 0
-  school: abjuration
-  attack_type: automatic
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  cantrip_scaling: false
-  no_damage: true
-  duration: 1 round
-  requires_concentration: false
-  buffs:
-    damage_resistance: bludgeoning, piercing, and slashing from weapon attacks
-  description: You extend your hand and trace a sigil of warding in the air. Until the end of your next turn, you have resistance
-    against bludgeoning, piercing, and slashing damage dealt by weapon attacks.
 - name: Dancing Lights
   level: 0
   school: evocation
@@ -3692,22 +3592,6 @@
   description: 'Whispering to the spirits of nature, you create one of the following effects within range: a tiny sensory
     effect that predicts weather, cause a flower to blossom or a leaf bud to open, create an instantaneous harmless sensory
     effect like falling leaves, or light or snuff a small campfire.'
-- name: Friends
-  level: 0
-  school: enchantment
-  attack_type: automatic
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  cantrip_scaling: false
-  no_damage: true
-  duration: Concentration, up to 1 minute
-  requires_concentration: true
-  buffs:
-    ability_checks: +1d4 (Charisma checks)
-  description: For the duration, you have advantage on all Charisma checks directed at one creature of your choice that is
-    not hostile toward you. When the spell ends, the creature realizes that you used magic to influence its mood and may become
-    hostile.
 - name: Light
   level: 0
   school: evocation
@@ -3853,40 +3737,6 @@
     than a 20-foot cube. Until the spell ends, an alarm alerts you whenever a Tiny or larger creature touches or enters the
     warded area. When you cast the spell, you can designate creatures that do not set off the alarm. You also choose whether
     the alarm is mental or audible.
-- name: Armor of Agathys
-  level: 1
-  school: abjuration
-  attack_type: automatic
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  higher_levels: +5_temp_HP_per_level
-  duration: 1 hour
-  requires_concentration: false
-  buffs:
-    hp_temporary: 5
-  description: 'A protective magical force surrounds you, manifesting as a spectral frost. You gain 5 temporary hit points
-    for the duration. If a creature hits you with a melee attack while you have these hit points, the creature takes 5 cold
-    damage. At Higher Levels: both the temporary hit points and the cold damage increase by 5 for each slot level above 1st.'
-- name: Arms of Hadar
-  level: 1
-  school: conjuration
-  attack_type: saving_throw
-  save_type: str
-  save_half: false
-  damage_dice: 2d6
-  damage_modifier: 0
-  damage_type: necrotic
-  aoe: true
-  aoe_shape: sphere
-  aoe_size: 10-foot radius centered on self
-  higher_levels: +1d6
-  duration: Instantaneous
-  requires_concentration: false
-  description: You invoke the power of Hadar, the Dark Hunger. Tendrils of dark energy erupt from you and batter all creatures
-    within 10 feet of you. Each creature in that area must make a Strength saving throw. On a failed save, a target takes
-    2d6 necrotic damage and cannot take reactions until its next turn.
 - name: Comprehend Languages
   level: 1
   school: divination
@@ -4055,23 +3905,6 @@
   description: A willing creature you touch is imbued with bravery. Until the spell ends, the creature is immune to being
     frightened and gains temporary hit points equal to your spellcasting ability modifier at the start of each of its turns.
     When the spell ends, the target loses any remaining temporary hit points from this spell.
-- name: Hex
-  level: 1
-  school: enchantment
-  attack_type: automatic
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  higher_levels: +1-hour_duration_per_level
-  duration: Concentration, up to 1 hour
-  requires_concentration: true
-  buffs:
-    damage_rolls: +1d6_nectrotic
-  description: 'You place a curse on a creature that you can see within range. Until the spell ends, you deal an extra 1d6
-    necrotic damage to the target whenever you hit it with an attack. Also, choose one ability when you cast the spell. The
-    target has disadvantage on ability checks made with the chosen ability. At Higher Levels: the duration increases to 8
-    hours (3rd/4th level) and 24 hours (5th level or higher).'
 - name: Hunter's Mark
   level: 1
   school: divination
@@ -4174,7 +4007,7 @@
     until the spell ends. The servant springs into existence in an unoccupied space on the ground within range. It has AC
     10, 1 hit point, and a Strength of 2, and it cannot attack. If it drops to 0 hit points, the spell ends. As a bonus action,
     you can mentally command the servant to move and interact with an object.
-- name: Tasha's Hideous Laughter
+- name: Hideous Laughter
   level: 1
   school: enchantment
   attack_type: saving_throw
@@ -4241,19 +4074,6 @@
   ritual: true
   description: 'You receive an omen about a specific course of action within the next 30 minutes: Weal (good), Woe (bad),
     Weal and Woe (both), Nothing (no significant result). Subsequent castings on the same topic return random results.'
-- name: Beast Sense
-  level: 2
-  school: divination
-  attack_type: automatic
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  duration: Concentration, up to 1 hour
-  requires_concentration: true
-  ritual: true
-  description: You touch a willing beast. For the duration, you can use your action to see through the beast's eyes and hear
-    what it hears, until you use your action to return to your normal senses.
 - name: Branding Smite
   level: 2
   school: evocation
@@ -4268,20 +4088,6 @@
   requires_concentration: true
   description: The next time you hit a creature with a weapon attack, the attack deals an extra 2d6 radiant damage. The target
     sheds dim light in a 5-foot radius and cannot be invisible until the spell ends.
-- name: Cordon of Arrows
-  level: 2
-  school: transmutation
-  attack_type: saving_throw
-  save_type: dex
-  save_half: false
-  damage_dice: 1d6
-  damage_modifier: 0
-  damage_type: piercing
-  higher_levels: +1_arrow
-  duration: 8 hours
-  requires_concentration: false
-  description: You plant four nonmagical arrows/bolts in the ground. When a creature comes within 30 ft or ends its turn there,
-    one piece flies up. Target makes a Dex save or takes 1d6 piercing damage.
 - name: Detect Thoughts
   level: 2
   school: divination
@@ -4296,34 +4102,6 @@
   requires_concentration: true
   description: You can read surface thoughts. As an action, you can probe deeper; the target makes a Wisdom save. On failure,
     you gain insight into its reasoning, emotional state, or central concern.
-- name: Dust Devil
-  level: 2
-  school: conjuration
-  attack_type: saving_throw
-  save_type: str
-  save_half: false
-  damage_dice: 1d8
-  damage_modifier: 0
-  damage_type: bludgeoning
-  higher_levels: +1d8
-  duration: Concentration, up to 1 minute
-  requires_concentration: true
-  description: A 5-foot dust devil appears. As a bonus action, move it 30 ft. Creatures within 5 ft make a Str save or take
-    1d8 bludgeoning damage. Disperses fog and extinguishes unprotected flames.
-- name: Earthbind
-  level: 2
-  school: transmutation
-  attack_type: saving_throw
-  save_type: str
-  save_half: false
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  duration: Concentration, up to 1 minute
-  requires_concentration: true
-  description: An airborne creature within range must make a Str save. On failure, its flying speed drops to 0 and it descends
-    60 ft per round until safely grounded.
 - name: Enthrall
   level: 2
   school: enchantment
@@ -4351,36 +4129,6 @@
   ritual: true
   description: Describe or name a specific kind of beast or plant. You learn the direction and distance to the closest creature
     or plant of that kind within 5 miles, if any are present.
-- name: Snilloc's Snowball Swarm
-  level: 2
-  school: evocation
-  attack_type: saving_throw
-  save_type: dex
-  save_half: true
-  damage_dice: 3d6
-  damage_modifier: 0
-  damage_type: cold
-  higher_levels: +1d6
-  aoe: true
-  aoe_shape: sphere
-  aoe_size: 5-foot radius
-  duration: Instantaneous
-  requires_concentration: false
-  description: A flurry of magic snowballs erupts from a point you choose. Each creature in a 5-foot radius makes a Dex save,
-    taking 3d6 cold damage on failure, or half on success.
-- name: Skywrite
-  level: 2
-  school: transmutation
-  attack_type: automatic
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  duration: Concentration, up to 1 hour
-  requires_concentration: true
-  ritual: true
-  description: You cause up to ten words to form in a part of the sky you can see. The words appear to be made of cloud. A
-    strong wind can disperse them early.
 - name: Spider Climb
   level: 2
   school: transmutation
@@ -4409,35 +4157,6 @@
   requires_concentration: false
   description: Wards a willing creature. Target gains +1 AC, +1 to all saves, and resistance to all damage. However, each
     time the target takes damage, you take the same amount.
-- name: Aura of Vitality
-  level: 3
-  school: evocation
-  attack_type: automatic
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  healing: true
-  duration: Concentration, up to 1 minute
-  requires_concentration: true
-  description: Healing energy radiates from you. As a bonus action, you can cause one creature in the aura to regain 2d6 HP.
-    You can use this bonus action each round for the duration (total ~20d6).
-- name: Blinding Smite
-  level: 3
-  school: evocation
-  attack_type: automatic
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  is_supplementary: true
-  higher_levels: +1d8
-  condition: Blinded
-  condition_duration: 1 minute
-  duration: Concentration, up to 1 minute
-  requires_concentration: true
-  description: The next time you hit with a melee weapon attack, the attack deals an extra 3d8 radiant damage and the target
-    must make a Con save or be blinded until the spell ends.
 - name: Blink
   level: 3
   school: transmutation
@@ -4476,68 +4195,6 @@
   description: You create 45 pounds of food and 30 gallons of water on the ground or in containers within range — enough to
     sustain up to fifteen humanoids or five steeds for 24 hours. The food is bland but nourishing, and spoils if uneaten after
     24 hours.
-- name: Crusader's Mantle
-  level: 3
-  school: evocation
-  attack_type: automatic
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  buffs:
-    damage_rolls: +1d4_radiant
-  duration: Concentration, up to 1 minute
-  requires_concentration: true
-  description: Holy power radiates from you in a 30-foot aura. Nonhostile creatures of your choice in the aura deal an extra
-    1d4 radiant damage when they hit with a weapon attack.
-- name: Elemental Weapon
-  level: 3
-  school: transmutation
-  attack_type: automatic
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  buffs:
-    attack_rolls: '+1'
-    damage_rolls: +1d4
-  higher_levels: +1_damage_die_size
-  duration: Concentration, up to 1 hour
-  requires_concentration: true
-  description: 'A nonmagical weapon you touch becomes a +1 magic weapon and deals an extra 1d4 damage of your choice: acid,
-    cold, fire, lightning, or thunder.'
-- name: Feign Death
-  level: 3
-  school: necromancy
-  attack_type: automatic
-  ritual: true
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  duration: 1 hour
-  requires_concentration: false
-  description: You touch a willing creature and put it into a cataleptic state indistinguishable from death. The target appears
-    dead to all outward inspection, is blinded and incapacitated, has resistance to all damage except psychic, and cannot
-    detect disease or poison.
-- name: Lightning Arrow
-  level: 3
-  school: transmutation
-  attack_type: saving_throw
-  save_type: dex
-  save_half: true
-  damage_dice: 4d8
-  damage_modifier: 0
-  damage_type: lightning
-  higher_levels: +1d8
-  aoe: true
-  aoe_shape: sphere
-  aoe_size: 10-foot radius
-  duration: Concentration, up to 1 minute
-  requires_concentration: true
-  description: 'The next time you make a ranged weapon attack, the weapon turns into a bolt of lightning. Instead of a weapon
-    attack, make a spell ranged weapon attack. On hit: 4d8 lightning. All within 10 ft of target make Dex save or take 2d8
-    lightning.'
 - name: Major Image
   level: 3
   school: illusion
@@ -4599,25 +4256,6 @@
   description: Freezing rain and sleet fall in a 20-foot-tall cylinder with a 40-foot radius. The area is heavily obscured,
     flames are doused, and the ground is icy (difficult terrain). Creatures starting a turn in the area must make a Dex save
     or fall prone. Concentration checks needed.
-- name: Tidal Wave
-  level: 3
-  school: conjuration
-  attack_type: saving_throw
-  save_type: dex
-  save_half: true
-  damage_dice: 4d8
-  damage_modifier: 0
-  damage_type: bludgeoning
-  higher_levels: +1d8
-  condition: Prone
-  condition_duration: Instantaneous
-  aoe: true
-  aoe_shape: line
-  aoe_size: 30 ft long, 10 ft wide, 10 ft tall
-  duration: Instantaneous
-  requires_concentration: false
-  description: 'You conjure up a wave of water that crashes down. Each creature in the 30x10x10 ft line makes a Dex save.
-    Failure: 4d8 bludgeoning and knocked prone. Success: half damage.'
 - name: Compulsion
   level: 4
   school: enchantment
@@ -4644,22 +4282,7 @@
   requires_concentration: true
   description: 'You summon fey spirits that take the form of woodland beings: 1 creature CR 2, 2 creatures CR 1, 4 creatures
     CR 1/2, or 8 creatures CR 1/4. The creatures appear in unoccupied spaces and are friendly to you and your allies.'
-- name: Elemental Bane
-  level: 4
-  school: transmutation
-  attack_type: saving_throw
-  save_type: con
-  save_half: false
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  higher_levels: +1_creature
-  duration: Concentration, up to 1 minute
-  requires_concentration: true
-  description: Choose acid/cold/fire/lightning/thunder. A creature must make a Con save. On failure, the first time each turn
-    it takes that damage type, it takes an extra 2d6 of that damage and loses resistance for the duration.
-- name: Mordenkainen's Faithful Hound
+- name: Faithful Hound
   level: 4
   school: conjuration
   attack_type: attack_roll
@@ -4674,7 +4297,7 @@
   description: You conjure a phantom watchdog in an unoccupied space. The hound is invisible and barks whenever a Small or
     larger creature comes within 30 feet. It attacks nearby hostile creatures for 4d8 piercing damage, considering all attacks,
     bonuses, and immunity.
-- name: Mordenkainen's Private Sanctum
+- name: Private Sanctum
   level: 4
   school: abjuration
   attack_type: automatic
@@ -4687,59 +4310,6 @@
   description: 'You create an area within a cube up to 100 ft on each side. Choose from: prevent sound/visuals from passing
     through, prevent divination sensors, prevent teleportation, prevent planar travel. Casting it in the same spot each day
     for a year makes it permanent.'
-- name: Storm Sphere
-  level: 4
-  school: evocation
-  attack_type: saving_throw
-  save_type: str
-  save_half: false
-  damage_dice: 2d6
-  damage_modifier: 0
-  damage_type: bludgeoning
-  higher_levels: +1d6
-  duration: Concentration, up to 1 minute
-  requires_concentration: true
-  aoe: true
-  aoe_shape: sphere
-  aoe_size: 20-foot radius
-  description: 'A 20-foot-radius sphere of storm energy appears. Creatures making a Str save within take 2d6 bludgeoning.
-    On subsequent turns as a bonus action, you can hurl a bolt from the sphere: ranged spell attack, 60 ft, 4d6 lightning
-    damage.'
-- name: Vitriolic Sphere
-  level: 4
-  school: evocation
-  attack_type: saving_throw
-  save_type: dex
-  save_half: true
-  damage_dice: 10d4
-  damage_modifier: 0
-  damage_type: acid
-  higher_levels: +2d4
-  aoe: true
-  aoe_shape: sphere
-  aoe_size: 20-foot radius
-  damage_on_miss: 5d4
-  duration: Instantaneous
-  requires_concentration: false
-  description: 'A glowing sphere streaks to a point and explodes. Creatures in a 20-foot radius make a Dex save. Failure:
-    10d4 acid, and 5d4 acid at the end of its next turn. Success: half initial, no ongoing damage.'
-- name: Watery Sphere
-  level: 4
-  school: conjuration
-  attack_type: saving_throw
-  save_type: str
-  save_half: false
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  condition: Restrained
-  condition_duration: 1 minute
-  duration: Concentration, up to 1 minute
-  requires_concentration: true
-  description: You conjure a 5-foot-diameter sphere of water. As a bonus action, move it up to 30 ft and ram creatures (Str
-    save or restrained inside). Creatures inside are restrained and cannot breathe. Targets can re-attempt the save at the
-    end of each turn.
 - name: Antilife Shell
   level: 5
   school: abjuration
@@ -4753,20 +4323,7 @@
   description: A shimmering barrier extends from you in a 10-foot radius, pushing away all creatures other than undead and
     constructs. Creatures cannot willingly move through the barrier by nonmagical means. Ends if you force the barrier against
     a creature or the creature passes.
-- name: Banishing Smite
-  level: 5
-  school: abjuration
-  attack_type: automatic
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  is_supplementary: true
-  duration: Concentration, up to 1 minute
-  requires_concentration: true
-  description: The next time you hit a creature with a weapon attack, the attack deals an extra 5d10 force damage and, if
-    under 50 HP after this attack, the target is banished to a harmless demiplane.
-- name: Bigby's Hand
+- name: Arcane Hand
   level: 5
   school: evocation
   attack_type: attack_roll
@@ -4834,22 +4391,6 @@
   requires_concentration: true
   description: You call forth an elemental (air, earth, fire, or water). The elemental is friendly to you and your allies.
     It obeys your verbal commands. After 1 hour, the elemental becomes hostile to you if you lose concentration.
-- name: Conjure Volley
-  level: 5
-  school: conjuration
-  attack_type: saving_throw
-  save_type: dex
-  save_half: true
-  damage_dice: 8d8
-  damage_modifier: 0
-  damage_type: variable (weapon)
-  aoe: true
-  aoe_shape: cylinder
-  aoe_size: 40-foot radius, 20-foot height
-  duration: Instantaneous
-  requires_concentration: false
-  description: You fire a piece of nonmagical ammunition or throw a nonmagical weapon into the air. It multiplies into a rain
-    of ammunition/weapons in a 40-foot radius, dealing 8d8 damage of the weapon type on a failed Dex save (half on success).
 - name: Contagion
   level: 5
   school: necromancy
@@ -4867,41 +4408,6 @@
   description: 'You inflict a disease: Blinding Sickness (disadvantage on Wis checks/saves), Filth Fever (disadvantage on
     Str checks/saves), Flesh Rot (vulnerability to all damage), Mindfire (disadvantage on Int checks/saves), Seizure (disadvantage
     on Dex checks/saves), or Slimy Doom (stunned when damaged). 3 successful saves end it, 3 failures = lasts 7 days.'
-- name: Destructive Wave
-  level: 5
-  school: evocation
-  attack_type: saving_throw
-  save_type: con
-  save_half: true
-  damage_dice: 5d6
-  damage_modifier: 0
-  damage_type: thunder
-  extra_damage_dice: 5d6
-  extra_damage_type: radiant_or_necrotic
-  condition: Prone
-  condition_duration: Instantaneous
-  aoe: true
-  aoe_shape: sphere
-  aoe_size: 30-foot radius centered on self
-  duration: Instantaneous
-  requires_concentration: false
-  description: 'You strike the ground, creating a burst of divine energy. Creatures of your choice within 30 feet make a Con
-    save. Failure: 5d6 thunder + 5d6 radiant/necrotic and knocked prone. Success: half damage and not prone.'
-- name: Holy Weapon
-  level: 5
-  school: evocation
-  attack_type: automatic
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  buffs:
-    damage_rolls: +2d8_radiant
-  duration: Concentration, up to 1 hour
-  requires_concentration: true
-  description: 'You imbue a weapon you touch with holy power. For the duration, the weapon emits bright light in a 30 ft radius
-    and deals an extra 2d8 radiant damage on hit. Bonus action to explode the aura ending the spell: 4d8 radiant in 30 ft
-    radius, blinding for 1 round (Con save for half).'
 - name: Passwall
   level: 5
   school: transmutation
@@ -4927,31 +4433,6 @@
   description: You touch a dead humanoid or a piece of it that has been dead no more than 10 days. The target returns to life
     with a new adult body. The new body may be a different race from the original (DM determines from local population). All
     nonmagical ailments are cured.
-- name: Steel Wind Strike
-  level: 5
-  school: conjuration
-  attack_type: attack_roll
-  damage_dice: 6d10
-  damage_modifier: 0
-  damage_type: force
-  duration: Instantaneous
-  requires_concentration: false
-  description: 'You flourish the weapon used in the casting and then vanish to strike like the wind. Choose up to five creatures
-    within range. Make a melee spell attack against each. On hit: 6d10 force damage. You can then teleport to an unoccupied
-    space within 5 ft of one target.'
-- name: Swift Quiver
-  level: 5
-  school: transmutation
-  attack_type: automatic
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  duration: Concentration, up to 1 minute
-  requires_concentration: true
-  description: You transmute a quiver so it produces nonmagical ammunition for you. On each of your turns, you can use a bonus
-    action to make two attacks with a weapon that uses ammunition from the quiver. Each attack draws its own ammunition from
-    the quiver.
 - name: Tree Stride
   level: 5
   school: conjuration
@@ -4965,31 +4446,6 @@
   description: You gain the ability to enter a tree and move from inside it to inside another tree of the same kind within
     500 feet. Both trees must be living and at least the same size as you. You must use 5 feet of movement to enter the first
     tree. You appear within 5 ft of the dest tree.
-- name: Arcane Gate
-  level: 6
-  school: conjuration
-  attack_type: automatic
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  duration: Concentration, up to 10 minutes
-  requires_concentration: true
-  description: You create two linked teleportation portals on a flat surface. Each portal is a 10-foot circle. Any creature
-    or object entering one portal exits from the other. They must be on a solid, unoccupied surface and within 500 ft of each
-    other.
-- name: Bones of the Earth
-  level: 6
-  school: transmutation
-  attack_type: automatic
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  duration: Instantaneous
-  requires_concentration: false
-  description: Up to six pillars of stone burst from the ground. Large and smaller creatures above must make a Dex save or
-    be lifted 10 ft per pillar. Each pillar is 5 ft diameter, 10-30 ft tall. Pillars can be damaged (AC 15, 30 HP).
 - name: Conjure Fey
   level: 6
   school: conjuration
@@ -5016,7 +4472,7 @@
   description: You cast a companion spell of 5th level or lower that triggers on a condition you define. When the condition
     occurs (e.g. 'When I fall to 0 HP'), the companion spell takes effect instantly. Contingency ends early if you cast it
     again. Only one Contingency active at a time.
-- name: Drawmij's Instant Summons
+- name: Instant Summons
   level: 6
   school: conjuration
   attack_type: automatic
@@ -5030,51 +4486,7 @@
   description: You touch an object (10 ft or less) and place an arcane mark on it, storing it in an extradimensional space.
     You can crush the sapphire to summon the object to your hand regardless of distance. If the object is held by another
     creature, you learn the holder's identity and approximate location.
-- name: Druid Grove
-  level: 6
-  school: abjuration
-  attack_type: automatic
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  duration: 24 hours
-  requires_concentration: false
-  description: 'You create a warded area (up to 90 ft cube). Effects: solid fog (heavily obscured), grasp undead (Wis save
-    or frightened 1 min), grove guardians (4 awakened trees), and extra wards (solid fog for 10 min after intruder passes).
-    Ritual cast.'
-- name: Investiture of Flame
-  level: 6
-  school: transmutation
-  attack_type: automatic
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  buffs:
-    damage_immunity: fire
-    damage_resistance: cold
-  duration: Concentration, up to 10 minutes
-  requires_concentration: true
-  description: Flames race across your body. You are immune to fire damage and resistant to cold damage. Creatures within
-    5 ft take 1d10 fire on your turn. You can use your action to create a 15 ft line of fire (4d8, Dex save for half).
-- name: Mental Prison
-  level: 6
-  school: illusion
-  attack_type: saving_throw
-  save_type: int
-  save_half: false
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  damage_on_miss: 0d0
-  duration: Concentration, up to 1 minute
-  requires_concentration: true
-  description: You trap a creature in an illusory prison. The target must make an Int save. On failure, the target is restrained
-    and cannot move. It perceives a terrifying environment around it. If it attempts to move or makes a physical interaction,
-    it takes 5d10 psychic damage.
-- name: Otto's Irresistible Dance
+- name: Irresistible Dance
   level: 6
   school: enchantment
   attack_type: automatic
@@ -5089,20 +4501,6 @@
   description: 'A creature you can see starts a comical dance: shuffling, tapping its feet, capering. It must use all its
     movement dancing, has disadvantage on Dex saves and attack rolls, and other creatures have advantage on attack rolls against
     it. It can use an action to re-save.'
-- name: Primordial Ward
-  level: 6
-  school: abjuration
-  attack_type: automatic
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  buffs:
-    damage_immunity: acid,cold,fire,lightning,thunder (reaction to change)
-  duration: Concentration, up to 1 minute
-  requires_concentration: true
-  description: You gain immunity to acid, cold, fire, lightning, and thunder damage, but only one at a time (your choice).
-    As a reaction after taking damage, you can switch your immunity to a different type on the list.
 - name: Programmed Illusion
   level: 6
   school: illusion
@@ -5116,34 +4514,6 @@
   description: 'You create an illusion of an object, creature, or visible phenomenon within range, which performs programmed
     script: instructions on visual, audio, and movement. A simple trigger must be specified. The illusion is permanent until
     dispelled.'
-- name: Scatter
-  level: 6
-  school: conjuration
-  attack_type: automatic
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  duration: Instantaneous
-  requires_concentration: false
-  description: The air quivers around up to five creatures you can see. Each must make a Wis save; an unwilling creature teleports
-    120 feet to an unoccupied space on the ground. A willing creature teleports as you choose. Any teleportation must be to
-    a spot you can see.
-- name: Soul Cage
-  level: 6
-  school: necromancy
-  attack_type: automatic
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  buffs:
-    healing: null
-  duration: 8 hours
-  requires_concentration: false
-  description: You snatch the soul of a humanoid as it dies and trap it inside a cage. The soul answers up to 6 questions,
-    grants advantage on 1 roll, heals you 2d8 when you kill for 1 round, or you can ask questions to gain its knowledge. The
-    soul disappears after use.
 - name: Transport via Plants
   level: 6
   school: conjuration
@@ -5195,7 +4565,7 @@
   description: You conjure a door that leads into an extradimensional dwelling containing 50 rooms. The dwelling is furnished
     and decorated as you choose. Furnishings last the spell duration. You decide who can enter. A staff of 100 translucent
     servants attends to guests.
-- name: Mordenkainen's Sword
+- name: Arcane Sword
   level: 7
   school: evocation
   attack_type: attack_roll
@@ -5220,43 +4590,6 @@
   requires_concentration: true
   description: You create an illusory copy of yourself in a location you have visited before. The image can speak and behave
     as you choose; you see and hear through its senses. You can use an action to move it or change its behavior.
-- name: Whirlwind
-  level: 7
-  school: evocation
-  attack_type: saving_throw
-  save_type: dex
-  save_half: true
-  damage_dice: 10d6
-  damage_modifier: 0
-  damage_type: bludgeoning
-  higher_levels: +1d6
-  condition: Restrained (if in cyclone)
-  condition_duration: Concentration, up to 1 minute
-  aoe: true
-  aoe_shape: cylinder
-  aoe_size: 30-foot tall cylinder with 5-foot radius
-  duration: Concentration, up to 1 minute
-  requires_concentration: true
-  description: 'A whirlwind appears. Creatures within 5 ft of the column make a Dex save: on failure 10d6 bludgeoning plus
-    lifted 20 ft and restrained; on success half damage and not lifted. Whirlwind automatically extinguishes nonmagical fire
-    and disperses gas.'
-- name: Abi-Dalzim's Horrid Wilting
-  level: 8
-  school: necromancy
-  attack_type: saving_throw
-  save_type: con
-  save_half: true
-  damage_dice: 12d8
-  damage_modifier: 0
-  damage_type: necrotic
-  aoe: true
-  aoe_shape: cube
-  aoe_size: 30-foot cube
-  duration: Instantaneous
-  requires_concentration: false
-  description: You draw the moisture from every creature in a 30-foot cube. Creatures take 12d8 necrotic damage on failed
-    Con save (half on success). Plants, water elementals, and plant-based creatures have disadvantage on the save and take
-    maximum damage.
 - name: Animal Shapes
   level: 8
   school: transmutation
@@ -5281,52 +4614,7 @@
   requires_concentration: false
   description: Your speech becomes fluent and more convincing. You have advantage on Charisma checks made to influence others.
     Truth-detecting magic registers any lie you tell as true. You can speak and understand any spoken or written language.
-- name: Illusory Dragon
-  level: 8
-  school: illusion
-  attack_type: saving_throw
-  save_type: int
-  save_half: true
-  damage_dice: 7d6
-  damage_modifier: 0
-  damage_type: fire/cold/acid/lightning/poison
-  aoe: true
-  aoe_shape: cone
-  aoe_size: 60-foot cone
-  duration: Concentration, up to 1 minute
-  requires_concentration: true
-  description: An illusory dragon of your choice materializes. Creatures aware it is an illusion have advantage on saves;
-    on a success, they see through it. As a bonus action, the dragon breathes a 60 ft cone, dealing 7d6 damage of a chosen
-    type (Int save half).
-- name: Maddening Darkness
-  level: 8
-  school: evocation
-  attack_type: automatic
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: psychic
-  higher_levels: +1_per_two_levels
-  duration: Concentration, up to 10 minutes
-  requires_concentration: true
-  aoe: true
-  aoe_shape: sphere
-  aoe_size: 60-foot radius
-  description: 'A sphere of pure dark energy appears. Creatures in it emit a maddening screech: each creature starting its
-    turn there takes 8d8 psychic damage. The spell consumes all light within its area; only light from a 9th-level spell can
-    dispel it.'
-- name: Mighty Fortress
-  level: 8
-  school: conjuration
-  attack_type: automatic
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  duration: Instantaneous
-  requires_concentration: false
-  description: A fortress of stone springs up in 1 minute. It includes 30-foot curtain walls, a keep 80 feet square, four
-    towers 30 feet wide, doors and furnishings. 100 servants attend. If cast once per week for a year, it becomes permanent.
-- name: Telepathy
+- name: Telepathic Bond
   level: 8
   school: evocation
   attack_type: automatic
@@ -5352,22 +4640,6 @@
   description: A shimmering, multicolored plane of light forms a vertical opaque wall (up to 90 ft long). Each color layer
     causes a specific effect when crossed (blindness, damage, restrained/poisoned, petrified, confused) and each must be bypassed.
     Seven layers must be traversed or dispelled.
-- name: Psychic Scream
-  level: 9
-  school: enchantment
-  attack_type: saving_throw
-  save_type: int
-  save_half: true
-  damage_dice: 14d6
-  damage_modifier: 0
-  damage_type: psychic
-  condition: Stunned
-  condition_duration: Instantaneous
-  duration: Instantaneous
-  requires_concentration: false
-  description: 'You emit a psionic scream. Up to ten creatures of your choice within range must make an Int save. Failure:
-    14d6 psychic damage and stunned. A stunned target repeats the save at the end of each of its turns. If the save succeeds,
-    it is no longer stunned.'
 - name: Shapechange
   level: 9
   school: transmutation
@@ -5397,25 +4669,6 @@
   description: 'A churning storm cloud forms. Effects over 6 turns: deafening thunder, acid rain, six lightning bolts (10d6
     each), hail (2d6 bludgeoning), freezing rain (1d6 cold + difficult terrain for 2 turns), and gale winds (disadvantage
     on ranged attacks per each). Creatures must make Con saves to avoid the effects.'
-- name: Hunger of Hadar
-  level: 3
-  school: conjuration
-  attack_type: saving_throw
-  save_type: dex
-  save_half: true
-  damage_dice: 2d6
-  damage_modifier: 0
-  damage_type: cold
-  extra_damage_dice: 2d6
-  extra_damage_type: acid
-  aoe: true
-  aoe_shape: sphere
-  aoe_size: 20-foot radius
-  duration: Concentration, up to 1 minute
-  requires_concentration: true
-  description: You open a gateway to the dark between the stars, a region infested with unknown horrors. A 20-foot sphere
-    of blackness appears. Creatures starting their turn in the area take 2d6 cold damage. Creatures ending their turn there
-    make a Dex save or take 2d6 acid damage.
 - name: Speak with Plants
   level: 3
   school: transmutation
@@ -5428,77 +4681,6 @@
   requires_concentration: false
   description: You imbue plants within 30 feet of you with limited sentience and animation. You can question plants about
     events in the spell's area. Plants can turn normal terrain into difficult terrain (or vice versa) while the spell lasts.
-- name: Wall of Sand
-  level: 3
-  school: evocation
-  attack_type: automatic
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  duration: Concentration, up to 10 minutes
-  requires_concentration: true
-  description: A wall of swirling sand rises. The wall blocks line of sight but not movement. Creatures in the wall when cast
-    are blinded. Creatures ending their turn inside are blinded. The wall provides heavy obscurement; ranged attacks through
-    it are impossible.
-- name: Wall of Water
-  level: 3
-  school: evocation
-  attack_type: automatic
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  duration: Concentration, up to 10 minutes
-  requires_concentration: true
-  description: A wall of water springs up. The wall is difficult terrain, and ranged attacks passing through have disadvantage.
-    Fire effects have their damage halved when crossing the wall. Cold damage freezes a section for 1 hour. An object passes
-    through easily.
-- name: Aura of Life
-  level: 4
-  school: abjuration
-  attack_type: automatic
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  buffs:
-    condition_immunity: necrotic_hp_max_reduction
-  healing: true
-  duration: Concentration, up to 10 minutes
-  requires_concentration: true
-  description: Life-preserving energy radiates from you in a 30-foot aura. Allies in the aura have resistance to necrotic
-    damage, cannot have their maximum HP reduced, and dying creatures automatically stabilize at the start of their turns.
-    Creatures with 0 HP regain 1 HP if they start their turn there (1 min/long rest per creature).
-- name: Aura of Purity
-  level: 4
-  school: abjuration
-  attack_type: automatic
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  buffs:
-    condition_immunity: charmed,frightened,possessed,diseased,poisoned
-  duration: Concentration, up to 10 minutes
-  requires_concentration: true
-  description: Purifying energy radiates from you in a 30-foot aura. Allies in the aura have resistance to poison damage,
-    advantage on saves against Blinded, Charmed, Deafened, Frightened, Paralyzed, Poisoned, and Stunned. If already suffering
-    a condition, the save is made with advantage.
-- name: Circle of Power
-  level: 5
-  school: abjuration
-  attack_type: automatic
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  buffs:
-    saving_throws: +advantage
-  duration: Concentration, up to 10 minutes
-  requires_concentration: true
-  description: Divine energy surrounds you in a 30-foot aura. Allies have advantage on saving throws. When you succeed on
-    a save for half damage, you instead take no damage.
 - name: Wall of Force
   level: 5
   school: evocation
@@ -5512,52 +4694,7 @@
   description: An invisible wall of force springs into existence. The wall can be free-floating or resting on a solid surface.
     Nothing can physically pass through. It is immune to all damage and cannot be dispelled by Dispel Magic. A Disintegrate
     spell destroys it instantly.
-- name: Investiture of Ice
-  level: 6
-  school: transmutation
-  attack_type: automatic
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  buffs:
-    damage_immunity: cold
-    damage_resistance: fire
-  duration: Concentration, up to 10 minutes
-  requires_concentration: true
-  description: You are encased in ice. Immune to cold, resistant to fire. Difficult terrain around you. You can use an action
-    to fire a 60 ft line of cold (4d8 cold, Dex save half).
-- name: Investiture of Stone
-  level: 6
-  school: transmutation
-  attack_type: automatic
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  buffs:
-    damage_resistance: bludgeoning,piercing,slashing from nonmagical
-  duration: Concentration, up to 10 minutes
-  requires_concentration: true
-  description: 'You become like stone. Resistance to nonmagical bludgeoning/piercing/slashing. Can move through difficult
-    terrain of earth/stone without penalty. Action to cause a localized quake: 15 ft cube, 3d6 bludgeoning (Dex save for half),
-    knocked prone on failure.'
-- name: Investiture of Wind
-  level: 6
-  school: transmutation
-  attack_type: automatic
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  buffs:
-    damage_resistance: ranged_weapon_attacks
-    speed: flying 60 ft
-  duration: Concentration, up to 10 minutes
-  requires_concentration: true
-  description: 'Wind swirls around you. Ranged weapon attacks have disadvantage against you. You gain a flying speed of 60
-    ft. Action: 15 ft cube of air deals 2d10 bludgeoning (Con save, knocked prone on failure) and pushes creatures 10 ft away.'
-- name: Otiluke's Freezing Sphere
+- name: Freezing Sphere
   level: 6
   school: evocation
   attack_type: saving_throw
@@ -5593,32 +4730,3 @@
   description: A 7d8 damage-dealing wall of tough, flexible brush springs up. Creatures within the wall when cast must make
     a Dex save or take 7d8 piercing, or half. Creatures moving through make a Dex save or take 7d8 piercing (re-entry repeats)
     and the wall slows them.
-- name: Power Word Pain
-  level: 7
-  school: enchantment
-  attack_type: automatic
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  condition: Pain
-  condition_duration: Instantaneous (until save)
-  duration: Instantaneous
-  requires_concentration: false
-  description: 'A creature you can see has its speed reduced to 10 ft and suffers disadvantage on attack rolls, ability checks,
-    and saving throws other than Constitution. The target repeats the Con save at the end of its next turn. 100 or fewer HP:
-    no save.'
-- name: Power Word Heal
-  level: 9
-  school: evocation
-  attack_type: automatic
-  damage_dice: 0d0
-  damage_modifier: 0
-  damage_type: ''
-  no_damage: true
-  healing: true
-  flat_healing: true
-  duration: Instantaneous
-  requires_concentration: false
-  description: A wave of healing energy washes over the target. The target regains all lost hit points. Any blindness, deafness,
-    or disease is cured. This spell has no effect on undead or constructs.

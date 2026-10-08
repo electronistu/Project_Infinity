@@ -734,10 +734,20 @@ def build_stats(db_data: dict) -> dict:
         consumables = {}
     consumable_icons = {str(k): icon_key_for("consumable", k) for k in consumables}
 
+    # Reputation is stored era-scoped: the sheet is the live character, so it
+    # shows the era it is standing in, never another age's standing.
     reputation = []
     rep_raw = g("reputation")
-    if isinstance(rep_raw, dict):
-        for category, factions in rep_raw.items():
+    # A classic save carries no era and keeps its flat reputation map; the era game's
+    # map is namespaced by era and only the era being played is shown.
+    if not isinstance(rep_raw, dict):
+        rep_scope = None
+    elif str(g("era") or "").strip():
+        rep_scope = rep_raw.get(g("era"))
+    else:
+        rep_scope = rep_raw
+    if isinstance(rep_scope, dict):
+        for category, factions in rep_scope.items():
             if not isinstance(factions, dict):
                 continue
             for faction, entries in factions.items():

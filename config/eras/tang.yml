@@ -1,0 +1,54 @@
+# E2 -- China, the High Tang (c. 713-755), Chang'an. Written at full depth.
+#
+# Budget: file <= 5 KB, scaffold <= 450 tokens. The scaffold is fetched once per
+# era (the `lookup` tool); only the meta feeds the always-on ERA INDEX.
+
+meta:
+  id: tang
+  order: 2
+  name: Chang'an
+  when: c. 713-755
+  character: the High Tang, at its cosmopolitan height
+  arrivals:
+    - the west market of Chang'an
+    - the ward gate at dawn
+    - a monastery courtyard above the city
+  legend: Chang'an remembers a foreigner who stood in {arrival}, and was not there the next morning.
+  playable: true
+  part: the Compass Rose
+
+body:
+  history:
+    - Chang'an is the largest city in the world and the eastern end of the Silk Road. Its wards are a grid of walls and gates, and at dusk the drums close them.
+    - "The examination bureaucracy, the Buddhist monasteries and the foreign merchants all answer to one throne. The frontier commands grow strong enough to break it: An Lushan rebels in 755."
+    - "At Talas in 751 the Tang met the Abbasids, and paper-makers travelled west with the prisoners."
+  polities:
+    - name: the Tang empire
+      ruler: Emperor Xuanzong
+      capital: Chang'an
+      relations:
+        the Tibetan Empire: "war on the western frontier"
+        the Uyghurs: "horses for silk"
+        the Abbasid Caliphate: "rivals at Talas in 751"
+        Silla and Japan: "tribute and imitation"
+      factions:
+        - {name: the imperial bureaucracy, key: bureaucracy}
+        - {name: the Buddhist monasteries, key: monasteries}
+        - {name: the market guilds of Chang'an, key: market_guilds}
+        - {name: the Silk Road caravans, key: caravans}
+        - {name: the poets' circles, key: poets}
+    - name: the frontier commands
+      ruler: An Lushan of Fanyang
+      capital: the northern circuits
+      relations:
+        the Tang court: "obedient on paper"
+        the Khitan and the Xi: "raiding, and bought off"
+        the Tibetan Empire: "the same frontier"
+      factions:
+        - {name: the jiedushi, key: jiedushi}
+        - {name: the frontier garrisons, key: garrisons}
+  visual_hooks:
+    - the walled grid of Chang'an
+    - the drums closing the wards at dusk
+    - a pagoda above the ward walls
+    - camels at the western gate

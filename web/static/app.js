@@ -24,7 +24,8 @@ const state = {
   endAfterSave: false,
   imagesEnabled: false,                 // opt-in; portrait + storyline scene images
   imageStatus: { available: false },    // server capability (/api/images/status)
-  imageModels: [],                      // [{id,label}] offered by /api/models
+  imageModels: [],                      // [{id,label}] offered for portraits + scenes
+  iconModels: [],                       // [{id,label}] offered for sheet icons (adds the local engine)
   models: [],                           // [{id,label,provider}] offered by /api/models
   imageModel: "",                       // in-story (portrait + scenes) model id
   iconModel: "",                        // sheet-icon model id
@@ -473,9 +474,16 @@ function iconImg(iconKey, cls) {
   return img;
 }
 
+/* Which icon family the sheet draws from — a property of the icon MODEL, never of the
+   game mode. The server applies the same rule (familyForModel) when it writes icons, so
+   the two never disagree. */
+function iconFamily() {
+  return String(state.iconModel || "").toLowerCase().startsWith("local") ? "local" : "gemini";
+}
+
 async function loadIconIndex() {
   try {
-    const data = await fetch("/api/icons/index").then((r) => r.json());
+    const data = await fetch(`/api/icons/index?family=${iconFamily()}`).then((r) => r.json());
     state.iconUrls = (data && data.icons) || {};
   } catch (e) {
     state.iconUrls = {};
@@ -1339,6 +1347,19 @@ function renderStats(d) {
 
 function setStatus(t) { statusEl.textContent = t; }
 function updateTurn() { const el = $("turn-label"); if (el) el.textContent = "turn " + state.turn; }
+
+// The Device's counter: turns left before it fires. Quiet on purpose -- one word and a
+// number, in the same voice as "turn 3". Absent until the engine reports a cadence, and
+// absent again if the Device ever stops firing on its own.
+function updateDevice(c) {
+  const el = $("device-label");
+  if (!el || !c) return;
+  const left = c.turns_until;
+  if (left === null || left === undefined) { el.hidden = true; return; }
+  el.hidden = false;
+  el.textContent = "device " + left;
+  el.classList.toggle("device-warn", !!c.warning);
+}
 function setConn(t, cls) { const el = $("conn"); el.textContent = t; el.className = "conn " + cls; }
 
 function updateCtxMeter(tokens, window) {
@@ -1427,6 +1448,7 @@ function handleEvent(evt) {
       updateCtxMeter(0, state.contextWindow);
       state.turn = evt.turn || 0;
       updateTurn();
+      updateDevice(evt.cadence);
       state.activeSaveName = (evt.world || "").replace(/\.player$/i, "");
       state.cur = null;
       updateSheetPortrait();
@@ -1534,6 +1556,10 @@ function handleEvent(evt) {
 
     case "scene_request":
       maybeGenerateScene(evt);
+      break;
+
+    case "cadence":
+      updateDevice(evt);
       break;
 
     case "notice":
@@ -1695,6 +1721,7 @@ async function loadModels() {
   updateTemperatureControl();
 
   state.imageModels = m.image_models || [];
+  state.iconModels = m.icon_models || state.imageModels;
   const imageDefault = m.default_image_model || "";
   const iconDefault = m.default_icon_model || "";
   document.querySelectorAll(".image-model-select").forEach((el) => {
@@ -1722,7 +1749,7 @@ async function loadModels() {
   });
   document.querySelectorAll(".icon-model-select").forEach((el) => {
     el.innerHTML = "";
-    state.imageModels.forEach((x) => {
+    state.iconModels.forEach((x) => {
       const o = document.createElement("option");
       o.value = x.id; o.textContent = x.label || x.id;
       el.appendChild(o);
@@ -1730,8 +1757,9 @@ async function loadModels() {
     el.dataset.default = iconDefault;
   });
   const pick = (id, fallback) => (id && state.imageModels.some((x) => x.id === id)) ? id : fallback;
+  const pickIcon = (id, fallback) => (id && state.iconModels.some((x) => x.id === id)) ? id : fallback;
   state.imageModel = pick(state.imageModel, imageDefault);
-  state.iconModel = pick(state.iconModel, iconDefault);
+  state.iconModel = pickIcon(state.iconModel, iconDefault);
   applyModelSelects();
 }
 
@@ -1884,7 +1912,8 @@ function updateStartPortrait() {
     img.src = w.portrait + "?t=" + portraitBust(w);
     img.alt = (w.character || "Character") + " portrait";
     meta.textContent = [w.character, w.class, w.level != null ? "L" + w.level : "",
-                        w.difficulty === "easy" ? "Easy" : (w.difficulty === "hard" ? "Hard" : "")]
+                        w.difficulty === "easy" ? "Easy" : (w.difficulty === "hard" ? "Hard" : ""),
+                        w.mode === "time_traveler" ? "Time Traveler" : (w.mode ? "Classic" : "")]
       .filter(Boolean).join(" · ");
     panel.classList.remove("hidden");
   } else {
@@ -2052,7 +2081,8 @@ function renderLoadList() {
     btn.type = "button";
     btn.className = "load-item";
     const diff = w.difficulty === "easy" ? "Easy" : (w.difficulty === "hard" ? "Hard" : "");
-    const who = w.character ? `${w.character} — ${w.class || "?"} L${w.level == null ? "?" : w.level}${diff ? " · " + diff : ""}` : "unknown character";
+    const game = w.mode === "time_traveler" ? "Time Traveler" : (w.mode ? "Classic" : "");
+    const who = w.character ? `${w.character} — ${w.class || "?"} L${w.level == null ? "?" : w.level}${diff ? " · " + diff : ""}${game ? " · " + game : ""}` : "unknown character";
     const when = w.modified ? new Date(w.modified * 1000).toLocaleString() : "";
     const thumb = w.portrait
       ? `<img class="load-thumb" src="${escapeHtml(w.portrait)}?t=${portraitBust(w)}" alt="" />`

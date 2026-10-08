@@ -1,0 +1,43 @@
+# E1 -- Egypt, the Great Pyramid (c. 2560 BC). A playable era.
+#
+# Budget: file <= 5 KB, scaffold <= 450 tokens. The scaffold is fetched once per
+# era; the meta is what the always-on index is built from.
+
+meta:
+  id: egypt
+  order: 1
+  name: Egypt
+  when: c. 2560 BC
+  character: the Old Kingdom builds the Great Pyramid
+  arrivals:
+    - the Giza quarry, on the Nile
+    - a mudbrick street in Memphis
+    - the river bank at Heliopolis
+  legend: Egypt remembers a stranger who came to {arrival}, and was gone before the flood.
+  playable: true
+  part: the Escapement
+
+body:
+  history:
+    - The 4th Dynasty is at its height. Khufu's Great Pyramid rises at Giza; the quarry, the ramp and the river boats are the largest works in the world, and every nome owes them labour.
+    - The cult of Ra at Heliopolis grows against the older cult of Ptah at Memphis. That fault line will outlive the pyramid.
+  polities:
+    - name: the Old Kingdom
+      ruler: Khufu (Cheops)
+      capital: Memphis (Ineb-Hedj)
+      relations:
+        Nubia: "gold, trade and raids"
+        Libya: "nomad raids on the delta"
+        Sinai: "copper and turquoise at Wadi Maghareh"
+        Byblos: "cedar by sea"
+      factions:
+        - {name: Priesthood of Ra, key: priesthood_of_ra}
+        - {name: Scribes' House, key: scribes_house}
+        - {name: Giza stonecutters, key: giza_stonecutters}
+        - {name: River boatmen, key: river_boatmen}
+        - {name: Palace guard, key: palace_guard}
+  visual_hooks:
+    - the unfinished pyramid in its ramp
+    - the quarry, and sledges on wet sand
+    - the Nile flood
+    - mudbrick Memphis beside dressed stone

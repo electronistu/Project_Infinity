@@ -1,0 +1,8 @@
+# Development-only tooling. Not needed to run the game.
+#
+# tools/token_budget.py --gate requires tiktoken for EXACT token counts. Without
+# it the tool falls back to a labelled chars/3.6 estimate (~12% off) and the gate
+# refuses to run: a budget asserted against a guess is not asserted.
+#
+#   venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+tiktoken>=0.14

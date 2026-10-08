@@ -1,0 +1,57 @@
+{
+  "format": "infinity-workflow/1",
+  "note": "The REPAIR graph for the local icon engine: the same picture again, from the previous PNG. The image is uploaded to ComfyUI's input folder and loaded here, VAE-encoded, and re-sampled at a mid denoise, so the composition survives while the colour and contrast change. Same vendored-document shape as icon.json: the weights live outside the repo, `nodes` names the patch points.",
+  "nodes": {
+    "checkpoint": "1",
+    "load": "2",
+    "encode": "3",
+    "positive": "4",
+    "negative": "5",
+    "sampler": "6"
+  },
+  "workflow": {
+    "1": {
+      "class_type": "CheckpointLoaderSimple",
+      "inputs": { "ckpt_name": "sdxl_lightning_4step.safetensors" }
+    },
+    "2": {
+      "class_type": "LoadImage",
+      "inputs": { "image": "infinity-icon.png", "upload": "image" }
+    },
+    "3": {
+      "class_type": "VAEEncode",
+      "inputs": { "pixels": ["2", 0], "vae": ["1", 2] }
+    },
+    "4": {
+      "class_type": "CLIPTextEncode",
+      "inputs": { "text": "", "clip": ["1", 1] }
+    },
+    "5": {
+      "class_type": "CLIPTextEncode",
+      "inputs": { "text": "", "clip": ["1", 1] }
+    },
+    "6": {
+      "class_type": "KSampler",
+      "inputs": {
+        "seed": 0,
+        "steps": 12,
+        "cfg": 4.0,
+        "sampler_name": "euler",
+        "scheduler": "sgm_uniform",
+        "denoise": 0.5,
+        "model": ["1", 0],
+        "positive": ["4", 0],
+        "negative": ["5", 0],
+        "latent_image": ["3", 0]
+      }
+    },
+    "7": {
+      "class_type": "VAEDecode",
+      "inputs": { "samples": ["6", 0], "vae": ["1", 2] }
+    },
+    "8": {
+      "class_type": "SaveImage",
+      "inputs": { "filename_prefix": "infinity-icon-repair", "images": ["7", 0] }
+    }
+  }
+}

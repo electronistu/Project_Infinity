@@ -21,6 +21,7 @@ notice, timeline, busy, error, fatal, closed
 import asyncio
 import json
 import os
+import random
 import re
 import sys
 import traceback
@@ -38,6 +39,9 @@ from ollama import AsyncClient  # noqa: E402
 from .images import known_npc_names, known_scene_places  # noqa: E402
 from .tool_schema import compact_schema  # noqa: E402
 from forge.world import render_world_text  # noqa: E402
+from web.eras import (  # noqa: E402
+    START_ERA, era_ids, era_legend, playable_eras, render_era_index, render_era_text,
+)
 from .ollama_stream import stream_chat  # noqa: E402
 from .stats import build_stats  # noqa: E402
 
@@ -47,11 +51,44 @@ OUTPUT_DIR = "output"
 
 
 def load_timeline(timeline_path):
-    """Load an existing session timeline, if any."""
+    """Load an existing session timeline, if any.
+
+    The era legends live in the same file but are not session events: they are stripped
+    here and read by `load_legends`."""
     if os.path.exists(timeline_path):
         with open(timeline_path, "r", encoding="utf-8") as f:
-            return f.read().strip()
+            return _LEGEND_RE.sub("", f.read()).strip()
     return ""
+
+
+# A legend, marked so it survives in the save's timeline without being read back as a
+# session event: `<!-- legend:egypt --> Egypt remembers a stranger who ...`.
+_LEGEND_RE = re.compile(r"(?m)^<!-- legend:([a-z0-9_-]+) -->[ \t]*(.*?)[ \t]*$")
+
+
+def load_legends(timeline_path) -> dict:
+    """What each era remembers about the Traveller, per save: `{era: one or two lines}`.
+
+    Era-local and lazy: only the era the Traveller is in is ever put in the prompt, so the
+    eras he is not in cost nothing."""
+    out: dict = {}
+    if not os.path.exists(timeline_path):
+        return out
+    try:
+        with open(timeline_path, "r", encoding="utf-8") as f:
+            text = f.read()
+    except OSError:
+        return out
+    for era, line in _LEGEND_RE.findall(text or ""):
+        cleaned = " ".join(str(line or "").split())
+        if era and cleaned:
+            out.setdefault(str(era).strip().lower(), cleaned)
+    return out
+
+
+def append_legend(timeline_path, era: str, text: str) -> None:
+    """Record what an era now remembers, permanently."""
+    append_timeline_file(timeline_path, f"<!-- legend:{era} --> {text}")
 
 
 def append_timeline_file(timeline_path, entry):
@@ -105,6 +142,14 @@ RESUME_GUARD_NUDGE = (
     "SYSTEM: You have already paused; the engine resumed. Write the turn's narrative now."
 )
 MAX_RESUME_ROUNDS = 3
+# The awakening's resume re-anchors the one step a bare `{{_CONTINUE_EXECUTION}}` leaves
+# implicit: after the pause the next beat IS the opening narrative, and it carries the
+# illustration. An empty turn there otherwise reads as valid. A runtime message, so it
+# costs no prefix tokens.
+AWAKENING_RESUME = (
+    "{{_CONTINUE_EXECUTION}} — resume at AWAKENING step 3: the opening NARRATIVE, in the "
+    "same response as exactly ONE `request_scene_image`."
+)
 
 # Web-local timeline prompt: the database is authoritative, so mechanical changes
 # are NOT summarised (the terminal CLI's prompt is gone).
@@ -162,12 +207,18 @@ _EASY_BLOCK = re.compile(
 _EASY_MARKERS = re.compile(r"(?m)^[ \t]*<!-- EASY:(?:ON|END) -->[ \t]*\n?")
 # The KNOWN IMAGE PLACES awakening priming: a header + the place tree (names + main NPCs,
 # never the descriptions). Shared with tools/token_budget.py so the count never drifts.
+# Kept terse on purpose: this block is re-sent every turn, and the whole tree is capped.
 KNOWN_PLACES_HEADER = (
-    "KNOWN IMAGE PLACES (reuse these exact kingdom / area / place "
-    "paths; only invent a new name for a genuinely new place, and "
-    "request its seed with `establishing` only when it is not listed "
-    "here. Use the place's main NPCs by NAME; never restate their look):"
+    "KNOWN IMAGE PLACES (reuse these exact kingdom / area / place paths; use a "
+    "place's NPCs by NAME, never their look; a new name only for a genuinely "
+    "new place, seeded with `establishing`):"
 )
+
+# The primed list is scoped to the current era and capped: the tree is
+# a reminder, not the record. Past the cap the GM still has `lookup` and the manifest.
+PLACE_TREE_CAP = 12
+# ... and a place's NPC names are capped too, so one busy place cannot blow the ceiling.
+NPC_NAMES_PER_PLACE = 2
 KNOWN_PLACES_EMPTY = (
     "KNOWN IMAGE PLACES: none recorded yet. On entering a place, declare "
     "its `kingdom`, `area` and `place` path and request its seed with "
@@ -187,12 +238,27 @@ def _scene_key(place) -> tuple[str, ...]:
     return tuple(_s(p) for p in place if str(p or "").strip())
 
 
-def format_known_places(places: list[dict]) -> str:
+def _primed_places(places: list[dict], cap: int = PLACE_TREE_CAP) -> list[dict]:
+    """The places the priming shows: the `cap` most recently used, back in tree order.
+
+    The primed tree is a *reminder*, so it is bounded; the record is the
+    manifest, and `_match_known_place` deliberately keeps reading the whole list.
+    """
+    def _order(p: dict):
+        return (p["kingdom"].lower(), p["area"].lower(), [s.lower() for s in p["place"]])
+
+    recent = sorted(places, key=lambda p: (-int(p.get("used") or 0), *_order(p)))
+    return sorted(recent[:cap], key=_order)
+
+
+def format_known_places(places: list[dict], cap: int = NPC_NAMES_PER_PLACE) -> str:
     """A kingdom -> area -> place-path tree for the awakening priming (any depth).
 
-    Names + each place's main NPCs (name + role) only: the full establishing description is
-    deliberately omitted -- it lives in the manifest (the image pipeline reads it there), so
-    feeding it to the GM would only duplicate it every turn."""
+    Names + at most `cap` main NPC names per place: the full establishing description is
+    deliberately omitted (it lives in the manifest, which the image pipeline reads), and
+    the NPC *roles* are dropped -- a role parenthetical costs ~3.5 tokens and cannot fit a
+    12-place tree inside the budget. A place with more names than `cap` says so
+    with `+N`, so the GM knows the place is not empty."""
     lines: list[str] = []
     last_k = last_a = None
     last_path: list[str] = []
@@ -214,22 +280,44 @@ def format_known_places(places: list[dict]) -> str:
             lines.append("    " * (2 + i) + f"- {path[i]}")
         last_path = list(path)
         npc_labels: list[str] = []
-        for npc in (p.get("main_npcs") or []):
-            if not isinstance(npc, dict):
-                continue
-            name = str(npc.get("name") or "").strip()
-            if not name:
-                continue
-            role = str(npc.get("role") or "").strip()
-            npc_labels.append(f"{name} ({role})" if role else name)
+        names = [str(npc.get("name") or "").strip() for npc in (p.get("main_npcs") or [])
+                 if isinstance(npc, dict)]
+        names = [n for n in names if n]
+        npc_labels.extend(names[:cap])
+        if len(names) > cap:
+            npc_labels.append(f"+{len(names) - cap}")
         if npc_labels:
-            label = "main NPC" if len(npc_labels) == 1 else "main NPCs"
+            label = "NPC" if len(npc_labels) == 1 else "NPCs"
             lines[-1] += f" · {label}: " + ", ".join(npc_labels)
     return "\n".join(lines)
 
 
-def render_protocol(text: str, scene_images: bool, difficulty: str = "hard") -> str:
-    """Strip the scene and difficulty markers; drop the enclosed rules when off."""
+# ── The two games ─────────────────────────────────────────────────────────
+#
+# CLASSIC is the invented world of `config/world.yml`: a fixed scaffold of kingdoms,
+# fetched at awakening, and no eras at all. TIME_TRAVELER is the era ladder, the Device
+# and the legend. A save says which it is in its own `mode`; a save that carries an `era`
+# was made by the era game, and anything older than that is classic.
+MODE_CLASSIC = "classic"
+MODE_TIME_TRAVELER = "time_traveler"
+MODES = (MODE_CLASSIC, MODE_TIME_TRAVELER)
+
+# The mode blocks: `<!-- TT:ON -->` / `<!-- CLASSIC:ON -->` around the rules that only
+# one of the two games uses. Exactly one of the pair survives `render_protocol`.
+_TT_BLOCK = re.compile(r"(?ms)^[ \t]*<!-- TT:ON -->.*?^[ \t]*<!-- TT:END -->[ \t]*\n?")
+_TT_MARKERS = re.compile(r"(?m)^[ \t]*<!-- TT:(?:ON|END) -->[ \t]*\n?")
+_CLASSIC_BLOCK = re.compile(
+    r"(?ms)^[ \t]*<!-- CLASSIC:ON -->.*?^[ \t]*<!-- CLASSIC:END -->[ \t]*\n?")
+_CLASSIC_MARKERS = re.compile(r"(?m)^[ \t]*<!-- CLASSIC:(?:ON|END) -->[ \t]*\n?")
+
+
+def render_protocol(text: str, scene_images: bool, difficulty: str = "hard",
+                    mode: str = MODE_TIME_TRAVELER) -> str:
+    """Strip the marker blocks and the markers themselves; drop the rules that are off.
+
+    The mode is resolved per session, so the game that is not being played costs nothing:
+    its block is removed before the prompt is built.
+    """
     out = text or ""
     if scene_images:
         out = _SCENE_MARKERS.sub("", out)
@@ -239,6 +327,12 @@ def render_protocol(text: str, scene_images: bool, difficulty: str = "hard") -> 
         out = _EASY_MARKERS.sub("", out)
     else:
         out = _EASY_BLOCK.sub("", out)
+    if str(mode or "").strip().lower() == MODE_CLASSIC:
+        out = _TT_BLOCK.sub("", out)
+        out = _CLASSIC_MARKERS.sub("", out)
+    else:
+        out = _TT_MARKERS.sub("", out)
+        out = _CLASSIC_BLOCK.sub("", out)
     return out
 
 
@@ -252,12 +346,111 @@ def _player_difficulty(player_path: str) -> str:
         return "hard"
 
 
-def filter_tools(tools: list[dict], scene_images: bool) -> list[dict]:
-    """Hide the scene-image and NPC-declaration tools unless storyline images are on."""
-    if scene_images:
-        return list(tools)
+def _player_mode(player_path: str) -> str:
+    """Which game this save is playing (see the modes above).
+
+    An explicit `mode` wins. Otherwise a save with an `era` was made by the era game,
+    and one without is classic -- so every save that predates the eras keeps the game it
+    was created for, with nothing to migrate.
+    """
+    try:
+        with open(player_path, "r", encoding="utf-8") as f:
+            data = json.load(f) or {}
+    except (OSError, ValueError, TypeError):
+        return MODE_CLASSIC
+    value = str(data.get("mode", "") or "").strip().lower()
+    if value in MODES:
+        return value
+    return MODE_TIME_TRAVELER if str(data.get("era", "") or "").strip() else MODE_CLASSIC
+
+
+def _player_era(player_path: str) -> str:
+    """Read the character's current era from the `.player` JSON; default START_ERA."""
+    try:
+        with open(player_path, "r", encoding="utf-8") as f:
+            value = str((json.load(f) or {}).get("era", "") or "").strip().lower()
+    except (OSError, ValueError, TypeError):
+        return START_ERA
+    return value if value in era_ids() else START_ERA
+
+
+def _player_arrival(player_path: str, era: str) -> str:
+    """The saved arrival point in `era`, or a fresh random one.
+
+    The Device has no Compass Rose, so an arrival is never a stable fact: a
+    saved one is honoured (a reload lands you where you were), anything else is
+    drawn again.
+    """
+    try:
+        from web.eras import era_arrivals, pick_arrival
+
+        options = era_arrivals(era)
+    except Exception:  # noqa: BLE001 - never fail a session over the arrival point
+        return ""
+    if not options:
+        return ""
+    try:
+        with open(player_path, "r", encoding="utf-8") as f:
+            value = str((json.load(f) or {}).get("arrival", "") or "").strip()
+    except (OSError, ValueError, TypeError):
+        value = ""
+    return value if value in options else pick_arrival(era)
+
+
+# Tools the GM never sees: called directly by the session for its own bookkeeping, filtered
+# out of the GM's tool list (and out of the measured prefix -- see tools/token_budget.py).
+ENGINE_ONLY_TOOLS = ("set_player_field", "dump_player_save_state")
+
+# The Device's cadence, keyed by how many of its four parts are back. 0-of-4 is the WORST
+# case -- it fires constantly when it has no Regulator -- which is exactly why it is the
+# test constant. Stages 1-4 are NOT DECIDED yet; an absent stage means
+# "no automatic jump", and the repair mechanic must fill them in. Today nothing can
+# recover a party, so only stage 0 is reachable.
+CADENCE_BANDS = {0: (5, 5)}
+# How many turns before the jump the Device starts ticking: the turn it fires on is the one
+# after this many turns, so 1 means the warning lands on the LAST turn of the age and the GM
+# has that turn to close the age out -- no earlier.
+WARNING_TURNS = 1
+
+DEVICE_WARNING = (
+    "The Device is ticking. This is the last turn of this age: bring it to a close now, "
+    "because the jump comes next. Nobody else can hear it."
+)
+
+DEVICE_FIRES = (
+    "The Device fires. You are thrown out of {old} and into {new}.\n\n"
+    "You arrive at {arrival}.\n\n"
+    "You still have everything you carried, exactly as it is: nothing is translated, "
+    "nothing is left behind. This age has never seen its like, and people will notice.\n\n"
+    "Call `lookup(\"here\")` for this era, then narrate the arrival -- the disorientation, "
+    "what the place smells and sounds like at this hour, and who notices a stranger appear."
+)
+
+# The Traveller keeps the whole kit, and it stays LITERAL in every era. No
+# translation, no re-skinning -- a Victorian pistol is a pistol in 2560 BC, and the era
+# reacts to it. The world still introduces only era-plausible gear of its own.
+CARRY_NOTE = (
+    "Your gear is your own: whatever you carry you still have, and this age has never "
+    "seen its like. Shoot, load and reload as the rules say -- a spent round is a consumable."
+)
+
+
+# `lookup` fetches another era's scaffold. There are no other eras in a classic game,
+# so the tool is never offered one -- and its schema is never paid for either.
+LOOKUP_TOOL = "lookup"
+
+
+def filter_tools(tools: list[dict], scene_images: bool,
+                 mode: str = MODE_TIME_TRAVELER) -> list[dict]:
+    """What the GM is offered: hide the tools this game cannot use, and always hide the
+    session's own bookkeeping tools."""
+    hidden = set(ENGINE_ONLY_TOOLS)
+    if not scene_images:
+        hidden |= {SCENE_TOOL, NPC_TOOL}
+    if str(mode or "").strip().lower() == MODE_CLASSIC:
+        hidden |= {LOOKUP_TOOL}
     return [t for t in tools
-            if (t.get("function") or {}).get("name") not in (SCENE_TOOL, NPC_TOOL)]
+            if (t.get("function") or {}).get("name") not in hidden]
 
 
 # ── What the GM is shown of a tool result ─────────────────────────────────
@@ -309,8 +502,9 @@ def _gm_tool_view(name: str, text: str) -> str:
     Listed tools keep only their new-info keys; every other tool passes its mechanics
     through, but the heavy state snapshots (`equipment`, `current_list`, the full
     `carrying` breakdown) are always dropped — the GM already holds the sheet. The
-    creation-time `difficulty` is dropped too: the GM learns the mode only from the
-    presence of the EASY protocol block, never from a data field."""
+    creation-time `difficulty`, `era` and `arrival` are dropped too: the GM learns
+    the mode only from the EASY protocol block, the era only from the ERA INDEX, and
+    the arrival only from the line the engine prepends to the ERA_FILE."""
     try:
         payload = json.loads(text)
     except (json.JSONDecodeError, TypeError):
@@ -332,6 +526,8 @@ def _gm_tool_view(name: str, text: str) -> str:
     view.pop("sheets", None)
     view.pop("narrative_format", None)
     view.pop("difficulty", None)
+    view.pop("era", None)
+    view.pop("arrival", None)
     carry = payload.get("carrying")
     if isinstance(carry, dict):
         slim = {k: carry[k] for k in _GM_VIEW_CARRYING if k in carry}
@@ -369,6 +565,16 @@ class GameSession:
         self.scene_images = bool(scene_images)
         # Set at session start from the character's `.player`; gates the EASY GM rules.
         self.difficulty = "hard"
+        # Set at session start from the character's `.player`; which of the two games this
+        # save is. Until a save says otherwise the session behaves as the era game, which
+        # is what a bare session (a test, a probe) has always been.
+        self.mode = MODE_TIME_TRAVELER
+        self.classic = False
+        # Set at session start from the character's `.player`; the era the Traveler is in.
+        # A classic save carries no era at all.
+        self.era = START_ERA
+        # ... and where in it the Device left them (rolled, never stable).
+        self.arrival = ""
 
         self.player_path: str | None = None
         self.timeline_path: str | None = None
@@ -408,6 +614,31 @@ class GameSession:
         # narrative_format, in call order, sent to the client as the `mechanics` event.
         self._mechanics_lines: list[str] = []
         self._pending_npcs: list[dict] = []
+        # ── the Device's cadence ──────────────────────────────────
+        # How many of the four parts the Traveller has recovered. Nothing can recover one
+        # yet, so the game only ever exercises stage 0 -- the worst case.
+        self.parts_recovered = 0
+        # Injected in tests so the "random" era and band are reproducible.
+        self._rng = random.Random()
+        self._jump_at_turn: int | None = None
+        # A turn in which a combat tool ran. The Device does not count those, so the jump
+        # is pushed one turn further out and the counter holds for the length of a fight.
+        self._battle_turn = False
+        self._warned = False
+        # Where the always-on era messages live, so a jump can rewrite them in place
+        # instead of appending one index (and one tree) per age ever visited.
+        self._era_index_at: int | None = None
+        self._places_at: int | None = None
+        self._primed: list[dict] = []
+        # ── what the ages remember ──────────────────────────────────────
+        # One or two lines per era, read from the save's timeline and injected lazily: the
+        # eras the Traveller is not in cost nothing.
+        self._legends: dict[str, str] = {}
+        self._era_started_turn = 0
+        # Declared NPC roles, by lowercased name -> (canonical name, role). Roles are echoed
+        # with the character that appears, never primed: they are needed on the turn an NPC
+        # walks on stage, not on every turn.
+        self._npc_roles: dict[str, tuple[str, str]] = {}
 
     # ── public API ────────────────────────────────────────────────────────
 
@@ -424,6 +655,12 @@ class GameSession:
         self.timeline_path = stem + ".timeline"
         self.active_name = os.path.splitext(os.path.basename(str(path)))[0]
         self.difficulty = _player_difficulty(self.player_path)
+        # Which game this is. A classic save carries no era at all, and that single fact
+        # is what makes every era-scoped path below fall away cleanly.
+        self.mode = _player_mode(self.player_path)
+        self.classic = self.mode == MODE_CLASSIC
+        self.era = "" if self.classic else _player_era(self.player_path)
+        self.arrival = "" if self.classic else _player_arrival(self.player_path, self.era)
         self._task = asyncio.create_task(self._run())
 
     async def events(self):
@@ -510,18 +747,31 @@ class GameSession:
                     await session.initialize()
                     listing = await session.list_tools()
                     tools = [_tool_schema(t) for t in listing.tools]
-                    self.tools_schema = filter_tools(tools, self.scene_images)
+                    self.tools_schema = filter_tools(tools, self.scene_images, self.mode)
                     if self.provider != "gemini":
                         self._client = AsyncClient()
 
                     with open(self.base_dir / LOCK_FILE, "r", encoding="utf-8") as f:
                         lock_content = f.read()
-                    key_content = render_world_text()
+                    if self.classic:
+                        # The classic game hands the GM the world it was built on.
+                        key_content = render_world_text()
+                    else:
+                        key_content = f"{self._era_opening()}\n\n{render_era_text(self.era)}"
                     existing_timeline = load_timeline(self.timeline_path)
                     # Continue turn numbering where the loaded timeline left off.
                     self.turn_counter = self.last_timeline_turn = _max_timeline_turn(existing_timeline)
 
-                    self.messages = [{"role": "system", "content": render_protocol(lock_content, self.scene_images, self.difficulty)}]
+                    self.messages = [{"role": "system", "content": render_protocol(
+                        lock_content, self.scene_images, self.difficulty, self.mode)}]
+                    # The ERA INDEX is always-on *in the era game only*: the ladder, one
+                    # line each, and nothing else. The era's own scaffold arrives with the
+                    # awakening; any other era is fetched, never injected. A classic
+                    # session pays for none of it and reads the world scaffold instead.
+                    self._era_index_at = None
+                    if not self.classic:
+                        self._era_index_at = len(self.messages)
+                        self.messages.append({"role": "system", "content": render_era_index(self.era)})
                     if existing_timeline:
                         self.messages.append({
                             "role": "system",
@@ -533,18 +783,22 @@ class GameSession:
                         })
 
                     if self.scene_images:
-                        places = known_scene_places(self.base_dir / OUTPUT_DIR, self.active_name)
-                        self._scene_places = {
-                            _scene_key(p["place"]): (p["kingdom"], p["area"])
-                            for p in places
-                        }
-                        self._cast_names = known_npc_names(self.base_dir / OUTPUT_DIR,
-                                                           self.active_name or "")
-                        if places:
-                            body = KNOWN_PLACES_HEADER + "\n" + format_known_places(places)
-                        else:
-                            body = KNOWN_PLACES_EMPTY
-                        self.messages.append({"role": "system", "content": body})
+                        self._reload_era_scene_state()
+                        self._places_at = len(self.messages)
+                        self.messages.append({"role": "system", "content": self._places_body()})
+
+                    # What the ages remember: this era's legend, if it has one. The ages
+                    # exist only in the era game, so a classic session never hears them.
+                    self._legends = {} if self.classic else load_legends(self.timeline_path)
+                    memory = "" if self.classic else self._memory_message("")
+                    if memory:
+                        self.messages.append({"role": "system", "content": memory})
+                    self._era_started_turn = self.turn_counter
+
+                    # Arm the Device for this session.
+                    span = self._cadence_span()
+                    self._jump_at_turn = None if span is None else self.turn_counter + span
+                    self._warned = False
 
                     await self._emit({
                         "type": "ready",
@@ -553,20 +807,22 @@ class GameSession:
                         "model": self.model,
                         "provider": self.provider,
                         "difficulty": self.difficulty,
+                        "era": self.era,
+                        "arrival": self.arrival,
+                        "cadence": self._cadence_state(),
                         "context_window": self.context_window,
                         "turn": self.turn_counter,
                         "tools": [t["function"]["name"] for t in self.tools_schema],
                     })
 
-                    # ── Awakening: WWF -> tools -> pause token -> resume -> opening scene ──
+                    # ── Awakening: ERA_FILE -> tools -> pause token -> resume -> opening scene ──
                     # (The opening illustration is requested by the GM itself, in
                     # the awakening tool batch — see GameMaster_MCP.md.)
                     await self._emit({"type": "busy", "value": True})
                     self._mechanics_lines = []
                     self._narrative_emitted_turn = False
                     awakening = await self._run_role(key_content, "awakening")
-                    if not awakening and not self._narrative_emitted_turn:
-                        awakening = await self._ensure_narrative()
+                    awakening = await self._ensure_turn_prose(awakening)
                     await self._ensure_scene_image(awakening or "")
                     await self._emit({"type": "awakening_end", "text": awakening or ""})
                     await self._emit({"type": "busy", "value": False})
@@ -614,20 +870,170 @@ class GameSession:
         elif kind == "close":
             await self._cmd_q.put(None)
 
-    async def _handle_action(self, text: str) -> None:
+    async def _run_turn(self, content: str, label: str) -> None:
+        """One GM turn: the prose, at most one illustration, then the turn counter.
+
+        Used for the player's turns and for the Device's jump -- a turn nobody asked for."""
         await self._emit({"type": "busy", "value": True})
         self._scene_requested_turn = False  # at most one illustration per turn
         self._narrative_emitted_turn = False  # the turn's prose is emitted once
         self._mechanics_lines = []          # the engine-composed block is per turn
         try:
-            result = await self._run_role(text, "turn")
-            if not result and not self._narrative_emitted_turn:
-                result = await self._ensure_narrative()
+            result = await self._run_role(content, label)
+            result = await self._ensure_turn_prose(result)
             await self._ensure_scene_image(result or "")
             self.turn_counter += 1
             await self._emit({"type": "turn_end", "text": result or "", "turn": self.turn_counter})
         finally:
             await self._emit({"type": "busy", "value": False})
+
+    async def _handle_action(self, text: str) -> None:
+        await self._run_turn(text, "turn")
+        await self._check_cadence()
+        # After the Device has had its say: one cadence event per turn, carrying the truth.
+        await self._emit({"type": "cadence", **self._cadence_state()})
+
+    # ── the Device: the cadence, and the jump itself ─────────────
+
+    def _cadence_span(self) -> int | None:
+        """Turns until the next jump, or None when the Device does not fire by itself.
+
+        A classic game has no Device, so its cadence is off for the session's whole life.
+        """
+        if self.classic:
+            return None
+        band = CADENCE_BANDS.get(self.parts_recovered)
+        return None if band is None else self._rng.randint(band[0], band[1])
+
+    def _cadence_state(self) -> dict:
+        """What the counter shows the player and what warns the GM."""
+        if self._jump_at_turn is None:
+            return {"parts": self.parts_recovered, "turns_until": None, "warning": False}
+        remaining = max(0, self._jump_at_turn - self.turn_counter)
+        return {"parts": self.parts_recovered, "turns_until": remaining,
+                "warning": remaining <= WARNING_TURNS}
+
+    def _pick_era(self) -> str:
+        """Where the Device throws the Traveller: any playable era but this one.
+
+        The Compass Rose is missing, so it does not aim."""
+        options = [e for e in playable_eras() if e != self.era]
+        return self._rng.choice(options) if options else self.era
+
+    def _reload_era_scene_state(self) -> None:
+        """Re-read the places, cast and roles for the era the Traveller is now in."""
+        try:
+            places = known_scene_places(self.base_dir / OUTPUT_DIR, self.active_name or "",
+                                        None if self.classic else self.era)
+        except Exception:  # noqa: BLE001 - never fail a session over the place tree
+            places = []
+        self._primed = places
+        self._scene_places = {_scene_key(p["place"]): (p["kingdom"], p["area"]) for p in places}
+        try:
+            self._cast_names = known_npc_names(self.base_dir / OUTPUT_DIR, self.active_name or "")
+        except Exception:  # noqa: BLE001
+            self._cast_names = set()
+        # Roles are learned from the era's places so the on-stage echo works from the
+        # first tool call on. They are never primed.
+        self._npc_roles = {}
+        for p in places:
+            self._remember_roles(p.get("main_npcs"))
+
+    def _places_body(self) -> str:
+        primed = _primed_places(self._primed)
+        if not primed:
+            return KNOWN_PLACES_EMPTY
+        return KNOWN_PLACES_HEADER + "\n" + format_known_places(primed)
+
+    async def _check_cadence(self) -> None:
+        """After a turn: warn once before the jump, then jump when it is due.
+
+        A turn spent fighting is not a turn the Device counts. It is consumed here -- one
+        turn's worth of signal -- and it pushes the jump one turn further out, so the
+        counter holds for the length of a fight and the jump can never interrupt one.
+        """
+        battle = self._battle_turn
+        self._battle_turn = False
+        if self._jump_at_turn is None:
+            return
+        if battle:
+            self._jump_at_turn += 1
+            return
+        remaining = self._jump_at_turn - self.turn_counter
+        if remaining > 0:
+            if remaining == WARNING_TURNS and not self._warned:
+                self._warned = True
+                # The GM hears it BEFORE the jump turn, so the age can be closed properly.
+                self.messages.append({"role": "system", "content": DEVICE_WARNING})
+                await self._emit({"type": "notice", "title": "The Device", "text": DEVICE_WARNING})
+            return
+        await self._jump()
+
+    def _era_opening(self) -> str:
+        """The lines the GM is handed with an era: where the Traveller is in it, and that
+        the kit is their own -- literal in every age. Written once, never
+        always-on: it rides the ERA_FILE at awakening and the jump message after that."""
+        parts = []
+        if self.arrival:
+            parts.append(f"You arrive at {self.arrival}.")
+        parts.append(CARRY_NOTE)
+        return "\n\n".join(parts)
+
+    def _memory_message(self, just_left: str) -> str:
+        """The eras' memory as one short block -- the compaction output."""
+        lines: list[str] = []
+        for era in (just_left, self.era):
+            line = self._legends.get(era, "")
+            if line and line not in lines:
+                lines.append(line)
+        return ("WHAT THE AGES REMEMBER\n" + "\n".join(lines)) if lines else ""
+
+    def _compact(self, just_left: str) -> None:
+        """The era switch IS the compaction: prefix + what the ages remember, and nothing
+        behind it. This is what stops the context growing ~104 tokens per turn at the test
+        cadence -- and the thing that saves the tokens is the legend, not a prose summary."""
+        head = [self.messages[0], {"role": "system", "content": render_era_index(self.era)}]
+        self._era_index_at = 1
+        self._places_at = None
+        if self.scene_images:
+            self._places_at = len(head)
+            head.append({"role": "system", "content": self._places_body()})
+        memory = self._memory_message(just_left)
+        if memory:
+            head.append({"role": "system", "content": memory})
+        self.messages = head
+
+    async def _jump(self) -> None:
+        """The Device fires: a new era, a rolled arrival, and the age left behind as one
+        line. Whatever an era sees, it remembers."""
+        old = self.era
+        legend = era_legend(old, self.arrival, self.turn_counter - self._era_started_turn)
+        # An era's memory of you is fixed the first time it sees you vanish; a return does
+        # not rewrite it (and the era noticing your return is a story for later).
+        self._legends.setdefault(old, legend)
+        if self.timeline_path:
+            try:
+                append_legend(self.timeline_path, old, legend)
+            except OSError:  # pragma: no cover - a read-only save must not sink the turn
+                pass
+        self.era = self._pick_era()
+        self.arrival = _player_arrival(self.player_path or "", self.era)
+        self._reload_era_scene_state()
+        self._compact(old)
+        self._era_started_turn = self.turn_counter
+        # The engine DB must agree: the GM's reputation paths and `dump_player_db` read the
+        # era from there, and a save writes it back to the `.player`.
+        await self._call_tool_text("set_player_field", {"key": "era", "value": self.era})
+        await self._call_tool_text("set_player_field", {"key": "arrival", "value": self.arrival})
+        await self._emit({"type": "notice", "title": "The Age Remembers", "text": legend})
+        await self._run_turn(
+            DEVICE_FIRES.format(old=old, new=self.era, arrival=self.arrival or "somewhere"),
+            "jump")
+        # Rearm AFTER the jump turn: that turn is itself a turn, and counting it keeps the
+        # player's actions between jumps equal to the band (5 at the start, 5 again after).
+        span = self._cadence_span()
+        self._jump_at_turn = None if span is None else self.turn_counter + span
+        self._warned = False
 
     async def _handle_slash(self, command: str) -> None:
         cmd = command.strip().lower()
@@ -653,7 +1059,11 @@ class GameSession:
     # ── save / load support ───────────────────────────────────────────────
 
     async def _collect_player_save(self) -> dict:
-        text = await self._call_tool_text("dump_player_db", {})
+        # The save is built from the RAW row map, never from `dump_player_db`: the GM's dump
+        # reduces `reputation` to the current era, and persisting that view throws away the
+        # `{era: ...}` wrapper and every other era's standing (one save used to disable
+        # reputation for good).
+        text = await self._call_tool_text("dump_player_save_state", {})
         try:
             db_data = json.loads(text)
         except (json.JSONDecodeError, TypeError):
@@ -769,6 +1179,7 @@ class GameSession:
         else:
             self.messages.append(role_content)
 
+        origin = label  # the first label matters; `label` becomes "resume" after a pause
         resumes = 0
         while True:
             result = await self._chat_with_tools(label, quiet=quiet)
@@ -778,8 +1189,14 @@ class GameSession:
                 if resumes > MAX_RESUME_ROUNDS * 3:
                     return ""  # give up; the caller's narrative recovery takes over
                 # A model that echoes the pause token instead of narrating must not spin:
-                # after a few resumes, tell it plainly to write the narrative.
-                nudge = RESUME_GUARD_NUDGE if resumes > MAX_RESUME_ROUNDS else "{{_CONTINUE_EXECUTION}}"
+                # after a few resumes, tell it plainly to write the narrative. At awakening
+                # the first resume re-anchors the step it must resume at.
+                if resumes > MAX_RESUME_ROUNDS:
+                    nudge = RESUME_GUARD_NUDGE
+                elif origin == "awakening":
+                    nudge = AWAKENING_RESUME
+                else:
+                    nudge = "{{_CONTINUE_EXECUTION}}"
                 self.messages.append({"role": "user", "content": nudge})
                 label = "resume"
                 continue
@@ -819,8 +1236,11 @@ class GameSession:
 
         content = "".join(content_parts)
         thinking = "".join(thinking_parts)
-        if content and not quiet:
-            # A narrative has reached the player this turn; never ask for it again.
+        if not quiet and _clean_pause_tokens(content):
+            # A narrative has reached the player this turn; never ask for it again. This must
+            # test the CLEANED text: the pause token is emitted as *content*, so a bare
+            # `{{_NEED_ANOTHER_PROMPT}}` used to mark a turn as narrated that had no prose at
+            # all -- which defeated the narrative guarantee and left the opening scene unwritten.
             self._narrative_emitted_turn = True
         if prompt_eval:
             self.current_context_tokens = prompt_eval
@@ -892,6 +1312,18 @@ class GameSession:
 
             return content
 
+    async def _ensure_turn_prose(self, result: str) -> str:
+        """The turn's prose, guaranteed -- the one place both callers decide.
+
+        Driven by the flag alone, never by the returned string: the engine's own placeholders
+        ("The GM pauses, deep in thought...", "...(malformed response)") are truthy and are not
+        prose, and testing them skipped the recovery while no narrative existed. A recovered
+        round wins; otherwise whatever the model produced stands.
+        """
+        if self._narrative_emitted_turn:
+            return result
+        return await self._ensure_narrative() or result
+
     async def _ensure_narrative(self) -> str:
         """Guarantee the turn's prose: a non-quiet recovery round when the GM skipped the
         narrative (it echoed the pause token, or attached the image with no prose)."""
@@ -906,6 +1338,7 @@ class GameSession:
         if not self.scene_images or self._scene_requested_turn:
             return
         rejected = self._scene_rejected_place
+        prose_missing = not self._narrative_emitted_turn
         if rejected:
             where = " — ".join(rejected)
             nudge = (
@@ -913,6 +1346,15 @@ class GameSession:
                 f"establishing view yet. Emit ONLY request_scene_image again for \"{where}\", "
                 "this time WITH `establishing` = a short, empty description of the place (no "
                 "people, creatures or animals), plus the action `description`."
+            )
+        elif prose_missing:
+            # Never assert a state the engine has not checked: with no prose this round IS
+            # the narrative, so it runs non-quiet and asks for both beats at once.
+            nudge = (
+                "SYSTEM: this turn has no narrative yet. Write the narrative now — second "
+                "person — in the SAME response as exactly ONE request_scene_image (it ends "
+                "the turn), with the exact `place` path, plus `establishing` if this place "
+                "has no establishing view yet."
             )
         else:
             nudge = (
@@ -922,7 +1364,7 @@ class GameSession:
                 "`establishing` if this place has no establishing view yet."
             )
         self._scene_rejected_place = None
-        await self._run_role(nudge, "scene-fix", quiet=True)
+        await self._run_role(nudge, "scene-fix", quiet=not prose_missing)
         if self._scene_requested_turn:
             return
         self._scene_requested_turn = True
@@ -931,6 +1373,7 @@ class GameSession:
         await self._emit({
             "type": "scene_request", "kind": "auto",
             "description": narrative or "",
+            "era": self.era,
             "kingdom": kingdom, "area": area,
             "place": place,
             "time_of_day": "", "weather": "", "characters": {},
@@ -945,7 +1388,8 @@ class GameSession:
         if not text:
             return "", "", []
         try:
-            places = known_scene_places(self.base_dir / OUTPUT_DIR, self.active_name or "")
+            places = known_scene_places(self.base_dir / OUTPUT_DIR, self.active_name or "",
+                                         self.era)
         except Exception:  # noqa: BLE001 - never fail a turn over location recovery
             return "", "", []
         best, score = ("", "", []), -1
@@ -999,10 +1443,10 @@ class GameSession:
             self._remember_declared(args.get("npcs"))
         gm_text = _gm_tool_view(name, text)
         if name == SCENE_TOOL and warning is None:
-            note = self._undeclared_note(args)
-            if note:
-                text = f"{text}\n\n{note}" if text else note
-                gm_text = f"{gm_text}\n\n{note}" if gm_text else note
+            for note in (self._undeclared_note(args), self._on_stage_note(args)):
+                if note:
+                    text = f"{text}\n\n{note}" if text else note
+                    gm_text = f"{gm_text}\n\n{note}" if gm_text else note
         # The client keeps the full result (debugging); the GM reads the trimmed view.
         await self._emit({"type": "tool_result", "name": name, "text": text,
                           "gm_text": gm_text, "is_error": is_error})
@@ -1018,6 +1462,7 @@ class GameSession:
             self._mechanics_lines.extend(mech)
             await self._emit({"type": "mechanics", "lines": list(self._mechanics_lines)})
         if name in COMBAT_TOOLS:
+            self._battle_turn = True
             roster = self._combat_roster_update(text)
             if roster is not None:
                 await self._emit({"type": "combat_roster", "combatants": roster,
@@ -1040,6 +1485,7 @@ class GameSession:
                 "type": "scene_request", "kind": "story",
                 "description": str(args.get("description") or ""),
                 "mood": str(args.get("mood") or ""),
+                "era": self.era,
                 "kingdom": kingdom, "area": area,
                 "place": place,
                 "time_of_day": str(args.get("time_of_day") or ""),
@@ -1123,12 +1569,14 @@ class GameSession:
                 "description": " ".join(str(entry.get("description") or "").split())[:400],
             })
             added.append(name)
+        self._remember_roles(npcs)
         return added
 
     def _collect_declarations(self, args: dict) -> None:
         """Declarations that ride a scene call: the `npcs` list + the place's main NPCs."""
         self._remember_declared(args.get("npcs"))
         main = args.get("main_npcs")
+        self._remember_roles(main)
         if isinstance(main, list):
             for entry in main:
                 if not isinstance(entry, dict):
@@ -1136,6 +1584,41 @@ class GameSession:
                 name = " ".join(str(entry.get("name") or "").split())
                 if name:
                     self._cast_names.add(name.lower())
+
+    def _remember_roles(self, entries) -> None:
+        """Remember declared NPC roles, by lowercased name.
+
+        A name with no role is skipped: there is nothing to remind the GM of."""
+        if not isinstance(entries, list):
+            return
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            name = " ".join(str(entry.get("name") or "").split())
+            role = " ".join(str(entry.get("role") or "").split())
+            if name and role:
+                self._npc_roles[name.lower()] = (name, role)
+
+    def _on_stage_note(self, args: dict) -> str:
+        """The role of each declared NPC the GM just put on stage.
+
+        Roles are deliberately absent from the priming tree -- they are wanted when a
+        character appears, not on every turn -- so they ride the scene result instead,
+        which costs nothing in the always-on prefix. Only names the GM itself listed, and
+        only ones with a declared role: a one-off extra's role is invented on the spot."""
+        characters = args.get("characters")
+        if not isinstance(characters, dict) or not characters or not self._npc_roles:
+            return ""
+        labels: list[str] = []
+        seen: set[str] = set()
+        for key in characters:
+            key_l = " ".join(str(key or "").split()).lower()
+            found = self._npc_roles.get(key_l)
+            if not found or key_l in seen:
+                continue
+            seen.add(key_l)
+            labels.append(f"{found[0]} ({found[1]})")
+        return ("on stage: " + ", ".join(labels)) if labels else ""
 
     def _undeclared_note(self, args: dict) -> str:
         """A soft note listing `characters` names that no declaration covers."""

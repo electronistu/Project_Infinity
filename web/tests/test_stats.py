@@ -223,14 +223,17 @@ def main() -> bool:
     rec("active_effects: dict entry matched to buff_data by name",
         ae2[0]["rows"] == [{"field": "armor_class", "value": "+5"}])
 
-    # Reputation: the engine auto-creates a faction bucket for a bare kingdom;
-    # the sheet must render category/faction/entries either way.
-    rep = build_stats({"reputation": {
-        "others": {"misc": [{"name": "Awakened Convert", "description": "a willing pawn"}]},
+    # Reputation: the engine auto-creates a faction bucket for a bare polity, and the
+    # sheet shows only the era the character is standing in.
+    rep = build_stats({"era": "egypt", "reputation": {
+        "egypt": {"others": {"misc": [{"name": "Awakened Convert", "description": "a willing pawn"}]}},
+        "wallachia": {"others": {"misc": [{"name": "Left Behind", "description": "an old debt"}]}},
     }})["reputation"]
     rec("reputation: auto-created bucket renders",
         len(rep) == 1 and rep[0]["category"] == "Others" and rep[0]["faction"] == "Misc"
         and rep[0]["entries"][0]["name"] == "Awakened Convert")
+    rec("reputation: another era's standing is never shown",
+        all(r["entries"][0]["name"] != "Left Behind" for r in rep), str(rep))
 
     # Equipped items (SRD 5.1): the sheet flags what is worn/wielded like prepared
     # spells, reports the hands, and carries the armour-class breakdown.

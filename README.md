@@ -4,19 +4,35 @@
 
 *Local web client · Ollama Cloud & Google Gemini models*
 
-![Project Infinity](screenshot-1.png)
+You type what your character does. The Game Master answers in prose, and every roll, hit, spell and coin behind it was resolved by a real game engine — not invented by the model. Your character, your gear and your standing persist between sessions.
 
 ---
 
-## Quick Start
+## Two games, one character
 
-### 1. Prerequisites
+You pick one when you create the character. Everything else — the rules engine, the sheet, the images, the saving — is the same game either way.
 
-- **Python 3.11** or newer
-- **[Ollama](https://ollama.ai/)** installed and signed in — the default models are Ollama Cloud tags
-- *(Optional)* a Google AI Studio API key, for the Gemini Game Master models and image generation
+### Classic — the invented world
 
-### 2. Install
+![Classic](screenshot-1.png)
+
+An invented realm of four kingdoms, a decade after a war that ended in an uneasy peace: old grievances, guarded borders, and a peace nobody trusts. A straightforward campaign, played straight — the Game Master builds the story on top of the political scaffold.
+
+### Time Traveler — the Device
+
+![Time Traveler](screenshot-2.png)
+
+You are a Traveler from the future, carrying a **hollow** timepiece missing the four parts that make it work. It fires when it likes and throws you between historical ages — the Old Kingdom of Egypt, the High Tang, Wallachia under Vlad III, Victorian Britain — and the way home is to find what it lost.
+
+Every age is peopled by **all the common races** — dwarf, elf, halfling, human, dragonborn, gnome, half-elf, half-orc, tiefling — and by all the common classes, living there as they always have; a crowd is mixed and nobody finds it strange. The history stays real. What **does** stand out is your **kit**: a pistol bought in 1888 is a pistol in 2560 BC, people notice, and nothing is ever translated for you.
+
+**Your first age is rolled at random** when the character is created, and so is every later one.
+
+---
+
+## Run it
+
+**You need:** Python 3.11+, and [Ollama](https://ollama.ai/) installed and signed in (the default Game Master models are Ollama Cloud tags). A Google AI Studio API key is optional — it unlocks the Gemini Game Master models and all image generation.
 
 ```bash
 git clone <repo-url>
@@ -27,11 +43,7 @@ source venv/bin/activate      # Linux/macOS
 pip install -r requirements.txt
 ```
 
-### 3. Configure (optional)
-
-Copy `.env.example` to `.env` and set `GEMINI_API_KEY` to enable the **Google Gemini Game Master models** and the **image features**. Everything else works without it.
-
-### 4. Run
+Copy `.env.example` to `.env` and set `GEMINI_API_KEY` if you have one — everything else works without it.
 
 ```bash
 venv\Scripts\python.exe web_server.py     # Windows
@@ -40,17 +52,84 @@ python3 web_server.py                     # Linux / macOS
 
 Open **http://127.0.0.1:8000**. The server binds to localhost only. Flags: `--host`, `--port`, `--reload`, `--log-level`.
 
-### 5. Create a character
+---
 
-Choose **Create character** on the start screen. The in-browser **Character Forge** walks the full SRD 5.1 creation flow — name, difficulty, race, class, background, point-buy stats, skills, spells, starting equipment — and writes `output/yourcharacter.player`. **Hard** plays strict SRD as written (a lone hero in a party-of-four world); **Easy** keeps the same strict resolution but tells the GM to scale the *adventure* (encounters, tactics, pacing, DCs) for a solo hero. The world (its history and kingdoms) is fixed for every save in [`config/world.yml`](config/world.yml).
+## Creating a character
 
-### 6. Play
+**Create character** on the start screen opens the in-browser **Character Forge**: the full SRD 5.1 creation flow, asked one step at a time.
 
-Pick a world and a model, then begin. Type actions in plain English — the GM handles the rest.
+- **Name and gender.**
+- **Difficulty.** **Hard** plays strict SRD as written — a lone hero in a party-of-four world. **Easy** keeps exactly the same strict resolution but tells the Game Master to scale the *adventure* around you: encounters, tactics, pacing, DCs, and how failure is handled. The rules never change; the world does.
+- **Game.** **Classic** (the default) or **Time Traveler**.
+- **Race**, and **subrace** where the race has one — the nine SRD races. Then **age**, bounded by that race's own lifespan (a gnome matures at 40 and can live past 400), which colours your portrait and how people treat you.
+- **Class** and **background**, the twelve SRD classes and the SRD backgrounds.
+- **Ability scores** by point-buy — all 27 points must be spent, each score between 8 and 15 — then the racial bonuses, and any floating choice your race grants.
+- **Skills**, **alignment**, and for casters a **spellbook** chosen from the SRD lists.
+- **Starting equipment** from your class and background, and your **languages**.
+
+Your character is written to `output/yourcharacter.player`. **In Time Traveler, the Forge rolls your first age** and the arrival point inside it — the Device cannot aim — and seeds your standing in that age's own powers.
 
 ---
 
 ## Playing
+
+Type an action in plain English — *"I ask the innkeeper about the strangers who came through last week"* — and the Game Master handles the rest. You do not roll anything and you do not need to know the rules.
+
+**A turn looks like this.** Your action goes to the GM. The status line may briefly show *"synchronizing with the engine…"* while it resolves the mechanics, then *"GM is thinking…"*. The **narrative streams in** as second-person prose. At the end of the turn the **Mechanics panel** appears, written by the engine from the real results — who acted on whom, what was rolled, what changed. Status returns to *"Awaiting your action"*.
+
+Nothing in that panel is generated by the model. If a blow lands, it landed; if a spell slot burned, it is gone.
+
+### Your character sheet
+
+**☰ Character sheet** opens the live sidebar — stats and modifiers, saving throws, skills with their passive scores, your spellbook and slots, inventory with tooltips for every item's stats, equipped gear and how your armour class is derived, active conditions, exhaustion, and your reputation with the powers of the age you are in. **Refresh** reloads it straight from the engine at any time; **↻** repaints your portrait from your current level and gear.
+
+### Images (optional)
+
+Image generation is **opt-in** and **cached** — nothing is drawn unless you ask. Tick **images** on the start screen or in the Load dialog:
+
+- **Character portrait** — on the start screen and your sheet.
+- **Storyline scenes** — one cinematic 16:9 illustration per turn. Each place keeps a hidden establishing reference, so places and regulars stay consistent; **hover an illustration to see it full size**. Each carries a caption — area, place, time of day and weather.
+- **Art style** — an optional free-text style applied to portraits and scenes (a cartoon, a period look); leave it empty for the default dark-fantasy sourcebook. Changing it repaints your portrait and redraws each place as you revisit it.
+- **Sheet icons** — the shared, cross-character library used by the sheet.
+
+Everything is cached and regenerates only when the data behind it changes.
+
+### The Device (Time Traveler)
+
+There is nothing to do but play out the age you are in.
+
+- **A counter in the status bar** — `device 3` — shows how many turns are left before it fires. It turns warm on the last one.
+- **The Game Master is warned on the last turn**, so the age can be closed properly rather than cut off mid-sentence.
+- **Then it fires.** You come out *somewhere else in another age* — never where you meant, because the part that aims is missing.
+- **The age you leave becomes one line.** Whatever that age saw, it remembers — permanently, and only for itself. Your story in each age carries forward as that memory, not as a transcript.
+- **Nothing is left behind.** You keep everything you are carrying through every jump, and it stays literal: a Victorian pistol is a Victorian pistol in the Old Kingdom, and people will notice.
+- Right now it fires **every 5 turns** — the worst case, when the Device has none of its four parts. Recovering them widens the interval, and a complete Device lets the Traveler choose.
+
+### Saving and loading
+
+**There is no autosave — progress persists only when you save.** Saving is **in place**: a save writes its own files and never renames them, because its images live under a folder keyed to its name. A save rewrites your character and appends a session **timeline**, the Game Master's concise summary of the story so far. Loading injects that timeline, so a long campaign stays coherent. Saves are listed on the start screen and in the **Load** picker.
+
+### When the Game Master forgets something
+
+The GM is an AI and can miss an update. If you spot one, **tell it directly** — exactly as you would a human DM. The engine is authoritative, so a direct instruction is all it takes to correct your state, or the GM will re-derive it on the next rule call.
+
+This works for any missed mechanic: gold, inventory, spell slots, hit dice, conditions, or an item whose state changed (a note opened, a lamp lit). The sheet's **Refresh** button reloads your own view straight from the engine at any time.
+
+### Controls
+
+| Control | Where | What it does |
+|---------|-------|--------------|
+| **Save** | Header | Save the game in place (see above) |
+| **Load** | Header | Load a saved game — from the start screen or mid-session |
+| **End** | Header | End the session (**Save & end**, **End without saving**, or Cancel) |
+| **Tools** | Header | Show or hide the GM's tool calls behind the scenes; each block shows the full result plus the green **GM sees** view |
+| **Thinking** | Header | Show or hide the GM's reasoning |
+| **Theme** | Header | Toggle **Candlelit Codex** (dark, default) and **Vellum** (light) |
+| **☰ Character sheet** | Header | Open the live sidebar sheet |
+| **Refresh** | Character sheet | Reload the sheet from the engine |
+| **↻** | Character sheet | Regenerate the character portrait |
+| **Enter** | Composer | Send your action (**Shift+Enter** for a new line) |
+| **Hover a green combatant name** | Transcript | Show that combatant's **live sheet** — HP, AC, conditions, attacks, saves, traits. Names are highlighted wherever they appear, not just in the initiative order. |
 
 ### Choosing a model
 
@@ -67,104 +146,11 @@ The start screen offers curated models and, for the Ollama Cloud models, a sampl
 | `gemini-3.5-flash-lite` | Google | 1,048,576 |
 | `gemini-3.1-pro-preview` | Google | 1,048,576 |
 
-The Google entries appear only when `GEMINI_API_KEY` is set. Gemini ignores custom sampling: `temperature`/`top_p`/`top_k` are deprecated and fixed to the model's optimal defaults, so the temperature control is disabled for Gemini models and each model uses its own `thinking_level` (reasoning effort). Ollama models keep the temperature control.
+The Google entries appear only when `GEMINI_API_KEY` is set. Gemini ignores custom sampling: `temperature`/`top_p`/`top_k` are deprecated and fixed to the model's optimal defaults, so the temperature control is disabled for Gemini models and each model uses its own reasoning effort. Ollama models keep the temperature control.
 
-### Images
+### How it works under the hood
 
-Image generation is **opt-in** and **cached** — nothing is drawn unless you ask. Tick **images** on the start screen (or in the Load dialog) to enable:
-
-- **Character portrait** — shown on the start screen and sheet; the **↻** button repaints it from your current level and gear.
-- **Storyline scenes** — one cinematic 16:9 illustration per turn. Each place keeps a hidden establishing reference, so places and regulars stay consistent; **hover an illustration to see it full size**. Each is captioned with its area, place, time of day and weather.
-- **Art style** — an optional free-text style applied to portraits and scenes (e.g. a cartoon or a period look); leave it empty for the default dark-fantasy sourcebook. Changing it repaints the portrait and redraws each place as you revisit it. Sheet icons keep their fixed treatment.
-- **Sheet icons** — the shared, cross-character library used by the sheet (items, spells, skills, abilities, conditions).
-
-Both image models are Google Gemini (the same `GEMINI_API_KEY`): **Nano Banana 2.1** (`gemini-nano-banana-2.1`) draws portraits and scenes at `medium` thinking effort; **Nano Banana 2 Lite** (`gemini-3.1-flash-lite-image`) draws sheet icons. The start screen also sets the sheet's icon treatment: **cached icons only; no generation**, **cached icons + generate on new ones**, or **text only**.
-
-Everything is cached under `output/images/{stem}/` and regenerates only when the data behind it changes. A portrait is drawn from your character's **equipped** gear only. (Transcript illustrations are drawn fresh each turn and are not kept.)
-
-### Controls
-
-| Control | Where | What it does |
-|---------|-------|--------------|
-| **Save** | Header | Save the game in place (see below) |
-| **Load** | Header | Load a saved game — from the start screen or mid-session |
-| **End** | Header | End the session (**Save & end**, **End without saving**, or Cancel) |
-| **Tools** | Header | Show or hide the GM's tool calls behind the scenes; each block shows the full result plus the green **GM sees** view |
-| **Thinking** | Header | Show or hide the GM's reasoning |
-| **Theme** | Header | Toggle **Candlelit Codex** (dark, default) and **Vellum** (light) |
-| **☰ Character sheet** | Header | Open the live sidebar sheet |
-| **Refresh** | Character sheet | Reload the sheet from the engine |
-| **↻** | Character sheet | Regenerate the character portrait |
-| **Hover a green combatant name** | Transcript | Show that combatant's **live sheet** — HP, AC, conditions, attacks, saves, traits. Names are highlighted wherever they appear, not just in the initiative order. |
-
-### Saving and loading
-
-**There is no autosave — progress persists only when you save.** Saving is **in place**: a save writes its own files and never renames them, because its images live under a folder keyed to its name. A save rewrites your character (`.player`) and appends a session **timeline** (`.timeline`) — the GM's concise summary of the story so far. Loading injects that timeline, so a long campaign stays coherent. Saves are listed on the start screen and in the **Load** picker.
-
-### When the GM forgets something
-
-The GM is an AI and can miss an update. If you spot one, **tell the GM directly** — exactly as you would a human DM. The engine is authoritative, so a direct instruction is all it takes to correct your state (or the GM will re-derive it on the next rule call).
-
-This works for any missed mechanic: gold, inventory, spell slots, hit dice, conditions, or an item whose state changed (a note opened, a lamp lit). The sheet's **Refresh** button reloads your own view straight from the engine at any time.
-
----
-
-## How It Works
-
-Most AI RPGs let the language model make up numbers. Project Infinity runs every dice roll, stat change and combat action through an external game engine the AI can read but not invent.
-
-- **Real Rules, Real Dice** — every attack, save, spell, crit, kill and XP award is resolved by the engine in one call; the GM sees the results and cannot generate them.
-- **A Persistent World** — stats, inventory, gold, spell slots, equipped gear and reputation live in a real database; guild standing is kept per kingdom, and saving records a session timeline so a long campaign stays coherent.
-- **What You Wear Matters** — armour class is derived from the equipped set (one suit of armour, two hands, one shield); attunement limits magic items; donning/doffing and hand requirements are enforced; carrying capacity uses the SRD variant encumbrance rules.
-- **Spell & Item Effects** — damage resistance, immunity and vulnerability and condition immunity from worn items **and** active spells are applied automatically when the player takes damage; typed active effects (resistances, spell dice, speed, HP-per-level) are tracked and revert cleanly when they end.
-- **NPCs With Stat Blocks** — the GM registers each combatant once with HP, AC, per-ability saves, declared attacks and resistances; the engine resolves their attacks, damage-type math and conditions.
-- **Multi-Target AoE** — Fireball, Sleep and area spells resolve every target in one call: per-target saves, HP-pool exhaustion, one slot consumed.
-- **Conditions** — blinded, prone, restrained, poisoned, frightened, invisible, paralyzed, petrified, stunned and unconscious drive advantage, forced criticals and failed saves. Exhaustion is tracked as a level 0–6 with its full SRD table (checks, speed, attacks/saves, halved HP maximum, death). A condition a spell applies is written onto the combatant automatically; the GM only removes it when it ends.
-- **Refused Actions** — attacking with a weapon not in hand, casting with both hands busy, or casting in non-proficient armour is refused and the action is spent. No do-overs.
-- **Rest & Leveling** — short and long rests and XP thresholds auto-apply hit dice, slots, Arcane Recovery, HP, proficiency and progression per SRD 5.1.
-
-Under the hood:
-
-- **The engine is authoritative.** A local **MCP server** with an in-memory SQLite database, initialised from your `.player`. Every action is a verified tool call; the GM's protocol lives in [`GameMaster_MCP.md`](GameMaster_MCP.md), and each engine tool's contract is its own description (surfaced from `dice_server.py`).
-- **Dice & checks** — `perform_check` (`d20 + modifier` vs a DC, natural-20/1 criticals) and `roll_dice` (any notation, e.g. `3d6+2`). Player ability/skill checks are engine-derived (ability + skill proficiency, doubled for Expertise or halved for Jack of All Trades, + item bonuses), and passive Perception/Investigation/Insight (10 + modifier) are exposed on the sheet.
-- **State authority** — `modify_player_numeric` and `update_player_list` own all state; HP clamps to `[0, max]`; dropping to 0 starts death saves (`make_death_save`), massive leftover damage is instant death, and healing any real HP clears the counters.
-- **Exhaustion & concentration** — `modify_exhaustion` tracks the SRD level 0–6 and the engine applies the whole table (checks, speed, attacks/saves, halved HP maximum, death); a long rest removes one level. The engine also tracks the player's concentration spell and rolls the CON save (DC 10 or half the damage) when damage lands, ending the spell on a failure. The sheet's **Condition** card shows the exhaustion level, the active concentration spell and the death-save counters.
-- **Combat authority** — `register_combatants` declares a full stat block once; `resolve_attack` and `resolve_magic` derive AC, saves, damage types and conditions from it; `update_combatant` adjusts the registry mid-fight.
-- **Phased resolution** — the GM resolves all mechanics first (pausing between the two phases on a system handshake), then narrates, so results are mechanically correct before the story is told.
-
-### What the Game Master sees
-
-A session loads, in order: the **GM protocol** ([`GameMaster_MCP.md`](GameMaster_MCP.md)); the **world** (history and kingdoms from [`config/world.yml`](config/world.yml) — there is no per-save world file); the save's **timeline**; and, when images are on, the **known image places** — a `kingdom → area → place path` tree (realm → settlement → district → spot → any nested rooms, any depth) with each place's **main NPCs' names and roles** (e.g. *The Drowned Lantern → Common Room · main NPCs: Maera (the innkeeper), the grandson (the table-runner)*). The tree is deliberately **names-only** — place descriptions stay in the save and are never re-fed to the GM. The character is then pulled live from the database — stats, HP, inventory, equipped gear and the carrying/encumbrance block.
-
-During play the GM receives the result of **every tool call**, trimmed to what it does not already hold: the **delta** of a state change, the **exact mechanics** of a roll or attack, and any **error**. Redundant snapshots (inventory, carrying, equipment) are not re-sent; a full sheet is one deliberate `dump_player_db` away. The **client keeps the complete, untrimmed result** for debugging.
-
-The **Mechanics panel is composed by the engine** from those results and appended at the end of the narrative — the GM never writes mechanics, a heading or a placeholder. Every line names who acted on whom (`Actor → Target`), shows a green, hoverable **Initiative Order** (tooltip = the order) and each NPC's live sheet as a hover tooltip on their name. The GM narrates the outcomes, emphasizes critical results (a crit, near-death HP, a condition), and explains rules when the player needs them.
-
-### Storyline image continuity
-
-- **A place has an address** — `kingdom → area → place path` (realm → settlement → district → spot → nested rooms, any depth), named once and reused exactly.
-- **Every place gets a hidden "seed"** — an empty, permanent establishing view, never shown to you.
-- **Moments are drawn from the seed, never the previous picture** — the action image reproduces the establishing view with you and the cast, so rooms never rearrange and figures can never duplicate. Only the time of day, the weather and the moment's own damage may differ; nothing absent from the seed is invented. Action images are served once and discarded; the seed is the only scene picture a save keeps.
-- **Returning and permanent changes** — a revisited place is drawn from the same seed; a lasting change (it burned down) regenerates it.
-- **Names in, looks injected** — each recurring NPC is declared once with a stable **physical** look (no pose, position or action) and the engine injects it, so a face never drifts. A place's **main NPCs** are declared as a list, each with a **role**. Recurring characters are declared as they appear; one-off extras need none.
-- **Time, weather, and no posing** — the GM declares time and weather; the seed stays timeless and weather-neutral. Everyone is caught in the action, never facing the camera.
-- **Disguises** — while an appearance-changing effect (Disguise Self, Alter Self) is active, the scene shows that appearance instead of your portrait.
-
----
-
-## Technology
-
-| Component | Technology |
-|-----------|------------|
-| Language | Python 3.11+ |
-| Game engine | MCP (Model Context Protocol) server + in-memory SQLite |
-| Web server | FastAPI + Uvicorn, streaming over WebSocket |
-| Client | Vanilla JS / HTML / CSS (no build step) |
-| Data validation | Pydantic |
-| Config | YAML |
-| World | Static scaffold in `config/world.yml` (fixed history + kingdoms) |
-| Game Master models | Ollama Cloud, Google Gemini *(optional)* |
-| Images *(optional)* | Google Gemini image models, cached per save (portraits, icons, place seeds) |
+Everything technical — the engine that resolves the rules, what the Game Master is allowed to see, how images stay consistent, how state is stored, and how to run the test gate — is in **[HowItWorks.md](HowItWorks.md)**.
 
 ---
 

@@ -37,9 +37,8 @@ ALL_SAVES = {
 }
 
 MUSICAL_INSTRUMENTS = [
-    "Bagpipes", "Birdpipes", "Drum", "Dulcimer", "Flute", "Glaur",
-    "Hand Drum", "Horn", "Longhorn", "Lute", "Lyre", "Pan Flute",
-    "Shawm", "Songhorn", "Tantan", "Thelarr", "Tocken", "Warhorn", "Zulkoon"
+    "Bagpipes", "Drum", "Dulcimer", "Flute", "Horn",
+    "Lute", "Lyre", "Pan Flute", "Shawm", "Viol"
 ]
 
 GAMING_SETS = [
@@ -433,6 +432,16 @@ def create_character(config: Config) -> PlayerCharacter:
         ),
     ) or "hard"
 
+    mode = ui.select_single(
+        "Choose your game",
+        ["classic", "time_traveler"],
+        display_fn=lambda m: (
+            "Classic — the invented world: the four kingdoms, a straight campaign"
+            if m == "classic" else
+            "Time Traveler — the Device throws you between the historical eras"
+        ),
+    ) or "classic"
+
     chosen_race = select_from_list("Choose your Race", config.races)
     if not chosen_race:
         console.print("[red]No races available. Aborting.[/]")
@@ -499,6 +508,19 @@ def create_character(config: Config) -> PlayerCharacter:
     if chosen_subrace:
         for increase in chosen_subrace.ability_score_increases:
             final_stats[increase.ability.lower()] += increase.value
+
+    # SRD floating increases (half-elf): the player chooses which abilities to raise.
+    if chosen_race.asi_choices:
+        choice = chosen_race.asi_choices
+        excluded = {str(a).lower() for a in (choice.exclude or [])}
+        pool = [a for a in abilities if a not in excluded]
+        picked = select_multiple(
+            f"As a {chosen_race.name}, choose {choice.count} ability scores to raise "
+            f"by {choice.value}", pool, count=choice.count)
+        for ability in picked:
+            final_stats[ability] = final_stats.get(ability, 0) + choice.value
+        console.print(f"  [green]Raised: {', '.join(picked)} (+{choice.value} each)[/]")
+
     player_stats = Stats(**final_stats)
 
     chosen_alignment = select_from_list("Choose your Alignment", config.alignments)
@@ -578,6 +600,15 @@ def create_character(config: Config) -> PlayerCharacter:
     )
     for s in chosen_skills:
         skill_proficiencies.add(s)
+
+    # SRD skill choices some races grant (half-elf Skill Versatility).
+    if chosen_race.skill_choices:
+        racial_pool = [s for s in ALL_SKILLS.keys() if s not in skill_proficiencies]
+        racial_skills = select_multiple(
+            f"As a {chosen_race.name}, choose {chosen_race.skill_choices} more skill "
+            f"proficiencies", racial_pool, count=chosen_race.skill_choices)
+        for s in racial_skills:
+            skill_proficiencies.add(s)
 
     final_skills = [Skill(name=s, ability=ALL_SKILLS[s], proficient=True) for s in skill_proficiencies]
     final_skills.extend([Skill(name=s, ability=ALL_SKILLS[s], proficient=False) for s in ALL_SKILLS if s not in skill_proficiencies])
@@ -849,6 +880,7 @@ def create_character(config: Config) -> PlayerCharacter:
         gender=gender,
         age=age,
         difficulty=difficulty,
+        mode=mode,
         stats=player_stats,
         speed=speed,
         current_hit_points=hit_points,

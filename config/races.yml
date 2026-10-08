@@ -200,3 +200,125 @@
       description: "You have resistance to the damage type associated with your Draconic Ancestry."
   proficiencies: []
   subraces: []
+- name: Gnome
+  age:
+    adulthood: 40
+    max: 425
+  size: Small
+  speed: 25
+  ability_score_increases:
+    - ability: Intelligence
+      value: 2
+  languages:
+    - Common
+    - Gnomish
+  traits:
+    - name: Darkvision
+      description: Accustomed to life underground, you have superior vision in dark and dim conditions. You can see in dim light within 60 feet of you as if it were bright light, and in darkness as if it were dim light.
+    - name: Gnome Cunning
+      description: You have advantage on all Intelligence, Wisdom, and Charisma saving throws against magic.
+  proficiencies: []
+  subraces:
+    - name: Forest Gnome
+      ability_score_increases:
+        - ability: Dexterity
+          value: 1
+      traits:
+        - name: Natural Illusionist
+          description: You know the minor illusion cantrip. Intelligence is your spellcasting ability for it.
+        - name: Speak with Small Beasts
+          description: Through sounds and gestures, you can communicate simple ideas with Small or smaller beasts.
+      proficiencies: []
+      languages: []
+    - name: Rock Gnome
+      ability_score_increases:
+        - ability: Constitution
+          value: 1
+      traits:
+        - name: Artificer's Lore
+          description: Whenever you make an Intelligence (History) check related to magic items, alchemical objects, or technological devices, you can add twice your proficiency bonus, instead of any proficiency bonus you normally apply.
+        - name: Tinker
+          description: You have proficiency with artisan's tools (tinker's tools). Using those tools, you can spend 1 hour and 10 gp worth of materials to construct a Tiny clockwork device (AC 5, 1 hp). The device ceases to function after 24 hours unless you spend 1 hour repairing it, or when you use your action to dismantle it. You can have up to three such devices active at a time.
+      proficiencies: []
+      languages: []
+
+- name: Half-Elf
+  age:
+    adulthood: 20
+    max: 180
+  size: Medium
+  speed: 30
+  ability_score_increases:
+    - ability: Charisma
+      value: 2
+  asi_choices:
+    count: 2
+    value: 1
+    exclude:
+      - Charisma
+  skill_choices: 2
+  languages:
+    - Common
+    - Elvish
+    - One extra language of your choice
+  traits:
+    - name: Darkvision
+      description: Thanks to your elf blood, you have superior vision in dark and dim conditions. You can see in dim light within 60 feet of you as if it were bright light, and in darkness as if it were dim light.
+    - name: Fey Ancestry
+      description: You have advantage on saving throws against being charmed, and magic can't put you to sleep.
+    - name: Skill Versatility
+      description: You gain proficiency in two skills of your choice.
+  proficiencies: []
+  subraces: []
+
+- name: Half-Orc
+  age:
+    adulthood: 14
+    max: 75
+  size: Medium
+  speed: 30
+  ability_score_increases:
+    - ability: Strength
+      value: 2
+    - ability: Constitution
+      value: 1
+  languages:
+    - Common
+    - Orc
+  traits:
+    - name: Darkvision
+      description: Thanks to your orc blood, you have superior vision in dark and dim conditions. You can see in dim light within 60 feet of you as if it were bright light, and in darkness as if it were dim light.
+    - name: Menacing
+      description: You gain proficiency in the Intimidation skill.
+    - name: Relentless Endurance
+      description: When you are reduced to 0 hit points but not killed outright, you can drop to 1 hit point instead. You can't use this feature again until you finish a long rest.
+    - name: Savage Attacks
+      description: When you score a critical hit with a melee weapon attack, you can roll one of the weapon's damage dice one additional time and add it to the extra damage of the critical hit.
+  proficiencies:
+    - type: skill
+      name: Intimidation
+  subraces: []
+
+- name: Tiefling
+  age:
+    adulthood: 18
+    max: 100
+  size: Medium
+  speed: 30
+  ability_score_increases:
+    - ability: Charisma
+      value: 2
+    - ability: Intelligence
+      value: 1
+  languages:
+    - Common
+    - Infernal
+  traits:
+    - name: Darkvision
+      description: Thanks to your infernal heritage, you have superior vision in dark and dim conditions. You can see in dim light within 60 feet of you as if it were bright light, and in darkness as if it were dim light.
+    - name: Hellish Resistance
+      description: You have resistance to fire damage.
+    - name: Infernal Legacy
+      description: You know the thaumaturgy cantrip. Once you reach 3rd level, you can cast the hellish rebuke spell as a 2nd-level spell once with this trait and regain the ability to do so when you finish a long rest. Once you reach 5th level, you can cast the darkness spell once with this trait and regain the ability to do so when you finish a long rest. Charisma is your spellcasting ability for these spells.
+  proficiencies: []
+  subraces: []

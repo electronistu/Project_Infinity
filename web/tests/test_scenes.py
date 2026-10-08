@@ -15,6 +15,7 @@ sys.path.insert(0, str(REPO))
 
 from web.engine import (  # noqa: E402
     GameSession, filter_tools, render_protocol, format_known_places, _gm_tool_view,
+    _primed_places, PLACE_TREE_CAP,
     MAX_RESUME_ROUNDS,
 )
 
@@ -84,14 +85,24 @@ async def main() -> bool:
     rec("priming tree nests kingdom > area > place path",
         "- Kingdom of Eldoria" in tree and "    - Eldoria City" in tree
         and "        - The Drowned Lantern" in tree
-        and "            - Common Room · main NPCs: "
-            "Maera (the innkeeper), the grandson (the table-runner)" in tree
+        and "            - Common Room · NPCs: Maera, the grandson" in tree
         and "        - Ropehaven Wharf" in tree and "            - Warehouse Nine" in tree
         and "                - the counting office" in tree
         and "- Borderlands" in tree and "    - (unknown settlement)" in tree, tree)
-    rec("the priming feeds names + NPC roles only, never the descriptions",
+    rec("the priming feeds names only, never the descriptions or the roles",
         "broad-shouldered barkeep" not in tree and "wiry young man" not in tree
-        and "low-ceilinged, peat fire" not in tree and "a locked strongroom" not in tree, tree)
+        and "low-ceilinged, peat fire" not in tree and "a locked strongroom" not in tree
+        and "the innkeeper" not in tree and "the table-runner" not in tree, tree)
+    many = [{"kingdom": "K", "area": "A", "place": [f"Room {i}"],
+             "main_npcs": [{"name": f"N{i}{j}", "role": "r"} for j in range(4)]}
+            for i in range(3)]
+    capped = format_known_places(many)
+    rec("at most 2 NPC names per place, with a +N count for the rest",
+        capped.count("+2") == 3 and "N00, N01" in capped and "N02" not in capped, capped)
+    primed = _primed_places([{"kingdom": "K", "area": "A", "place": [f"Room {i}"],
+                              "main_npcs": []} for i in range(20)])
+    rec("the primed tree is capped at PLACE_TREE_CAP",
+        len(primed) == PLACE_TREE_CAP, f"{len(primed)} places")
 
     gs = GameSession(base_dir=REPO, model="test", scene_images=True)
     gs.session = _FakeMCP()
@@ -126,6 +137,23 @@ async def main() -> bool:
         and scene[0].get("npcs") == [{"name": "Maera", "description": "a one-eared barkeep"}])
     rec("legacy caption dropped from the scene event",
         bool(scene) and "caption" not in scene[0], str(scene))
+
+    # A declared NPC's ROLE rides the scene result -- it is never primed in the tree.
+    rec("the seed's main NPC role is remembered (not primed)",
+        gs._npc_roles.get("gorson") == ("Gorson", "the smith"), str(gs._npc_roles))
+    gs._scene_requested_turn = False
+    await gs._execute_tool({"function": {
+        "name": "request_scene_image",
+        "arguments": {"description": "back at the forge",
+                      "place": ["Hask & Daughters Smithy", "the forge"],
+                      "characters": {"Gorson": "at the anvil", "three dockhands": "drinking"}},
+    }})
+    results = [e for e in drain(gs._evt_q) if e.get("type") == "tool_result"]
+    note = (results[-1].get("gm_text") or "") if results else ""
+    rec("the scene result echoes `on stage: Name (role)` for a declared NPC",
+        "on stage: Gorson (the smith)" in note, note[-160:])
+    rec("an undeclared one-off gets no role echoed (it has none)",
+        "three dockhands (" not in note, note[-160:])
 
     # The .player file is only a save snapshot (and drops active effects), so the engine
     # attaches the LIVE active effects + equipped gear to the scene event.
@@ -280,7 +308,8 @@ async def main() -> bool:
     out_n2 = await gs_n2._ensure_narrative()
     rec("ensure_narrative is a no-op once prose exists", out_n2 == "" and not narr_calls)
 
-    # The scene-fix nudge must never say "no narrative" (it contradicts the imagery rule).
+    # The scene-fix nudge describes state only after checking it: with prose it says
+    # "already written", with NO prose it asks for the narrative too and runs non-quiet.
     fix_calls: list[tuple] = []
 
     async def _fix_role(role_content, label, quiet=False):
@@ -290,11 +319,23 @@ async def main() -> bool:
     gs_w = GameSession(base_dir=REPO, model="test", scene_images=True)
     gs_w._run_role = _fix_role  # type: ignore[assignment]
     gs_w._scene_requested_turn = False
+    gs_w._narrative_emitted_turn = True  # the prose reached the player
     await gs_w._ensure_scene_image("You wake in the dark.")
-    nudge = fix_calls[-1][0] if fix_calls else ""
-    rec("the scene-fix nudge does not instruct 'no narrative'",
-        "no narrative" not in nudge.lower() and "do not repeat" in nudge.lower()
-        and bool(fix_calls) and fix_calls[-1][1] is True, nudge)
+    nudge_w = fix_calls[-1][0] if fix_calls else ""
+    rec("with prose, the scene-fix nudge says do not repeat and stays quiet",
+        "do not repeat" in nudge_w.lower() and bool(fix_calls) and fix_calls[-1][1] is True,
+        nudge_w)
+
+    fix_calls.clear()
+    gs_w._scene_requested_turn = False
+    gs_w._narrative_emitted_turn = False  # nothing reached the player
+    await gs_w._ensure_scene_image("")
+    nudge_n = fix_calls[-1][0] if fix_calls else ""
+    rec("with no prose, the scene-fix nudge asks for the narrative AND the image",
+        "no narrative yet" in nudge_n and "already written" not in nudge_n
+        and "request_scene_image" in nudge_n, nudge_n)
+    rec("... and that round is NOT quiet, so the prose reaches the player",
+        bool(fix_calls) and fix_calls[-1][1] is False)
 
     # A model that only echoes the pause token must be bounded, then nudged.
     gs_r = GameSession(base_dir=REPO, model="test", scene_images=True)
@@ -311,6 +352,107 @@ async def main() -> bool:
         f"rounds={len(pause_rounds)}")
     rec("the resume guard nudges the model to narrate",
         any("already paused" in (m.get("content") or "") for m in gs_r.messages))
+
+    # The flag that means "prose reached the player" must not be set by a pause-token echo:
+    # that is what defeated the narrative guarantee and left the opening scene unwritten.
+    def _stream_of(text):
+        async def _gen(messages, tools):
+            yield {"type": "narrative_delta", "text": text}
+            yield {"type": "done", "prompt_eval_count": 0}
+        return _gen
+
+    gs_f = GameSession(base_dir=REPO, model="test", scene_images=True)
+    gs_f._stream = _stream_of("{{_NEED_ANOTHER_PROMPT}}")  # type: ignore[assignment]
+    await gs_f._stream_assistant("turn")
+    rec("a bare pause token is not prose", gs_f._narrative_emitted_turn is False)
+
+    gs_f2 = GameSession(base_dir=REPO, model="test", scene_images=True)
+    gs_f2._stream = _stream_of("You wake in the dark.")  # type: ignore[assignment]
+    await gs_f2._stream_assistant("turn")
+    rec("real prose sets the flag", gs_f2._narrative_emitted_turn is True)
+
+    # The guarantee is the flag, never the returned string: a truthy placeholder is not prose.
+    prose_calls: list[tuple] = []
+
+    async def _prose_role(role_content, label, quiet=False):
+        prose_calls.append((label, quiet))
+        return "You wake in the dark."
+
+    gs_t = GameSession(base_dir=REPO, model="test", scene_images=True)
+    gs_t._run_role = _prose_role  # type: ignore[assignment]
+    gs_t._narrative_emitted_turn = False
+    out_t = await gs_t._ensure_turn_prose("The GM pauses, deep in thought...")
+    rec("a placeholder is not prose: the turn gets its recovery round",
+        out_t == "You wake in the dark." and prose_calls[-1][0] == "narrative-fix"
+        and prose_calls[-1][1] is False, str(prose_calls))
+
+    prose_calls.clear()
+    gs_t2 = GameSession(base_dir=REPO, model="test", scene_images=True)
+    gs_t2._run_role = _prose_role  # type: ignore[assignment]
+    gs_t2._narrative_emitted_turn = True
+    out_t2 = await gs_t2._ensure_turn_prose("You wake in the dark.")
+    rec("with prose, the turn is left exactly as the model wrote it",
+        out_t2 == "You wake in the dark." and not prose_calls)
+
+    # At awakening the resume re-anchors the step a bare token leaves implicit.
+    resume_labels: list[str] = []
+
+    async def _pause_then_prose(label, quiet=False):
+        resume_labels.append(label)
+        return (("{{_NEED_ANOTHER_PROMPT}}", "", [], False) if len(resume_labels) == 1
+                else ("You wake in the dark.", "", [], False))
+
+    gs_a = GameSession(base_dir=REPO, model="test", scene_images=True)
+    gs_a._stream_assistant = _pause_then_prose  # type: ignore[assignment]
+    out_a = await gs_a._run_role("ERA_FILE", "awakening")
+    nudges = [m.get("content") for m in gs_a.messages
+              if "CONTINUE_EXECUTION" in str(m.get("content"))]
+    rec("the awakening resume re-anchors step 3, narrative and image together",
+        out_a == "You wake in the dark." and bool(nudges)
+        and "AWAKENING step 3" in nudges[-1] and "request_scene_image" in nudges[-1],
+        str(nudges[-1:]))
+
+    resume_labels.clear()
+    gs_a2 = GameSession(base_dir=REPO, model="test", scene_images=True)
+    gs_a2._stream_assistant = _pause_then_prose  # type: ignore[assignment]
+    await gs_a2._run_role("an action", "turn")
+    nudges2 = [m.get("content") for m in gs_a2.messages
+               if "CONTINUE_EXECUTION" in str(m.get("content"))]
+    rec("every other resume stays the bare token",
+        bool(nudges2) and nudges2[-1] == "{{_CONTINUE_EXECUTION}}", str(nudges2[-1:]))
+
+    # The whole chain that live play hit, through the REAL stream/flag/loop code: a
+    # pause-token echo, an empty resume, then the recovery round that finally narrates.
+    script = [("{{_NEED_ANOTHER_PROMPT}}", []),
+              ("", []),
+              ("You wake in the dark, and the Device ticks.",
+               [{"function": {"name": "request_scene_image", "arguments": {
+                   "description": "waking on a cold floor",
+                   "place": ["The Pit", "the floor"],
+                   "establishing": "a cold stone room"}}}])]
+
+    def _stream_chain():
+        async def _gen(messages, tools):
+            text, calls = script.pop(0)
+            if text:
+                yield {"type": "narrative_delta", "text": text}
+            if calls:
+                yield {"type": "tool_calls", "calls": calls}
+            yield {"type": "done", "prompt_eval_count": 0}
+        return _gen
+
+    gs_c = GameSession(base_dir=REPO, model="test", scene_images=True)
+    gs_c.session = _FakeMCP()
+    gs_c._stream = _stream_chain()  # type: ignore[assignment]
+    chain_out = await gs_c._run_role("ERA_FILE", "awakening")
+    chain_out = await gs_c._ensure_turn_prose(chain_out)
+    rec("the chain: pause echo -> empty resume -> the recovery narrates the opening",
+        chain_out == "You wake in the dark, and the Device ticks."
+        and gs_c._narrative_emitted_turn is True
+        and any("did not write the turn's narrative" in str(m.get("content"))
+                for m in gs_c.messages), repr(chain_out))
+    rec("... and the opening illustration went with it",
+        gs_c._scene_requested_turn is True)
 
     with tempfile.TemporaryDirectory() as td:
         manifest_dir = Path(td) / "output" / "images" / "save" / "scenes"

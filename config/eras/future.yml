@@ -1,0 +1,20 @@
+# E0 -- the frame. Not a destination: the Traveler's origin, and the broken Device.
+#
+# Every era file has a `meta:` header (the only part that reaches the GM before
+# the era is entered) and a `body:` (the scaffold, fetched once per era).
+# Budget: one file <= 5 KB, one scaffold <= 450 tokens, the index <= 150 tokens.
+
+meta:
+  id: future
+  order: 0
+  name: The Future
+  when: the future
+  character: the Traveler's origin; the broken Device
+  playable: false
+  part: null
+
+body:
+  history:
+    - The Traveler came from a city that has not been built yet. The Horologe was already hollow when it reached them.
+    - It fires when it likes. Every jump is a symptom, not a journey.
+  polities: []

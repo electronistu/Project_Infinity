@@ -65,7 +65,11 @@ def _build_temp_save():
     from web.creation import _generate_world
 
     config = load_config()
-    gen = _generate_world(config, create_debug_character(config), OUTPUT)
+    # The era game, so the turn-numbering and timeline assertions below exercise the
+    # same save shape the era suites use.
+    pc = create_debug_character(config)
+    pc.mode = "time_traveler"
+    gen = _generate_world(config, pc, OUTPUT)
     stem = gen["slug"]
     return stem, OUTPUT / gen["player"], OUTPUT / f"{stem}.timeline"
 
@@ -121,6 +125,16 @@ async def functional() -> bool:
         ok &= "Mechanical Changes" not in text
         # Save is in place: the seeded world is rewritten, never renamed away.
         ok &= saved_in_place and session.active_name == stem
+        # The save is built from the RAW row map, not from `dump_player_db`. The GM's dump
+        # always carries the derived `_passive` block, so its presence on disk would mean the
+        # save had gone back to persisting that view -- which reduces `reputation` to the era
+        # the save is in, and used to disable reputation for good after one save.
+        if player.exists():
+            written = json.loads(player.read_text(encoding="utf-8"))
+            derived = [k for k in ("_carrying", "_equipment", "_passive") if k in written]
+            ok &= not derived
+            print(f"    save carries no derived blocks: {not derived}"
+                  + (f" ({derived})" if derived else ""))
         print(f"    saved={got_saved} timeline={got_timeline} turn={session.turn_counter} "
               f"continued_from_19={continued} saved_in_place={saved_in_place}")
 

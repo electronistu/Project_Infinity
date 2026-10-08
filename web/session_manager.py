@@ -86,6 +86,7 @@ class SessionManager:
         return {
             "session_id": sid,
             "world": meta.get("world"),
+            "era": session.era,
             "model": session.model,
             "provider": session.provider,
             "context_window": session.context_window,

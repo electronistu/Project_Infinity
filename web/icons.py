@@ -3,8 +3,9 @@
 Icons are keyed off a *bounded canonical vocabulary* — fixed SRD lists, the
 `config/*.yml` reference data, the fixed kingdom/faction set, and a keyword map
 for generic gear (`config/items.yml`). One generated icon therefore serves every
-character and every world, and lives under `assets/icons/` (tracked in git) with
-a `manifest.json`.
+character and every world, and lives under `assets/{family}/{kind}/{slug}.png` (tracked in git)
+with one `manifest.json` per family. **Every image-model family keeps its own store** and a
+family never serves another family's file.
 
 `icon_key_for(category, name)` maps a sheet entry to `"{kind}/{slug}"` and is
 the only place matching rules live; `stats.py` calls it, the UI renders whatever
@@ -20,6 +21,7 @@ import json
 import os
 import re
 import time
+import zlib
 from pathlib import Path
 
 try:
@@ -28,18 +30,50 @@ except ImportError:  # pragma: no cover
     yaml = None
 
 from .images import (  # noqa: E402
-    GeminiImageBackend,
+    ImageBackend,
+    ImageBackendHolder,
     ImageError,
+    _backend_from_config,
+    _hex_rgb,
     _load_config,
+    colour_contrast,
+    detail_within,
     downscale_image,
     fit_to_frame,
     image_mime,
     sniff_image,
+    subject_similarity,
 )
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_DIR = REPO_ROOT / "config"
 DEFAULT_ASSETS_DIR = REPO_ROOT / "assets"
+
+# ── icon families ────────────────────────────────────────────────────────────
+# One store per IMAGE-MODEL family: assets/{family}/{kind}/{slug}.png. The family
+# is a property of the image model, never of the game mode or the character, and
+# a family never serves another family's file -- so a local bake can never
+# overwrite the committed Gemini set.
+DEFAULT_FAMILY = "gemini"
+KNOWN_FAMILIES = ("gemini", "local")
+
+
+def safe_family(value) -> str:
+    """A directory-safe family name; anything odd falls back to the default."""
+    text = "".join(c for c in str(value or "").strip().lower()
+                   if c.isalnum() or c in "_-")
+    return text or DEFAULT_FAMILY
+
+
+def family_for_model(model) -> str:
+    """The family an image-model id belongs to: `gemini-*` -> gemini,
+    `local/*` -> local, anything else -> its own head (so a future
+    `azure/...` or `flux-...` gets an honest store of its own)."""
+    text = str(model or "").strip().lower()
+    if not text:
+        return DEFAULT_FAMILY
+    head = text.replace("/", "-").split("-", 1)[0]
+    return safe_family(head)
 
 # ── fixed SRD / world vocabulary (common to every character) ──────────────
 
@@ -479,15 +513,51 @@ def spell_detail(name) -> str:
 
 # ── the shared, committed asset store ─────────────────────────────────────
 
-class IconService(GeminiImageBackend):
-    """Generates + caches shared icons under `assets/icons/`."""
+def _int_setting(value, default: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
-    def __init__(self, assets_dir=None, config_path: Path | None = None):
+
+def _float_setting(value, default: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _local_model_id(cfg: dict) -> str:
+    """The local engine's model id, from the `local:` block (`local/sdxl-lightning-4step`)."""
+    block = cfg.get("local")
+    block = block if isinstance(block, dict) else {}
+    named = str(block.get("model_id") or "").strip()
+    if named:
+        return named
+    stem = str(block.get("checkpoint") or "local-model").rsplit(".", 1)[0]
+    return f"local/{stem}"
+
+
+class IconService(ImageBackendHolder):
+    """Generates + caches shared icons in one family's store:
+    `assets/{family}/{kind}/{slug}.png` with `assets/{family}/manifest.json`.
+    `assets_dir` is the store ROOT that holds every family, and the family also picks
+    the ENGINE: the `local` store is filled by the local ComfyUI pipeline, every other
+    store by the hosted model."""
+
+    def __init__(self, assets_dir=None, family: str = DEFAULT_FAMILY,
+                 config_path: Path | None = None,
+                 backend: ImageBackend | None = None):
         cfg = _load_config(config_path)
-        super().__init__(
-            str(cfg.get("icon_model") or cfg.get("model") or "gemini-3.1-flash-lite-image"),
-            "1:1",
-            str(cfg.get("image_size") or "1K"),
+        self.config = cfg
+        self.family = safe_family(family)
+        hosted = str(cfg.get("icon_model") or cfg.get("model") or "gemini-3.1-flash-lite-image")
+        self.backend = backend or _backend_from_config(
+            cfg,
+            model=_local_model_id(cfg) if self.family == "local" else hosted,
+            aspect_ratio="1:1",
+            thinking_level=None,
+            family=self.family,
         )
         self.assets_dir = Path(assets_dir) if assets_dir else DEFAULT_ASSETS_DIR
         self.icon_style = str(cfg.get("icon_style") or cfg.get("style") or "").strip()
@@ -502,14 +572,35 @@ class IconService(GeminiImageBackend):
             self.fill = 0.92
         self.background = str(cfg.get("icon_background") or "").strip() or None
         self._manifest: dict | None = None
+        # ── the contrast check and the repair loop (local engine only) ──────
+        # The check is code, not a model: a diffusion model cannot see its own output.
+        # `contrast_distance` is how far a pixel must differ from the ground colour to
+        # count as subject; the icon passes with `contrast_min_px` such pixels whose mean
+        # distance is at least `contrast_min_mean` (calibrated: 93% of the committed
+        # Gemini family passes this rule).
+        local = cfg.get("local") if isinstance(cfg.get("local"), dict) else {}
+        self.contrast_distance = _int_setting(local.get("contrast_distance"), 60)
+        self.contrast_min_px = _int_setting(local.get("contrast_min_px"), 500)
+        self.contrast_min_mean = _int_setting(local.get("contrast_min_mean"), 60)
+        self.detail_max_edge = _float_setting(local.get("detail_max_edge"), 0.217)
+        self.detail_max_hf = _float_setting(local.get("detail_max_hf"), 29.7)
+        self.repair_passes = max(0, _int_setting(local.get("repair_passes"), 0))
+        self.repair_denoise = _float_setting(local.get("repair_denoise"), 0.5)
+        self.repair_steps = _int_setting(local.get("repair_steps"), 12)
+        self.repair_cfg = _float_setting(local.get("repair_cfg"), 4.0)
+        self.repair_prompt = " ".join(str(local.get("repair_prompt") or "").split())
 
     def status(self) -> dict:
         return {**super().status(), "aspect_ratio": "1:1", "max_side": self.max_side}
 
     # ── paths / manifest ───────────────────────────────────────────────────
 
+    def family_dir(self) -> Path:
+        """The one store this service owns. A family never reads another's."""
+        return self.assets_dir / self.family
+
     def icon_dir(self, kind: str) -> Path:
-        return self.assets_dir / kind
+        return self.family_dir() / kind
 
     def icon_path(self, kind: str, slug: str) -> Path:
         directory = self.icon_dir(kind)
@@ -520,7 +611,7 @@ class IconService(GeminiImageBackend):
         return directory / f"{slug}.png"
 
     def manifest_path(self) -> Path:
-        return self.assets_dir / "manifest.json"
+        return self.family_dir() / "manifest.json"
 
     @staticmethod
     def key(kind: str, slug: str) -> str:
@@ -558,7 +649,7 @@ class IconService(GeminiImageBackend):
             return None
         # Extensionless: the route finds the file (any of png/jpg/webp) and sets
         # the real Content-Type, so URLs stay stable regardless of output format.
-        return f"/api/icons/{kind}/{slug}"
+        return f"/api/icons/{self.family}/{kind}/{slug}"
 
     def index(self) -> dict:
         """{key: url} for every committed icon that is actually on disk."""
@@ -584,10 +675,16 @@ class IconService(GeminiImageBackend):
             body = _SPACES.sub(" ", template.format(name=str(name), detail=str(detail or ""))).strip()
         return f"{body} {self.icon_style}".strip()
 
-    def _source_hash(self, key: str, prompt: str, model: str | None = None) -> str:
-        blob = json.dumps({"key": key, "model": model or self.model, "style": self.icon_style,
-                           "prompt": prompt}, sort_keys=True)
-        return hashlib.sha1(blob.encode("utf-8")).hexdigest()
+    def _source_hash(self, key: str, prompt: str, model: str | None = None,
+                     engine: str = "") -> str:
+        blob = {"key": key, "model": model or self.model, "style": self.icon_style,
+                "prompt": prompt}
+        # A hosted model needs nothing more (its id is already in the key), so an empty
+        # engine leaves every existing hash byte-identical. A local engine records its
+        # checkpoint and sampler here, so re-tuning it regenerates inside its own family.
+        if engine:
+            blob["engine"] = engine
+        return hashlib.sha1(json.dumps(blob, sort_keys=True).encode("utf-8")).hexdigest()
 
     # ── generation ─────────────────────────────────────────────────────────
 
@@ -596,9 +693,16 @@ class IconService(GeminiImageBackend):
         kind = slugify_key(kind)
         slug = slugify_key(slug)
         effective = model or self.model
+        if family_for_model(effective) != self.family:
+            effective = self.model  # a model from another family never writes into this store
         key = self.key(kind, slug)
         prompt = self.prompt_for(kind, name, detail)
-        digest = self._source_hash(key, prompt, model=effective)
+        digest = self._source_hash(key, prompt, model=effective,
+                                   engine=self.backend.fingerprint())
+        # A seed derived from the icon KEY (not from the prompt), so a bake is
+        # reproducible per icon and a reworded prompt keeps the same picture.
+        seed = zlib.crc32(f"{key}|{self.family}".encode("utf-8")) & 0xFFFFFFFF
+        recipe = self.backend.recipe(prompt=prompt, seed=seed)
         manifest = self._read_manifest()
         entry = (manifest.get("icons") or {}).get(key) or {}
 
@@ -606,8 +710,13 @@ class IconService(GeminiImageBackend):
             return {"key": key, "url": self.url_for(kind, slug), "generated": False,
                     "cached": True, "model": effective}
 
-        raw = fit_to_frame(self._generate_bytes(prompt, model=effective), self.fill,
+        raw = fit_to_frame(self.generate(prompt, model=effective, seed=recipe.get("seed")),
+                           self.fill,
                            max_side=self.max_side, background=self.background, out_format="PNG")
+        check, repair = None, None
+        backend = self.backend_for(effective)
+        if self.repair_passes and self.background and hasattr(backend, "repair"):
+            raw, check, repair = self._check_and_repair(backend, raw, prompt, recipe)
         ext, mime = sniff_image(raw) or ("png", "image/png")
         target = self.icon_dir(kind) / f"{slug}.{ext}"
         for other in _PORTRAIT_EXTS:
@@ -621,12 +730,94 @@ class IconService(GeminiImageBackend):
 
         manifest["icons"][key] = {
             "kind": kind, "slug": slug, "name": str(name), "file": target.name,
-            "mime": mime, "model": effective, "prompt": prompt,
+            "mime": mime, "model": effective, "prompt": prompt, "family": self.family,
+            **recipe,
+            **({"check": check} if check else {}),
+            **({"repair": repair} if repair else {}),
             "source_hash": digest, "created": int(time.time()),
         }
         self._write_manifest()
         return {"key": key, "url": self.url_for(kind, slug), "generated": True,
-                "cached": False, "model": effective}
+                "cached": False, "model": effective,
+                **({"check": check} if check else {}),
+                **({"repair": repair} if repair else {})}
+
+    # ── the contrast check + the repair loop ────────────────────────────────
+
+    def _check_and_repair(self, backend, data: bytes, prompt: str, recipe: dict):
+        """Measure the icon in code, and repair it up to `repair_passes` times.
+
+        Returns (best_bytes, check, repair_record). An icon PASSES when both gates hold:
+        the subject is in contrast with the ground (C1) AND the icon is simple enough -- not
+        more linework or grain than the committed family's own p90 (C4).
+
+        The repair is BEST-OF-N: the same prompt again at a FRESH seed (base + attempt), at the
+        higher guidance below. Image-to-image was the first design and the measurement killed
+        it -- an img2img pass scored only 0.05-0.25 IoU against the original, i.e. it redrew the
+        picture anyway, so there is no reason to pretend the composition is preserved. Attempts
+        stop at the first icon that passes BOTH gates; otherwise the best is kept, preferring a
+        pass, then an icon within the detail ceiling, then the most contrast, then the least
+        detail. Every attempt records both measurements.
+        """
+        ground = _hex_rgb(self.background) or (30, 26, 19)
+        base_seed = int(recipe.get("seed") or 0)
+
+        def _check(image: bytes) -> dict | None:
+            try:
+                contrast = colour_contrast(image, ground,
+                                           min_distance=self.contrast_distance,
+                                           min_px=self.contrast_min_px,
+                                           min_mean=self.contrast_min_mean)
+                detail = detail_within(image, max_edge=self.detail_max_edge,
+                                       max_hf=self.detail_max_hf)
+            except Exception:  # noqa: BLE001 - not a readable image: nothing to measure
+                return None
+            return {"contrast": contrast, "detail": detail,
+                    "ok": contrast["ok"] and detail["ok"]}
+
+        def _score(check: dict) -> tuple:
+            return (1 if check["ok"] else 0,
+                    1 if check["detail"]["ok"] else 0,
+                    check["contrast"]["px"],
+                    -check["detail"]["hf"])
+
+        check = _check(data)
+        if check is None:
+            return data, None, None
+        record: dict = {"passes": [], "before": check, "ok": check["ok"], "engine": ""}
+        if check["ok"]:
+            return data, check, None
+        if not backend.available():
+            record["engine"] = "not reachable, repair skipped"
+            return data, check, record
+        for attempt in range(1, self.repair_passes + 1):
+            seed = (base_seed + attempt) & 0xFFFFFFFF
+            entry: dict = {"pass": attempt, "mode": "redraw", "seed": seed,
+                           "steps": self.repair_steps, "cfg": self.repair_cfg, "denoise": 1.0}
+            try:
+                out = backend.repair(data, prompt, mode="redraw", seed=seed,
+                                     denoise=self.repair_denoise, steps=self.repair_steps,
+                                     cfg_scale=self.repair_cfg)
+            except ImageError as exc:
+                entry["error"] = str(exc)
+                record["passes"].append(entry)
+                break
+            candidate = fit_to_frame(out, self.fill, max_side=self.max_side,
+                                     background=self.background, out_format="PNG")
+            entry["after"] = _check(candidate)
+            if not entry["after"]:
+                record["passes"].append(entry)
+                break
+            entry.update(subject_similarity(data, candidate, ground,
+                                           min_distance=self.contrast_distance))
+            record["passes"].append(entry)
+            if _score(entry["after"]) > _score(check):
+                data, check = candidate, entry["after"]
+            if check["ok"]:
+                break
+        record["after"] = check
+        record["ok"] = check["ok"]
+        return data, check, record
 
 
 # ── enumeration for the warm CLI + stats ───────────────────────────────────
@@ -691,19 +882,33 @@ def main(argv=None) -> int:
     parser.add_argument("--only", default="", help="comma-separated kinds (e.g. weapon,armor)")
     parser.add_argument("--limit", type=int, default=0, help="max icons this run (0 = all)")
     parser.add_argument("--assets", default=str(DEFAULT_ASSETS_DIR), help="assets directory")
+    parser.add_argument("--family", default=DEFAULT_FAMILY,
+                        help=f"icon store to write ({', '.join(KNOWN_FAMILIES)})")
     parser.add_argument("--yes", action="store_true", help="actually generate (default: dry run)")
     parser.add_argument("--force", action="store_true", help="regenerate even if cached")
     parser.add_argument("--existing", action="store_true",
                         help="regenerate only icons already committed (implies --force for those)")
     parser.add_argument("--delay", type=float, default=1.0,
                         help="seconds to wait between generations (default: 1.0; 0 = none)")
+    parser.add_argument("--keys", default="",
+                        help="exact keys to generate, comma-separated (e.g. race/gnome,weapon/dagger)")
     args = parser.parse_args(argv)
 
-    service = IconService(args.assets)
+    service = IconService(args.assets, args.family)
     only = {k.strip() for k in args.only.split(",") if k.strip()}
+    wanted_keys = [k.strip() for k in args.keys.split(",") if k.strip()]
     catalog = all_icon_keys()
     todo = []
-    if args.existing:
+    if wanted_keys:
+        # An explicit batch: exactly these keys, in the order given (the review batch,
+        # and later a targeted top-up), regardless of what each family already holds.
+        for key in wanted_keys:
+            kind, sep, slug = key.partition("/")
+            if not sep or not slug or kind not in {k.partition("/")[0] for k in catalog}:
+                print(f"  !! {key} is not a known icon key -- skipped")
+                continue
+            todo.append((kind, slug, catalog.get(key, slug.replace("-", " ").title())))
+    elif args.existing:
         # Restyle pass: only touch icons already in the manifest (optionally --only).
         for key in sorted(service.index()):
             kind, _, slug = key.partition("/")
@@ -724,7 +929,18 @@ def main(argv=None) -> int:
 
     print(f"model: {service.model} | available: {service.available()}")
     print(f"catalog: {len(catalog)} icons | missing after filter: {len(todo)}")
-    print(f"estimated cost: ~${len(todo) * 0.0336:.2f} (at $0.0336/image)")
+    if service.repair_passes:
+        print(f"check: contrast = subject pixels > {service.contrast_distance} from the ground "
+              f"colour (>= {service.contrast_min_px} px, mean >= {service.contrast_min_mean}) "
+              f"| detail = edge <= {service.detail_max_edge:g}, high-freq <= {service.detail_max_hf:g} "
+              f"at 256 px")
+        print(f"repair: up to {service.repair_passes} redraws ({service.repair_steps} steps, "
+              f"cfg {service.repair_cfg:g}, a fresh seed each) until BOTH checks pass")
+    if service.family == "local":
+        print(f"cost: the local engine (free; {len(todo)} images at "
+              f"{getattr(service.backend, 'steps', '?')} steps)")
+    else:
+        print(f"estimated cost: ~${len(todo) * 0.0336:.2f} (at $0.0336/image)")
     print(f"delay: {args.delay:g}s between generations")
     if not args.yes:
         print("dry run — pass --yes to generate.")

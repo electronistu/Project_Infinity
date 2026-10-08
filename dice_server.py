@@ -1753,37 +1753,121 @@ def modify_player_numeric(key: str, delta: int) -> dict:
         return {"success": False, "error": f"Error modifying numeric value: {str(e)}", "key": key}
 
 
-_DEFAULT_REPUTATION_FACTION = "misc"
+_DEFAULT_REPUTATION_FACTION = "others"
+# The faction slot the engine used before 2026-10-08; still accepted, folded to `others`.
+_LEGACY_REPUTATION_FACTIONS = ("misc",)
 
 
-def _resolve_reputation_bucket(data, path_in_obj):
-    """Resolve a `reputation.<kingdom>[.<faction>]` path to a writable list.
+def _era_reputation_scope(era):
+    """The empty, era-scoped reputation shape a fresh record gets: `{polity: {faction: []}}`.
 
-    Reputation is stored as `{kingdom: {faction: [entries]}}`. A missing faction
-    under an *existing* kingdom is auto-created; targeting a kingdom alone uses
-    the `_DEFAULT_REPUTATION_FACTION` bucket. Unknown kingdoms are never created,
-    so a typo in the kingdom name still fails.
+    `web.eras` is the one source, so a scope created here is indistinguishable from one
+    created at character creation. An import failure is not fatal: the era still gets its
+    `others` bucket and the GM's first write lands there.
+    """
+    name = str(era or "").strip()
+    try:
+        from web.eras import era_reputation_seed
+    except Exception:  # pragma: no cover - the engine always ships web/eras.py
+        return {"others": {}}
+    seed = era_reputation_seed(name)
+    scope = seed.get(name)
+    return scope if isinstance(scope, dict) else {"others": {}}
 
-    Returns `(list_or_None, resolved_path_in_obj)`.
+
+def _ensure_reputation_scope(data, era):
+    """The era's writable scope, created on demand from the same seed a new record gets.
+
+    A save that has an era but no scope for it is exactly what a **jump** used to leave
+    behind -- the scope was only ever created at character creation -- so every reputation
+    write in every era after the first was refused, for good. The scope is now created where
+    it is *required*.
+
+    This is not a migration: nothing is rewritten and an unfamiliar top-level key is left
+    alone. What the save already holds wins over the seed; a scope that exists but looks
+    empty (nothing but `others`, or only keys that are not this era's polities) is merged
+    **under** the seed, so a half-written scope heals instead of shadowing its own era.
+    """
+    name = str(era or "").strip()
+    existing = data.get(name)
+    seed = _era_reputation_scope(name)
+    scope = existing if isinstance(existing, dict) else {}
+    if seed and not (set(seed) & set(scope)):
+        merged = dict(seed)
+        merged.update(scope)
+        scope = merged
+    data[name] = scope
+    return scope
+
+
+def _reputation_error(key, data, era):
+    """A refusal the GM can act on: the era, its real polities, and the shape to write.
+
+    The old refusal listed the era keys of the whole map -- which is not what the GM writes
+    against. It now names the era's own polities and their factions.
+    """
+    known: dict = {}
+    scope = data.get(str(era or "").strip()) if isinstance(data, dict) else None
+    if isinstance(scope, dict):
+        for name, bucket in scope.items():
+            known[str(name)] = sorted(bucket) if isinstance(bucket, dict) else []
+    return {
+        "success": False,
+        "error": f"Key '{key}' not found or is not a list.",
+        "key": key,
+        "era": str(era or ""),
+        "known_polities": known,
+        "hint": ("Reputation is era-scoped and the engine adds the era: write "
+                 "reputation.<polity>[.<faction>]. Pick a polity from known_polities (or "
+                 "'others' for people who belong to no polity), then a faction under it."),
+    }
+
+
+def _resolve_reputation_bucket(data, path_in_obj, era, create=True):
+    """Resolve a `reputation.<polity>[.<faction>]` path to a writable list.
+
+    Reputation is stored **era-scoped** -- `{era: {polity: {faction: [entries]}}}` -- so
+    standing earned in one era is never offered in another, and never lost when the
+    Traveler leaves. The GM still writes the short path: the era is the one the save is in,
+    and the caller passes it in.
+
+    The era's scope is created on demand (`_ensure_reputation_scope`): a jump, or any path
+    that forgets to seed, must not leave an era unwritable. A missing faction under an
+    *existing* polity is auto-created when `create` (an `add`); targeting a polity alone, or
+    the legacy `misc`, uses the `others` bucket. An unknown polity is never created, so a
+    typo still fails.
+
+    Returns `(list_or_None, path_in_obj)`, and the path is relative to **`data`** -- the era
+    is part of it -- so the caller writes at the level the resolver actually resolved.
+    Returning a scope-relative path here used to make every add create a duplicate bucket at
+    the top of the map.
     """
     if not isinstance(data, dict):
         return None, path_in_obj
+    name = str(era or "").strip()
+    if not name:
+        return None, path_in_obj
+    scope = _ensure_reputation_scope(data, name)
     parts = path_in_obj.split('.')
     kingdom = parts[0] if parts else ''
-    if not kingdom or kingdom not in data or not isinstance(data[kingdom], dict):
+    if not kingdom or kingdom not in scope or not isinstance(scope[kingdom], dict):
         return None, path_in_obj
     if len(parts) == 1:
         parts = [kingdom, _DEFAULT_REPUTATION_FACTION]
     if len(parts) != 2 or not parts[1]:
         return None, path_in_obj
     faction = parts[1]
-    bucket = data[kingdom].get(faction)
+    if faction in _LEGACY_REPUTATION_FACTIONS:
+        faction = _DEFAULT_REPUTATION_FACTION
+    bucket = scope[kingdom].get(faction)
     if bucket is None:
+        if not create:
+            return None, path_in_obj
         bucket = []
-        data[kingdom][faction] = bucket
+        scope[kingdom][faction] = bucket
     elif not isinstance(bucket, list):
         return None, path_in_obj
-    return bucket, f"{kingdom}.{faction}"
+    return bucket, f"{name}.{kingdom}.{faction}"
 
 
 @mcp.tool()
@@ -1847,7 +1931,7 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
     - Prepared casters: capacity enforced (max = spellcasting mod + level).
     - Removing an active_effect auto-reverts its stat deltas.
     - Consumables: NEVER here -- use modify_player_numeric(key='consumables.ITEM', delta=N).
-    - Reputation: lowercase, no apostrophes; a missing faction under a known kingdom is created; a bare 'reputation.KINGDOM' writes to 'misc'; unknown kingdoms are rejected.
+    - Reputation: lowercase, no apostrophes; a missing faction under a known polity is created; a bare 'reputation.POLITY' writes to 'others'; unknown polities are rejected.
     - Removing a worn/wielded inventory item auto-unequips it; a replacement is NOT auto-equipped.
     - Every inventory change returns a 'carrying' block; an unknown item added without weight counts 0 lb and returns 'unweighed_item'.
 
@@ -1873,15 +1957,22 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
 
             data = json.loads(row[0])
             path_in_obj = key[len(root_key)+1:]
-            current_list = get_nested_value(data, path_in_obj)
 
-            if current_list is None or not isinstance(current_list, list):
-                resolved = None
-                if action == "add" and root_key == "reputation":
-                    resolved, path_in_obj = _resolve_reputation_bucket(data, path_in_obj)
-                if resolved is None:
+            era_now = str(_db_val(cursor, "era", "") or "").strip()
+            if root_key == "reputation" and era_now:
+                # Reputation is era-scoped *in the era game*: resolve through the era FIRST
+                # there, so a flat map cannot be written to by accident -- the generic nested
+                # path would happily find it. A save with no era is the classic game and keeps
+                # the flat map it has always had. Every action resolves here, not just `add`:
+                # `update` and `remove` used to fall through to the raw short path and fail.
+                current_list, path_in_obj = _resolve_reputation_bucket(
+                    data, path_in_obj, era_now, create=(action == "add"))
+                if current_list is None:
+                    return _reputation_error(key, data, era_now)
+            else:
+                current_list = get_nested_value(data, path_in_obj)
+                if current_list is None or not isinstance(current_list, list):
                     return {"success": False, "error": f"Key '{key}' not found or is not a list.", "available_nested_keys": list(data.keys()), "key": key}
-                current_list = resolved
         else:
             cursor.execute("SELECT value FROM player WHERE key = ?", (key,))
             row = cursor.fetchone()
@@ -2470,6 +2561,63 @@ def attune_item(item: str, action: str = "attune", instant: bool = False) -> dic
 
 
 @mcp.tool()
+def lookup(query: str) -> str:
+    """Era lore on demand (read-only).
+
+    WHEN: you need the era again, one polity's factions, or another era from the ERA INDEX.
+    - query: 'here' = the era you are in; an era id = that era; a polity name = just that polity.
+    """
+    try:
+        from web.eras import lookup as _lookup
+
+        current = ""
+        if DB_CONNECTION is not None:
+            current = str(_db_val(DB_CONNECTION.cursor(), "era", "") or "")
+        return _lookup(query, current)
+    except Exception as e:  # noqa: BLE001
+        return f"lookup failed: {type(e).__name__}: {e}"
+
+
+@mcp.tool()
+def set_player_field(key: str, value: str) -> dict:
+    """Set one stored player field (session bookkeeping)."""
+    global DB_CONNECTION
+    if DB_CONNECTION is None:
+        return {"success": False, "error": "Database not initialized."}
+    try:
+        cursor = DB_CONNECTION.cursor()
+        cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)",
+                       (str(key), json.dumps(str(value))))
+        DB_CONNECTION.commit()
+        return {"success": True, "key": str(key), "value": str(value)}
+    except Exception as e:
+        return {"success": False, "error": f"Error setting '{key}': {str(e)}"}
+
+
+@mcp.tool()
+def dump_player_save_state() -> dict:
+    """The whole player row map, unreduced. For the engine's save, never for the GM.
+
+    `dump_player_db` is the GM's view: it reduces `reputation` to the era the save is in. A
+    save built from that view writes a **flat** map -- the `{era: ...}` wrapper and every
+    other era's standing are lost, and the reloaded save can never record reputation again.
+    This returns the rows verbatim, derived blocks omitted (they are recomputed).
+    """
+    global DB_CONNECTION
+    if DB_CONNECTION is None:
+        return {"error": "Database not initialized."}
+    cursor = DB_CONNECTION.cursor()
+    cursor.execute("SELECT * FROM player")
+    result: dict = {}
+    for key, value in cursor.fetchall():
+        try:
+            result[key] = json.loads(value)
+        except (json.JSONDecodeError, TypeError):
+            result[key] = value
+    return result
+
+
+@mcp.tool()
 def dump_player_db() -> dict:
     """Full dump of the in-memory player database.
 
@@ -2498,6 +2646,18 @@ def dump_player_db() -> dict:
         result["_carrying"] = _carry_block(cursor)
         result["_equipment"] = _equipment_block(cursor)
         result["_passive"] = _passive_scores(cursor)
+        # Reputation is stored era-scoped; the GM is only ever offered the era it is in.
+        # The saved map keeps every era, so nothing is lost by leaving -- which is why the
+        # SAVE must never be built from this view (see `dump_player_save_state`).
+        rep = result.get("reputation")
+        era = str(_db_val(cursor, "era", "") or "")
+        if isinstance(rep, dict) and era:
+            scoped = rep.get(era)
+            # Never another age's standing -- but never nothing at all either: an era whose
+            # scope has not been written to yet still shows its real polities, so the GM has
+            # a shape to write against instead of inventing one.
+            result["reputation"] = (scoped if isinstance(scoped, dict)
+                                    else _era_reputation_scope(era))
 
         return result
     except Exception as e:

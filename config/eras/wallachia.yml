@@ -1,0 +1,61 @@
+# E3 -- Wallachia, the Impaler (1456-1462). A playable era.
+#
+# Use the man, not the brand: the historical Vlad III Tepes, never a film
+# vampire. The Vampire guild (the one invented faction) lives here.
+
+meta:
+  id: wallachia
+  order: 3
+  name: Wallachia
+  when: 1456-1462
+  character: Vlad III holds Wallachia between Hungary and the Ottomans
+  arrivals:
+    - the princely court at Târgoviște
+    - a Saxon walled town
+    - a village on the Danube
+  legend: Wallachia remembers a stranger seen at {arrival}, who vanished as if the ground took them.
+  playable: true
+  part: the Mainspring
+
+body:
+  history:
+    - Vlad III took the throne in 1456 with Hungarian help, against the rival claimant Vladislav II. Wallachia has paid Ottoman tribute since 1417; Vlad has stopped paying it.
+    - Bucharest is a seasonal throne citadel, not the capital. The chrysobull sealed there in 1459 is the era's quiet hinge, and it is not only a land grant.
+    - "In the villages they speak of the strigoi: the old blood, and the dead who will not stay in the ground."
+  polities:
+    - name: Wallachia
+      ruler: Vlad III Țepeș
+      capital: Târgoviște
+      relations:
+        the Ottoman Empire: "tribute refused, then the 1462 campaign"
+        the Kingdom of Hungary: "ally, then jailer"
+        Moldavia: "rival cousins"
+        Transylvania: "raided"
+      factions:
+        - {name: the boyars, key: boyars}
+        - {name: the Saxon merchant guilds, key: saxon_guilds}
+        - {name: the Orthodox church, key: orthodox_church}
+        - {name: the Ottoman frontier, key: ottoman_frontier}
+        - {name: the Strigoi, key: strigoi}
+    - name: Moldavia
+      ruler: Stephen the Great
+      capital: Suceava
+      relations:
+        the Ottoman Empire: "homage in 1455-6, tribute raised, then refused"
+        Wallachia: "rival for the same overlord"
+      factions:
+        - {name: the Moldavian boyars, key: moldavian_boyars}
+    - name: Transylvania
+      ruler: the voivodeship of Matthias Corvinus
+      capital: the Saxon towns (Brașov, Sibiu)
+      relations:
+        Wallachia: "hostile; Vlad raids the Saxon towns"
+        the Kingdom of Hungary: "voivodeship"
+      factions:
+        - {name: the Saxon merchant guilds, key: saxon_guilds}
+        - {name: the Székely, key: szekely}
+  visual_hooks:
+    - the princely court at Târgoviște
+    - the Carpathian passes
+    - a Saxon walled town
+    - the Danube, and the far bank

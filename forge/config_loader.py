@@ -38,6 +38,13 @@ class RaceAge(BaseModel):
     max: int = 90
 
 
+class AsiChoice(BaseModel):
+    """A floating ability-score increase the player chooses (SRD 5.1 half-elf: two +1s)."""
+    count: int = 1
+    value: int = 1
+    exclude: List[str] = []
+
+
 class Race(BaseModel):
     name: str
     ability_score_increases: List[AbilityScoreIncrease]
@@ -47,6 +54,10 @@ class Race(BaseModel):
     proficiencies: List[dict] = []
     subraces: List[SubRace] = []
     age: RaceAge = RaceAge()
+    # Player-chosen extras some SRD races grant -- the half-elf's two floating +1s and
+    # two skills of its choice. Applied by the Forge right after the fixed ones.
+    asi_choices: Optional[AsiChoice] = None
+    skill_choices: int = 0
 
 class Config(BaseModel):
     races: List[Race]

@@ -52,6 +52,7 @@ def make_player(**overrides):
         "tool_proficiencies": [],
         "languages": ["Common"],
         "features": [],
+        "era": "egypt",
         "reputation": {},
         "consumables": {},
         "inventory": [],
@@ -123,7 +124,7 @@ def warlock_l3():
         spellcasting={
             "ability": "charisma", "dc": 13, "attack_modifier": 5,
             "cantrips": ["Eldritch Blast"],
-            "spells_known": [{"name": "Hex"}, {"name": "Shield"}],
+            "spells_known": [{"name": "Hellish Rebuke"}, {"name": "Shield"}],
             "spells_prepared": [],
             "slots": {"2": 2},
         },
@@ -172,6 +173,25 @@ def db():
 
 def dbv(key, default=None):
     return db().get(key, default)
+
+
+def raw_dbv(key, default=None):
+    """The RAW stored value, bypassing projections.
+
+    `dump_player_db` scopes `reputation` to the era the save is in, so a test
+    that asserts the stored shape has to read the row itself.
+    """
+    if ds.DB_CONNECTION is None:
+        return default
+    cur = ds.DB_CONNECTION.cursor()
+    cur.execute("SELECT value FROM player WHERE key = ?", (key,))
+    row = cur.fetchone()
+    if row is None:
+        return default
+    try:
+        return json.loads(row[0])
+    except (json.JSONDecodeError, TypeError):
+        return row[0]
 
 
 # ── deterministic rolls ───────────────────────────────────────────────────

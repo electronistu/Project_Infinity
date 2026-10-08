@@ -1,4 +1,4 @@
-# Canonical SHARED item catalog -> assets/icons/item/*.
+# Canonical SHARED item catalog -> assets/{family}/item/*.
 #
 # Matched EXACTLY (by `name` or `aliases`, after normalising case/quantities/
 # punctuation). Broad keywords are deliberately NOT used: a specific or modified

@@ -1,12 +1,13 @@
-"""Cached image generation for the web client (Gemini / "Nano Banana").
+"""Cached image generation for the web client (Gemini, or a local ComfyUI engine).
 
 Images are one-off assets reused forever — a character portrait today, stat and
 inventory icons later. Each save owns a folder `output/images/{stem}/` holding
 `{kind}.png` plus a `manifest.json` that records how each asset was made, so we
 can skip the API when nothing relevant changed and regenerate on demand.
 
-The provider is deliberately thin: `ensure_portrait` / `_generate_bytes` are the
-only places that talk to Gemini, so swapping providers later is a small change.
+The provider is deliberately thin: `ensure_portrait` / `ImageBackend.generate` are the
+only places that talk to an image model, so a service can be pointed at another engine
+without touching anything else.
 """
 
 from __future__ import annotations
@@ -16,12 +17,18 @@ import json
 import os
 import re
 import time
+import zlib
 from pathlib import Path
 
 try:
     import yaml
 except ImportError:  # pragma: no cover - PyYAML is a declared dependency
     yaml = None
+
+try:
+    import httpx
+except ImportError:  # pragma: no cover - surfaced as "unavailable" instead
+    httpx = None
 
 try:
     from dotenv import load_dotenv
@@ -464,7 +471,43 @@ def _friendly_error(exc: Exception, model: str | None = None) -> str:
     return f"{name}Image generation failed: {text[:200]}"
 
 
-class GeminiImageBackend:
+class ImageBackend:
+    """The one interface a service talks to for image bytes.
+
+    A service HOLDS a backend (`self.backend`) instead of inheriting from one, so the
+    engine behind it can be swapped: Google Gemini today, a local ComfyUI pipeline for
+    the icon family next (and, later, for the scene seed and the action). `generate` is
+    the only method that reaches a model; `status` is what the client is shown.
+    """
+
+    model: str = ""
+    aspect_ratio: str = ""
+    image_size: str = ""
+    thinking_level: str | None = None
+
+    def available(self) -> bool:
+        raise NotImplementedError
+
+    def status(self) -> dict:
+        raise NotImplementedError
+
+    def fingerprint(self) -> str:
+        """A string that changes when the ENGINE changes. It enters the asset's
+        cache key, so a new checkpoint or sampler regenerates the asset. Empty for
+        a hosted model (its id is already in the key), so old hashes do not move."""
+        return ""
+
+    def recipe(self, *, prompt: str = "", seed: int | None = None) -> dict:
+        """What the asset was made with, for the manifest. Empty for a hosted model."""
+        return {}
+
+    def generate(self, prompt: str, aspect_ratio: str | None = None, refs=None,
+                 ref_media_resolution=None, model: str | None = None,
+                 thinking_level: str | None = None, seed: int | None = None) -> bytes:
+        raise NotImplementedError
+
+
+class GeminiImageBackend(ImageBackend):
     """The one place that talks to Gemini for images (shared by all services)."""
 
     def __init__(self, model: str, aspect_ratio: str, image_size: str,
@@ -494,9 +537,9 @@ class GeminiImageBackend:
             self._client = genai.Client(api_key=self._api_key)
         return self._client
 
-    def _generate_bytes(self, prompt: str, aspect_ratio: str | None = None,
-                        refs=None, ref_media_resolution=None, model: str | None = None,
-                        thinking_level: str | None = None) -> bytes:
+    def generate(self, prompt: str, aspect_ratio: str | None = None,
+                 refs=None, ref_media_resolution=None, model: str | None = None,
+                 thinking_level: str | None = None, seed: int | None = None) -> bytes:
         client = self._client_or_raise()
         effective_model = model or self.model
         # Gemini 3 image models cannot disable thinking; pin the level so the
@@ -563,17 +606,473 @@ class GeminiImageBackend:
         raise ImageError("The image model returned no image.")
 
 
-class ImageService(GeminiImageBackend):
-    """Generates and caches per-save image assets with Gemini."""
+# ── a local engine (ComfyUI on this machine) ──────────────────────────────────
 
-    def __init__(self, output_dir, config_path: Path | None = None):
+_LOCAL_FALLBACKS = {
+    "endpoint": "http://127.0.0.1:8188",
+    "workflow": "config/comfy/icon.json",
+    "repair_workflow": "config/comfy/icon_img2img.json",
+    "checkpoint": "sdxl_lightning_4step.safetensors",
+    "model_id": "local/sdxl-lightning-4step",
+    "steps": 8,
+    "cfg": 2.0,
+    "sampler": "euler",
+    "scheduler": "sgm_uniform",
+    "canvas": 1024,
+    "timeout_seconds": 240.0,
+    "warmup_seconds": 900.0,
+    "negative": "",
+}
+
+
+def load_workflow(path) -> tuple[dict, dict]:
+    """Read a vendored workflow document: `{format, nodes, workflow}`.
+
+    `nodes` names the patch points (positive / negative / sampler / canvas /
+    checkpoint) inside the plain API-format graph, so the client never has to guess
+    which CLIPTextEncode is which. A missing or wrong-shaped document fails loudly.
+    """
+    p = Path(path)
+    if not p.exists():
+        raise ImageError(f"local image workflow not found: {p}", status=500)
+    try:
+        doc = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ImageError(f"local image workflow is unreadable: {exc}", status=500) from exc
+    graph, nodes = doc.get("workflow"), doc.get("nodes")
+    if not isinstance(graph, dict) or not isinstance(nodes, dict):
+        raise ImageError(f"local image workflow has the wrong shape: {p}", status=500)
+    for role, node_id in nodes.items():
+        node = graph.get(str(node_id))
+        if not isinstance(node, dict) or "class_type" not in node:
+            raise ImageError(f"local image workflow: node '{role}' ({node_id}) is missing",
+                             status=500)
+    return graph, {str(k): str(v) for k, v in nodes.items()}
+
+
+def build_local_graph(graph: dict, nodes: dict, *, prompt: str = "", negative: str = "",
+                      seed: int = 0, steps: int = 8, cfg_scale: float = 2.0,
+                      sampler: str = "euler", scheduler: str = "sgm_uniform",
+                      canvas: int = 1024, checkpoint: str = "", load: str = "",
+                      denoise: float = 1.0) -> dict:
+    """A copy of the vendored graph with the settings filled in."""
+    out = json.loads(json.dumps(graph))  # deep copy
+
+    def _at(role: str) -> dict:
+        return out[nodes[role]]["inputs"]
+
+    if "positive" in nodes:
+        _at("positive")["text"] = prompt
+    if "negative" in nodes:
+        _at("negative")["text"] = negative
+    if "canvas" in nodes:
+        _at("canvas").update({"width": int(canvas), "height": int(canvas)})
+    if "checkpoint" in nodes and checkpoint:
+        _at("checkpoint")["ckpt_name"] = checkpoint
+    if "load" in nodes and load:
+        _at("load")["image"] = load
+    if "sampler" in nodes:
+        _at("sampler").update({"seed": int(seed), "steps": int(steps),
+                               "cfg": float(cfg_scale), "sampler_name": sampler,
+                               "scheduler": scheduler, "denoise": float(denoise)})
+    return out
+
+
+# ── the contrast check (the only perceiver a diffusion model cannot argue with) ──
+
+def colour_contrast(data: bytes, ground, *, max_side: int = 64, min_distance: int = 60,
+                    min_px: int = 500, min_mean: int | None = None) -> dict:
+    """How much of the icon differs from its own GROUND, by COLOUR (not lightness).
+
+    The subject is every pixel whose largest single-channel distance from `ground`
+    exceeds `min_distance`; the icon passes when at least `min_px` of them are present
+    and their mean distance is at least `min_mean` (default: `min_distance`).
+
+    Luminance would be the wrong test now that the palette is free: a saturated blue or
+    red icon is in strong contrast yet not light. Calibrated against the committed
+    Gemini family as it stood when it was measured -- 699 of its 754 icons passed (93%).
+    The SRD conformance pass of 2026-10-08 removed 60 of those icons, so the absolute
+    counts are historical; the rule and the ratio are unchanged.
+    """
+    from io import BytesIO
+
+    from PIL import Image, ImageChops
+
+    im = Image.open(BytesIO(data)).convert("RGB")
+    if max_side and max(im.size) != max_side:
+        im = im.resize((max_side, max_side), Image.LANCZOS)
+    diff = ImageChops.difference(im, Image.new("RGB", im.size, tuple(ground))).convert("L")
+    hist = diff.histogram()
+    cut = max(0, int(min_distance))
+    px = sum(hist[cut + 1:])
+    mean = (sum(i * c for i, c in enumerate(hist[cut + 1:], cut + 1) if c) / px) if px else 0.0
+    want_mean = cut if min_mean is None else int(min_mean)
+    return {"px": px, "mean": round(mean, 1), "distance": cut, "min_px": int(min_px),
+            "min_mean": want_mean, "ok": px >= int(min_px) and mean >= want_mean}
+
+
+def subject_similarity(before: bytes, after: bytes, ground, *,
+                       max_side: int = 64, min_distance: int = 60) -> dict:
+    """Are these the SAME picture? Intersection-over-union of the two subject masks.
+
+    Reported, never a gate: the eye is the judge of 'the same picture'. A low IoU on a
+    repair means the model REDREW rather than relit the icon.
+    """
+    from io import BytesIO
+
+    from PIL import Image, ImageChops
+
+    def _mask(data: bytes) -> Image.Image:
+        im = Image.open(BytesIO(data)).convert("RGB")
+        if max(im.size) != max_side:
+            im = im.resize((max_side, max_side), Image.LANCZOS)
+        diff = ImageChops.difference(im, Image.new("RGB", im.size, tuple(ground))).convert("L")
+        return diff.point(lambda v: 255 if v > min_distance else 0)
+
+    a, b = _mask(before), _mask(after)
+    inter = ImageChops.multiply(a, b)
+    count = lambda m: sum(m.histogram()[255:])  # noqa: E731
+    ia, ib, ii = count(a), count(b), count(inter)
+    union = ia + ib - ii
+    return {"iou": round(ii / union, 3) if union else 0.0, "before_px": ia, "after_px": ib}
+
+
+def detail_within(data: bytes, *, max_edge: float = 0.217, max_hf: float = 29.7,
+                  max_side: int = 256) -> dict:
+    """Is the icon SIMPLE enough? Linework and grain, measured at the size it is looked at.
+
+    `edge` is the fraction of pixels sitting on a contour (FIND_EDGES > 40) and `hf` the
+    high-frequency energy (the mean absolute difference from a blurred copy) -- engraving and
+    texture. The ceilings are the committed family's own p90 (edge 0.217, hf 29.7), so roughly
+    nine icons in ten of that family pass. Colour count is deliberately NOT measured: the
+    committed family carries MORE colours than the local one; what separates them is linework.
+    """
+    from io import BytesIO
+
+    from PIL import Image, ImageChops, ImageFilter
+
+    im = Image.open(BytesIO(data)).convert("RGB")
+    if max_side and max(im.size) != max_side:
+        im = im.resize((max_side, max_side), Image.LANCZOS)
+    grey = im.convert("L")
+    hist = grey.filter(ImageFilter.FIND_EDGES).histogram()
+    edge = sum(hist[40:]) / (sum(hist) or 1)
+    diff = ImageChops.difference(grey, grey.filter(ImageFilter.GaussianBlur(2.0))).histogram()
+    hf = sum(i * c for i, c in enumerate(diff)) / (sum(diff) or 1)
+    return {"edge": round(edge, 4), "hf": round(hf, 2), "max_edge": float(max_edge),
+            "max_hf": float(max_hf), "ok": edge <= max_edge and hf <= max_hf}
+
+
+class LocalImageBackend(ImageBackend):
+    """A local diffusion engine behind **ComfyUI's HTTP API**.
+
+    The weights live OUTSIDE the repo (they carry their own licence); only the graph
+    is vendored, under `config/comfy/`. Nothing here touches the GPU until `generate`
+    runs, and `available()` is a cheap reachability probe, so an unreachable engine
+    reads as "not available" rather than as a crash.
+
+    Every image is one-shot: seed, steps, sampler and canvas come from the `local:`
+    block of `config/images.yml`, and a bake is reproducible from the manifest.
+    """
+
+    def __init__(self, *, endpoint: str, workflow, checkpoint: str, model_id: str,
+                 steps: int = 8, cfg_scale: float = 2.0, sampler: str = "euler",
+                 scheduler: str = "sgm_uniform", negative: str = "", canvas: int = 1024,
+                 timeout: float = 240.0, warmup: float = 900.0,
+                 repair_workflow=None, aspect_ratio: str = "1:1"):
+        self.endpoint = str(endpoint).rstrip("/")
+        self.workflow_path = Path(workflow)
+        self.repair_path = Path(repair_workflow) if repair_workflow else self.workflow_path
+        self.checkpoint = str(checkpoint)
+        self.model = str(model_id)          # `local/...` — what the manifest records
+        self.steps = int(steps)
+        self.cfg_scale = float(cfg_scale)
+        self.sampler = str(sampler)
+        self.scheduler = str(scheduler)
+        self.negative = str(negative or "")
+        self.canvas = int(canvas)
+        self.timeout = float(timeout)
+        self.warmup = float(warmup)
+        self.aspect_ratio = aspect_ratio
+        self.image_size = f"{self.canvas}x{self.canvas}"
+        self.thinking_level = None
+        self._warm = False          # the first image may have to load the checkpoint
+        self._available: tuple[float, bool] | None = None
+
+    # ── construction ──────────────────────────────────────────────────────
+
+    @classmethod
+    def from_config(cls, cfg: dict, *, model: str | None = None,
+                    aspect_ratio: str = "1:1") -> "LocalImageBackend":
+        block = cfg.get("local")
+        block = block if isinstance(block, dict) else {}
+        values = {**_LOCAL_FALLBACKS, **{k: v for k, v in block.items() if v is not None}}
+        if model:
+            values["model_id"] = str(model)
+        return cls(
+            endpoint=values["endpoint"],
+            workflow=values["workflow"],
+            checkpoint=values["checkpoint"],
+            model_id=values["model_id"],
+            steps=values["steps"],
+            cfg_scale=values["cfg"],
+            sampler=values["sampler"],
+            scheduler=values["scheduler"],
+            negative=values["negative"],
+            canvas=values["canvas"],
+            timeout=values["timeout_seconds"],
+            warmup=values["warmup_seconds"],
+            repair_workflow=values.get("repair_workflow"),
+            aspect_ratio=aspect_ratio,
+        )
+
+    # ── the backend surface ───────────────────────────────────────────────
+
+    def available(self) -> bool:
+        now = time.time()
+        if self._available and now - self._available[0] < 5.0:
+            return self._available[1]
+        ok = False
+        if httpx is not None:
+            try:
+                r = httpx.get(f"{self.endpoint}/system_stats", timeout=2.0)
+                ok = r.status_code == 200
+            except Exception:  # noqa: BLE001 - unreachable is simply "not available"
+                ok = False
+        self._available = (now, ok)
+        return ok
+
+    def status(self) -> dict:
+        return {
+            "available": self.available(),
+            "model": self.model,
+            "aspect_ratio": self.aspect_ratio,
+            "thinking_level": None,
+            "endpoint": self.endpoint,
+            "checkpoint": self.checkpoint,
+            "canvas": self.canvas,
+            "steps": self.steps,
+            "cfg": self.cfg_scale,
+            "sampler": self.sampler,
+            "scheduler": self.scheduler,
+        }
+
+    def fingerprint(self) -> str:
+        return json.dumps({"engine": "local", "checkpoint": self.checkpoint,
+                           "steps": self.steps, "cfg": self.cfg_scale,
+                           "sampler": self.sampler, "scheduler": self.scheduler,
+                           "canvas": self.canvas, "negative": self.negative,
+                           "workflow": self.workflow_path.name}, sort_keys=True)
+
+    def recipe(self, *, prompt: str = "", seed: int | None = None) -> dict:
+        return {
+            "seed": self._seed(prompt, seed),
+            "steps": self.steps,
+            "cfg": self.cfg_scale,
+            "sampler": self.sampler,
+            "scheduler": self.scheduler,
+            "canvas": self.canvas,
+            "checkpoint": self.checkpoint,
+        }
+
+    @staticmethod
+    def _seed(prompt: str, seed: int | None) -> int:
+        if seed is not None:
+            return int(seed) & 0xFFFFFFFF
+        return zlib.crc32(prompt.encode("utf-8")) & 0xFFFFFFFF
+
+    def generate(self, prompt: str, aspect_ratio: str | None = None, refs=None,
+                 ref_media_resolution=None, model: str | None = None,
+                 thinking_level: str | None = None, seed: int | None = None) -> bytes:
+        if refs:
+            raise ImageError("the local image backend cannot use reference images yet",
+                             status=502)
+        graph, nodes = load_workflow(self.workflow_path)
+        built = build_local_graph(
+            graph, nodes, prompt=prompt, negative=self.negative,
+            seed=self._seed(prompt, seed), steps=self.steps, cfg_scale=self.cfg_scale,
+            sampler=self.sampler, scheduler=self.scheduler, canvas=self.canvas,
+            checkpoint=self.checkpoint,
+        )
+        return self._run(built)
+
+    # ── the repair: the same picture again, in colour ───────────────────────
+
+    def repair(self, data: bytes, prompt: str, *, mode: str = "img2img", seed: int | None = 0,
+               denoise: float = 0.5, steps: int = 12, cfg_scale: float = 4.0) -> bytes:
+        """Regenerate an icon with better contrast, keeping the picture.
+
+        `mode="img2img** loads the previous PNG into ComfyUI and re-samples it at a mid
+        denoise, so the composition survives while the colour changes — that is the
+        treatment for an icon that is PRESENT but too dark or too small.
+
+        `mode="redraw"` is a plain text-to-image at the SAME seed and stronger guidance,
+        for an icon painted in the background colour: there is no structure to preserve,
+        so relighting would be a redraw anyway — better to redraw deliberately.
+        """
+        graph, nodes = load_workflow(self.repair_path if mode == "img2img" else self.workflow_path)
+        load = ""
+        if mode == "img2img":
+            load = self._upload(data)
+        built = build_local_graph(
+            graph, nodes, prompt=prompt, negative=self.negative,
+            seed=self._seed(prompt, seed), steps=steps, cfg_scale=cfg_scale,
+            sampler=self.sampler, scheduler=self.scheduler, canvas=self.canvas,
+            checkpoint=self.checkpoint, load=load,
+            denoise=denoise if mode == "img2img" else 1.0,
+        )
+        return self._run(built)
+
+    def _upload(self, data: bytes) -> str:
+        """Put the previous image where ComfyUI's LoadImage can find it."""
+        if httpx is None:
+            raise ImageError("httpx is not installed, so the local image engine cannot be "
+                             "reached.", status=503)
+        try:
+            with httpx.Client(timeout=self.timeout) as client:
+                r = client.post(f"{self.endpoint}/upload/image",
+                                files={"image": ("infinity-icon-repair.png", data,
+                                                 "image/png")},
+                                data={"overwrite": "true"})
+                if r.status_code >= 400:
+                    raise ImageError(f"ComfyUI refused the repair image ({r.status_code})",
+                                     status=502)
+                name = str((r.json() or {}).get("name") or "")
+                if not name:
+                    raise ImageError("ComfyUI accepted the repair image but returned no "
+                                     "name", status=502)
+                return name
+        except ImageError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            raise ImageError(f"could not hand the image to ComfyUI: {exc}", status=502) from exc
+
+    def _run(self, built: dict) -> bytes:
+        """Post a graph, wait for it, download the image. The one engine call."""
+        if httpx is None:
+            raise ImageError("httpx is not installed, so the local image engine cannot be "
+                             "reached.", status=503)
+        deadline = time.time() + (self.warmup if not self._warm else self.timeout)
+        try:
+            with httpx.Client(timeout=self.timeout) as client:
+                r = client.post(f"{self.endpoint}/prompt",
+                                json={"prompt": built, "client_id": "infinity-icons"})
+                if r.status_code >= 400:
+                    raise ImageError(f"ComfyUI rejected the workflow ({r.status_code}): "
+                                     f"{r.text[:300]}", status=502)
+                prompt_id = str(r.json().get("prompt_id") or "")
+                if not prompt_id:
+                    raise ImageError("ComfyUI accepted the workflow but returned no "
+                                     "prompt id", status=502)
+                self._warm = True
+                image = self._wait_for_image(client, prompt_id, deadline)
+                return self._download(client, image)
+        except ImageError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - unreachable engine, bad reply, timeout
+            raise ImageError(f"the local image engine at {self.endpoint} failed: {exc}",
+                             status=502) from exc
+
+    # ── ComfyUI plumbing ───────────────────────────────────────────────────
+
+    def _wait_for_image(self, client, prompt_id: str, deadline: float) -> dict:
+        while time.time() < deadline:
+            entry = (client.get(f"{self.endpoint}/history/{prompt_id}").json() or {}).get(prompt_id)
+            if entry:
+                status = entry.get("status") or {}
+                if status.get("status_str") == "error":
+                    messages = [m for m in status.get("messages") or []
+                                if m and m[0] == "execution_error"]
+                    raise ImageError(f"ComfyUI reported an error: {json.dumps(messages)[:400]}",
+                                     status=502)
+                for node in (entry.get("outputs") or {}).values():
+                    for image in node.get("images") or []:
+                        return image
+            time.sleep(0.5)
+        raise ImageError("ComfyUI did not produce an image in time", status=504)
+
+    def _download(self, client, image: dict) -> bytes:
+        r = client.get(f"{self.endpoint}/view", params={
+            "filename": image.get("filename", ""),
+            "subfolder": image.get("subfolder", ""),
+            "type": image.get("type", "output"),
+        })
+        r.raise_for_status()
+        raw = r.content
+        if not raw:
+            raise ImageError("ComfyUI returned an empty image", status=502)
+        if sniff_image(raw) is None:
+            raise ImageError(f"ComfyUI returned {len(raw)} bytes that are not a recognised "
+                             f"image", status=502)
+        return raw
+
+
+class ImageBackendHolder:
+    """Shared plumbing for the services: a service HOLDS a backend rather than
+    inheriting from one, so the engine can be swapped per family or per request.
+    `self.generate` is a thin passthrough and stays the seam a test replaces with a
+    stub (`svc.generate = ...`), exactly as `svc._generate_bytes` used to be.
+    """
+
+    backend: ImageBackend
+
+    def backend_for(self, model: str | None = None) -> ImageBackend:
+        """Which backend serves this request. One backend for now; a service that
+        owns several (one per image-model family) overrides this."""
+        return self.backend
+
+    def generate(self, prompt: str, **kwargs) -> bytes:
+        return self.backend_for(kwargs.get("model")).generate(prompt, **kwargs)
+
+    # ── the backend's own surface, kept on the service ─────────────────────
+    @property
+    def model(self) -> str:
+        return self.backend.model
+
+    @property
+    def aspect_ratio(self) -> str:
+        return self.backend.aspect_ratio
+
+    @property
+    def image_size(self) -> str:
+        return self.backend.image_size
+
+    @property
+    def thinking_level(self) -> str | None:
+        return self.backend.thinking_level
+
+    def available(self) -> bool:
+        return self.backend.available()
+
+    def status(self) -> dict:
+        return self.backend.status()
+
+
+def _backend_from_config(cfg: dict, *, model: str, aspect_ratio: str,
+                         thinking_level: str | None = None,
+                         family: str | None = None) -> ImageBackend:
+    """The image backend for a config and a family. `family` (the icon store being
+    served) wins; otherwise `backend:` in config/images.yml decides; otherwise Gemini,
+    so a config with no `backend:` key behaves exactly as it always did."""
+    name = str(family or cfg.get("backend") or "gemini").strip().lower()
+    if name.startswith("local"):
+        return LocalImageBackend.from_config(cfg, model=model, aspect_ratio=aspect_ratio)
+    return GeminiImageBackend(model, aspect_ratio,
+                              str(cfg.get("image_size") or "1K"), thinking_level)
+
+
+class ImageService(ImageBackendHolder):
+    """Generates and caches per-save image assets (portraits) with the configured backend."""
+
+    def __init__(self, output_dir, config_path: Path | None = None,
+                 backend: ImageBackend | None = None):
         self.output_dir = Path(output_dir)
         cfg = _load_config(config_path)
-        super().__init__(
-            str(cfg.get("model") or _DEFAULT_MODEL),
-            str(cfg.get("aspect_ratio") or "3:4"),
-            str(cfg.get("image_size") or "1K"),
-            _thinking_level(cfg),
+        self.backend = backend or _backend_from_config(
+            cfg,
+            model=str(cfg.get("model") or _DEFAULT_MODEL),
+            aspect_ratio=str(cfg.get("aspect_ratio") or "3:4"),
+            thinking_level=_thinking_level(cfg),
         )
         self.style = str(cfg.get("style") or "").strip()
         self.style_guard = str(cfg.get("style_guard") or _STYLE_GUARD).strip()
@@ -715,7 +1214,7 @@ class ImageService(GeminiImageBackend):
 
         prompt = self.portrait_prompt(player, has_ref=bool(refs), style=style)
         raw = downscale_image(
-            self._generate_bytes(prompt, refs=refs, ref_media_resolution=self.ref_media_resolution,
+            self.generate(prompt, refs=refs, ref_media_resolution=self.ref_media_resolution,
                                  model=effective, thinking_level=self.thinking_level),
             self.portrait_max_side,
         )
@@ -803,15 +1302,19 @@ def _manifest_entries(data) -> list[dict]:
     """Normalize a scene manifest (v1 flat / v2-v7) to a list of seed dicts."""
     if not isinstance(data, dict):
         return []
-    if data.get("version") in (2, 3, 4, 5, 6, 7) and isinstance(data.get("seeds"), dict):
+    if data.get("version") in (2, 3, 4, 5, 6, 7, 8) and isinstance(data.get("seeds"), dict):
         return [e for e in data["seeds"].values() if isinstance(e, dict)]
     # v1: {location_slug: entry}
     return [e for e in data.values() if isinstance(e, dict)
             and (e.get("location") or e.get("place"))]
 
 
-def known_scene_places(output_dir, stem: str) -> list[dict]:
-    """Seeded places for a save: {kingdom, area, place, description, main_npcs}."""
+def known_scene_places(output_dir, stem: str, era: str | None = None) -> list[dict]:
+    """Seeded places for a save: {era, kingdom, area, place, description, main_npcs, used}.
+
+    `era` scopes the list to one era. A place with no era -- only possible from a
+    manifest written before v8, which the next write re-keys -- matches any era.
+    """
     path = Path(output_dir) / "images" / stem / "scenes" / "manifest.json"
     if not path.exists():
         return []
@@ -819,22 +1322,27 @@ def known_scene_places(output_dir, stem: str) -> list[dict]:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return []
-    seen: set[tuple[str, str, tuple[str, ...]]] = set()
+    want_era = None if era is None else str(era).strip().lower()
+    seen: set[tuple[str, str, str, tuple[str, ...]]] = set()
     out: list[dict] = []
     for entry in _manifest_entries(data):
+        entry_era = str(entry.get("era") or "").strip()
         kingdom = str(entry.get("kingdom") or "").strip()
         area = str(entry.get("area") or "").strip()
+        if want_era is not None and entry_era.lower() not in (want_era, ""):
+            continue
         place = _place_path(entry.get("place"))
         if not place:
             place = _place_path([entry.get("location"), entry.get("sublocation")])
-        key = (kingdom.lower(), area.lower(), tuple(p.lower() for p in place))
+        key = (entry_era.lower(), kingdom.lower(), area.lower(), tuple(p.lower() for p in place))
         if not place or key in seen:
             continue
         seen.add(key)
-        out.append({"kingdom": kingdom, "area": area, "place": place,
+        out.append({"era": entry_era, "kingdom": kingdom, "area": area, "place": place,
                     "description": str(entry.get("description") or "").strip(),
-                    "main_npcs": _seed_main_npcs(entry)})
-    return sorted(out, key=lambda p: (p["kingdom"].lower(), p["area"].lower(),
+                    "main_npcs": _seed_main_npcs(entry),
+                    "used": int(entry.get("used") or entry.get("created") or 0)})
+    return sorted(out, key=lambda p: (p["era"].lower(), p["kingdom"].lower(), p["area"].lower(),
                                       [s.lower() for s in p["place"]]))
 
 
@@ -965,7 +1473,7 @@ _DEFAULT_SCENE_ACTION = (
 )
 
 
-class SceneService(GeminiImageBackend):
+class SceneService(ImageBackendHolder):
     """Generates + persists a hidden, permanent establishing **seed** per place
     `(kingdom, area, place path)` and a visible **action** image drawn
     fresh from that seed + the portrait. Actions are never referenced by later
@@ -979,13 +1487,14 @@ class SceneService(GeminiImageBackend):
     the declared NPC looks; the GM only ever passes their names.
     """
 
-    def __init__(self, output_dir=None, config_path: Path | None = None):
+    def __init__(self, output_dir=None, config_path: Path | None = None,
+                 backend: ImageBackend | None = None):
         cfg = _load_config(config_path)
-        super().__init__(
-            str(cfg.get("model") or _DEFAULT_MODEL),
-            str(cfg.get("scene_aspect_ratio") or "16:9"),
-            str(cfg.get("image_size") or "1K"),
-            _thinking_level(cfg),
+        self.backend = backend or _backend_from_config(
+            cfg,
+            model=str(cfg.get("model") or _DEFAULT_MODEL),
+            aspect_ratio=str(cfg.get("scene_aspect_ratio") or "16:9"),
+            thinking_level=_thinking_level(cfg),
         )
         self.output_dir = Path(output_dir) if output_dir else None
         # Scenes share the portrait's locked painterly style unless overridden.
@@ -1054,20 +1563,23 @@ class SceneService(GeminiImageBackend):
         return self.scenes_dir(stem) / "manifest.json"
 
     @staticmethod
-    def _key(kingdom, area, place) -> str:
-        return "|".join(_slug(p) for p in (kingdom, area, *_place_path(place)))
+    def _key(kingdom, area, place, era="") -> str:
+        """A place's manifest key. The era is the root: two eras can share a place
+        path, and they are different places with different seeds."""
+        parts = [_slug(p) for p in (kingdom, area, *_place_path(place))]
+        return "|".join(([_slug(era)] if era else []) + parts)
 
-    def _read_manifest(self, stem: str) -> dict:
+    def _read_manifest(self, stem: str, era: str = "") -> dict:
         path = self.manifest_path(stem)
-        empty = {"version": 7, "seeds": {}, "cast": {}, "current": {}}
+        empty = {"version": 8, "seeds": {}, "cast": {}, "current": {}}
         if not path.exists():
             return empty
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             return empty
-        if isinstance(data, dict) and data.get("version") in (2, 3, 4, 5, 6, 7) and isinstance(data.get("seeds"), dict):
-            if data.get("version") not in (4, 5, 6, 7):
+        if isinstance(data, dict) and data.get("version") in (2, 3, 4, 5, 6, 7, 8) and isinstance(data.get("seeds"), dict):
+            if data.get("version") not in (4, 5, 6, 7, 8):
                 # Action images became ephemeral one-shot files in v4: clean up any left over.
                 for entry in (data.get("actions") or []):
                     try:
@@ -1088,7 +1600,9 @@ class SceneService(GeminiImageBackend):
                 entry["place"] = place
                 entry.pop("location", None)
                 entry.pop("sublocation", None)
-                seeds[self._key(entry.get("kingdom"), entry.get("area"), place)] = entry
+                # v7 and older carry no era: it defaults to the save's current one.
+                entry["era"] = str(entry.get("era") or "").strip() or era
+                seeds[self._key(entry.get("kingdom"), entry.get("area"), place, entry["era"])] = entry
             cast: dict = {}
             raw_cast = data.get("cast")
             if isinstance(raw_cast, dict):
@@ -1105,7 +1619,7 @@ class SceneService(GeminiImageBackend):
                 current["place"] = cplace
             else:
                 current = {}
-            return {"version": 7, "seeds": seeds, "cast": cast, "current": current}
+            return {"version": 8, "seeds": seeds, "cast": cast, "current": current}
         # v1 flat manifest: {location_slug: entry}
         seeds: dict = {}
         now = int(time.time())
@@ -1117,15 +1631,16 @@ class SceneService(GeminiImageBackend):
                 continue
             kingdom = str(entry.get("kingdom") or "").strip()
             area = str(entry.get("area") or "").strip()
-            seeds[self._key(kingdom, area, place)] = {
-                "file": entry.get("file"), "slug": slug, "kingdom": kingdom, "area": area,
+            seeds[self._key(kingdom, area, place, era)] = {
+                "file": entry.get("file"), "slug": slug, "era": era,
+                "kingdom": kingdom, "area": area,
                 "place": place,
                 "description": str(entry.get("description") or ""),
                 "main_npcs": _npc_list(entry.get("main_npc")),
                 "created": entry.get("created") or now,
                 "mime": entry.get("mime") or "image/png",
             }
-        return {"version": 7, "seeds": seeds, "cast": {}, "current": {}}
+        return {"version": 8, "seeds": seeds, "cast": {}, "current": {}}
 
     def _write_manifest(self, stem: str, data: dict) -> None:
         path = self.manifest_path(stem)
@@ -1155,11 +1670,12 @@ class SceneService(GeminiImageBackend):
         return None
 
     @staticmethod
-    def _seed_by_place(seeds: dict, place, current=None):
+    def _seed_by_place(seeds: dict, place, current=None, era: str = ""):
         """Resolve a seed from its place path when kingdom/area are omitted."""
         want = [_slug(p) for p in _place_path(place)]
         matches = [(k, v) for k, v in (seeds or {}).items()
-                   if [_slug(x) for x in _place_path(v.get("place"))] == want]
+                   if [_slug(x) for x in _place_path(v.get("place"))] == want
+                   and (not era or str(v.get("era") or "") == era)]
         if not matches:
             return None, None
         cur = current or {}
@@ -1333,7 +1849,7 @@ class SceneService(GeminiImageBackend):
                       model: str | None = None, style: str | None = None) -> bytes:
         prompt = self.seed_prompt(world, kingdom, area, place, establishing,
                                   change, has_seed_ref=bool(refs), style=style)
-        raw = self._generate_bytes(prompt, aspect_ratio=self.aspect_ratio, refs=refs,
+        raw = self.generate(prompt, aspect_ratio=self.aspect_ratio, refs=refs,
                                    ref_media_resolution=self.ref_media_resolution,
                                    model=model or self.model,
                                    thinking_level=self.thinking_level)
@@ -1348,7 +1864,7 @@ class SceneService(GeminiImageBackend):
                                     ref_kind=ref_kind, time_of_day=time_of_day,
                                     weather=weather, characters=characters, appearance=appearance,
                                     style=style)
-        raw = self._generate_bytes(prompt, aspect_ratio=self.aspect_ratio, refs=refs,
+        raw = self.generate(prompt, aspect_ratio=self.aspect_ratio, refs=refs,
                                    ref_media_resolution=self.ref_media_resolution,
                                    model=model or self.model,
                                    thinking_level=self.thinking_level)
@@ -1356,17 +1872,17 @@ class SceneService(GeminiImageBackend):
 
     # ── orchestration ───────────────────────────────────────────────────────
 
-    def _seed_slug(self, kingdom: str, area: str, place) -> str:
+    def _seed_slug(self, kingdom: str, area: str, place, era: str = "") -> str:
         path = _place_path(place)
-        h = hashlib.sha1(self._key(kingdom, area, path).encode("utf-8")).hexdigest()[:6]
+        h = hashlib.sha1(self._key(kingdom, area, path, era).encode("utf-8")).hexdigest()[:6]
         head = _slug(path[0])[:16] if path else "place"
         tail = _slug(path[-1])[:16] if len(path) > 1 else "main"
         return f"seed-{head}-{tail}-{h}"
 
-    def _action_slug(self, kingdom: str, area: str, place) -> str:
+    def _action_slug(self, kingdom: str, area: str, place, era: str = "") -> str:
         """A unique name per request — actions are one-shot and never revisited."""
         path = _place_path(place)
-        h = hashlib.sha1(self._key(kingdom, area, path).encode("utf-8")).hexdigest()[:6]
+        h = hashlib.sha1(self._key(kingdom, area, path, era).encode("utf-8")).hexdigest()[:6]
         token = hashlib.sha1(str(time.time_ns()).encode("ascii")).hexdigest()[:8]
         head = _slug(path[0])[:16] if path else "place"
         tail = _slug(path[-1])[:16] if len(path) > 1 else "main"
@@ -1374,10 +1890,10 @@ class SceneService(GeminiImageBackend):
 
     def _store_seed(self, stem: str, manifest: dict, kingdom: str, area: str, place,
                     description: str, main_npcs, raw: bytes,
-                    existing=None, style: str | None = None) -> dict:
+                    existing=None, style: str | None = None, era: str = "") -> dict:
         path = _place_path(place)
         ext, mime = sniff_image(raw) or ("png", "image/png")
-        slug = (existing or {}).get("slug") or self._seed_slug(kingdom, area, path)
+        slug = (existing or {}).get("slug") or self._seed_slug(kingdom, area, path, era)
         file = f"{slug}.{ext}"
         directory = self.scenes_dir(stem)
         for other in _PORTRAIT_EXTS:
@@ -1385,14 +1901,16 @@ class SceneService(GeminiImageBackend):
             if other != ext and stale.exists():
                 stale.unlink()
         ImageService._write_image(directory / file, raw)
+        now = int(time.time())
         entry = {
-            "file": file, "slug": slug, "kingdom": str(kingdom or ""), "area": str(area or ""),
+            "file": file, "slug": slug, "era": str(era or ""),
+            "kingdom": str(kingdom or ""), "area": str(area or ""),
             "place": path,
             "description": str(description or ""), "main_npcs": _npc_list(main_npcs),
             "style": (style or self.style),
-            "mime": mime, "created": int(time.time()),
+            "mime": mime, "created": now, "used": now,
         }
-        manifest.setdefault("seeds", {})[self._key(kingdom, area, path)] = entry
+        manifest.setdefault("seeds", {})[self._key(kingdom, area, path, era)] = entry
         return entry
 
     @staticmethod
@@ -1428,15 +1946,18 @@ class SceneService(GeminiImageBackend):
                      establishing: str = "", main_npcs=None,
                      seed_change: str = "", npcs=None,
                      time_of_day: str = "", weather: str = "", characters=None,
-                     model: str | None = None, style: str | None = None) -> dict:
+                     model: str | None = None, style: str | None = None,
+                     era: str = "") -> dict:
         """Ensure the hidden seed (idempotent; regenerated on `seed_change` or an art-style
         change), upsert any newly declared NPCs, then generate the action fresh from the seed
         + the portrait and persist it as a one-shot file (served once, then deleted).
 
+        `era` roots the place path (manifest v8): the same place in two eras is two seeds.
         `characters` arrives as `{name: action}`; the stored descriptions are injected here."""
         effective = model or self.model
         effective_style = (style or self.style).strip()
-        manifest = self._read_manifest(stem)
+        era = str(era or "").strip().lower()
+        manifest = self._read_manifest(stem, era)
         cast = manifest.setdefault("cast", {})
         npcs_added: list[str] = []
         if isinstance(npcs, list):
@@ -1447,10 +1968,10 @@ class SceneService(GeminiImageBackend):
                     npcs_added.append(fields["name"])
         seeds = manifest.setdefault("seeds", {})
         path = _place_path(place)
-        seed = seeds.get(self._key(kingdom, area, path))
+        seed = seeds.get(self._key(kingdom, area, path, era))
         if seed is None and not establishing:
             # kingdom/area omitted (an action call, or a seed change) -> resolve from the place.
-            key, found = self._seed_by_place(seeds, path, manifest.get("current"))
+            key, found = self._seed_by_place(seeds, path, manifest.get("current"), era)
             if found is not None:
                 seed = found
                 kingdom = str(found.get("kingdom") or "")
@@ -1464,7 +1985,7 @@ class SceneService(GeminiImageBackend):
                                      establishing or f"An atmospheric view of {label}.",
                                      model=effective, style=effective_style)
             seed = self._store_seed(stem, manifest, kingdom, area, path,
-                                    establishing, main_npcs, raw, style=effective_style)
+                                    establishing, main_npcs, raw, style=effective_style, era=era)
             seed_created = True
         elif seed_change or style_changed:
             # A permanent change redraws with the old seed as a reference; a pure style change
@@ -1477,7 +1998,7 @@ class SceneService(GeminiImageBackend):
             seed = self._store_seed(stem, manifest, kingdom, area, path,
                                     establishing or str(seed.get("description") or ""),
                                     main_npcs if main_npcs else _seed_main_npcs(seed), raw,
-                                    existing=seed, style=effective_style)
+                                    existing=seed, style=effective_style, era=era)
             seed_regenerated = True
 
         # Always draw from the place's empty establishing seed + the portrait. Chaining
@@ -1500,10 +2021,14 @@ class SceneService(GeminiImageBackend):
                                    time_of_day=time_of_day, weather=weather, characters=resolved,
                                    appearance=appearance, style=effective_style)
         ext = (sniff_image(raw) or ("png", "image/png"))[0]
-        slug = self._action_slug(kingdom, area, path)
+        slug = self._action_slug(kingdom, area, path, era)
         ImageService._write_image(self.scenes_dir(stem) / f"{slug}.{ext}", raw)
         created = int(time.time())
-        manifest["current"] = {"kingdom": str(kingdom or ""), "area": str(area or ""),
+        if seed:
+            # LRU for the priming cap: the place you drew from last is the one the GM
+            # should be reminded of first. `seed` is the manifest entry itself.
+            seed["used"] = created
+        manifest["current"] = {"era": era, "kingdom": str(kingdom or ""), "area": str(area or ""),
                                "place": path, "updated": created}
         self._write_manifest(stem, manifest)
         return {

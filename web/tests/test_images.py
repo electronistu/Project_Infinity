@@ -60,11 +60,11 @@ def make_service(tmp: Path, key=None):
     svc = ImageService(tmp)
     calls = {"n": 0}
 
-    def fake(prompt, aspect_ratio=None, refs=None, ref_media_resolution=None, model=None, thinking_level=None):  # noqa: ARG001 - stub
+    def fake(prompt, aspect_ratio=None, refs=None, ref_media_resolution=None, model=None, thinking_level=None, seed=None):  # noqa: ARG001 - stub
         calls["n"] += 1
         return _PNG
 
-    svc._generate_bytes = fake  # type: ignore[assignment]
+    svc.generate = fake  # type: ignore[assignment]
     svc._calls = calls
     return svc
 
@@ -218,16 +218,16 @@ def main() -> bool:
 
         # The Lite model returns JPEG; store it under the right extension/mime.
         svc3 = ImageService(tmp)
-        svc3._generate_bytes = lambda prompt, aspect_ratio=None, refs=None, ref_media_resolution=None, model=None, thinking_level=None: b"\xff\xd8\xff\xe0" + b"j" * 32  # type: ignore[assignment]
+        svc3.generate = lambda prompt, aspect_ratio=None, refs=None, ref_media_resolution=None, model=None, thinking_level=None, seed=None: b"\xff\xd8\xff\xe0" + b"j" * 32  # type: ignore[assignment]
         svc3.ensure_portrait("jpgsniff", PLAYER)
         rec("jpeg bytes stored as portrait.jpg", svc3.portrait_path("jpgsniff").name == "portrait.jpg")
         rec("portrait_file sniffs image/jpeg", svc3.portrait_file("jpgsniff")[1] == "image/jpeg")
 
-        # Real _generate_bytes path with a stubbed SDK client: locks the
+        # Real generate() path with a stubbed SDK client: locks the
         # Developer-API parameter set (no output_mime_type; AFC disabled).
         svc2 = ImageService(tmp)
         fake = _FakeClient()
-        svc2._client_or_raise = lambda: fake  # type: ignore[assignment]
+        svc2.backend._client_or_raise = lambda: fake  # type: ignore[assignment]
         r5 = svc2.ensure_portrait("cfgtest", PLAYER)
         cfg = fake.captured.get("config")
         ic = getattr(cfg, "image_config", None) if cfg else None
@@ -251,8 +251,8 @@ def main() -> bool:
                             ("bogus-image-model", None)):
             svc_x = ImageService(tmp)
             fake_x = _FakeClient()
-            svc_x._client_or_raise = lambda f=fake_x: f  # type: ignore[assignment]
-            svc_x._generate_bytes("x", model=mid)
+            svc_x.backend._client_or_raise = lambda f=fake_x: f  # type: ignore[assignment]
+            svc_x.generate("x", model=mid)
             cfg_x = fake_x.captured.get("config")
             tc_x = getattr(cfg_x, "thinking_config", None) if cfg_x else None
             lvl_x = getattr(tc_x.thinking_level, "value", tc_x.thinking_level) if tc_x else None
@@ -263,8 +263,8 @@ def main() -> bool:
         # Image-reference continuity: the previous portrait is sent as input.
         svc_ref = ImageService(tmp)
         fake_ref = _FakeClient()
-        svc_ref._client_or_raise = lambda: fake_ref  # type: ignore[assignment]
-        svc_ref._generate_bytes("x", refs=[(b"\xff\xd8\xff\xe0" + b"r" * 8, "image/jpeg")])
+        svc_ref.backend._client_or_raise = lambda: fake_ref  # type: ignore[assignment]
+        svc_ref.generate("x", refs=[(b"\xff\xd8\xff\xe0" + b"r" * 8, "image/jpeg")])
         parts = fake_ref.captured.get("contents") or []
         rec("refs produce a two-part request", len(parts) == 2)
         rec("the reference is an inline image part",
@@ -272,13 +272,13 @@ def main() -> bool:
 
         svc_rej = ImageService(tmp)
         fake_rej = _FakeClientRejectRefs()
-        svc_rej._client_or_raise = lambda: fake_rej  # type: ignore[assignment]
-        out = svc_rej._generate_bytes("x", refs=[(b"\xff\xd8\xff\xe0" + b"r" * 8, "image/jpeg")])
+        svc_rej.backend._client_or_raise = lambda: fake_rej  # type: ignore[assignment]
+        out = svc_rej.generate("x", refs=[(b"\xff\xd8\xff\xe0" + b"r" * 8, "image/jpeg")])
         rec("refs rejection falls back to text-only", out == _PNG and fake_rej.calls == [2, 1])
 
         svc_pref = ImageService(tmp)
         fake_pref = _FakeClient()
-        svc_pref._client_or_raise = lambda: fake_pref  # type: ignore[assignment]
+        svc_pref.backend._client_or_raise = lambda: fake_pref  # type: ignore[assignment]
         svc_pref.ensure_portrait("refhero", PLAYER)
         first_parts = len(fake_pref.captured.get("contents") or [])
         svc_pref.ensure_portrait("refhero", dict(PLAYER, level=10), force=True)
@@ -424,11 +424,11 @@ def main() -> bool:
         sc3 = SceneService(tmp)
         captured = []
 
-        def _scene_bytes(prompt, aspect_ratio=None, refs=None, ref_media_resolution=None, model=None, thinking_level=None):
+        def _scene_bytes(prompt, aspect_ratio=None, refs=None, ref_media_resolution=None, model=None, thinking_level=None, seed=None):
             captured.append((prompt, refs, ref_media_resolution))
             return jpeg(800, 450)
 
-        sc3._generate_bytes = _scene_bytes  # type: ignore[assignment]
+        sc3.generate = _scene_bytes  # type: ignore[assignment]
         scene_dir = tmp / "images" / "scenetest" / "scenes"
         portrait_dir = tmp / "images" / "scenetest"
         portrait_dir.mkdir(parents=True, exist_ok=True)
@@ -527,8 +527,8 @@ def main() -> bool:
         rec("the main NPCs' roles round-trip through the manifest",
             any(p["place"] == ["Hask's Smithy", "the forge"]
                 and p["main_npcs"][0]["role"] == "the smith" for p in places), str(places))
-        rec("the cast is persisted in the manifest (v7)",
-            json.loads((scene_dir / "manifest.json").read_text(encoding="utf-8"))["version"] == 7
+        rec("the cast is persisted in the manifest (v8)",
+            json.loads((scene_dir / "manifest.json").read_text(encoding="utf-8"))["version"] == 8
             and "maera" in json.loads((scene_dir / "manifest.json").read_text(encoding="utf-8"))["cast"])
         rec("no last_cast bookkeeping remains",
             "last_cast" not in (scene_dir / "manifest.json").read_text(encoding="utf-8"))
@@ -536,6 +536,58 @@ def main() -> bool:
             known_npc_names(tmp, "scenetest") == {"gorson", "maera"},
             str(known_npc_names(tmp, "scenetest")))
         rec("known_scene_places empty for an unknown save", known_scene_places(tmp, "nope") == [])
+
+        # ── manifest v8: the era roots the place path ────────────────────
+        sc4 = SceneService(tmp)
+        sc4.generate = _scene_bytes  # type: ignore[assignment]
+        same = ["Hask's Smithy", "the forge"]
+        for era_id in ("egypt", "wallachia"):
+            sc4.ensure_scene("eratest", PLAYER, "world", description="a look around",
+                             kingdom="Kingdom of Eldoria", area="Eldoria City", place=same,
+                             establishing="a hot forge", era=era_id)
+        era_manifest = tmp / "images" / "eratest" / "scenes" / "manifest.json"
+        seeds4 = json.loads(era_manifest.read_text(encoding="utf-8"))["seeds"]
+        rec("the same place in two eras is two seeds with two keys (v8)",
+            len(seeds4) == 2 and sorted(e.get("era") for e in seeds4.values()) == ["egypt", "wallachia"],
+            str(sorted((e.get("era"), e.get("slug")) for e in seeds4.values())))
+        rec("the era is the root of the manifest key",
+            all(str(k).startswith(e["era"] + "|") for k, e in seeds4.items()), str(sorted(seeds4)))
+        rec("known_scene_places reports each place's era",
+            sorted(p["era"] for p in known_scene_places(tmp, "eratest")) == ["egypt", "wallachia"],
+            str(known_scene_places(tmp, "eratest")))
+        rec("manifest version is 8",
+            json.loads(era_manifest.read_text(encoding="utf-8"))["version"] == 8)
+        rec("a seed carries a `used` stamp for the LRU cap",
+            all(isinstance(e.get("used"), int) and e["used"] >= e["created"]
+                for e in seeds4.values()), str(seeds4))
+        rec("known_scene_places(era=...) scopes to one era",
+            [p["era"] for p in known_scene_places(tmp, "eratest", "egypt")] == ["egypt"]
+            and [p["era"] for p in known_scene_places(tmp, "eratest", "wallachia")] == ["wallachia"])
+        rec("known_scene_places exposes the LRU stamp",
+            all(isinstance(p.get("used"), int) for p in known_scene_places(tmp, "eratest")))
+
+        # a v7 manifest (no era) migrates on read, to the SAVE's era, and is not rewritten
+        legacy = tmp / "images" / "legacytest" / "scenes"
+        legacy.mkdir(parents=True, exist_ok=True)
+        legacy_manifest = legacy / "manifest.json"
+        legacy_manifest.write_text(json.dumps({
+            "version": 7, "cast": {}, "current": {},
+            "seeds": {"kingdom-of-eldoria|eldoria-city|hask-s-smithy|the-forge": {
+                "file": "seed-x.png", "slug": "seed-x", "kingdom": "Kingdom of Eldoria",
+                "area": "Eldoria City", "place": same, "description": "a hot forge",
+                "main_npcs": [], "mime": "image/png", "created": 1}},
+        }), encoding="utf-8")
+        migrated = SceneService(tmp)._read_manifest("legacytest", "wallachia")
+        rec("a v7 manifest migrates to v8, each place taking the save's era",
+            migrated["version"] == 8
+            and [e.get("era") for e in migrated["seeds"].values()] == ["wallachia"]
+            and all(str(k).startswith("wallachia|") for k in migrated["seeds"]),
+            str(migrated["seeds"]))
+        rec("migration is read-only (the file keeps its version until a write)",
+            json.loads(legacy_manifest.read_text(encoding="utf-8"))["version"] == 7)
+        rec("a place with no era matches any era (pre-v8 leniency)",
+            [p["era"] for p in known_scene_places(tmp, "legacytest", "wallachia")] == [""]
+            and len(known_scene_places(tmp, "legacytest", "egypt")) == 1)
         rec("known_scene_locations lists distinct place labels",
             known_scene_locations(tmp, "scenetest") == ["Hask's Smithy — common room",
                                                         "Hask's Smithy — the forge", "Lantern Row"],
@@ -602,8 +654,8 @@ def main() -> bool:
         }), encoding="utf-8")
         migrated = sc3._read_manifest("scenetest")
         migrated_entry = next(iter(migrated["seeds"].values()), {})
-        rec("a v3 manifest migrates to v7 (actions + seq + last_cast dropped, seeds + current kept)",
-            migrated["version"] == 7 and "actions" not in migrated and "seq" not in migrated
+        rec("a v3 manifest migrates to v8 (actions + seq + last_cast dropped, seeds + current kept)",
+            migrated["version"] == 8 and "actions" not in migrated and "seq" not in migrated
             and migrated["cast"] == {} and migrated["current"].get("place") == ["Old Place"]
             and migrated_entry.get("main_npcs") == [{"name": "",
                                                       "description": "Gorson — a burly smith",
@@ -614,7 +666,7 @@ def main() -> bool:
 
         sc2 = SceneService()
         fake2 = _FakeClient()
-        sc2._client_or_raise = lambda: fake2  # type: ignore[assignment]
+        sc2.backend._client_or_raise = lambda: fake2  # type: ignore[assignment]
         sc2.generate_action(PLAYER, "world", "a duel on the bridge", "mood", place=["Loc", "sub"])
         ic2 = getattr(fake2.captured.get("config"), "image_config", None)
         rec("scene aspect_ratio 16:9 sent to the SDK", ic2 is not None and ic2.aspect_ratio == "16:9")

@@ -1,0 +1,61 @@
+# E4 -- Victorian United Kingdom (1837-1901). Written at full depth. It replaces the present day,
+# which retires the live-politics risk. The fences apply: context, never content; no glorification of an empire; narrate
+# people and interests, never peoples.
+
+meta:
+  id: victorian
+  order: 4
+  name: Victorian Britain
+  when: 1837-1901
+  character: the United Kingdom of Great Britain and Ireland
+  arrivals:
+    - a fogbound London street
+    - a railway platform in the smoke
+    - the steps of a dock warehouse
+  legend: London remembers a person who walked into {arrival}, and out of the world.
+  playable: true
+  part: the Regulator
+
+body:
+  history:
+    - The 1801 union holds England, Scotland and Ireland under one parliament at Westminster, and the Irish question pulls at it.
+    - Railways, the telegraph and the Press move people, goods and rumour faster than any century before. The Empire runs on the docks, the mills and the ships.
+    - "The Great Exhibition opened under glass in 1851; the famine in Ireland is a decade old and not forgotten."
+  polities:
+    - name: England
+      ruler: Queen Victoria
+      capital: London
+      relations:
+        Scotland: "union, and the Clyde"
+        Ireland: "union; the land question"
+        the powers of Europe: "rivalry"
+      factions:
+        - {name: the City merchants, key: city_merchants}
+        - {name: the railway companies, key: railways}
+        - {name: the mills, key: mills}
+        - {name: the Metropolitan Police, key: police}
+        - {name: the Press, key: press}
+        - {name: the Admiralty and Colonial Office, key: admiralty}
+    - name: Scotland
+      ruler: Queen Victoria
+      capital: Edinburgh
+      relations:
+        England: "union; the Clearances are recent"
+        the Empire: "soldiers, engineers and ships"
+      factions:
+        - {name: the Kirk, key: kirk}
+        - {name: the Clyde shipbuilders, key: clyde}
+    - name: Ireland
+      ruler: Queen Victoria
+      capital: Dublin
+      relations:
+        England: "union, famine and Home Rule"
+        the Empire: "emigration, and the land"
+      factions:
+        - {name: the Land League, key: land_league}
+        - {name: the Catholic clergy, key: clergy}
+  visual_hooks:
+    - London fog and gaslight
+    - the Great Exhibition, 1851
+    - a railway cutting through terraces
+    - the Thames, thick with barges

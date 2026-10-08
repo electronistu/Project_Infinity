@@ -321,15 +321,31 @@ def _installed_ui(bridge: CreationBridge):
 # ── worker ────────────────────────────────────────────────────────────────
 
 def _generate_world(config, player_character, output_dir):
-    from forge.formatter import get_player_json
-    from forge.world import build_kingdoms
+    from forge.formatter import build_reputation, get_player_json
 
-    # The world is a static scaffold (config/world.yml). No NPCs are generated:
-    # the GM invents them on the fly. Only the `.player` is written — there is no
-    # `.wwf` any more (see decisions/slim-wwf-drop-npc-generation).
-    kingdoms = build_kingdoms()
+    # The world the character plays in, chosen at creation: the invented one of
+    # `config/world.yml` or the era ladder of `config/eras/`. No NPCs are generated
+    # either way -- the GM invents them on the fly -- and only the `.player` is written
+    # (there is no `.wwf` any more, see decisions/slim-wwf-drop-npc-generation).
     stem, player_path = unique_paths(output_dir, slugify(player_character.name))
-    Path(player_path).write_text(get_player_json(player_character, kingdoms), encoding="utf-8")
+    mode = str(getattr(player_character, "mode", "") or "classic").strip().lower()
+    if mode == "time_traveler":
+        from web.eras import era_reputation_seed, pick_arrival, pick_start_era
+
+        # The first age is rolled like every later one (the Device cannot aim), so is the
+        # arrival point, and the reputation map is seeded from that era's own polities and
+        # factions so the GM's first write has somewhere to land.
+        era = pick_start_era()
+        payload = get_player_json(player_character, era_reputation_seed(era),
+                                  era, pick_arrival(era), mode=mode)
+    else:
+        from forge.world import build_kingdoms
+
+        # The fixed world, no era at all, and an empty reputation map built from that
+        # world's own kingdoms and guilds so the GM's writes have somewhere to land.
+        payload = get_player_json(player_character, build_reputation(build_kingdoms()),
+                                  "", "", mode="classic")
+    Path(player_path).write_text(payload, encoding="utf-8")
     return {
         "name": player_character.name,
         "player": f"{stem}.player",

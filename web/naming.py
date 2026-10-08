@@ -1,7 +1,8 @@
 """Filename helpers for web-created saves.
 
 Convention (web-only): a save is `output/{slug}.player` (+ `{slug}.timeline`);
-there is no `.wwf` file any more. The world scaffold is static (config/world.yml).
+there is no `.wwf` file any more. The world is one era (`config/eras/`), injected
+by the engine and selected per save.
 """
 
 import re

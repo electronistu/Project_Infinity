@@ -1,0 +1,97 @@
+# Token budgets for the GM's static prefix and its named neighbours.
+# Every ceiling here is a decision, not a measurement: raising one needs a reason
+# written beside it.
+#
+# status:
+#   enforced  the gate fails (exit 1) when `measure` exceeds `ceiling`
+#   target    reported only; flip to `enforced` when the thing it measures exists
+#
+# `measure` names a metric produced by tools/token_budget.py. A metric that does
+# not exist yet resolves to None and is reported as unmeasured (never a pass for
+# an enforced row).
+#
+# Run:
+#   venv\Scripts\python.exe tools\token_budget.py --gate
+#   venv\Scripts\python.exe tools\verify.py
+
+budgets:
+  - name: static_prefix_scenes_on
+    ceiling: 11000
+    unit: tokens
+    status: enforced
+    measure: static_prefix_scenes_on
+    note: "Raised 10,500 -> 11,000 on 2026-10-08: the original ceiling predated the ERA INDEX and the `lookup` tool it was planning for. 10,539 today."
+
+  - name: static_prefix_scenes_off
+    ceiling: 11000
+    unit: tokens
+    status: enforced
+    measure: static_prefix_scenes_off
+    note: "The same prefix with the scene blocks stripped (images off). Raised with the row above."
+
+  - name: static_prefix_classic
+    ceiling: 11000
+    unit: tokens
+    status: enforced
+    measure: static_prefix_classic
+    note: "The other game's prefix, measured separately: the classic protocol wording (no era rules) and every tool except `lookup`, which a classic session is never offered. It is normally the smaller of the two, and it is enforced so a change that only costs the classic game cannot slip through."
+
+  - name: era_index
+    ceiling: 150
+    unit: tokens
+    status: enforced
+    measure: era_index
+    note: "The always-on ERA INDEX: nothing about an era but its name. It lives in the static prefix."
+
+  - name: lookup_schema
+    ceiling: 90
+    unit: tokens
+    status: enforced
+    measure: lookup_schema
+    note: "S0.3 - the whole `lookup` tool row (description + schema), which is what enters the prefix. 89 today: deliberately tight, so growth is a decision."
+
+  - name: era_scaffold
+    ceiling: 450
+    unit: tokens
+    status: enforced
+    measure: era_scaffold
+    note: "The largest era scaffold, fetched once per era via lookup."
+
+  - name: place_tree
+    ceiling: 400
+    unit: tokens
+    status: enforced
+    measure: place_tree
+    note: "S0.3 - KNOWN IMAGE PLACES: current era only, capped at 12 places, NPC roles dropped, <= 2 names per place. Worst case at 12 places."
+
+  - name: era_file_bytes
+    ceiling: 5120
+    unit: bytes
+    status: enforced
+    measure: era_file_bytes
+    note: "S0.3 - largest config/eras/*.yml (5 KB); unused eras are never injected."
+
+  - name: tool_results_gm_view
+    ceiling: 1200
+    unit: tokens
+    status: target
+    measure: tool_results_gm_view
+    note: "Per-turn tool results as projected to the GM. Runtime; needs instrumentation."
+
+  # Not a budget row: the honest per-turn floor -- static prefix + the current era's
+  # scaffold + the place tree, i.e. everything re-sent every turn until a compaction.
+  # Report-only BY DESIGN: it is a transparency row, so drift is visible without
+  # inventing a ceiling whose only purpose would be to restate its parts' ceilings.
+  - name: always_on_total
+    ceiling: null
+    unit: tokens
+    status: target
+    measure: always_on_total
+    note: "Not a S0.3 row: the honest per-turn floor (prefix + scaffold + place tree). Report-only by design."
+
+  - name: always_on_total_classic
+    ceiling: null
+    unit: tokens
+    status: target
+    measure: always_on_total_classic
+    note: "The classic game has no era to fetch and no place tree keyed by era, so its floor is just its prefix. Report-only, and it is the number the classic game actually pays every turn."

@@ -170,6 +170,9 @@ class PlayerCharacter(BaseEntity):
     # Difficulty chosen at creation: "hard" = strict as-written SRD; "easy" = the GM
     # scales the adventure for a solo hero (resolution stays strict SRD either way).
     difficulty: Literal["hard", "easy"] = "hard"
+    # Which game this character plays: the invented world (`config/world.yml`) or the
+    # historical eras. The engine resolves it from the `.player`, so this only seeds it.
+    mode: Literal["classic", "time_traveler"] = "classic"
     xp: int = 0
     inspiration: bool = False
     proficiency_bonus: int = 2

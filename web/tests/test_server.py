@@ -19,6 +19,7 @@ import uvicorn
 REPO = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO))
 
+from web.eras import playable_eras  # noqa: E402
 from web.server import app  # noqa: E402
 
 try:
@@ -84,7 +85,11 @@ def _build_temp_save():
 
     out = REPO / "output"
     config = load_config()
-    gen = _generate_world(config, create_debug_character(config), out)
+    # This suite exercises the era game: the ERA INDEX, the era-scoped place tree, `lookup`.
+    # (A classic save is the other fixture; `test_modes.py` covers both creation branches.)
+    pc = create_debug_character(config)
+    pc.mode = "time_traveler"
+    gen = _generate_world(config, pc, out)
     stem = gen["slug"]
     return out / gen["player"], out / f"{stem}.timeline"
 
@@ -149,6 +154,13 @@ async def main() -> int:
             ready = next((e for e in sink if e.get("type") == "ready"), None)
             rec("ready lists the scene-image tool",
                 bool(ready) and "request_scene_image" in (ready.get("tools") or []),
+                str((ready or {}).get("tools")))
+            saved_era = json.loads(temp_player.read_text(encoding="utf-8")).get("era")
+            rec("ready carries the era the save was created in",
+                bool(ready) and ready.get("era") == saved_era and saved_era in playable_eras(),
+                f"{str((ready or {}).get('era'))} (save: {saved_era})")
+            rec("ready lists the generic lookup tool",
+                bool(ready) and "lookup" in (ready.get("tools") or []),
                 str((ready or {}).get("tools")))
 
             # 2) Action turn with a forced tool call

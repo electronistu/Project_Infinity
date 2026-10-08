@@ -35,7 +35,7 @@ async def main() -> int:
     def _fake_ensure(kind, slug, name, detail="", force=False, model=None):
         made.append(f"{kind}/{slug}")
         icon_models_seen.append(model)
-        return {"key": f"{kind}/{slug}", "url": f"/api/icons/{kind}/{slug}",
+        return {"key": f"{kind}/{slug}", "url": f"/api/icons/gemini/{kind}/{slug}",
                 "generated": True, "cached": False}
 
     server_mod.icon_service.ensure = _fake_ensure
@@ -150,11 +150,18 @@ async def main() -> int:
             rec("portrait unknown -> 404", (await c.get("/api/portraits/nope.png")).status_code == 404)
             rec("portrait bad ext -> 400", (await c.get("/api/portraits/nope.txt")).status_code == 400)
 
-            icons = (await c.get("/api/icons/index")).json()
+            icons = (await c.get("/api/icons/index?family=gemini")).json()
             rec("icons index shape", isinstance(icons.get("icons"), dict) and "available" in icons,
                 str(list(icons.keys())))
-            rec("icon unknown -> 404", (await c.get("/api/icons/weapon/nonexistent")).status_code == 404)
-            rec("icon bad kind -> 400", (await c.get("/api/icons/Weapon/dagger")).status_code == 400)
+            rec("icons index reports its family", icons.get("family") == "gemini")
+            icons_default = (await c.get("/api/icons/index")).json()
+            rec("icons index defaults to gemini", icons_default.get("family") == "gemini")
+            rec("icon unknown -> 404",
+                (await c.get("/api/icons/gemini/weapon/nonexistent")).status_code == 404)
+            rec("icon bad kind -> 400",
+                (await c.get("/api/icons/gemini/Weapon/dagger")).status_code == 400)
+            rec("icon unknown family -> 400",
+                (await c.get("/api/icons/bogus/weapon/dagger")).status_code == 400)
             # unknown keys generate nothing regardless of whether a key is configured
             r = await c.post("/api/icons", json={"keys": ["not-a-kind/nope"]})
             rec("POST icons unknown key is inert", r.status_code in (200, 503), str(r.status_code))

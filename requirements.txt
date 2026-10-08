@@ -13,3 +13,5 @@ uvicorn>=0.34
 google-genai>=2.25
 python-dotenv>=1.0
 Pillow>=10.0
+# The local image engine (D27/P11a) talks to ComfyUI over HTTP.
+httpx>=0.27

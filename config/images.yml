@@ -15,6 +15,14 @@
 # scenes): scenes feed a location reference plus the portrait, and Nano Banana 2.1
 # fuses multiple references (up to 14). `icon_model` is the DEFAULT for sheet
 # icons (single subject, no references) where Lite is cheapest.
+# The image engine. `gemini` = Google (google-genai, the default everywhere).
+# `local` = a local ComfyUI pipeline (see the `local:` block below) — it is what the
+# `local` icon family is generated with, and later the scene seed and action.
+backend: gemini
+# The image engine. `gemini` = Google (google-genai, the default everywhere).
+# `local` = a local ComfyUI pipeline (see the `local:` block below) — it is what the
+# `local` icon family is generated with, and later the scene seed and action.
+backend: gemini
 model: gemini-nano-banana-2.1
 icon_model: gemini-3.1-flash-lite-image
 aspect_ratio: "3:4"
@@ -55,6 +63,59 @@ portrait_guard: >-
   The subject wears and wields exactly the equipment listed, nothing more — do not add or
   invent any garment, armour, weapon, hood, cloak, hat, helmet or accessory, and never
   depict gear that is not described.
+
+# ── The local image engine (ComfyUI on this machine) ─────────────────────────
+# Used by the `local` icon family, chosen by the icon MODEL id (`local/...`), never
+# by the game mode. The weights live outside the repo; only `config/comfy/icon.json`
+# is vendored. `checkpoint` must match the file name under
+# ComfyUI/models/checkpoints/ (ComfyUI resolves it), and the sampler settings are the
+# ones the S0 measurement settled.
+local:
+  endpoint: "http://127.0.0.1:8188"
+  workflow: "config/comfy/icon.json"
+  checkpoint: "sdxl_lightning_4step.safetensors"
+  model_id: "local/sdxl-lightning-4step"
+  steps: 8
+  cfg: 2.0
+  sampler: "euler"
+  scheduler: "sgm_uniform"
+  canvas: 1024
+  timeout_seconds: 240
+  warmup_seconds: 900
+  # ── the check-and-repair loop ──
+  # After each icon the CONTRAST is measured in code (the only perceiver a diffusion model
+  # cannot argue with): a pixel counts as subject when it differs from the ground colour by
+  # more than `contrast_distance`, and the icon passes when at least `contrast_min_px` of them
+  # are present with a mean distance of at least `contrast_min_mean`. COLOUR, not lightness: a
+  # saturated red or blue icon is in strong contrast yet not light. Calibrated against the
+  # committed family: 699 of its 754 icons (93%) pass this rule.
+  # A failing icon is REDRAWN with the same prompt at a FRESH seed (base seed + attempt), up to
+  # `repair_passes` times, stopping as soon as the check passes and keeping the best by coverage
+  # otherwise. Best-of-N, not image-to-image: measured on this engine, an img2img repair scored
+  # only 0.05-0.25 IoU against the original -- it redraws the picture anyway, so a fresh seed is
+  # the honest way to get a different one. (The img2img graph stays vendored and tested; the loop
+  # simply does not rely on it.)
+  repair_workflow: "config/comfy/icon_img2img.json"
+  repair_passes: 3
+  repair_denoise: 0.5
+  repair_steps: 12
+  repair_cfg: 4.0
+  contrast_distance: 60
+  contrast_min_px: 500
+  contrast_min_mean: 60
+  # The detail ceiling: at 256 px (the tooltip size) an icon may carry no more linework or fine
+  # texture than the busiest tenth of the committed family. edge = the fraction of pixels sitting
+  # on a contour (FIND_EDGES > 40); hf = high-frequency energy (mean |image - gaussian|), i.e.
+  # engraving and grain. Committed family: edge p90 0.217, hf p90 29.7.
+  detail_max_edge: 0.217
+  detail_max_hf: 29.7
+  repair_prompt: >-
+    The same icon, unchanged: the same shapes in the same places. Show the subject clearly
+    against the flat near-black ground.
+  negative: >-
+    frame, border, ornament, filigree, texture, paper grain, gradient, vignette, glow,
+    drop shadow, blurry, cluttered, many small details, text, watermark, signature, photo,
+    3d render
 
 # ── Storyline scene images (16:9 cinematic) ──
 # Two images per place: a hidden, permanent, EMPTY establishing "seed" per
@@ -210,7 +271,7 @@ scene_protagonist_guard: >-
   garment, armour, weapon or accessory the text names that the portrait does not show,
   and never add a hood, hooded cloak, cowl, hat, helmet or armour that is not in it.
 
-# ── Shared icon library (cross-character, committed under assets/icons/) ──
+# ── Shared icon library (cross-character, committed under assets/{family}/) ──
 icon_max_side: 256
 # The dark character-sheet card colour. Icons are generated and post-processed
 # to this EXACT background so their subjects appear to float on the dark sheet;
@@ -219,33 +280,53 @@ icon_background: "#1E1A13"
 # Auto-fit: scale the subject so its longest side fills this fraction of the
 # frame (generated art tends to sit small in a sea of background).
 icon_fill: 0.92
+# The icon art direction, appended to every icon prompt. Deliberately says nothing about
+# palette (free: only the sheet's own background colour has to match) and nothing about the
+# character sheet (a diffusion model cannot see it — the match is enforced in code, by
+# fit_to_frame). What it does say:
+#   * ONE subject, and the count is the subject's OWN count — one sword is one sword, a pair
+#     of boots is two boots — so a legitimate pair (`Bracers of Defense`) or a bundle
+#     (`Leather Tunic, Longbow, 20 Arrows`) is not fought by the prompt;
+#   * SIMPLICITY IS SAID OUT LOUD, and it is said STRUCTURALLY: one bold shape, a heavy even
+#     outline, large flat areas of solid colour, legible at 40 px. Measured at 256 px the local
+#     family's MEDIAN icon carried as much linework as the busiest 10-25% of the committed
+#     family (edge density 0.202 vs 0.162, high-frequency energy 26.5 vs 22.1) -- which is exactly
+#     what "too detailed" looks like. Colour count is NOT the signal (the committed family has
+#     MORE colours, 294 vs 258): the difference is linework and texture, not palette;
+#   * NO COLOUR WORD AT ALL, for or against (D29: the palette is free), and never a failure
+#     named: four controlled passes showed that naming a failure mode -- in the negative OR as
+#     an enumeration in the positive ("no row, no grid, no set") -- tends to PRODUCE it;
+#   * the ground is flat, untextured and unframed, and BOTH the contrast and the detail of every
+#     icon are checked in code and repaired by redrawing (see the `local:` block).
 icon_style: >-
-  Flat codex emblem on a dark ground: bold uniform pale-bone linework, limited
-  palette of warm bone highlights, umber mid-tones and a single ember-red accent,
-  set on a flat solid #1E1A13 background that exactly matches the dark character
-  sheet; the subject contrasts strongly with that background. High contrast,
-  legible at 64 pixels. No gradients, no glow, no drop shadows, no paper grain,
-  no text, no letters, no numbers, no runes, no watermarks, no frame. A single
-  centred subject.
+  A simple icon in the codex style of a tabletop rulebook, built from ONE bold shape: a heavy
+  even outline around large flat areas of solid colour. One subject, whole and alone in the
+  centre of the frame — draw it as many times as the thing itself is, one sword is one sword
+  and a pair of boots is two boots. The shape is large in the frame and it reads clearly at 40
+  pixels. Flat solid near-black ground, hex #1E1A13. Bare empty ground is left around the
+  subject. No texture, no gradient, no vignette, no border, no text, no letters, no numbers,
+  no runes, no watermark.
 
 # Per-kind icon prompt templates. Placeholders: {name} {detail}
+# None of them says "one" or "single": the COUNT is the subject's own count and the rule
+# lives in `icon_style` above, so a pair (`Boots of Elvenkind`) or a bundle is not fought here.
 icon:
-  weapon: "A single {name}, shown whole and upright. {detail}"
-  armor: "A piece of {name}, front view. {detail}"
-  tool: "A single {name}, laid out neatly. {detail}"
+  weapon: "{name}, shown whole and upright. {detail}"
+  armor: "{name}, front view. {detail}"
+  tool: "{name}, laid out neatly. {detail}"
   skill: "An emblem for the '{name}' skill. {detail}"
   language: "A script sigil representing the {name} language."
   spell: "A magical sigil for the spell '{name}'. {detail}"
-  school: "A heraldic emblem for the school of {name}."
+  school: "An emblem for the school of {name}."
   feature: "An emblem for the trait '{name}'. {detail}"
   damage: "A symbol for {name} damage."
   condition: "A symbol for the '{name}' condition."
-  item: "A single {name}. {detail}"
-  kingdom: "A heraldic crest for the realm of {name}."
-  faction: "A heraldic sigil for the {name} faction."
-  race: "A heraldic emblem for the {name} people."
-  class: "A heraldic emblem for the {name} class."
-  background: "A heraldic emblem for the {name} background."
+  item: "{name}. {detail}"
+  kingdom: "A crest for the realm of {name}."
+  faction: "A sigil for the {name} faction."
+  race: "An emblem for the {name} people."
+  class: "An emblem for the {name} class."
+  background: "An emblem for the {name} background."
   alignment: "An emblem for the {name} alignment."
   ability: "An emblem representing the {name} ability score."
   save: "A warded shield emblem for the {name} saving throw."

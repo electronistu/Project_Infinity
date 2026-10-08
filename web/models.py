@@ -119,6 +119,36 @@ IMAGE_MODELS = [
 DEFAULT_IMAGE_MODEL = "gemini-nano-banana-2.1"
 DEFAULT_ICON_MODEL = "gemini-3.1-flash-lite-image"
 
+# Local image models: the icon family's OWN engine, served by ComfyUI on this machine
+# (D27/P11a). They are offered for ICONS ONLY — the story images need a
+# reference-consistency story the local path has not got yet (the seed and the action,
+# S6) — so `/api/models` publishes them in `icon_models` and only the icon picker lists
+# them. The family follows the model id: `local/...` -> the `local` store.
+LOCAL_ICON_MODELS = [
+    {
+        "id": "local/sdxl-lightning-4step",
+        "label": "Local SDXL-Lightning (this PC's GPU, free)",
+        "thinking_levels": [],
+        "thinking_level": None,
+        "backend": "local",
+    },
+]
+
+
+def list_icon_models() -> list[dict]:
+    """Everything the sheet-icon picker offers: the hosted models plus the local one."""
+    return list_image_models() + [dict(m) for m in LOCAL_ICON_MODELS]
+
+
+def resolve_icon_model(model_id: str | None) -> dict | None:
+    """A model the sheet-icon picker offers (Gemini or local)."""
+    if not model_id:
+        return None
+    for model in list_icon_models():
+        if model["id"] == model_id:
+            return model
+    return None
+
 
 def list_models() -> list[dict]:
     return MODELS

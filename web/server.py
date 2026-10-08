@@ -28,16 +28,21 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .creation import CreationManager
-from .icons import IconService, all_icon_keys, slugify_key, spell_detail
+from .icons import (  # noqa: E402
+    DEFAULT_FAMILY, KNOWN_FAMILIES, IconService, all_icon_keys, family_for_model,
+    safe_family, slugify_key, spell_detail,
+)
 from .images import ImageError, ImageService, SceneService, image_mime
-from forge.world import render_world_text  # noqa: E402
+from .eras import START_ERA, render_era_text  # noqa: E402
 from .models import (
     DEFAULT_ICON_MODEL,
     DEFAULT_IMAGE_MODEL,
     DEFAULT_MODEL,
     DEFAULT_TEMPERATURE,
+    list_icon_models,
     list_image_models,
     list_models,
+    resolve_icon_model,
     resolve_image_model,
     resolve_model,
 )
@@ -52,6 +57,29 @@ creation_manager = CreationManager(REPO_ROOT, OUTPUT_DIR)
 image_service = ImageService(OUTPUT_DIR)
 scene_service = SceneService(OUTPUT_DIR)
 icon_service = IconService(ASSETS_DIR)
+
+# One service per icon family: `assets/{family}/...`, cached so each family's
+# manifest is read once. A family never serves another family's file.
+_icon_services: dict[str, IconService] = {}
+
+
+def _icon_service(family: str = DEFAULT_FAMILY) -> IconService:
+    key = safe_family(family)
+    if key == icon_service.family:
+        return icon_service  # the default family is the module-level service
+    svc = _icon_services.get(key)
+    if svc is None:
+        svc = IconService(ASSETS_DIR, key)
+        _icon_services[key] = svc
+    return svc
+
+
+def _icon_family_or_400(family: str) -> str:
+    """Families are listed in one place; an unknown one is a typo, not a store."""
+    name = safe_family(family)
+    if name not in KNOWN_FAMILIES:
+        raise HTTPException(status_code=400, detail=f"unknown icon family: {family}")
+    return name
 _portrait_lock = asyncio.Lock()
 _icon_lock = asyncio.Lock()
 _scene_lock = asyncio.Lock()
@@ -136,6 +164,11 @@ def _world_list() -> list[dict]:
             entry["class"] = data.get("character_class")
             entry["level"] = data.get("level")
             entry["difficulty"] = data.get("difficulty") or "hard"
+            # The same rule the engine uses, so the picker shows the truth: an explicit
+            # mode wins, an era means the era game, and anything older is classic.
+            raw = str(data.get("mode") or "").strip().lower()
+            entry["mode"] = raw if raw in ("classic", "time_traveler") else (
+                "time_traveler" if str(data.get("era") or "").strip() else "classic")
         except Exception:  # noqa: BLE001
             pass
         entries.append(entry)
@@ -208,11 +241,21 @@ def _clean_style(value) -> str | None:
 
 
 def _image_model_or_400(model: str | None) -> str | None:
-    """Validate an image-model override; None means 'use the service default'."""
+    """Validate an in-story image-model override; None means 'use the service default'."""
     if not model:
         return None
     if resolve_image_model(model) is None:
         raise HTTPException(status_code=400, detail=f"unknown image model: {model}")
+    return model
+
+
+def _icon_model_or_400(model: str | None) -> str | None:
+    """Validate a sheet-icon model override. The icon picker also offers the LOCAL
+    engine, which the story images do not have yet, so the two lists differ."""
+    if not model:
+        return None
+    if resolve_icon_model(model) is None:
+        raise HTTPException(status_code=400, detail=f"unknown icon model: {model}")
     return model
 
 
@@ -285,15 +328,19 @@ async def generate_portrait(body: PortraitBody):
 
 
 @app.get("/api/icons/index")
-async def icons_index():
-    return {"available": icon_service.available(), "icons": icon_service.index()}
+async def icons_index(family: str = DEFAULT_FAMILY):
+    svc = _icon_service(_icon_family_or_400(family))
+    return {"available": svc.available(), "family": svc.family, "icons": svc.index()}
 
 
 @app.post("/api/icons")
 async def generate_icons(body: IconsBody):
-    if not icon_service.available():
+    model = _icon_model_or_400(body.model)
+    # The family is a property of the image model, not of the game mode.
+    family = _icon_family_or_400(family_for_model(model))
+    svc = _icon_service(family)
+    if not svc.available():
         raise HTTPException(status_code=503, detail="image generation is not configured (set GEMINI_API_KEY)")
-    model = _image_model_or_400(body.model)
     catalog = all_icon_keys()
 
     def _clean_name(value, fallback):
@@ -340,7 +387,7 @@ async def generate_icons(body: IconsBody):
         for entry in wanted:
             try:
                 result = await asyncio.to_thread(
-                    icon_service.ensure, entry["kind"], entry["slug"],
+                    svc.ensure, entry["kind"], entry["slug"],
                     entry["name"], entry["detail"], False, model,
                 )
             except ImageError as exc:
@@ -354,18 +401,19 @@ async def generate_icons(body: IconsBody):
     # merges these into its cached map.
     icons = {}
     for entry in wanted:
-        url = icon_service.url_for(entry["kind"], entry["slug"])
+        url = svc.url_for(entry["kind"], entry["slug"])
         if url:
             icons[entry["key"]] = url
-    return {"generated": generated, "failed": failed, "icons": icons}
+    return {"generated": generated, "failed": failed, "icons": icons, "family": family}
 
 
-@app.get("/api/icons/{kind}/{slug}")
-async def get_icon(kind: str, slug: str):
+@app.get("/api/icons/{family}/{kind}/{slug}")
+async def get_icon(family: str, kind: str, slug: str):
     from .icons import slugify_key  # local import keeps the module graph light
+    name = _icon_family_or_400(family)
     if kind != slugify_key(kind) or slug != slugify_key(slug) or not kind or not slug:
         raise HTTPException(status_code=400, detail="invalid icon key")
-    path = icon_service.icon_path(kind, slug)
+    path = _icon_service(name).icon_path(kind, slug)
     if not path.exists():
         raise HTTPException(status_code=404, detail="no icon")
     return FileResponse(path, media_type=image_mime(path), headers={"Cache-Control": "no-store"})
@@ -385,7 +433,7 @@ async def get_portrait(filename: str):
 
 
 def _world_brief(world_text: str) -> str:
-    """The first couple of world-history lines, for scene continuity."""
+    """The first couple of era-history lines, for scene continuity."""
     lines: list[str] = []
     in_history = False
     for raw in (world_text or "").splitlines():
@@ -407,7 +455,7 @@ def _world_brief(world_text: str) -> str:
 
 
 def _scene_context(session) -> tuple[dict, str]:
-    """Character data + a short world brief for the scene prompt."""
+    """Character data + a short era brief for the scene prompt."""
     player: dict = {}
     player_path = Path(session.player_path) if session.player_path else None
     if player_path and player_path.exists():
@@ -415,7 +463,7 @@ def _scene_context(session) -> tuple[dict, str]:
             player = json.loads(player_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             player = {}
-    world = _world_brief(render_world_text())
+    world = _world_brief(render_era_text(getattr(session, "era", "") or START_ERA))
     return player, world
 
 
@@ -489,6 +537,9 @@ async def generate_scene(body: SceneBody):
                 time_of_day=time_of_day, weather=weather, characters=characters,
                 establishing=establishing, main_npcs=main_npcs, npcs=npcs,
                 seed_change=seed_change, model=model, style=style,
+                # The era is the session's, never the client's: the GM never passes it
+                # and a request cannot move the save to another era (manifest v8).
+                era=getattr(session, "era", "") or START_ERA,
             )
         except ImageError as exc:
             raise HTTPException(status_code=exc.status, detail=str(exc))
@@ -521,6 +572,7 @@ async def models():
         "default": DEFAULT_MODEL,
         "default_temperature": DEFAULT_TEMPERATURE,
         "image_models": list_image_models(),
+        "icon_models": list_icon_models(),
         "default_image_model": DEFAULT_IMAGE_MODEL,
         "default_icon_model": DEFAULT_ICON_MODEL,
         "images_available": image_service.available(),

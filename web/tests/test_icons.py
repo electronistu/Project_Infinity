@@ -16,7 +16,7 @@ sys.path.insert(0, str(REPO))
 from PIL import Image  # noqa: E402
 
 from web.icons import (  # noqa: E402
-    IconService, all_icon_keys, icon_key_for, slugify_key, _config,
+    IconService, all_icon_keys, family_for_model, icon_key_for, slugify_key, _config,
 )
 from web.images import fit_to_frame  # noqa: E402
 
@@ -109,17 +109,22 @@ def main() -> bool:
                                    "tool/gaming-set", "tool/artisan-tools")))
 
     with tempfile.TemporaryDirectory() as td:
-        svc = IconService(td)
-        svc._generate_bytes = lambda prompt, model=None: _PNG  # type: ignore[assignment]
+        # One store per IMAGE-MODEL family: assets/{family}/{kind}/{slug}.png (D32).
+        svc = IconService(td)  # default family = gemini
+        svc.generate = lambda prompt, model=None, **_: _PNG  # type: ignore[assignment]
 
         r1 = svc.ensure("weapon", "dagger", "Dagger")
         rec("icon generated", r1["generated"] is True and svc.has("weapon", "dagger"))
-        rec("icon path convention", svc.icon_path("weapon", "dagger") == Path(td) / "weapon" / "dagger.png")
-        rec("manifest written", svc.manifest_path().exists())
+        rec("icon path convention",
+            svc.icon_path("weapon", "dagger") == Path(td) / "gemini" / "weapon" / "dagger.png")
+        rec("manifest written", svc.manifest_path() == Path(td) / "gemini" / "manifest.json"
+            and svc.manifest_path().exists())
         manifest = json.loads(svc.manifest_path().read_text(encoding="utf-8"))
         rec("manifest records the key", "weapon/dagger" in (manifest.get("icons") or {}))
+        rec("manifest records the family",
+            (manifest.get("icons") or {}).get("weapon/dagger", {}).get("family") == "gemini")
         rec("index exposes the icon", "weapon/dagger" in svc.index())
-        rec("url is extensionless", r1["url"] == "/api/icons/weapon/dagger")
+        rec("url names the family", r1["url"] == "/api/icons/gemini/weapon/dagger")
         rec("index urls are extensionless",
             all("." not in u.rsplit("/", 1)[-1] for u in svc.index().values()))
 
@@ -140,6 +145,37 @@ def main() -> bool:
         r4 = svc.ensure("item", "crossbow-bolts", "Crossbow Bolts")
         rec("per-item (non-catalog) key generates", r4["generated"] is True and r4["key"] == "item/crossbow-bolts")
         rec("per-item icon is reusable across characters", svc.has("item", "crossbow-bolts"))
+
+        # ── D32: per-family stores never mix ──────────────────────────────
+        loc = IconService(td, "local")
+        loc.generate = lambda prompt, model=None, **_: _PNG  # type: ignore[assignment]
+        rec("a family gets its own directory",
+            loc.icon_dir("weapon") == Path(td) / "local" / "weapon"
+            and loc.manifest_path() == Path(td) / "local" / "manifest.json")
+        rec("a family does not see another family's icon",
+            loc.has("weapon", "dagger") is False and "weapon/dagger" not in loc.index())
+        r_loc = loc.ensure("weapon", "dagger", "Dagger")
+        rec("the same key can exist in both families",
+            r_loc["generated"] is True and r_loc["url"] == "/api/icons/local/weapon/dagger"
+            and svc.has("weapon", "dagger") and loc.has("weapon", "dagger"))
+        rec("a local bake cannot overwrite the gemini file",
+            (Path(td) / "gemini" / "weapon" / "dagger.png").exists()
+            and (Path(td) / "local" / "weapon" / "dagger.png").exists())
+        loc_manifest = json.loads(loc.manifest_path().read_text(encoding="utf-8"))
+        rec("each family records its own name in the manifest",
+            (loc_manifest.get("icons") or {}).get("weapon/dagger", {}).get("family") == "local")
+        rec("the index is scoped to one family",
+            "weapon/dagger" in svc.index() and "weapon/dagger" in loc.index()
+            and set(svc.index()) == {"weapon/dagger", "weapon/mace", "weapon/light-crossbow",
+                                    "item/crossbow-bolts"})
+        rec("an odd family name is made safe",
+            IconService(td, "../ evil").family == "evil"
+            and IconService(td, "").family == "gemini")
+        rec("the family is derived from the image model",
+            family_for_model("gemini-3.1-flash-lite-image") == "gemini"
+            and family_for_model("local/sdxl-lightning-4step") == "local"
+            and family_for_model(None) == "gemini"
+            and family_for_model("flux-schnell") == "flux")
 
     # Auto-fit: a small dark square on a light ground should fill ~92% of the frame.
     src = Image.new("RGB", (128, 128), (240, 235, 220))

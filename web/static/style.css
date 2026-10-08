@@ -248,6 +248,8 @@ button.wide { width: 100%; margin-top: 10px; }
 .statusbar { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
 .status { font-family: var(--mono); font-size: 11px; color: var(--faint); white-space: nowrap; }
 .status.on { color: var(--accent-text); }
+/* The Device's counter: the same quiet voice as `turn 3`, warm only while it is ticking. */
+#device-label.device-warn { color: var(--accent-text); }
 .ctx-meter { flex: 1; height: 4px; background: var(--surface-2); border-radius: 999px; overflow: hidden; border: 1px solid var(--border-soft); }
 .ctx-fill { height: 100%; width: 0%; background: var(--info); transition: width 0.3s ease; }
 
