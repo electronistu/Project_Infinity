@@ -15,6 +15,7 @@ sys.path.insert(0, str(REPO))
 
 from web.engine import (  # noqa: E402
     GameSession, filter_tools, render_protocol, format_known_places, _gm_tool_view,
+    MAX_RESUME_ROUNDS,
 )
 
 RESULTS = []
@@ -254,6 +255,62 @@ async def main() -> bool:
     await gs3._ensure_scene_image("narrative")
     rec("ensure_scene no-op when scenes are disabled",
         not any(e.get("type") == "scene_request" for e in drain(gs3._evt_q)))
+
+    # The engine guarantees the turn's prose, not just the image: a model that skips
+    # NARRATIVE (a pause-token echo, or an image attached alone) gets one non-quiet round.
+    narr_calls: list[tuple] = []
+
+    async def _narr_role(role_content, label, quiet=False):
+        narr_calls.append((role_content, label, quiet))
+        return "You wake in the dark."
+
+    gs_n = GameSession(base_dir=REPO, model="test", scene_images=True)
+    gs_n._run_role = _narr_role  # type: ignore[assignment]
+    gs_n._narrative_emitted_turn = False
+    out_n = await gs_n._ensure_narrative()
+    rec("ensure_narrative recovers the missing prose (non-quiet)",
+        out_n == "You wake in the dark." and narr_calls
+        and narr_calls[-1][1] == "narrative-fix" and narr_calls[-1][2] is False,
+        str(narr_calls))
+
+    gs_n2 = GameSession(base_dir=REPO, model="test", scene_images=True)
+    gs_n2._run_role = _narr_role  # type: ignore[assignment]
+    gs_n2._narrative_emitted_turn = True
+    narr_calls.clear()
+    out_n2 = await gs_n2._ensure_narrative()
+    rec("ensure_narrative is a no-op once prose exists", out_n2 == "" and not narr_calls)
+
+    # The scene-fix nudge must never say "no narrative" (it contradicts the imagery rule).
+    fix_calls: list[tuple] = []
+
+    async def _fix_role(role_content, label, quiet=False):
+        fix_calls.append((role_content, quiet))
+        return ""
+
+    gs_w = GameSession(base_dir=REPO, model="test", scene_images=True)
+    gs_w._run_role = _fix_role  # type: ignore[assignment]
+    gs_w._scene_requested_turn = False
+    await gs_w._ensure_scene_image("You wake in the dark.")
+    nudge = fix_calls[-1][0] if fix_calls else ""
+    rec("the scene-fix nudge does not instruct 'no narrative'",
+        "no narrative" not in nudge.lower() and "do not repeat" in nudge.lower()
+        and bool(fix_calls) and fix_calls[-1][1] is True, nudge)
+
+    # A model that only echoes the pause token must be bounded, then nudged.
+    gs_r = GameSession(base_dir=REPO, model="test", scene_images=True)
+    pause_rounds: list[str] = []
+
+    async def _pause_stream(label, quiet=False):
+        pause_rounds.append(label)
+        return ("{{_NEED_AN_OTHER_PROMPT}}", "", [], False)
+
+    gs_r._stream_assistant = _pause_stream  # type: ignore[assignment]
+    out_r = await gs_r._run_role("go", "turn")
+    rec("a pause-token-only model is bounded",
+        out_r == "" and len(pause_rounds) <= MAX_RESUME_ROUNDS * 3 + 1,
+        f"rounds={len(pause_rounds)}")
+    rec("the resume guard nudges the model to narrate",
+        any("already paused" in (m.get("content") or "") for m in gs_r.messages))
 
     with tempfile.TemporaryDirectory() as td:
         manifest_dir = Path(td) / "output" / "images" / "save" / "scenes"

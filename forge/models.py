@@ -164,6 +164,9 @@ class PlayerCharacter(BaseEntity):
     race: str
     alignment: str
     gender: str = "Unknown"
+    # Age chosen at creation (numeric, >= the race's adulthood). Flavor only — no SRD
+    # stat effect; it shapes the portrait and is visible to the GM in the dump.
+    age: int = 30
     # Difficulty chosen at creation: "hard" = strict as-written SRD; "easy" = the GM
     # scales the adventure for a solo hero (resolution stays strict SRD either way).
     difficulty: Literal["hard", "easy"] = "hard"

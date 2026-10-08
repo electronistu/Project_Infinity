@@ -154,6 +154,7 @@ class PortraitBody(BaseModel):
     save: str
     force: bool = False
     model: str | None = None
+    style: str | None = None
     # Optional live sheet (dump_player_db snapshot); when present it is used
     # instead of the on-disk .player, so the portrait reflects the current
     # character (e.g. a higher level) mid-session.
@@ -194,6 +195,16 @@ class SceneBody(BaseModel):
     active_effects: list = []
     equipped: dict | None = None
     model: str | None = None
+    style: str | None = None
+
+
+_STYLE_MAX = 300
+
+
+def _clean_style(value) -> str | None:
+    """A player-supplied art style: collapse whitespace, cap the length, empty -> None."""
+    text = " ".join(str(value or "").split())
+    return text[:_STYLE_MAX].strip() or None
 
 
 def _image_model_or_400(model: str | None) -> str | None:
@@ -254,6 +265,7 @@ async def generate_portrait(body: PortraitBody):
     if not image_service.available():
         raise HTTPException(status_code=503, detail="image generation is not configured (set GEMINI_API_KEY)")
     model = _image_model_or_400(body.model)
+    style = _clean_style(body.style)
     if body.player is not None:
         player = body.player
     else:
@@ -266,7 +278,7 @@ async def generate_portrait(body: PortraitBody):
             raise HTTPException(status_code=500, detail="could not read character data")
     async with _portrait_lock:
         try:
-            result = await asyncio.to_thread(image_service.ensure_portrait, save.stem, player, body.force, model)
+            result = await asyncio.to_thread(image_service.ensure_portrait, save.stem, player, body.force, model, style)
         except ImageError as exc:
             raise HTTPException(status_code=exc.status, detail=str(exc))
     return {"portrait": _portrait_url(save.stem), **result}
@@ -459,6 +471,7 @@ async def generate_scene(body: SceneBody):
                              "description": " ".join(str(entry.get("description") or "").split())[:400]})
     seed_change = " ".join(str(body.seed_change or "").split())[:400]
     model = _image_model_or_400(body.model)
+    style = _clean_style(body.style)
     stem = session.active_name or ""
     if not stem:
         raise HTTPException(status_code=400, detail="session has no active save")
@@ -475,7 +488,7 @@ async def generate_scene(body: SceneBody):
                 place=place,
                 time_of_day=time_of_day, weather=weather, characters=characters,
                 establishing=establishing, main_npcs=main_npcs, npcs=npcs,
-                seed_change=seed_change, model=model,
+                seed_change=seed_change, model=model, style=style,
             )
         except ImageError as exc:
             raise HTTPException(status_code=exc.status, detail=str(exc))

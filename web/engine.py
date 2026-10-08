@@ -92,6 +92,19 @@ PROSE_RECOVERY_NUDGE = (
     "narrative now — second person, no tool calls, no meta or out-of-character "
     "commentary. Do not re-request the image."
 )
+# Emitted when a whole turn produced no narrative at all (a skipped NARRATIVE step,
+# a pause-token echo, an image attached alone). Non-quiet, so the recovered prose
+# reaches the player.
+NARRATIVE_RECOVERY_NUDGE = (
+    "SYSTEM: You did not write the turn's narrative. Write it now — second person, "
+    "covering the mechanics already resolved. Attach one request_scene_image only if "
+    "this turn has no image yet."
+)
+# A model that keeps echoing the pause token instead of narrating must not spin.
+RESUME_GUARD_NUDGE = (
+    "SYSTEM: You have already paused; the engine resumed. Write the turn's narrative now."
+)
+MAX_RESUME_ROUNDS = 3
 
 # Web-local timeline prompt: the database is authoritative, so mechanical changes
 # are NOT summarised (the terminal CLI's prompt is gone).
@@ -552,6 +565,8 @@ class GameSession:
                     self._mechanics_lines = []
                     self._narrative_emitted_turn = False
                     awakening = await self._run_role(key_content, "awakening")
+                    if not awakening and not self._narrative_emitted_turn:
+                        awakening = await self._ensure_narrative()
                     await self._ensure_scene_image(awakening or "")
                     await self._emit({"type": "awakening_end", "text": awakening or ""})
                     await self._emit({"type": "busy", "value": False})
@@ -606,6 +621,8 @@ class GameSession:
         self._mechanics_lines = []          # the engine-composed block is per turn
         try:
             result = await self._run_role(text, "turn")
+            if not result and not self._narrative_emitted_turn:
+                result = await self._ensure_narrative()
             await self._ensure_scene_image(result or "")
             self.turn_counter += 1
             await self._emit({"type": "turn_end", "text": result or "", "turn": self.turn_counter})
@@ -752,11 +769,18 @@ class GameSession:
         else:
             self.messages.append(role_content)
 
+        resumes = 0
         while True:
             result = await self._chat_with_tools(label, quiet=quiet)
             if result == "__SYSTEM_PAUSE__":
                 await self._emit({"type": "paused"})
-                self.messages.append({"role": "user", "content": "{{_CONTINUE_EXECUTION}}"})
+                resumes += 1
+                if resumes > MAX_RESUME_ROUNDS * 3:
+                    return ""  # give up; the caller's narrative recovery takes over
+                # A model that echoes the pause token instead of narrating must not spin:
+                # after a few resumes, tell it plainly to write the narrative.
+                nudge = RESUME_GUARD_NUDGE if resumes > MAX_RESUME_ROUNDS else "{{_CONTINUE_EXECUTION}}"
+                self.messages.append({"role": "user", "content": nudge})
                 label = "resume"
                 continue
             return result
@@ -868,6 +892,13 @@ class GameSession:
 
             return content
 
+    async def _ensure_narrative(self) -> str:
+        """Guarantee the turn's prose: a non-quiet recovery round when the GM skipped the
+        narrative (it echoed the pause token, or attached the image with no prose)."""
+        if self._narrative_emitted_turn:
+            return ""
+        return await self._run_role(NARRATIVE_RECOVERY_NUDGE, "narrative-fix")
+
     async def _ensure_scene_image(self, narrative: str) -> None:
         """Guarantee one scene image per turn: a quiet corrective round for the
         GM to author the call (asking for `establishing` when the seed is missing),
@@ -885,9 +916,10 @@ class GameSession:
             )
         else:
             nudge = (
-                "SYSTEM: This turn is missing its required request_scene_image (the imagery rule). "
-                "Emit ONLY the request_scene_image tool call now — no narrative — with the exact "
-                "`place` path, plus `establishing` if this place has no establishing view yet."
+                "SYSTEM: this turn still needs its request_scene_image (the imagery rule). The "
+                "narrative is already written — do NOT repeat it. Emit ONLY the "
+                "request_scene_image tool call now, with the exact `place` path, plus "
+                "`establishing` if this place has no establishing view yet."
             )
         self._scene_rejected_place = None
         await self._run_role(nudge, "scene-fix", quiet=True)

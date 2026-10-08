@@ -42,7 +42,7 @@ from .models import image_thinking_level
 _DEFAULT_MODEL = "gemini-3.1-flash-lite-image"
 _DEFAULT_PORTRAIT = (
     "{reference_line} Head-and-shoulders character portrait of a {alignment} {gender} "
-    "{race} {class}. {level_line} {gear} {background_line} Single subject, centred, "
+    "{race} {class}. {level_line} {age_line} {gear} {background_line} Single subject, centred, "
     "facing the viewer, plain dark background, no other people."
 )
 _REFERENCE_LINE = (
@@ -81,6 +81,10 @@ _PORTRAIT_GUARD = (
     "The subject wears and wields exactly the equipment listed, nothing more — do not add or "
     "invent any garment, armour, weapon, hood, cloak, hat, helmet or accessory, and never depict "
     "gear that is not described."
+)
+_STYLE_GUARD = (
+    "Absolutely no text, letters, numbers, runes, watermarks, logos, borders or user-interface "
+    "elements."
 )
 _PARENS = re.compile(r"\([^)]*\)")
 _PORTRAIT_EXTS = ("png", "jpg", "webp")
@@ -261,17 +265,21 @@ def _thinking_level(cfg) -> str | None:
     return level or None
 
 
-def _veterancy_line(level) -> str:
+def _veterancy_line(level, has_age: bool = False) -> str:
     """A visual experience descriptor from the character level (affects the look).
 
     Deliberately describes only experience, scars and bearing — never gear, which comes solely
-    from the character's equipped set (`_gear_line`).
+    from the character's equipped set (`_gear_line`). When an explicit age is supplied, the
+    hardcoded age cues ("young", "greying", "ageless") are dropped so the two never fight.
     """
     try:
         lvl = int(level)
     except (TypeError, ValueError):
         return ""
     if lvl <= 1:
+        if has_age:
+            return (f"This is a level-{lvl} novice: untested and unscarred, with an "
+                    "uncertain stance.")
         return (f"This is a level-{lvl} novice: young, untested and unscarred, with an "
                 "uncertain stance.")
     if lvl <= 4:
@@ -281,10 +289,72 @@ def _veterancy_line(level) -> str:
         return (f"This is a level-{lvl} seasoned adventurer: visible scars, a weathered face "
                 "and an assured, capable bearing.")
     if lvl <= 16:
+        if has_age:
+            return (f"This is a level-{lvl} renowned adventurer: deep scars and a "
+                    "commanding presence.")
         return (f"This is a level-{lvl} renowned adventurer: deep scars, greying at the "
                 "temples, and a commanding presence.")
+    if has_age:
+        return (f"This is a level-{lvl} legendary adventurer: old wounds and a near-mythic "
+                "mien.")
     return (f"This is a level-{lvl} legendary adventurer: old wounds and an ageless "
             "near-mythic mien.")
+
+
+_RACE_AGE_TABLE: dict[str, tuple[int, int]] | None = None
+
+
+def _race_age_table() -> dict[str, tuple[int, int]]:
+    """{race name (lower): (adulthood, max)} from config/races.yml (loaded once)."""
+    global _RACE_AGE_TABLE
+    if _RACE_AGE_TABLE is None:
+        table: dict[str, tuple[int, int]] = {}
+        try:
+            path = Path(__file__).resolve().parent.parent / "config" / "races.yml"
+            data = (yaml.safe_load(path.read_text(encoding="utf-8")) or []) if yaml else []
+            for race in data:
+                if not isinstance(race, dict):
+                    continue
+                name = str(race.get("name") or "").strip().lower()
+                age = race.get("age")
+                if name and isinstance(age, dict):
+                    table[name] = (int(age.get("adulthood") or 18), int(age.get("max") or 90))
+        except Exception:  # noqa: BLE001 - a missing/broken config just loses the race nuance
+            table = {}
+        _RACE_AGE_TABLE = table
+    return _RACE_AGE_TABLE
+
+
+def _age_line(age, race) -> str:
+    """A race-relative age sentence for the portrait ('' when no usable age)."""
+    try:
+        value = int(age)
+    except (TypeError, ValueError):
+        return ""
+    if value <= 0:
+        return ""
+    adulthood, maximum = _race_age_table().get(str(race or "").strip().lower(), (None, None))
+    if adulthood is None:
+        # Match a subrace to its parent race (e.g. "High Elf" -> "elf").
+        key = str(race or "").strip().lower()
+        for name, bounds in _race_age_table().items():
+            if name and name in key:
+                adulthood, maximum = bounds
+                break
+    if adulthood is None:
+        adulthood, maximum = 18, 90
+    frac = (value - adulthood) / max(1, maximum - adulthood)
+    if frac < 0.25:
+        band = "a young adult"
+    elif frac < 0.5:
+        band = "in their prime"
+    elif frac < 0.75:
+        band = "middle-aged"
+    else:
+        band = "venerable"
+    who = f" for {('an' if str(race or '')[:1].lower() in 'aeiou' else 'a')} {race}" if race else ""
+    return (f"The subject is {value} years old — {band}{who}; render a face and bearing "
+            "true to that age.")
 
 
 def _clean_item_name(name) -> str:
@@ -506,6 +576,7 @@ class ImageService(GeminiImageBackend):
             _thinking_level(cfg),
         )
         self.style = str(cfg.get("style") or "").strip()
+        self.style_guard = str(cfg.get("style_guard") or _STYLE_GUARD).strip()
         self.portrait_template = str(cfg.get("portrait") or "").strip()
         self.portrait_guard = str(cfg.get("portrait_guard") or _PORTRAIT_GUARD).strip()
         self.ref_max_side = _int_or(cfg.get("ref_max_side"), 512)
@@ -543,7 +614,7 @@ class ImageService(GeminiImageBackend):
 
     @staticmethod
     def _player_payload(player: dict) -> dict:
-        return {
+        payload = {
             "race": str(player.get("race") or ""),
             "character_class": str(player.get("character_class") or ""),
             "background": str(player.get("background") or ""),
@@ -552,16 +623,23 @@ class ImageService(GeminiImageBackend):
             "level": player.get("level"),
             "gear": _gear_line(player),
         }
+        age = player.get("age")
+        if age not in (None, ""):
+            payload["age"] = age
+        return payload
 
-    def source_hash(self, kind: str, payload: dict, model: str | None = None) -> str:
+    def source_hash(self, kind: str, payload: dict, model: str | None = None,
+                    style: str | None = None) -> str:
         blob = json.dumps(
             {"kind": kind, "model": model or self.model, "aspect": self.aspect_ratio,
-             "style": self.style, "thinking_level": self.thinking_level, "payload": payload},
+             "style": (style or self.style), "thinking_level": self.thinking_level,
+             "payload": payload},
             sort_keys=True, default=str,
         )
         return hashlib.sha1(blob.encode("utf-8")).hexdigest()
 
-    def portrait_prompt(self, player: dict, has_ref: bool = False) -> str:
+    def portrait_prompt(self, player: dict, has_ref: bool = False,
+                        style: str | None = None) -> str:
         payload = self._player_payload(player)
         fields = {
             "alignment": payload["alignment"] or "wandering",
@@ -569,15 +647,19 @@ class ImageService(GeminiImageBackend):
             "race": payload["race"] or "adventurer",
             "class": payload["character_class"] or "adventurer",
             "gear": payload["gear"],
-            "level_line": _veterancy_line(payload["level"]),
+            "level_line": _veterancy_line(payload["level"], has_age=payload.get("age") not in (None, "")),
+            "age_line": _age_line(payload.get("age"), payload["race"]),
             "reference_line": _REFERENCE_LINE if has_ref else "",
             "background_line": (f"Background: {payload['background']}." if payload["background"] else ""),
         }
         template = self.portrait_template or _DEFAULT_PORTRAIT
         body = re.sub(r"\s+", " ", template.format(**fields)).strip()
+        effective_style = (style or self.style).strip()
         parts = [body]
-        if self.style:
-            parts.append(self.style)
+        if effective_style:
+            parts.append(effective_style)
+        if self.style_guard:
+            parts.append(self.style_guard)
         if self.portrait_guard:
             parts.append(self.portrait_guard)
         return " ".join(parts).strip()
@@ -611,11 +693,11 @@ class ImageService(GeminiImageBackend):
     # ── generation ────────────────────────────────────────────────────────
 
     def ensure_portrait(self, stem: str, player: dict, force: bool = False,
-                        model: str | None = None) -> dict:
+                        model: str | None = None, style: str | None = None) -> dict:
         """Generate the portrait if missing (or forced); reuse the cache otherwise."""
         effective = model or self.model
         payload = self._player_payload(player)
-        digest = self.source_hash("portrait", payload, model=effective)
+        digest = self.source_hash("portrait", payload, model=effective, style=style)
         manifest = self._read_manifest(stem)
         cached = manifest.get("portrait") or {}
         if not force and self.has_portrait(stem) and cached.get("source_hash") == digest:
@@ -631,7 +713,7 @@ class ImageService(GeminiImageBackend):
             except OSError:
                 refs = None
 
-        prompt = self.portrait_prompt(player, has_ref=bool(refs))
+        prompt = self.portrait_prompt(player, has_ref=bool(refs), style=style)
         raw = downscale_image(
             self._generate_bytes(prompt, refs=refs, ref_media_resolution=self.ref_media_resolution,
                                  model=effective, thinking_level=self.thinking_level),
@@ -657,6 +739,7 @@ class ImageService(GeminiImageBackend):
             "thinking_level": self.thinking_level,
             "prompt": prompt,
             "source_hash": digest,
+            "style": (style or self.style),
             "created": int(time.time()),
             "used_reference": bool(refs),
         }
@@ -907,6 +990,7 @@ class SceneService(GeminiImageBackend):
         self.output_dir = Path(output_dir) if output_dir else None
         # Scenes share the portrait's locked painterly style unless overridden.
         self.style = str(cfg.get("scene_style") or cfg.get("style") or "").strip()
+        self.style_guard = str(cfg.get("style_guard") or _STYLE_GUARD).strip()
         self.seed_template = str(cfg.get("scene_seed") or _DEFAULT_SCENE_SEED).strip()
         self.seed_guard = str(cfg.get("scene_seed_guard") or _SCENE_SEED_GUARD).strip()
         self.seed_change_line = str(cfg.get("scene_seed_change") or _SCENE_SEED_CHANGE_LINE).strip()
@@ -1150,7 +1234,7 @@ class SceneService(GeminiImageBackend):
 
     def seed_prompt(self, world: str, kingdom: str = "", area: str = "", place=None,
                     establishing: str = "", change: str = "",
-                    has_seed_ref: bool = False) -> str:
+                    has_seed_ref: bool = False, style: str | None = None) -> str:
         path = _place_path(place)
         loc = self._clean(path[0]) if path else "an unnamed place"
         sub = self._clean(" — ".join(path[1:]))
@@ -1167,12 +1251,18 @@ class SceneService(GeminiImageBackend):
             body = (body + " " + self.seed_change_line.format(**fields)).strip()
         if self.seed_guard:
             body = (body + " " + self.seed_guard).strip()
-        return (body + " " + self.style).strip() if self.style else body
+        effective_style = (style or self.style).strip()
+        parts = [body]
+        if effective_style:
+            parts.append(effective_style)
+        if self.style_guard:
+            parts.append(self.style_guard)
+        return " ".join(parts).strip()
 
     def action_prompt(self, player: dict, world: str, description: str, mood: str,
                       kingdom: str = "", area: str = "", place=None,
                       ref_kind: str = "", time_of_day: str = "", weather: str = "",
-                      characters=None, appearance=None) -> str:
+                      characters=None, appearance=None, style: str | None = None) -> str:
         player = player or {}
         path = _place_path(place)
         loc = self._clean(path[0]) if path else "an unnamed place"
@@ -1228,15 +1318,21 @@ class SceneService(GeminiImageBackend):
             body = (body + " " + self.layout_lock).strip()
         if ref_kind == "seed" and self.absent_element_guard:
             body = (body + " " + self.absent_element_guard).strip()
-        return (body + " " + self.style).strip() if self.style else body
+        effective_style = (style or self.style).strip()
+        parts = [body]
+        if effective_style:
+            parts.append(effective_style)
+        if self.style_guard:
+            parts.append(self.style_guard)
+        return " ".join(parts).strip()
 
     # ── generation ──────────────────────────────────────────────────────────
 
     def generate_seed(self, world: str, kingdom: str = "", area: str = "", place=None,
                       establishing: str = "", change: str = "", refs=None,
-                      model: str | None = None) -> bytes:
+                      model: str | None = None, style: str | None = None) -> bytes:
         prompt = self.seed_prompt(world, kingdom, area, place, establishing,
-                                  change, has_seed_ref=bool(refs))
+                                  change, has_seed_ref=bool(refs), style=style)
         raw = self._generate_bytes(prompt, aspect_ratio=self.aspect_ratio, refs=refs,
                                    ref_media_resolution=self.ref_media_resolution,
                                    model=model or self.model,
@@ -1247,10 +1343,11 @@ class SceneService(GeminiImageBackend):
                         kingdom: str = "", area: str = "", place=None,
                         ref_kind: str = "", refs=None, model: str | None = None,
                         time_of_day: str = "", weather: str = "", characters=None,
-                        appearance=None) -> bytes:
+                        appearance=None, style: str | None = None) -> bytes:
         prompt = self.action_prompt(player, world, description, mood, kingdom, area, place,
                                     ref_kind=ref_kind, time_of_day=time_of_day,
-                                    weather=weather, characters=characters, appearance=appearance)
+                                    weather=weather, characters=characters, appearance=appearance,
+                                    style=style)
         raw = self._generate_bytes(prompt, aspect_ratio=self.aspect_ratio, refs=refs,
                                    ref_media_resolution=self.ref_media_resolution,
                                    model=model or self.model,
@@ -1277,7 +1374,7 @@ class SceneService(GeminiImageBackend):
 
     def _store_seed(self, stem: str, manifest: dict, kingdom: str, area: str, place,
                     description: str, main_npcs, raw: bytes,
-                    existing=None) -> dict:
+                    existing=None, style: str | None = None) -> dict:
         path = _place_path(place)
         ext, mime = sniff_image(raw) or ("png", "image/png")
         slug = (existing or {}).get("slug") or self._seed_slug(kingdom, area, path)
@@ -1292,6 +1389,7 @@ class SceneService(GeminiImageBackend):
             "file": file, "slug": slug, "kingdom": str(kingdom or ""), "area": str(area or ""),
             "place": path,
             "description": str(description or ""), "main_npcs": _npc_list(main_npcs),
+            "style": (style or self.style),
             "mime": mime, "created": int(time.time()),
         }
         manifest.setdefault("seeds", {})[self._key(kingdom, area, path)] = entry
@@ -1330,13 +1428,14 @@ class SceneService(GeminiImageBackend):
                      establishing: str = "", main_npcs=None,
                      seed_change: str = "", npcs=None,
                      time_of_day: str = "", weather: str = "", characters=None,
-                     model: str | None = None) -> dict:
-        """Ensure the hidden seed (idempotent; regenerated on `seed_change`), upsert any
-        newly declared NPCs, then generate the action fresh from the seed + the portrait
-        and persist it as a one-shot file (served once, then deleted).
+                     model: str | None = None, style: str | None = None) -> dict:
+        """Ensure the hidden seed (idempotent; regenerated on `seed_change` or an art-style
+        change), upsert any newly declared NPCs, then generate the action fresh from the seed
+        + the portrait and persist it as a one-shot file (served once, then deleted).
 
         `characters` arrives as `{name: action}`; the stored descriptions are injected here."""
         effective = model or self.model
+        effective_style = (style or self.style).strip()
         manifest = self._read_manifest(stem)
         cast = manifest.setdefault("cast", {})
         npcs_added: list[str] = []
@@ -1358,23 +1457,27 @@ class SceneService(GeminiImageBackend):
                 area = str(found.get("area") or "")
                 path = _place_path(found.get("place")) or path
         seed_created = seed_regenerated = False
+        style_changed = seed is not None and seed.get("style") != effective_style
         if seed is None:
             label = " — ".join(path) or "an unnamed place"
             raw = self.generate_seed(world, kingdom, area, path,
                                      establishing or f"An atmospheric view of {label}.",
-                                     model=effective)
+                                     model=effective, style=effective_style)
             seed = self._store_seed(stem, manifest, kingdom, area, path,
-                                    establishing, main_npcs, raw)
+                                    establishing, main_npcs, raw, style=effective_style)
             seed_created = True
-        elif seed_change:
-            old = self._file_bytes(stem, seed)
+        elif seed_change or style_changed:
+            # A permanent change redraws with the old seed as a reference; a pure style change
+            # redraws WITHOUT it, so the new art style is not anchored to the old picture.
+            old = self._file_bytes(stem, seed) if seed_change else None
             raw = self.generate_seed(world, kingdom, area, path,
                                      establishing or str(seed.get("description") or ""),
-                                     change=seed_change, refs=[old] if old else None, model=effective)
+                                     change=seed_change, refs=[old] if old else None,
+                                     model=effective, style=effective_style)
             seed = self._store_seed(stem, manifest, kingdom, area, path,
                                     establishing or str(seed.get("description") or ""),
                                     main_npcs if main_npcs else _seed_main_npcs(seed), raw,
-                                    existing=seed)
+                                    existing=seed, style=effective_style)
             seed_regenerated = True
 
         # Always draw from the place's empty establishing seed + the portrait. Chaining
@@ -1395,7 +1498,7 @@ class SceneService(GeminiImageBackend):
         raw = self.generate_action(player, world, description, mood, kingdom, area, path,
                                    ref_kind=ref_kind, refs=refs, model=effective,
                                    time_of_day=time_of_day, weather=weather, characters=resolved,
-                                   appearance=appearance)
+                                   appearance=appearance, style=effective_style)
         ext = (sniff_image(raw) or ("png", "image/png"))[0]
         slug = self._action_slug(kingdom, area, path)
         ImageService._write_image(self.scenes_dir(stem) / f"{slug}.{ext}", raw)

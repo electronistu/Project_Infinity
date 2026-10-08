@@ -28,6 +28,7 @@ const state = {
   models: [],                           // [{id,label,provider}] offered by /api/models
   imageModel: "",                       // in-story (portrait + scenes) model id
   iconModel: "",                        // sheet-icon model id
+  imageStyle: "",                       // optional player art style for portraits + scenes
   thinkEnabled: false,                  // thinking pane SHOWN (display-only; the model always thinks)
   iconUrls: {},                         // "kind/slug" -> url for shared sheet icons
   sheetMode: "icons",                   // "icons" | "generate" | "text"
@@ -768,6 +769,7 @@ async function requestSceneImage(evt, fig, img) {
     active_effects: evt.active_effects || [],
     equipped: evt.equipped || undefined,
     model: state.imageModel || undefined,
+    style: state.imageStyle || undefined,
   };
   try {
     const res = await fetch("/api/scene", {
@@ -1755,6 +1757,7 @@ function updateTemperatureControl() {
 const IMAGES_KEY = "infinity.images.enabled";
 const IMAGE_MODEL_KEY = "infinity.image.model";
 const ICON_MODEL_KEY = "infinity.icon.model";
+const IMAGE_STYLE_KEY = "infinity.image.style";
 const LEGACY_SCENES_KEY = "infinity.scenes.enabled";
 
 function worldByFile(file) {
@@ -1822,6 +1825,10 @@ function applyModelSelects() {
     if (state.iconModel) el.value = state.iconModel;
     el.disabled = !state.imageStatus.available;
   });
+  document.querySelectorAll(".image-style-input").forEach((el) => {
+    el.value = state.imageStyle || "";
+    el.disabled = !state.imageStatus.available;
+  });
 }
 
 function setImagesEnabled(on) {
@@ -1842,10 +1849,24 @@ function setIconModel(value) {
   applyModelSelects();
 }
 
+function setImageStyle(value) {
+  const next = String(value || "").trim().slice(0, 300);
+  const changed = next !== state.imageStyle;
+  state.imageStyle = next;
+  setModelPref(IMAGE_STYLE_KEY, state.imageStyle);
+  applyModelSelects();
+  // A changed style redraws the portrait now; visited places redraw from their seed on
+  // the next visit, and new action images use it immediately.
+  if (changed && state.connected && state.imageStatus.available) {
+    regeneratePortrait();
+  }
+}
+
 async function initImages() {
   state.imagesEnabled = loadImagesPref();
   state.imageModel = loadModelPref(IMAGE_MODEL_KEY);
   state.iconModel = loadModelPref(ICON_MODEL_KEY);
+  state.imageStyle = loadModelPref(IMAGE_STYLE_KEY);
   try {
     state.imageStatus = await fetch("/api/images/status").then((r) => r.json());
   } catch (e) {
@@ -1914,7 +1935,7 @@ async function generatePortrait(save) {
     const res = await fetch("/api/portrait", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ save, model: state.imageModel || undefined }),
+      body: JSON.stringify({ save, model: state.imageModel || undefined, style: state.imageStyle || undefined }),
     });
     if (!res.ok) {
       let detail = "HTTP " + res.status;
@@ -1974,7 +1995,7 @@ async function regeneratePortrait() {
     const res = await fetch("/api/portrait", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ save, force: true, player: portraitPlayerPayload(), model: state.imageModel || undefined }),
+      body: JSON.stringify({ save, force: true, player: portraitPlayerPayload(), model: state.imageModel || undefined, style: state.imageStyle || undefined }),
     });
     if (!res.ok) {
       let detail = "HTTP " + res.status;
@@ -2503,6 +2524,9 @@ async function init() {
   });
   document.querySelectorAll(".icon-model-select").forEach((el) => {
     el.addEventListener("change", (e) => setIconModel(e.target.value));
+  });
+  document.querySelectorAll(".image-style-input").forEach((el) => {
+    el.addEventListener("change", (e) => setImageStyle(e.target.value));
   });
   document.querySelectorAll(".sheet-mode-input").forEach((el) => {
     el.addEventListener("change", (e) => { if (e.target.checked) setSheetMode(e.target.value); });

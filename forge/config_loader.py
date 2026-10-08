@@ -31,6 +31,13 @@ current_dir = os.path.dirname(__file__)
 project_root = os.path.join(current_dir, '..')
 config_dir = os.path.join(project_root, 'config')
 
+class RaceAge(BaseModel):
+    # SRD 5.1 age guidance: `adulthood` is the race's age of maturity, `max` a typical
+    # maximum lifespan. Used to bound the Forge's age prompt and to shape the portrait.
+    adulthood: int = 18
+    max: int = 90
+
+
 class Race(BaseModel):
     name: str
     ability_score_increases: List[AbilityScoreIncrease]
@@ -39,6 +46,7 @@ class Race(BaseModel):
     languages: List[str]
     proficiencies: List[dict] = []
     subraces: List[SubRace] = []
+    age: RaceAge = RaceAge()
 
 class Config(BaseModel):
     races: List[Race]

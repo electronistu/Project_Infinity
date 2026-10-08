@@ -2,34 +2,35 @@
   "name": "Electronistu",
   "level": 1,
   "xp": 0,
-  "gold": 145,
+  "gold": 165,
   "character_class": "Wizard",
   "race": "High Elf",
   "background": "Criminal",
   "alignment": "Chaotic Neutral",
   "gender": "male",
-  "difficulty": "easy",
-  "armor_class": 10,
-  "current_hit_points": 5,
-  "total_hit_points": 5,
+  "age": 340,
+  "difficulty": "hard",
+  "armor_class": 13,
+  "current_hit_points": 8,
+  "total_hit_points": 8,
   "hit_dice_count": 1,
   "hit_dice_size": 6,
   "speed": 30,
   "stats": {
-    "str": 15,
-    "dex": 10,
-    "con": 8,
+    "str": 8,
+    "dex": 17,
+    "con": 15,
     "int": 16,
     "wis": 8,
-    "cha": 15
+    "cha": 8
   },
   "proficiency_bonus": 2,
   "skills": [
-    "Arcana",
     "Perception",
+    "Stealth",
+    "Arcana",
     "Investigation",
-    "Deception",
-    "Stealth"
+    "Deception"
   ],
   "expertise": [],
   "saves": [
@@ -38,15 +39,15 @@
   ],
   "armor_proficiencies": [],
   "weapon_proficiencies": [
-    "Dart",
-    "Light Crossbow",
-    "Longbow",
-    "Shortbow",
-    "Shortsword",
-    "Dagger",
     "Longsword",
+    "Light Crossbow",
+    "Shortbow",
+    "Quarterstaff",
     "Sling",
-    "Quarterstaff"
+    "Longbow",
+    "Shortsword",
+    "Dart",
+    "Dagger"
   ],
   "tool_proficiencies": [
     "Dice Set",
@@ -141,7 +142,7 @@
       "Sleep"
     ],
     "spells_prepared": [
-      "Detect Magic",
+      "Disguise Self",
       "False Life",
       "Magic Missile",
       "Sleep"

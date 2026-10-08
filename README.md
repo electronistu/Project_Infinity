@@ -75,6 +75,7 @@ Image generation is **opt-in** and **cached** — nothing is drawn unless you as
 
 - **Character portrait** — shown on the start screen and sheet; the **↻** button repaints it from your current level and gear.
 - **Storyline scenes** — one cinematic 16:9 illustration per turn. Each place keeps a hidden establishing reference, so places and regulars stay consistent; **hover an illustration to see it full size**. Each is captioned with its area, place, time of day and weather.
+- **Art style** — an optional free-text style applied to portraits and scenes (e.g. a cartoon or a period look); leave it empty for the default dark-fantasy sourcebook. Changing it repaints the portrait and redraws each place as you revisit it. Sheet icons keep their fixed treatment.
 - **Sheet icons** — the shared, cross-character library used by the sheet (items, spells, skills, abilities, conditions).
 
 Both image models are Google Gemini (the same `GEMINI_API_KEY`): **Nano Banana 2.1** (`gemini-nano-banana-2.1`) draws portraits and scenes at `medium` thinking effort; **Nano Banana 2 Lite** (`gemini-3.1-flash-lite-image`) draws sheet icons. The start screen also sets the sheet's icon treatment: **cached icons only; no generation**, **cached icons + generate on new ones**, or **text only**.

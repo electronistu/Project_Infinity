@@ -47,9 +47,9 @@ def auto_answer(step, counters, name):
         counters["text"] += 1
         return name if counters["text"] == 1 else (step.get("default") or "Unknown")
     if kind == "number":
-        index = counters["number"]
         counters["number"] += 1
-        return 15 if index < 3 else 8
+        # Age is the only numeric step; answer at the race's adulthood (its min).
+        return int(step.get("min") or 0)
     if kind == "pointbuy":
         # Spend exactly 27: three 15s (9 each) + three 8s (0 each).
         return {a["key"]: (15 if i < 3 else 8) for i, a in enumerate(step["abilities"])}
@@ -176,9 +176,14 @@ def main() -> int:
     ok &= not (OUTPUT / f"{terminal['slug']}.wwf").exists()  # no .wwf any more
     ok &= bool(data.get("reputation"))  # world scaffold seeds reputation
     ok &= data.get("difficulty") == "hard"  # auto_answer picks the first option
+    # Age is stored and never pre-adulthood (auto_answer answers at the race's adulthood).
+    _race_name = str(data.get("race") or "")
+    _race = next((r for r in load_config().races if r.name in _race_name), None)
+    _adult = _race.age.adulthood if _race else 1
+    ok &= isinstance(data.get("age"), int) and data.get("age") >= _adult
     print(f"  [direct] {player.name} | {data.get('race')} {data.get('character_class')} "
           f"HP {data.get('current_hit_points')} AC {data.get('armor_class')} "
-          f"difficulty {data.get('difficulty')}")
+          f"age {data.get('age')} difficulty {data.get('difficulty')}")
 
     terminal2, _ = run_bridge_creation(DIRECT_NAME)
     created += [OUTPUT / terminal2["player"]]

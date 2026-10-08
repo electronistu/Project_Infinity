@@ -49,17 +49,20 @@ async def main() -> int:
     server_mod.scene_service.available = lambda: True
     scene_refs = []
     scene_models_seen = []
+    styles_seen = []
 
     def _fake_seed(world, kingdom, area, place, establishing,
-                   change="", refs=None, model=None):
+                   change="", refs=None, model=None, style=None):
         scene_models_seen.append(model)
+        styles_seen.append(style)
         return b"\xff\xd8\xff\xe0" + b"s" * 24
 
     def _fake_action(player, world, description, mood, kingdom, area, place,
                      ref_kind="", refs=None, model=None, time_of_day="", weather="",
-                     characters=None, appearance=None):
+                     characters=None, appearance=None, style=None):
         scene_refs.append((kingdom, area, ref_kind, time_of_day, weather, characters))
         scene_models_seen.append(model)
+        styles_seen.append(style)
         return b"\xff\xd8\xff\xe0" + b"j" * 24
 
     server_mod.scene_service.generate_seed = _fake_seed
@@ -71,8 +74,8 @@ async def main() -> int:
     server_mod.image_service.available = lambda: True
     portrait_seen = {}
 
-    def _fake_ensure_portrait(stem, player, force=False, model=None):
-        portrait_seen.update(stem=stem, player=player, force=force)
+    def _fake_ensure_portrait(stem, player, force=False, model=None, style=None):
+        portrait_seen.update(stem=stem, player=player, force=force, style=style)
         return {"generated": True}
 
     server_mod.image_service.ensure_portrait = _fake_ensure_portrait
@@ -204,6 +207,7 @@ async def main() -> int:
                 "session_id": "scenetest", "description": "a forge at dusk",
                 "mood": "tense", "kingdom": "Kingdom of Eldoria", "area": "Eldoria City",
                 "place": ["Hask's Smithy", "the forge"],
+                "style": "Cartoony, bold outlines.",
                 "time_of_day": "dusk", "weather": "light rain",
                 "characters": {"Gorson": "hammering at the anvil",
                                "Maera": "drawing ale",
@@ -236,6 +240,9 @@ async def main() -> int:
             rec("POST scene forwards time_of_day + weather to the generator",
                 bool(scene_refs) and scene_refs[-1][3] == "dusk" and scene_refs[-1][4] == "light rain",
                 str(scene_refs[-1:]))
+            rec("POST scene forwards the player art style to the generator",
+                bool(styles_seen) and styles_seen[-1] == "Cartoony, bold outlines.",
+                str(styles_seen[-1:]))
             rec("POST scene injects the stored descriptions for declared names",
                 bool(scene_refs) and scene_refs[-1][5] == {
                     "Gorson — a burly smith": "hammering at the anvil",
@@ -281,14 +288,15 @@ async def main() -> int:
 
             # Portrait regenerate accepts a live player sheet (no .player needed).
             r = await c.post("/api/portrait", json={
-                "save": "_portraittest.player", "force": True,
+                "save": "_portraittest.player", "force": True, "style": "Cartoony.",
                 "player": {"race": "Human", "character_class": "Fighter", "level": 10,
                            "inventory": ["Longsword"]},
             })
             rec("POST portrait accepts a live player body",
                 r.status_code == 200 and portrait_seen.get("stem") == "_portraittest"
                 and portrait_seen.get("player", {}).get("level") == 10
-                and portrait_seen.get("force") is True,
+                and portrait_seen.get("force") is True
+                and portrait_seen.get("style") == "Cartoony.",
                 f"status={r.status_code} seen={portrait_seen}")
             r = await c.post("/api/portrait", json={
                 "save": "_portraittest.player",

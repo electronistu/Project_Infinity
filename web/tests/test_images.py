@@ -155,6 +155,31 @@ def main() -> bool:
         rec("reference line only when a reference is used",
             "identity reference" in svc.portrait_prompt(PLAYER, has_ref=True)
             and "identity reference" not in svc.portrait_prompt(PLAYER, has_ref=False))
+        custom = "In the style of Day of the Tentacle: cartoony, bold outlines, saturated palette."
+        rec("a custom style replaces the default portrait art direction",
+            custom in svc.portrait_prompt(PLAYER, style=custom)
+            and "Painterly dark-fantasy" not in svc.portrait_prompt(PLAYER, style=custom))
+        rec("the no-text guard survives a custom portrait style",
+            "no text" in svc.portrait_prompt(PLAYER, style=custom).lower())
+        rec("an empty style keeps the default portrait art direction",
+            "Painterly dark-fantasy" in svc.portrait_prompt(PLAYER, style=""))
+        rec("the style changes the portrait cache key",
+            svc.source_hash("portrait", svc._player_payload(PLAYER))
+            != svc.source_hash("portrait", svc._player_payload(PLAYER), style=custom))
+        aged = dict(PLAYER, age=300)
+        aged_prompt = svc.portrait_prompt(aged)
+        rec("the portrait carries the age, race-relative",
+            "300 years old" in aged_prompt and "in their prime for a" in aged_prompt,
+            aged_prompt[-260:])
+        rec("no age -> no age line", "years old" not in svc.portrait_prompt(PLAYER))
+        rec("an explicit age drops the veteran's age cues",
+            "young" not in _veterancy_line(1, has_age=True).lower()
+            and "young" in _veterancy_line(1).lower()
+            and "ageless" not in _veterancy_line(17, has_age=True).lower()
+            and "ageless" in _veterancy_line(17).lower())
+        rec("age changes the portrait cache key",
+            svc.source_hash("portrait", svc._player_payload(PLAYER))
+            != svc.source_hash("portrait", svc._player_payload(dict(PLAYER, age=40))))
 
         r1 = svc.ensure_portrait("hero", PLAYER)
         rec("first ensure generates", r1["generated"] is True and r1["cached"] is False)
@@ -273,6 +298,18 @@ def main() -> bool:
         rec("action prompt includes the mood", "tense" in ap)
         rec("action prompt names the full address",
             all(x in ap for x in ("Hask's Smithy", "the forge", "Eldoria City", "Kingdom of Eldoria")), ap[:200])
+        custom = "In the style of Day of the Tentacle: cartoony, bold outlines, saturated palette."
+        rec("a custom style overrides the scene art direction",
+            custom in sc.action_prompt(PLAYER, "w", "d", "m", place=["Loc", "sub"], style=custom)
+            and "Painterly dark-fantasy" not in sc.action_prompt(
+                PLAYER, "w", "d", "m", place=["Loc", "sub"], style=custom))
+        rec("the no-text guard survives a custom scene style",
+            "no text" in sc.action_prompt(PLAYER, "w", "d", "m", place=["Loc", "sub"],
+                                          style=custom).lower())
+        rec("an empty style keeps the default scene art direction",
+            "Painterly dark-fantasy" in sc.action_prompt(PLAYER, "w", "d", "m", place=["Loc", "sub"]))
+        rec("a custom style reaches the seed prompt",
+            custom in sc.seed_prompt("world", place=["Loc", "sub"], style=custom))
         rec("action prompt carries the seed reference line",
             "this IS the picture" in ap and "in the described action" in ap)
         clothed = {"race": "High Elf", "character_class": "Wizard",
@@ -445,6 +482,24 @@ def main() -> bool:
                               place=["Hask's Smithy", "the forge"], seed_change="it burned down")
         rec("seed_change regenerates the seed and applies to this action immediately",
             r4["seed_regenerated"] and r4["used_seed"], str(r4))
+        rs = sc3.ensure_scene("scenetest", PLAYER, "world", description="back for the ledger",
+                              kingdom="Kingdom of Eldoria", area="Eldoria City",
+                              place=["Hask's Smithy", "the forge"],
+                              style="In the style of Day of the Tentacle: cartoony, bold outlines.")
+        rec("a style change regenerates the existing seed",
+            rs["seed_regenerated"] and rs["used_seed"], str(rs))
+        seed_caps = [c for c in captured if "Empty and unpopulated" in c[0]]
+        rec("a style-change redraw passes no old-seed reference",
+            bool(seed_caps) and seed_caps[-1][1] is None, str(seed_caps[-1:] if seed_caps else []))
+        seeds_now = json.loads((scene_dir / "manifest.json").read_text(encoding="utf-8"))["seeds"]
+        forge = [e for e in seeds_now.values() if e.get("place") == ["Hask's Smithy", "the forge"]]
+        rec("the seed records the new style",
+            bool(forge) and "Day of the Tentacle" in (forge[0].get("style") or ""), str(forge))
+        rs2 = sc3.ensure_scene("scenetest", PLAYER, "world", description="still here",
+                               kingdom="Kingdom of Eldoria", area="Eldoria City",
+                               place=["Hask's Smithy", "the forge"],
+                               style="In the style of Day of the Tentacle: cartoony, bold outlines.")
+        rec("the same style does not regenerate again", not rs2.get("seed"), str(rs2))
         r5 = sc3.ensure_scene("scenetest", PLAYER, "world", description="on the road",
                               kingdom="Borderlands", area="the Eldoria–Silverwood border",
                               place=["Lantern Row"])

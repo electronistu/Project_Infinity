@@ -442,6 +442,19 @@ def create_character(config: Config) -> PlayerCharacter:
     if chosen_race.subraces:
         chosen_subrace = select_from_list("Choose your Subrace", chosen_race.subraces)
 
+    # Age: numeric, bounded by the race's SRD 5.1 maturity/lifespan (pre-adulthood is
+    # forbidden). Flavor only — it shapes the portrait and is shown to the GM.
+    race_age = getattr(chosen_race, "age", None)
+    min_age = int(getattr(race_age, "adulthood", 18) or 18)
+    max_age = int(getattr(race_age, "max", 90) or 90)
+    if max_age < min_age:
+        max_age = min_age
+    age = ui.input_number(
+        f"Enter your character's age ({min_age}-{max_age})",
+        min_val=min_age, max_val=max_age, default=str(min_age),
+    )
+    age = int(age) if age else min_age
+
     chosen_class = select_from_list("Choose your Class", config.classes)
     if not chosen_class:
         console.print("[red]No classes available. Aborting.[/]")
@@ -834,6 +847,7 @@ def create_character(config: Config) -> PlayerCharacter:
         background=chosen_background.name,
         alignment=chosen_alignment,
         gender=gender,
+        age=age,
         difficulty=difficulty,
         stats=player_stats,
         speed=speed,

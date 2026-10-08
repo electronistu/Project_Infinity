@@ -30,14 +30,20 @@ style: >-
   Painterly dark-fantasy illustration in the style of a tabletop RPG sourcebook:
   muted candlelit palette (umber, oxblood, tarnished brass), soft oil-brush
   texture, grounded and gritty, naturalistic proportions, dramatic soft
-  side-lighting, shallow depth of field. Absolutely no text, letters, numbers,
-  runes, watermarks, logos, borders or user-interface elements.
+  side-lighting, shallow depth of field.
+
+# Appended to every asset no matter which style is used (a player-supplied style
+# replaces the art direction above, never this guard): Gemini will happily render
+# text, so forbid it explicitly.
+style_guard: >-
+  Absolutely no text, letters, numbers, runes, watermarks, logos, borders or
+  user-interface elements.
 
 # Portrait prompt template. {alignment} {gender} {race} {class} {gear}
 # {background_line} are filled from the character's .player data.
 portrait: >-
   {reference_line} Head-and-shoulders character portrait of a {alignment} {gender} {race}
-  {class}. {level_line} {gear} {background_line} Single subject, centred, facing the viewer,
+  {class}. {level_line} {age_line} {gear} {background_line} Single subject, centred, facing the viewer,
   plain dark background, no other people.
 
 # Portraits render at up to ~260px; 512 keeps them sharp and ~4x smaller.

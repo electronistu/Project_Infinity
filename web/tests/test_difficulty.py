@@ -34,9 +34,8 @@ def auto_answer_easy(step, counters, name):
         counters["text"] += 1
         return name if counters["text"] == 1 else (step.get("default") or "Unknown")
     if kind == "number":
-        index = counters["number"]
         counters["number"] += 1
-        return 15 if index < 3 else 8
+        return int(step.get("min") or 0)
     if kind == "pointbuy":
         return {a["key"]: (15 if i < 3 else 8) for i, a in enumerate(step["abilities"])}
     if kind == "single":

@@ -5,17 +5,13 @@ venv/
 __pycache__/
 *.pyc
 
-# Ignore generated save files (legacy *.wwf included)...
-*.wwf
+# Ignore generated save files
 *.player
 *.timeline
-# ...but keep the bundled example save.
-!electronistu.player
-!electronistu.timeline
 *.kate-swp
 
 # Local secrets (Gemini API key for image generation)
 .env
 
-# Generated character images / icons (cached assets)
+# Generated character images / seed images (cached assets)
 output/images/

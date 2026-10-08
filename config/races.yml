@@ -1,4 +1,7 @@
 - name: Human
+  age:
+    adulthood: 18
+    max: 90
   size: Medium
   speed: 30
   ability_score_increases:
@@ -21,6 +24,9 @@
   subraces: []
 
 - name: Elf
+  age:
+    adulthood: 100
+    max: 750
   size: Medium
   speed: 30
   ability_score_increases:
@@ -84,6 +90,9 @@
 
 
 - name: Dwarf
+  age:
+    adulthood: 50
+    max: 350
   size: Medium
   speed: 25
   ability_score_increases:
@@ -137,6 +146,9 @@
       languages: []
 
 - name: Halfling
+  age:
+    adulthood: 20
+    max: 150
   size: Small
   speed: 25
   ability_score_increases:
@@ -166,6 +178,9 @@
 
 
 - name: Dragonborn
+  age:
+    adulthood: 18
+    max: 80
   size: Medium
   speed: 30
   ability_score_increases:
