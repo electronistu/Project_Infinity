@@ -31,6 +31,11 @@ try:  # SRD 5.1 skill -> ability map (same repo root, shared with dice_server)
 except ImportError:  # pragma: no cover - package-relative fallback
     from .. import skills as skills_mod  # noqa: E402
 
+try:  # the Device (Text Time Traveler): the closed vocabulary shared with the engine
+    import device as devicecfg  # noqa: E402
+except ImportError:  # pragma: no cover - package-relative fallback
+    from .. import device as devicecfg  # noqa: E402
+
 _CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 _SPELL_DB = None
 
@@ -518,15 +523,46 @@ def _inventory_entries(items, equip=None):
         else:
             name = str(it)
             flavour = ""
+        # A Device part carries the age it was recovered in; the tooltip names it. The
+        # engine wrote the description when the GM added the part.
+        found_in = declared.get("found_in") if isinstance(declared, dict) else None
+        if found_in:
+            flavour = "\n".join(p for p in [flavour, f"Recovered in {devicecfg.era_label(found_in)}."] if p)
         stat_lines = _item_stat_lines(name, declared, items, attuned_names, equipped_names,
                                       name in slots)
         description = "\n".join(p for p in [flavour] + stat_lines if p)
         weight = weight_for(name, declared.get("weight"), base)
+        is_device = bool(isinstance(declared, dict)
+                         and (declared.get("device") or declared.get("device_part")))
         out.append({"name": name, "description": description,
                     "icon": icon_key_for("inventory", name),
                     "weight": weight, "unweighed": weight is None,
-                    "equipped": name in slots, "slot": slots.get(name)})
+                    "equipped": name in slots, "slot": slots.get(name),
+                    "device": is_device,
+                    "device_part": declared.get("device_part") if isinstance(declared, dict) else None,
+                    "found_in": found_in or ""})
     return out
+
+
+def _device_block(entries) -> dict | None:
+    """The Device panel's data: the five slots, what is recovered, and the engine text."""
+    present = any(e.get("device") for e in entries)
+    parts = []
+    for pname in devicecfg.part_names():
+        entry = next((e for e in entries if e.get("device_part") == pname), None)
+        found = (entry or {}).get("found_in") or ""
+        parts.append({
+            "name": pname,
+            "recovered": entry is not None,
+            "description": devicecfg.part_description(pname),
+            "found_in": found,
+            "found_in_name": devicecfg.era_label(found) if found else "",
+        })
+    if not present and not any(p["recovered"] for p in parts):
+        return None
+    return {"present": present, "name": devicecfg.device_name(),
+            "recovered": sum(1 for p in parts if p["recovered"]),
+            "total": len(parts), "parts": parts}
 
 
 def _tag_entries(names, category):
@@ -703,6 +739,7 @@ def build_stats(db_data: dict) -> dict:
     if not isinstance(inventory, list):
         inventory = []
     inventory = _inventory_entries(inventory, equip)
+    device_block = _device_block(inventory)
 
     # SRD 5.1 carrying capacity / variant encumbrance, recomputed from the data
     # above (never taken from the dump, which may carry a stale derived copy).
@@ -850,6 +887,7 @@ def build_stats(db_data: dict) -> dict:
         "spellcasting": spellcasting,
         "proficiencies": proficiencies,
         "inventory": inventory,
+        "device": device_block,
         "consumables": consumables,
         "consumable_icons": consumable_icons,
         "reputation": reputation,

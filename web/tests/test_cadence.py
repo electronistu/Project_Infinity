@@ -8,6 +8,7 @@ Run from the repo root:
 """
 
 import asyncio
+import json
 import random
 import sys
 import tempfile
@@ -15,6 +16,8 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO))
+
+import device as device_mod  # noqa: E402
 
 from web.engine import (  # noqa: E402
     CADENCE_BANDS, CARRY_NOTE, DEVICE_FIRES, DEVICE_WARNING, WARNING_TURNS, GameSession,
@@ -51,6 +54,8 @@ def _session(seed=7, era="egypt"):
     gs = GameSession(base_dir=REPO, model="test", scene_images=True)
     gs.session = _FakeMCP()
     gs.era = era
+    gs.has_device = True
+    gs.journey = [era]
     gs._rng = random.Random(seed)
     gs._jump_at_turn = gs.turn_counter + gs._cadence_span()
     # A real save's timeline, so the legend round-trip is the real one.
@@ -100,8 +105,11 @@ def main():
     # -- the band table -------------------------------------------------------
     rec("stage 0 (0 of 4) is the fixed worst case, every 5 turns",
         CADENCE_BANDS.get(0) == (5, 5), str(CADENCE_BANDS.get(0)))
-    rec("the later stages are deliberately undecided",
-        all(stage not in CADENCE_BANDS for stage in (1, 2, 3, 4)), str(sorted(CADENCE_BANDS)))
+    rec("each recovered part widens the interval: 5 / 7 / 11 / 13",
+        CADENCE_BANDS == {0: (5, 5), 1: (7, 7), 2: (11, 11), 3: (13, 13)},
+        str(sorted(CADENCE_BANDS.items())))
+    rec("a complete Device does not fire on its own (band 4 is absent)",
+        4 not in CADENCE_BANDS)
     rec("a warning lands on the last turn before the jump, not earlier",
         WARNING_TURNS == 1, str(WARNING_TURNS))
 
@@ -182,7 +190,7 @@ def main():
     # -- the engine DB is told, or reputation lands in the wrong era ---------
     keys = [a.get("key") for n, a in gs.session.calls if n == "set_player_field"]
     rec("the engine tells the DB the new era and arrival",
-        keys == ["era", "arrival"], str(gs.session.calls))
+        keys == ["era", "arrival", "journey"], str(gs.session.calls))
     rec("the DB is told the era the session is actually in",
         [a.get("value") for n, a in gs.session.calls if n == "set_player_field" and a.get("key") == "era"]
         == [gs.era], str(gs.session.calls))
@@ -192,9 +200,9 @@ def main():
                 "attune_item", "rest", "set_player_field"}
     tools_called = [n for n, _a in gs.session.calls if n in mutating]
     rec("a jump cannot touch the inventory: it calls nothing that mutates the player",
-        tools_called == ["set_player_field", "set_player_field"]
+        tools_called == ["set_player_field", "set_player_field", "set_player_field"]
         and [a.get("key") for n, a in gs.session.calls if n == "set_player_field"]
-        == ["era", "arrival"],
+        == ["era", "arrival", "journey"],
         str(gs.session.calls))
     rec("the jump says the kit is untouched and literal",
         "nothing is translated" in DEVICE_FIRES and "nothing is left behind" in DEVICE_FIRES)
@@ -285,6 +293,172 @@ def main():
         at_rest["warnings"] == 1, str(at_rest))
     rec("... and the jump still lands on the next ordinary turn",
         era_after != era0, f"{era0} -> {era_after}")
+
+    # -- the control ladder: each part unlocks an ability (and widens the interval) --
+    # 0 parts: nothing to steer, the worst interval.
+    zero = _session()
+    zero.parts_recovered = 0
+    zero._jump_at_turn = zero.turn_counter + zero._cadence_span()
+    st0 = zero._device_state()
+    rec("0 parts: no ability at all", not any(st0["abilities"].values()), str(st0["abilities"]))
+    rec("0 parts: the interval is the worst case, 5", st0["turns_until"] == 5, str(st0["turns_until"]))
+
+    # 1 part: adjust the count by two, either way, once per jump; -2 only at 3+ turns.
+    one = _session()
+    one.parts_recovered = 1
+    rec("1 part: the interval widens to 7", one._cadence_span() == 7, str(one._cadence_span()))
+    one._jump_at_turn = one.turn_counter + one._cadence_span()
+    before = one._jump_at_turn
+    asyncio.run(one._device_adjust(2))
+    rec("1 part: wait +2 pushes the jump out and marks the ability used",
+        one._jump_at_turn == before + 2 and one._adjusted_jump, str(one._jump_at_turn))
+    one._jump_at_turn = before
+    asyncio.run(one._device_adjust(2))
+    rec("... and it cannot be used a second time in the same jump",
+        one._jump_at_turn == before, str(one._jump_at_turn))
+
+    # -2 (hasten): only while three or more turns remain, so the jump always keeps a turn.
+    hasten = _session()
+    hasten.parts_recovered = 1
+    hasten._jump_at_turn = hasten.turn_counter + 3
+    asyncio.run(hasten._device_adjust(-2))
+    rec("1 part: hasten -2 pulls the jump in from three turns",
+        hasten._jump_at_turn == hasten.turn_counter + 1, str(hasten._jump_at_turn))
+    rec("... and raises the warning, because one turn now remains",
+        hasten._warned and any(m.get("content") == DEVICE_WARNING for m in hasten.messages),
+        str([m.get("content") for m in hasten.messages if isinstance(m, dict)]))
+    blocked = _session()
+    blocked.parts_recovered = 1
+    blocked._jump_at_turn = blocked.turn_counter + 2
+    asyncio.run(blocked._device_adjust(-2))
+    rec("1 part: hasten -2 is refused at two turns -- too much control",
+        blocked._jump_at_turn == blocked.turn_counter + 2 and not blocked._adjusted_jump)
+    blocked1 = _session()
+    blocked1.parts_recovered = 1
+    blocked1._jump_at_turn = blocked1.turn_counter + 1
+    asyncio.run(blocked1._device_adjust(-2))
+    rec("... and at one turn", blocked1._jump_at_turn == blocked1.turn_counter + 1,
+        str(blocked1._jump_at_turn))
+
+    # Wait and hasten share the one adjustment per jump.
+    shared = _session()
+    shared.parts_recovered = 1
+    shared._jump_at_turn = shared.turn_counter + 5
+    asyncio.run(shared._device_adjust(-2))
+    after_hasten = shared._jump_at_turn
+    asyncio.run(shared._device_adjust(2))
+    rec("wait and hasten are the same once-per-jump ability",
+        shared._jump_at_turn == after_hasten, str(shared._jump_at_turn))
+
+    # The state the panel reads: wait always offered; hasten only at 3+ turns.
+    panel = _session(era="tang")
+    panel.parts_recovered = 1
+    panel._jump_at_turn = panel.turn_counter + 5
+    rec("the 1-part state offers both directions at five turns",
+        panel._device_state()["adjust"]["can_wait"]
+        and panel._device_state()["adjust"]["can_hasten"],
+        str(panel._device_state()["adjust"]))
+    panel._jump_at_turn = panel.turn_counter + 2
+    rec("... and only waiting at two",
+        panel._device_state()["adjust"]["can_wait"]
+        and not panel._device_state()["adjust"]["can_hasten"],
+        str(panel._device_state()["adjust"]))
+
+    # 2 parts: direction -- the last era visited, or a random era forward.
+    two = _session(era="tang")
+    two.parts_recovered = 2
+    two.journey = ["egypt", "tang"]
+    two._jump_at_turn = two.turn_counter + two._cadence_span()
+    rec("2 parts: 'previous' is the last era visited, not the order",
+        two._previous_era() == "egypt", str(two._previous_era()))
+    asyncio.run(two._device_travel({"direction": "previous"}))
+    rec("2 parts: the Traveller can go back to it", two.era == "egypt", two.era)
+    two2 = _session(era="tang")
+    two2.parts_recovered = 2
+    forward = two2._forward_era_ids()
+    rec("2 parts: 'forward' is the ages ahead, wrapping at the last",
+        forward == ["wallachia", "victorian", "egypt"], str(forward))
+
+    # 3 parts: choose which age forward.
+    three = _session(era="tang")
+    three.parts_recovered = 3
+    asyncio.run(three._device_travel({"era": "wallachia"}))
+    rec("3 parts: the Traveller picks a forward age", three.era == "wallachia", three.era)
+    bad = _session(era="tang")
+    bad.parts_recovered = 3
+    asyncio.run(bad._device_travel({"era": "future"}))
+    rec("... and a non-playable age (the future frame) is refused", bad.era == "tang", bad.era)
+    wrap = _session(era="victorian")
+    wrap.parts_recovered = 3
+    rec("... and 'forward' wraps at the last age", wrap._forward_era_ids()[0] == "egypt",
+        str(wrap._forward_era_ids()))
+
+    # 4 parts: manual -- any age, and the player triggers the jump.
+    four = _session(era="tang")
+    four.parts_recovered = 4
+    rec("4 parts: the Device no longer fires on its own", four._cadence_span() is None)
+    rec("4 parts: the panel says it is the player's call",
+        four._device_state()["manual"] and all(four._device_state()["abilities"].values()),
+        str(four._device_state()["abilities"]))
+    asyncio.run(four._device_travel({"era": "egypt"}))
+    rec("4 parts: the Traveller can go anywhere, including back", four.era == "egypt", four.era)
+    rec("... and the journey records where they have stood",
+        four.journey == ["tang", "egypt"], str(four.journey))
+
+    # A Traveller whose Device has been taken has no cadence at all.
+    taken0 = _session()
+    taken0.has_device = False
+    rec("no Device in the pack means no cadence", taken0._cadence_span() is None)
+
+    # The count is derived from the live items (the inventory is the source of truth).
+    async def fake_read(name, args):
+        if name == "dump_player_db":
+            return json.dumps({
+                "inventory": [device_mod.device_entry(),
+                              device_mod.part_entry("Escapement", "egypt")],
+                "journey": "egypt"})
+        return '{"success": true}'
+
+    read = _session()
+    read._call_tool_text = fake_read
+    asyncio.run(read._refresh_device())
+    rec("the engine derives the parts from the inventory items",
+        read.parts_recovered == 1 and read.has_device and read.journey == ["egypt"],
+        f"parts={read.parts_recovered} has_device={read.has_device}")
+
+    armed = _session()
+    armed._call_tool_text = fake_read
+    armed._jump_at_turn = None
+    armed._adjusted_jump = True
+    asyncio.run(armed._sync_device_after_inventory('{"key": "inventory"}'))
+    rec("recovering a part arms the wider band (7)",
+        armed._jump_at_turn == armed.turn_counter + 7, str(armed._jump_at_turn))
+
+    async def fake_four(name, args):
+        if name == "dump_player_db":
+            return json.dumps({
+                "inventory": [device_mod.device_entry()]
+                + [device_mod.part_entry(p, "egypt") for p in device_mod.part_names()],
+                "journey": "egypt"})
+        return '{"success": true}'
+
+    manual = _session()
+    manual._call_tool_text = fake_four
+    manual._jump_at_turn = 99
+    asyncio.run(manual._sync_device_after_inventory('{"key": "inventory"}'))
+    rec("reaching 4 of 4 cancels the countdown -- the Traveller decides when",
+        manual._jump_at_turn is None and manual.parts_recovered == 4, str(manual._jump_at_turn))
+
+    gone = _session()
+    async def fake_gone(name, args):
+        if name == "dump_player_db":
+            return json.dumps({"inventory": [], "journey": "egypt"})
+        return '{"success": true}'
+    gone._call_tool_text = fake_gone
+    gone._jump_at_turn = 99
+    asyncio.run(gone._sync_device_after_inventory('{"key": "inventory"}'))
+    rec("taking the Device cancels the countdown",
+        gone._jump_at_turn is None and not gone.has_device)
 
     return all(RESULTS)
 

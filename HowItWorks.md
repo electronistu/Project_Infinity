@@ -70,7 +70,7 @@ The mode is chosen at creation, stored on the save, and hidden from the GM.
 | World | A fixed invented realm — the political scaffold is injected at awakening | A ladder of historical eras, one file each in `config/eras/` |
 | Where you start | The one world | **Rolled** from the playable eras, as is every later jump |
 | Reputation | Flat, per kingdom | Per age, then per polity and faction |
-| The Device | Never armed | Counts **ordinary** turns only — a turn where any combat was resolved is not one of them, so a fight holds the counter, and a jump can never interrupt one |
+| The Device | Never armed | Counts **ordinary** turns only — a turn where any combat was resolved is not one of them, so a fight holds the counter, and a jump can never interrupt one. Its four parts are real inventory items that widen the interval (5 · 7 · 11 · 13) and unlock control — wait +2 / hasten −2, direction, a chosen age ahead — until a complete Device never fires on its own |
 | `lookup` tool | Not offered | Offered — fetches any era's scaffold and factions |
 
 The mode costs nothing when it is not in play: the protocol is marker-gated and rendered per session, the era index is its own system message, and the `lookup` tool is filtered out of a classic session entirely.

@@ -28,6 +28,11 @@ stakes are low, call for NO roll.
 Every age is peopled by all the common races — dwarf, elf, halfling, human, dragonborn, gnome, half-elf, half-orc, tiefling — and by all the common classes: a mercenary captain, a hedge priest, a scholar, a thief and a hedge-witch are as ordinary in any age as anywhere, and a crowd is mixed without anyone finding it strange. The Traveller's own kind is no stranger than any other. The history stays real: the kings, cities and wars are the historical ones. Never give a real named figure a species or a class, never let a class imply a culture or a faith, and never map a species or a class onto a real people or faith.
 <!-- TT:END -->
 
+<!-- TT:ON -->
+## THE DEVICE
+The Device and its four parts (Escapement, Compass Rose, Regulator, Mainspring) are engine-owned inventory items. Never invent or add the Device — it is created with the Traveller and is already in the inventory. When the story recovers a part, add it by its exact name: update_player_list(key='inventory', item='Escapement', action='add'). The engine writes the part's description and records the age it was found in; never use modify_player_numeric for a part. The GM may remove the Device or a part when the fiction takes it away.
+<!-- TT:END -->
+
 ## AWAKENING — three separate responses
 <!-- TT:ON -->
 On receiving the ERA_FILE (the era you are in — the ERA INDEX above lists the rest; `lookup` fetches any era or polity you need):

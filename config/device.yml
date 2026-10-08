@@ -1,0 +1,25 @@
+# The Device and its four parts — the closed vocabulary for the Time Traveler game.
+#
+# Engine-owned: the Device is seeded with the character at creation, and the four parts
+# are the only Device things the Game Master may add. A name is the identity; the aliases
+# only ever match the Device itself (so a model that writes "the Device" cannot mint a
+# second one). `dice_server.py` stamps the age a part was recovered in; the engine derives
+# the cadence and the control ladder from how many parts are present.
+name: The Device
+aliases: [the Device, Device, The Horologe, Horologe]
+description: "a broken device of the far future — seamless, smooth as a river stone, and gone warm and ticking now as it wakes; the thing that carries the Traveller between the ages"
+# Turns one adjustment moves the countdown, either way (from 1 recovered part).
+adjust_turns: 2
+parts:
+  - name: Escapement
+    era: egypt
+    description: "a small toothed wheel of pale, unrusted metal, cold to the touch"
+  - name: Compass Rose
+    era: tang
+    description: "a flat disc of dark glass etched with a rose of ages; it points, but never north"
+  - name: Regulator
+    era: victorian
+    description: "a slim brass governor on a hairspring; the part that decides how long the Device waits"
+  - name: Mainspring
+    era: wallachia
+    description: "a coil of dull wire, tight as a held breath; the part that stores the push between ticks"

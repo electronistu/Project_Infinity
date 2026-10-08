@@ -7,6 +7,8 @@
 
 import json
 
+import device as device_cfg  # the Device (Text Time Traveler) — seeded with the character
+
 
 def build_reputation(kingdoms) -> dict:
     """The classic game's empty reputation map: one bucket per kingdom and guild.
@@ -105,4 +107,12 @@ def get_player_json(pc, reputation=None, era=None, arrival=None, mode=None) -> s
         else:
             spell_data["spells_known"] = pc.spells_known
         player_data["spellcasting"] = spell_data
+    # The Time Traveler game: the Device is in the inventory from the first turn, with its
+    # engine description, and the visit history starts at the rolled first age. A classic
+    # save carries neither.
+    if str(mode or getattr(pc, "mode", "") or "").strip().lower() == "time_traveler":
+        inventory = player_data.setdefault("inventory", [])
+        if not any(isinstance(e, dict) and e.get("device") for e in inventory):
+            inventory.insert(0, device_cfg.device_entry())
+        player_data["journey"] = str(era or "")
     return json.dumps(player_data, indent=2)

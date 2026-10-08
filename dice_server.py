@@ -9,6 +9,7 @@ from mcp.server.fastmcp import FastMCP
 from level_up import apply_level_up, CASTER_TYPE_MAP, SLOT_TABLES, FULL_CASTER_SPELL_SLOTS, WARLOCK_SPELL_SLOTS, ABILITY_TO_STAT
 
 import carrying  # local SRD 5.1 carrying capacity / encumbrance rules
+import device  # local Text Time Traveler: the Device and its four parts (closed vocabulary)
 import equipment  # local SRD 5.1 equipped-items model (armour, hands, derived AC)
 import skills  # local SRD 5.1 skill -> ability map + normalisation
 
@@ -625,6 +626,48 @@ def _reject_item(error: str, reason: str, item: str, nudge: str, **extra) -> dic
               "gm_instruction": nudge}
     result.update(extra)
     return result
+
+
+def _device_add_entry(cursor, name: str, desc: str, weight):
+    """The Device vocabulary, enforced: an add is either engine-owned or refused.
+
+    - The Device itself is engine-owned. It is seeded with the character; a second one
+      (however it is spelled) is refused. If it was removed in play, the GM may restore it
+      and the engine writes the description.
+    - A part is accepted only by its exact canonical name; the engine supplies the
+      description and stamps the age it was recovered in. Never a numeric edit -- the
+      inventory entry is the only record of where a part came from.
+
+    Returns ``{"entry": {...}}`` for an accepted device add, ``{"reject": {...}}`` for a
+    refusal, or None when the name is not a Device thing at all.
+    """
+    era = str(_db_val(cursor, "era", "") or "").strip().lower()
+    inventory = _db_val(cursor, "inventory", []) or []
+    if device.is_device(name):
+        if device.has_device(inventory):
+            return {"reject": _reject_item(
+                "device_engine_owned",
+                f"'{device.device_name()}' is created with the Traveller and owned by the engine.",
+                name,
+                "Do not add or rename the Device -- it is already in the inventory. To recover "
+                "a part, add it by its exact name, e.g. update_player_list(key='inventory', "
+                "item='Escapement', action='add').")}
+        # Removed in play (the GM decides): restoring it is allowed, engine-described.
+        return {"entry": device.device_entry()}
+    part = device.canonical_part(name)
+    if part:
+        if not era:
+            return {"reject": _reject_item(
+                "device_not_in_this_game",
+                f"'{part}' is a part of the Device, which exists only in the Time Traveler game.",
+                part,
+                "This is a classic world -- there is no Device and no parts. Do not add one.")}
+        if device.entry_for_part(inventory, part) is not None:
+            return {"reject": _reject_item(
+                "already_exists", f"'{part}' is already in the inventory.", part,
+                "A part can only be recovered once.")}
+        return {"entry": device.part_entry(part, era)}
+    return None
 
 
 def _validate_item_add(name: str, declared: dict, weight) -> dict | None:
@@ -1988,6 +2031,7 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
         is_prepared_spells = (key == "spellcasting.spells_prepared")
         added_name = None
         removed_equipped = False
+        device_owned = False
         # Encumbrance is reported only when this change TIPS the character into it (SRD 5.1
         # variant) — never the default "unencumbered" line.
         before_carry_status = None
@@ -2011,35 +2055,47 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
             new_entry = {"name": name, "description": desc} if (desc or ":" in item) else name
             declared = {}
             if key == "inventory":
-                if weight is not None:
-                    declared["weight"] = float(weight)
-                for field, value in (("base", base), ("damage_dice", damage_dice),
-                                     ("damage_type", damage_type), ("properties", properties),
-                                     ("ac", ac), ("dex_cap", dex_cap),
-                                     ("strength_req", strength_req), ("ac_bonus", ac_bonus),
-                                     ("attack_bonus", attack_bonus), ("damage_bonus", damage_bonus),
-                                     ("attunement", attunement), ("attunement_by", attunement_by),
-                                     ("kind", kind), ("pair", pair),
-                                     ("save_bonus", save_bonus), ("check_bonus", check_bonus),
-                                     ("proficiency_bonus", proficiency_bonus),
-                                     ("spell_attack_bonus", spell_attack_bonus),
-                                     ("spell_dc_bonus", spell_dc_bonus),
-                                     ("set_str", set_str), ("set_dex", set_dex),
-                                     ("set_con", set_con), ("set_int", set_int),
-                                     ("set_wis", set_wis), ("set_cha", set_cha),
-                                     ("str_bonus", str_bonus), ("dex_bonus", dex_bonus),
-                                     ("con_bonus", con_bonus), ("int_bonus", int_bonus),
-                                     ("wis_bonus", wis_bonus), ("cha_bonus", cha_bonus),
-                                     ("str_bonus_max", str_bonus_max),
-                                     ("dex_bonus_max", dex_bonus_max),
-                                     ("con_bonus_max", con_bonus_max),
-                                     ("int_bonus_max", int_bonus_max),
-                                     ("wis_bonus_max", wis_bonus_max),
-                                     ("cha_bonus_max", cha_bonus_max)):
-                    if value is not None:
-                        declared[field] = value
-                if effects is not None:
-                    declared["effects"] = effects
+                # The Device and its four parts: a closed, engine-owned vocabulary. A part is
+                # accepted only by its exact name and gets the engine description + the age it
+                # was recovered in; the Device itself may only be restored, never invented.
+                device_add = _device_add_entry(cursor, name, desc, weight)
+                if device_add is not None:
+                    if device_add.get("reject"):
+                        return device_add["reject"]
+                    new_entry = device_add["entry"]
+                    device_owned = True
+                    name = str(new_entry.get("name") or name)
+                    added_name = name
+                else:
+                    if weight is not None:
+                        declared["weight"] = float(weight)
+                    for field, value in (("base", base), ("damage_dice", damage_dice),
+                                         ("damage_type", damage_type), ("properties", properties),
+                                         ("ac", ac), ("dex_cap", dex_cap),
+                                         ("strength_req", strength_req), ("ac_bonus", ac_bonus),
+                                         ("attack_bonus", attack_bonus), ("damage_bonus", damage_bonus),
+                                         ("attunement", attunement), ("attunement_by", attunement_by),
+                                         ("kind", kind), ("pair", pair),
+                                         ("save_bonus", save_bonus), ("check_bonus", check_bonus),
+                                         ("proficiency_bonus", proficiency_bonus),
+                                         ("spell_attack_bonus", spell_attack_bonus),
+                                         ("spell_dc_bonus", spell_dc_bonus),
+                                         ("set_str", set_str), ("set_dex", set_dex),
+                                         ("set_con", set_con), ("set_int", set_int),
+                                         ("set_wis", set_wis), ("set_cha", set_cha),
+                                         ("str_bonus", str_bonus), ("dex_bonus", dex_bonus),
+                                         ("con_bonus", con_bonus), ("int_bonus", int_bonus),
+                                         ("wis_bonus", wis_bonus), ("cha_bonus", cha_bonus),
+                                         ("str_bonus_max", str_bonus_max),
+                                         ("dex_bonus_max", dex_bonus_max),
+                                         ("con_bonus_max", con_bonus_max),
+                                         ("int_bonus_max", int_bonus_max),
+                                         ("wis_bonus_max", wis_bonus_max),
+                                         ("cha_bonus_max", cha_bonus_max)):
+                        if value is not None:
+                            declared[field] = value
+                    if effects is not None:
+                        declared["effects"] = effects
             if declared:
                 new_entry = {"name": name, "description": desc, **declared}
 
@@ -2048,7 +2104,7 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
                 entry["appearance"] = str(appearance).strip()
                 new_entry = entry
 
-            if key == "inventory":
+            if key == "inventory" and not device_owned:
                 rejection = _validate_item_add(name, declared, weight)
                 if rejection is not None:
                     return rejection
@@ -2130,6 +2186,13 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
                 return {"success": False, "error": "not_found", "key": key, "item": item,
                         "action": action, "current_items": available}
             entry = current_list[index]
+            if key == "inventory" and device.is_device_item(
+                    str(entry.get("name")) if isinstance(entry, dict) else str(entry)):
+                return {"success": False, "error": "device_engine_owned", "key": key,
+                        "item": item, "action": action,
+                        "reason": "The Device and its parts are engine-owned; their description and state are written by the engine.",
+                        "gm_instruction": ("Do not edit the Device or a part. Remove one with "
+                                           "action='remove' if the fiction takes it away.")}
             new_desc = description if isinstance(description, str) else None
             rename = new_name.strip() if isinstance(new_name, str) and new_name.strip() else None
             if new_desc is None and rename is None:
@@ -2184,6 +2247,9 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
             "action": action,
             "current_list": display_list,
         }
+        if device_owned and added_name:
+            # The Device vocabulary is canonical: tell the GM the exact name it now holds.
+            result["item"] = added_name
 
         if is_prepared_spells:
             info = build_prepared_spells_info(cursor)
@@ -2203,7 +2269,7 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
                                  if isinstance(e, dict) and e.get("name") == (added_name or item)), None)
             if isinstance(added_entry, dict):
                 added_base = added_entry.get("base")
-            if (action == "add" and weight is None and added_name
+            if (action == "add" and weight is None and added_name and not device_owned
                     and carrying.weight_for(added_name, base=added_base) is None):
                 result["unweighed_item"] = added_name
                 result["warning"] = (
@@ -2280,6 +2346,11 @@ def equip_item(item: str, action: str = "equip", slot: str | None = None,
                     "current_items": names}
         declared = next((e for e in inventory if isinstance(e, dict) and e.get("name") == item), {})
         base = declared.get("base")
+        if device.is_device_item(item) or (isinstance(declared, dict)
+                                           and (declared.get("device") or declared.get("device_part"))):
+            return {"success": False, "error": "device_not_equippable", "item": item,
+                    "reason": "The Device is not gear — it cannot be equipped, wielded or worn.",
+                    "gm_instruction": "The Device and its parts are carried, never equipped. Leave them in the inventory."}
 
         equipped = _db_val(cursor, "equipped", None)
         if not isinstance(equipped, dict):
@@ -2473,6 +2544,11 @@ def attune_item(item: str, action: str = "attune", instant: bool = False) -> dic
             return {"success": False, "error": "not_in_inventory", "item": item,
                     "reason": f"'{item}' is not in the inventory.", "current_items": names}
         declared = next((e for e in inventory if isinstance(e, dict) and e.get("name") == item), {})
+        if device.is_device_item(item) or (isinstance(declared, dict)
+                                           and (declared.get("device") or declared.get("device_part"))):
+            return {"success": False, "error": "device_not_attunable", "item": item,
+                    "reason": "The Device is not a magic item — it cannot be attuned.",
+                    "gm_instruction": "The Device and its parts are carried, never attuned."}
         attuned = _db_val(cursor, "attuned", []) or []
         attuned = [str(a) for a in attuned] if isinstance(attuned, list) else []
 

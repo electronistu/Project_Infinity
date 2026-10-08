@@ -103,7 +103,8 @@ There is nothing to do but play out the age you are in.
 - **Then it fires.** You come out *somewhere else in another age* — never where you meant, because the part that aims is missing.
 - **The age you leave becomes one line.** Whatever that age saw, it remembers — permanently, and only for itself. Your story in each age carries forward as that memory, not as a transcript.
 - **Nothing is left behind.** You keep everything you are carrying through every jump, and it stays literal: a Victorian pistol is a Victorian pistol in the Old Kingdom, and people will notice.
-- Right now it fires after **5 ordinary turns** — the worst case, when the Device has none of its four parts. A long battle delays it by the battle's length, and the jump can never interrupt a fight. Recovering the parts widens the interval, and a complete Device lets the Traveler choose.
+- **The Device is yours from the first turn** — a broken thing of the far future, in your inventory. Its four missing parts (the Escapement, the Compass Rose, the Regulator, the Mainspring) lie scattered across the ages; when you recover one, the Game Master adds it to your pack, and it records **which age you found it in**.
+- **Every part buys time and control.** Alone it fires after **5 ordinary turns**, at random. **One** part: **7**, and once per jump you can **wait two more turns** — or, while at least three turns remain, **hasten it by two**. **Two**: **11**, and you can steer the *direction* — back to the last age you visited, or forward at random. **Three**: **13**, and you can **choose which age ahead** to travel to. **All four**: it stops firing on its own — **you decide where and when**. A long battle delays any jump by the battle's length, and a jump can never interrupt a fight.
 
 ### Saving and loading
 

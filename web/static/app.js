@@ -34,6 +34,7 @@ const state = {
   iconUrls: {},                         // "kind/slug" -> url for shared sheet icons
   sheetMode: "icons",                   // "icons" | "generate" | "text"
   lastStats: null,                      // last rendered sheet (for icon diffing)
+  deviceControl: null,                  // latest cadence + control ladder from the engine
   iconGenBusy: false,                   // one on-the-fly generation run at a time
   iconGenEpoch: 0,                      // bumped on session change to cancel a run
 };
@@ -1308,6 +1309,12 @@ function renderStats(d) {
     const kids = [carryLine(d.carrying), handsLine(d.equipment), tagList(d.inventory)].filter(Boolean);
     statsBox.appendChild(card("Inventory", kids));
   }
+  if (d.device && (d.device.present || d.device.recovered)) {
+    const box = document.createElement("div");
+    box.id = "device-card";
+    box.appendChild(buildDeviceCard(d.device, state.deviceControl));
+    statsBox.appendChild(box);
+  }
   if (d.consumables && Object.keys(d.consumables).length) {
     const icons = d.consumable_icons || {};
     const tiles = document.createElement("div");
@@ -1355,10 +1362,125 @@ function updateDevice(c) {
   const el = $("device-label");
   if (!el || !c) return;
   const left = c.turns_until;
-  if (left === null || left === undefined) { el.hidden = true; return; }
+  if (left === null || left === undefined) {
+    // A manual Device (all four parts) still shows that it is the player's call.
+    if (c.manual) { el.hidden = false; el.textContent = "device — your call"; el.classList.remove("device-warn"); return; }
+    el.hidden = true;
+    return;
+  }
   el.hidden = false;
   el.textContent = "device " + left;
   el.classList.toggle("device-warn", !!c.warning);
+}
+
+/* ── the Device panel (sheet card) ────────────────────────── */
+
+function deviceSummary(dev, ctrl) {
+  const c = ctrl || {};
+  const parts = `${dev.recovered} of ${dev.total} parts recovered`;
+  if (c.manual) return `complete \u00b7 ${parts} \u00b7 you decide where and when`;
+  const left = c.turns_until;
+  if (left === null || left === undefined) return parts;
+  return `${parts} \u00b7 fires in ${left} ordinary ${left === 1 ? "turn" : "turns"}`;
+}
+
+function devicePartRow(part) {
+  const d = document.createElement("div");
+  d.className = "row device-part" + (part.recovered ? "" : " is-missing");
+  const k = document.createElement("span");
+  k.className = "k";
+  k.textContent = part.name;
+  if (part.description) {
+    const tip = (part.recovered && part.found_in_name)
+      ? `${part.description}. Recovered in ${part.found_in_name}.`
+      : part.description;
+    k.setAttribute("data-desc", tip);
+    k.setAttribute("tabindex", "0");
+    k.setAttribute("aria-describedby", "item-tooltip");
+  }
+  const v = document.createElement("span");
+  v.className = "v";
+  v.textContent = part.recovered
+    ? (part.found_in_name ? `recovered in ${part.found_in_name}` : "recovered")
+    : "missing";
+  d.appendChild(k);
+  d.appendChild(v);
+  return d;
+}
+
+function deviceActionRow(dev, ctrl) {
+  const c = ctrl || {};
+  const ab = c.abilities || {};
+  const locked = !state.ready || state.busy;
+  const wrap = document.createElement("div");
+  wrap.className = "device-actions";
+  const btn = (label, onClick, enabled) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "ghost device-btn";
+    b.textContent = label;
+    b.disabled = !enabled || locked;
+    b.addEventListener("click", onClick);
+    return b;
+  };
+  if (ab.adjust) {
+    const a = c.adjust || {};
+    const step = a.turns || 2;
+    wrap.appendChild(btn(a.used ? `wait +${step} (used)` : `wait +${step}`,
+      () => sendDevice({ type: "device", action: "adjust", delta: step }), a.can_wait));
+    wrap.appendChild(btn(a.used ? `hasten \u2212${step} (used)` : `hasten \u2212${step}`,
+      () => sendDevice({ type: "device", action: "adjust", delta: -step }), a.can_hasten));
+  }
+  if (ab.direction) {
+    const prev = c.previous_era;
+    wrap.appendChild(btn(prev ? `\u2190 previous: ${c.previous_era_name || prev}` : "\u2190 previous",
+      () => sendDevice({ type: "device", action: "travel", direction: "previous" }), !!prev));
+    wrap.appendChild(btn("random forward \u2192",
+      () => sendDevice({ type: "device", action: "travel", direction: "forward" }), true));
+  }
+  if (ab.choose_forward || ab.full) {
+    const options = (ab.full ? c.all_eras : c.forward_eras) || [];
+    if (options.length) {
+      const sel = document.createElement("select");
+      sel.className = "device-era";
+      options.forEach((e) => {
+        const o = document.createElement("option");
+        o.value = e.id;
+        o.textContent = e.name;
+        sel.appendChild(o);
+      });
+      sel.disabled = locked;
+      wrap.appendChild(sel);
+      wrap.appendChild(btn(ab.full ? "travel now" : "travel",
+        () => sendDevice({ type: "device", action: "travel", era: sel.value }), true));
+    }
+  }
+  if (!ab.adjust && !ab.direction && !ab.choose_forward && !ab.full) {
+    const note = document.createElement("div");
+    note.className = "field-note";
+    note.textContent = "The Device obeys no one \u2014 it cannot be steered yet.";
+    wrap.appendChild(note);
+  }
+  return wrap;
+}
+
+function buildDeviceCard(dev, ctrl) {
+  const kids = [];
+  const head = document.createElement("div");
+  head.className = "device-summary";
+  head.textContent = deviceSummary(dev, ctrl);
+  kids.push(head);
+  (dev.parts || []).forEach((p) => kids.push(devicePartRow(p)));
+  kids.push(deviceActionRow(dev, ctrl));
+  return card("The Device", kids);
+}
+
+/* Rebuild just the Device card in place (adjust/travel re-render fast). */
+function renderDeviceCard() {
+  const box = $("device-card");
+  if (!box || !state.lastStats || !state.lastStats.device) return;
+  box.innerHTML = "";
+  box.appendChild(buildDeviceCard(state.lastStats.device, state.deviceControl));
 }
 function setConn(t, cls) { const el = $("conn"); el.textContent = t; el.className = "conn " + cls; }
 
@@ -1417,6 +1539,13 @@ function send(msg) {
   if (state.ws && state.ws.readyState === WebSocket.OPEN) state.ws.send(JSON.stringify(msg));
 }
 
+/* A Device control: a travel IS a turn (the era changes), so the sheet must refresh
+   afterwards; adjust (+/-2) is only a nudge and consumes no turn. */
+function sendDevice(msg) {
+  if (msg && msg.action === "travel") state.lastCommandType = "action";
+  send(msg);
+}
+
 function requestStats() {
   if (!state.connected || !state.ready) return;
   state.lastCommandType = "stats";
@@ -1449,6 +1578,7 @@ function handleEvent(evt) {
       state.turn = evt.turn || 0;
       updateTurn();
       updateDevice(evt.cadence);
+      state.deviceControl = evt.cadence || null;
       state.activeSaveName = (evt.world || "").replace(/\.player$/i, "");
       state.cur = null;
       updateSheetPortrait();
@@ -1559,7 +1689,9 @@ function handleEvent(evt) {
       break;
 
     case "cadence":
+      state.deviceControl = evt;
       updateDevice(evt);
+      renderDeviceCard();
       break;
 
     case "notice":
@@ -1580,6 +1712,7 @@ function handleEvent(evt) {
     case "busy":
       state.busy = !!evt.value;
       updateComposer();
+      renderDeviceCard();
       setStatus(state.busy ? "GM is thinking…" : (state.ready ? "Awaiting your action" : "Loading…"));
       break;
 

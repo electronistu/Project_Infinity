@@ -120,6 +120,7 @@ def main() -> bool:
     rec("the counter reads nothing", gs._cadence_state()["turns_until"] is None)
     gs.classic = False
     gs.era = "egypt"
+    gs.has_device = True
     rec("... and on in the era game", gs._cadence_span() is not None)
 
     print("\n-- what a new character is seeded with, in each game")
@@ -144,6 +145,9 @@ def main() -> bool:
             rec("... and the world's own reputation map",
                 isinstance((data.get("reputation") or {}).get("eldoria"), dict)
                 and "egypt" not in (data.get("reputation") or {}))
+            rec("... and no Device in the inventory",
+                not any(isinstance(e, dict) and e.get("device")
+                        for e in (data.get("inventory") or [])))
         else:
             rec("a time traveler is written with mode time_traveler",
                 data.get("mode") == "time_traveler")
@@ -155,6 +159,11 @@ def main() -> bool:
                 f"{data.get('era')} / {data.get('arrival')!r}")
             rec("... with that era's own reputation seed, and no other era's",
                 list(data.get("reputation") or {}) == [data.get("era")])
+            rec("... with the Device in the inventory from the first turn",
+                any(isinstance(e, dict) and e.get("device")
+                    for e in (data.get("inventory") or [])))
+            rec("... and the visit history starts at that age",
+                data.get("journey") == data.get("era"), str(data.get("journey")))
     rec("the two seeds are genuinely different",
         made[0].get("reputation") != made[1].get("reputation"))
     rec("each created save resolves back to the game it chose",

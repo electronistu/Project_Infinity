@@ -342,6 +342,35 @@ def main() -> bool:
     rec("worn magic: no qualifier once worn and attuned",
         "+1 AC" in ring2 and "while" not in ring2)
 
+    # The Device panel: the five slots, recovered state, and the era of recovery.
+    dev = build_stats({
+        "inventory": [
+            {"name": "The Device", "description": "a broken device", "device": True, "weight": 0},
+            {"name": "Escapement", "description": "a small toothed wheel",
+             "device_part": "Escapement", "found_in": "egypt", "weight": 0},
+        ],
+    })
+    rec("a Device in the pack yields a device block", bool(dev.get("device")))
+    db_ = dev["device"]
+    rec("the block counts n of 4, the Device separate",
+        db_["recovered"] == 1 and db_["total"] == 4 and db_["present"])
+    names = [p["name"] for p in db_["parts"]]
+    rec("the four parts are listed in the canonical order",
+        names == ["Escapement", "Compass Rose", "Regulator", "Mainspring"], str(names))
+    esc = next(p for p in db_["parts"] if p["name"] == "Escapement")
+    rec("a recovered part carries the age it came from",
+        esc["recovered"] and esc["found_in"] == "egypt" and esc["found_in_name"] == "Egypt")
+    missing = next(p for p in db_["parts"] if p["name"] == "Compass Rose")
+    rec("a missing part is listed, not recovered, with its engine text",
+        (not missing["recovered"]) and bool(missing["description"]))
+    inv = {i["name"]: i for i in dev["inventory"]}
+    rec("the part tooltip names the age of recovery",
+        "Recovered in Egypt." in inv["Escapement"]["description"])
+    rec("the Device is weightless, never an unweighed warning",
+        inv["The Device"]["weight"] == 0 and not inv["The Device"]["unweighed"])
+    rec("a classic sheet has no device block",
+        build_stats({"inventory": ["Rope"]}).get("device") is None)
+
     # Regression against the real save, if present.
     real = REPO / "output" / "electronistu.player"
     if real.exists():

@@ -250,6 +250,15 @@ button.wide { width: 100%; margin-top: 10px; }
 .status.on { color: var(--accent-text); }
 /* The Device's counter: the same quiet voice as `turn 3`, warm only while it is ticking. */
 #device-label.device-warn { color: var(--accent-text); }
+
+/* The Device panel: the closed vocabulary, quiet until a part is recovered. */
+.device-summary { margin-bottom: 8px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.device-part.is-missing .k, .device-part.is-missing .v { color: var(--faint); }
+.device-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.device-btn { padding: 4px 9px; font-size: 12px; }
+.device-era { font-family: var(--mono); font-size: 12px; color: var(--text); background: var(--surface-2);
+              border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px 6px; max-width: 100%; }
+.device-era:focus { outline: none; border-color: var(--accent); }
 .ctx-meter { flex: 1; height: 4px; background: var(--surface-2); border-radius: 999px; overflow: hidden; border: 1px solid var(--border-soft); }
 .ctx-fill { height: 100%; width: 0%; background: var(--info); transition: width 0.3s ease; }
 
