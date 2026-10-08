@@ -17,7 +17,7 @@ from forge.config_loader import load_config  # noqa: E402
 from forge.character_creator import create_debug_character  # noqa: E402
 from forge.formatter import get_player_json  # noqa: E402
 from web.creation import CreationBridge, _run_creation  # noqa: E402
-from web.engine import render_protocol, _player_difficulty  # noqa: E402
+from web.engine import render_protocol, _player_difficulty, _gm_tool_view  # noqa: E402
 
 RESULTS = []
 OUTPUT = REPO / "output"
@@ -93,7 +93,12 @@ def main() -> int:
         "DIFFICULTY: EASY" not in render_protocol(real, True, "hard"))
     rec("easy protocol carries the low DC bands",
         "A normal check is 5" in render_protocol(real, True, "easy")
-        and "never go above 15" in render_protocol(real, True, "easy"))
+        and "a difficult one is 15" in render_protocol(real, True, "easy")
+        and "15 or more" in render_protocol(real, True, "easy"))
+    rec("easy protocol keeps the ordinary-check guard",
+        "Never 14\u201315 for an ordinary check" in render_protocol(real, True, "easy"))
+    rec("easy protocol no longer caps the DC at 15",
+        "never go above 15" not in render_protocol(real, True, "easy"))
     rec("hard protocol omits the DC bands",
         "A normal check is 5" not in render_protocol(real, True, "hard"))
     rec("real protocol still strips the EASY markers either way",
@@ -112,6 +117,16 @@ def main() -> int:
         bad = Path(td) / "bad.player"
         bad.write_text("{not json", encoding="utf-8")
         rec("malformed json -> hard", _player_difficulty(str(bad)) == "hard")
+
+    # 1b) the GM tool view never carries the creation-time difficulty field
+    dump = json.dumps({"name": "Xavier", "difficulty": "easy", "armor_class": 13,
+                       "equipment": {"armor": "Leather"}, "current_list": []})
+    view = json.loads(_gm_tool_view("dump_player_db", dump))
+    rec("GM view drops difficulty", "difficulty" not in view)
+    rec("GM view keeps the rest of the dump",
+        view.get("name") == "Xavier" and view.get("armor_class") == 13)
+    rec("GM view drops the state snapshots",
+        "equipment" not in view and "current_list" not in view)
 
     # 2) model default + formatter round-trip
     pc = create_debug_character(load_config())

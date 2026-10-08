@@ -261,7 +261,9 @@ def _gm_tool_view(name: str, text: str) -> str:
 
     Listed tools keep only their new-info keys; every other tool passes its mechanics
     through, but the heavy state snapshots (`equipment`, `current_list`, the full
-    `carrying` breakdown) are always dropped — the GM already holds the sheet."""
+    `carrying` breakdown) are always dropped — the GM already holds the sheet. The
+    creation-time `difficulty` is dropped too: the GM learns the mode only from the
+    presence of the EASY protocol block, never from a data field."""
     try:
         payload = json.loads(text)
     except (json.JSONDecodeError, TypeError):
@@ -282,6 +284,7 @@ def _gm_tool_view(name: str, text: str) -> str:
     view.pop("registry_summary", None)
     view.pop("sheets", None)
     view.pop("narrative_format", None)
+    view.pop("difficulty", None)
     carry = payload.get("carrying")
     if isinstance(carry, dict):
         slim = {k: carry[k] for k in _GM_VIEW_CARRYING if k in carry}

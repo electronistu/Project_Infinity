@@ -13,10 +13,10 @@
 ## DIFFICULTY: EASY — solo balance
 Resolution stays strict SRD. Never fudge a roll, edit a stat block, change a DC after it is
 stated, or grant a free action/heal. Scale the ADVENTURE, not the rules.
-DCs: choose them BEFORE the roll, from the lower bands only. A normal check is 5–7; a difficult
-one is 10; a very difficult, optional one is at most 15. Never 14–15 for an ordinary check, and
-never go above 15. A sensible, well-described approach drops the DC to 5 or succeeds outright.
-If success is obvious and the stakes are low, call for NO roll.
+DCs: choose them BEFORE the roll. A normal check is 5–7; a difficult one is 15; an extremely
+difficult, optional one is 15 or more. Never 14–15 for an ordinary check. A sensible,
+well-described approach drops the DC to 5 or succeeds outright. If success is obvious and the
+stakes are low, call for NO roll.
 <!-- EASY:END -->
 
 ## IDENTITY
