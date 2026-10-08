@@ -255,6 +255,37 @@ def main():
     rec("the jump cannot fire during a fight",
         asyncio.run(due_during_a_fight()) == era_before and due.era == era_before)
 
+    # -- a fight on the warned turn must not leave the warning stale ---------
+    # The jump moves out of the fight, which makes the NEXT turn the jump turn -- so the
+    # warning has to be re-issued on the fight's own turn, or the GM closes an age that then
+    # keeps going. The re-warning replaces the old claim rather than piling up.
+    rearm = _session()
+
+    async def warned_then_a_fight():
+        for _ in range(4):
+            await _player_turn(rearm)          # turn 4 ends at remaining == 1: warned
+        era0 = rearm.era
+        rearm._battle_turn = True              # as if resolve_attack had run this turn
+        await _player_turn(rearm)              # turn 5: a fight defers the jump
+        at_rest = {"jump": rearm._jump_at_turn, "turn": rearm.turn_counter,
+                   "warned": rearm._warned, "era": rearm.era,
+                   "warnings": sum(1 for m in rearm.messages
+                                   if isinstance(m, dict)
+                                   and m.get("content") == DEVICE_WARNING)}
+        await _player_turn(rearm)              # turn 6: the jump
+        return era0, at_rest, rearm.era
+
+    era0, at_rest, era_after = asyncio.run(warned_then_a_fight())
+    rec("a fight on the warned turn defers the jump and does not fire it",
+        at_rest["era"] == era0, str(at_rest))
+    rec("... and the warning is re-issued for the turn that now precedes the jump",
+        at_rest["warned"] is True and at_rest["jump"] - at_rest["turn"] == 1,
+        str(at_rest))
+    rec("... replacing the stale one, so the GM holds exactly one claim",
+        at_rest["warnings"] == 1, str(at_rest))
+    rec("... and the jump still lands on the next ordinary turn",
+        era_after != era0, f"{era0} -> {era_after}")
+
     return all(RESULTS)
 
 

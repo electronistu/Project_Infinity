@@ -948,9 +948,11 @@ class GameSession:
     async def _check_cadence(self) -> None:
         """After a turn: warn once before the jump, then jump when it is due.
 
-        A turn spent fighting is not a turn the Device counts. It is consumed here -- one
-        turn's worth of signal -- and it pushes the jump one turn further out, so the
-        counter holds for the length of a fight and the jump can never interrupt one.
+        A turn spent fighting is not a turn the Device counts: it pushes the jump one turn
+        further out, so the counter holds for the length of a fight and the jump can never
+        interrupt one. The warning is then re-evaluated in this SAME call, because pushing the
+        jump out makes the next turn the jump turn -- exactly the turn the warning has to
+        precede. A fight landing on the warned turn used to leave the warning a turn stale.
         """
         battle = self._battle_turn
         self._battle_turn = False
@@ -958,15 +960,24 @@ class GameSession:
             return
         if battle:
             self._jump_at_turn += 1
-            return
+            # The jump just moved out, so the "last turn of this age" the GM already holds may
+            # no longer be the last turn. Re-arm it and let the check below decide.
+            self._warned = False
         remaining = self._jump_at_turn - self.turn_counter
         if remaining > 0:
             if remaining == WARNING_TURNS and not self._warned:
                 self._warned = True
-                # The GM hears it BEFORE the jump turn, so the age can be closed properly.
+                # The GM hears it BEFORE the jump turn, so the age can be closed properly. A
+                # re-warning REPLACES the earlier one: that text claimed this was the last turn
+                # and the fight since made it false, so history holds exactly one claim.
+                self.messages = [m for m in self.messages
+                                 if not (isinstance(m, dict)
+                                         and m.get("content") == DEVICE_WARNING)]
                 self.messages.append({"role": "system", "content": DEVICE_WARNING})
                 await self._emit({"type": "notice", "title": "The Device", "text": DEVICE_WARNING})
             return
+        if battle:
+            return  # belt and braces: a jump may never fire on a battle turn
         await self._jump()
 
     def _era_opening(self) -> str:

@@ -98,12 +98,12 @@ Everything is cached and regenerates only when the data behind it changes.
 
 There is nothing to do but play out the age you are in.
 
-- **A counter in the status bar** — `device 3` — shows how many turns are left before it fires. It turns warm on the last one.
+- **A counter in the status bar** — `device 3` — shows how many **ordinary** turns are left before it fires, and turns warm on the last one. **A turn spent fighting is not one of them: the counter holds for the whole fight.**
 - **The Game Master is warned on the last turn**, so the age can be closed properly rather than cut off mid-sentence.
 - **Then it fires.** You come out *somewhere else in another age* — never where you meant, because the part that aims is missing.
 - **The age you leave becomes one line.** Whatever that age saw, it remembers — permanently, and only for itself. Your story in each age carries forward as that memory, not as a transcript.
 - **Nothing is left behind.** You keep everything you are carrying through every jump, and it stays literal: a Victorian pistol is a Victorian pistol in the Old Kingdom, and people will notice.
-- Right now it fires **every 5 turns** — the worst case, when the Device has none of its four parts. Recovering them widens the interval, and a complete Device lets the Traveler choose.
+- Right now it fires after **5 ordinary turns** — the worst case, when the Device has none of its four parts. A long battle delays it by the battle's length, and the jump can never interrupt a fight. Recovering the parts widens the interval, and a complete Device lets the Traveler choose.
 
 ### Saving and loading
 
