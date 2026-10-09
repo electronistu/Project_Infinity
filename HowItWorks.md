@@ -79,6 +79,8 @@ The mode costs nothing when it is not in play: the protocol is marker-gated and 
 
 ## Storyline image continuity
 
+**Images are recommended.** The place-and-NPC tree the GM sees, and the places a Time Traveler jump can land in, are both read from the scene manifest — which is only written while images are on. With images off the game is text-only.
+
 - **A place has an address** — `kingdom → area → place path` (realm → settlement → district → spot → nested rooms, any depth), named once and reused exactly.
 - **Every place gets a hidden "seed"** — an empty, permanent establishing view, never shown to you.
 - **Moments are drawn from the seed, never the previous picture** — the action image reproduces the establishing view with you and the cast, so rooms never rearrange and figures can never duplicate. Only the time of day, the weather and the moment's own damage may differ; nothing absent from the seed is invented. Action images are served once and discarded; the seed is the only scene picture a save keeps.
@@ -105,7 +107,7 @@ Sheet icons are a **shared, cross-character library**, cached under `assets/{fam
 | Config | YAML |
 | World | Two modes: a fixed invented realm (`config/world.yml`) and a ladder of historical eras (`config/eras/`) |
 | Game Master models | Ollama Cloud, Google Gemini *(optional)* |
-| Images *(optional)* | Google Gemini image models, cached per save (portraits, icons, place seeds) |
+| Images *(recommended)* | Google Gemini image models, cached per save (portraits, icons, place seeds) |
 
 ---
 

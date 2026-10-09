@@ -20,10 +20,10 @@ sys.path.insert(0, str(REPO))
 import device as device_mod  # noqa: E402
 
 from web.engine import (  # noqa: E402
-    CADENCE_BANDS, CARRY_NOTE, DEVICE_FIRES, DEVICE_WARNING, WARNING_TURNS, GameSession,
-    load_legends, load_timeline,
+    CADENCE_BANDS, CARRY_NOTE, DEVICE_FIRES, DEVICE_WARNING, LEGEND_ASK, WARNING_TURNS,
+    GameSession, load_legends, load_timeline,
 )
-from web.eras import era_legend, render_era_index  # noqa: E402
+from web.eras import era_arrivals, render_era_index  # noqa: E402
 
 RESULTS = []
 
@@ -72,7 +72,14 @@ def _session(seed=7, era="egypt"):
     gs.messages.append({"role": "system", "content": "places"})
     gs._primed = []
     gs.arrival = "the Giza quarry, on the Nile"
+    gs._pending_legend = ""
     _stub_turns(gs)
+
+    async def _no_legend():
+        return None
+
+    # The memory line is the GM's; tests that want one set `_pending_legend` directly.
+    gs._ensure_legend = _no_legend
     return gs
 
 
@@ -459,6 +466,119 @@ def main():
     asyncio.run(gone._sync_device_after_inventory('{"key": "inventory"}'))
     rec("taking the Device cancels the countdown",
         gone._jump_at_turn is None and not gone.has_device)
+
+    # -- a jump lands in a place already visited in the target era --------------
+    base = Path(tempfile.mkdtemp())
+    stem = "trav"
+    scenes = base / "output" / "images" / stem / "scenes"
+    scenes.mkdir(parents=True)
+    (scenes / "manifest.json").write_text(json.dumps({
+        "version": 8,
+        "seeds": {
+            "egypt|wharf": {"era": "egypt", "kingdom": "Egypt", "area": "Memphis",
+                            "place": ["Ropehaven Wharf", "Warehouse Nine"],
+                            "used": 1, "created": 1},
+            "egypt|stone": {"era": "egypt", "kingdom": "Egypt", "area": "Thebes",
+                            "place": ["Stone Row"], "used": 2, "created": 1},
+            "tang|market": {"era": "tang", "kingdom": "Tang", "area": "Chang'an",
+                            "place": ["West Market"], "used": 3, "created": 1},
+        },
+    }), encoding="utf-8")
+
+    landed = GameSession(base_dir=base, model="test")
+    landed.active_name = stem
+    landed._rng = random.Random(1)
+    visited = {"Ropehaven Wharf, in Memphis", "Stone Row, in Thebes"}
+    static = set(era_arrivals("egypt"))
+    got = {landed._pick_jump_arrival("egypt") for _ in range(80)}
+    rec("a jump may land in a visited place or one of the era's destinations",
+        bool(got) and got <= (visited | static), str(sorted(got)))
+    rec("... both sources are in play",
+        bool(got & visited) and bool(got & static), str(sorted(got)))
+    rec("... a visited place names the district, not the deepest room",
+        "Warehouse Nine" not in " ".join(got), str(got))
+    rec("... and never a place from another era",
+        "West Market, in Chang'an" not in got, str(got))
+    rec("an era with no visited places draws from its static destinations",
+        landed._pick_jump_arrival("wallachia") in era_arrivals("wallachia"),
+        landed._pick_jump_arrival("wallachia"))
+
+    # A reload must keep a visited-place arrival (it is not in the static list).
+    from web.engine import _player_arrival  # noqa: E402
+    player_path = base / "output" / (stem + ".player")
+    player_path.write_text(json.dumps({"arrival": "Ropehaven Wharf, in Memphis"}),
+                           encoding="utf-8")
+    rec("a reload honours a visited-place arrival",
+        _player_arrival(str(player_path), "egypt") == "Ropehaven Wharf, in Memphis")
+    player_path.write_text(json.dumps({"arrival": "somewhere else entirely"}),
+                           encoding="utf-8")
+    rec("... while an arrival that is not a known place is re-rolled",
+        _player_arrival(str(player_path), "egypt") in era_arrivals("egypt"))
+
+    # -- the legend is the GM's; the template is only a fallback -----------------
+    from web.engine import _extract_legend  # noqa: E402
+
+    got, cleaned = _extract_legend(
+        "The age closes. {{_REMEMBERS: London remembers a person who was not there the next morning.}}")
+    rec("the memory marker is pulled out and the prose is cleaned",
+        got == "London remembers a person who was not there the next morning."
+        and "REMEMBERS" not in cleaned and cleaned.startswith("The age closes."),
+        f"{got!r} / {cleaned!r}")
+    rec("an echoed placeholder is rejected",
+        _extract_legend("{{_REMEMBERS: <one sentence -- what this age will remember>}}")[0] == "")
+    rec("a too-short memory line is rejected",
+        _extract_legend("{{_REMEMBERS: short.}}")[0] == "")
+    rec("prose without a marker is untouched",
+        _extract_legend("Just prose.") == ("", "Just prose."))
+
+    # The warning turn asks for the line.
+    want = _session()
+    want._jump_at_turn = want.turn_counter + 2
+    want.turn_counter += 1
+    asyncio.run(want._check_cadence())
+    rec("the closing turn asks the GM for the memory line",
+        any(m.get("content") == LEGEND_ASK for m in want.messages))
+
+    # `_jump` prefers the GM's line and clears it.
+    prefers = _session()
+    prefers._pending_legend = "Chang'an remembers a foreigner who was not there the next morning."
+    asyncio.run(prefers._jump())
+    rec("the GM's memory line wins over the template",
+        load_legends(prefers.timeline_path).get("egypt", "").startswith("Chang'an remembers"),
+        str(load_legends(prefers.timeline_path)))
+    rec("... and is cleared once the jump has used it", prefers._pending_legend == "")
+
+    # Missing line: one quiet round is forced.
+    forced = _session()
+    forced_calls = []
+
+    async def _record_legend():
+        forced_calls.append(True)
+        forced._pending_legend = "Egypt remembers a stranger who crossed it and vanished."
+
+    forced._ensure_legend = _record_legend
+    asyncio.run(forced._jump())
+    rec("a missing memory line forces one quiet round",
+        forced_calls == [True]
+        and "crossed it" in load_legends(forced.timeline_path).get("egypt", ""))
+
+    # A player-driven jump runs a closing turn first.
+    closing = _session(era="tang")
+    closing.parts_recovered = 3
+    order = []
+
+    async def _stub_jump(to_era=None):
+        order.append(("jump", to_era))
+
+    async def _record_turn(content, label):
+        order.append(("turn", label, content))
+
+    closing._jump = _stub_jump
+    closing._run_turn = _record_turn
+    asyncio.run(closing._close_and_jump("egypt"))
+    rec("a player-driven jump gets a closing turn, then the jump",
+        len(order) == 2 and order[0][0] == "turn" and order[0][1] == "closing"
+        and "{{_REMEMBERS:" in order[0][2] and order[1] == ("jump", "egypt"), str(order))
 
     return all(RESULTS)
 

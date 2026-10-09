@@ -12,7 +12,20 @@ meta:
     - a fogbound London street
     - a railway platform in the smoke
     - the steps of a dock warehouse
-  legend: London remembers a person who walked into {arrival}, and out of the world.
+    - a Lancashire mill town
+    - the Manchester cotton exchange
+    - the Liverpool landing stage
+    - a Glasgow shipyard on the Clyde
+    - the Edinburgh Old Town
+    - a Cornish tin mine
+    - a Yorkshire colliery
+    - a seaside pier, out of season
+    - the Great Exhibition, under glass
+    - the Thames embankment
+    - a Welsh slate quarry
+    - a Highland glen after the Clearances
+    - the Dublin quays
+  legend: London remembers a person seen at {arrival}, and out of the world.
   playable: true
   part: the Regulator
 

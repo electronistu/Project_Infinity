@@ -256,21 +256,21 @@ def era_reputation_seed(era_id: str) -> dict:
     return {era_id: seed}
 
 
-def era_legend(era_id: str, arrival: str = "", turns: int = 0) -> str:
-    """One or two lines: what this era remembers about the Traveller.
+def era_legend(era_id: str, arrival: str = "") -> str:
+    """The fallback one-liner for what this era remembers about the Traveller.
 
-    Authored per era in `meta.legend` with `{arrival}` / `{turns}` slots -- never in the
-    prompt, because `meta` is not rendered in the ERA INDEX. The legend IS the era-switch
-    compaction output, so the thing that saves tokens is the thing the
-    fiction is made of.
+    Authored per era in `meta.legend` with an `{arrival}` slot -- never in the prompt,
+    because `meta` is not rendered in the ERA INDEX. The Game Master writes its own line
+    on the closing turn now; this template is only the last-resort fallback when it does
+    not. The legend IS the era-switch compaction output, so the thing that saves tokens is
+    the thing the fiction is made of.
     """
     meta = load_era(era_id)["meta"]
     name = str(meta.get("name") or era_id)
     template = " ".join(str(meta.get("legend") or "").split())
     if not template:
         return f"{name} remembers: a stranger who was not there when they looked again."
-    line = template.replace("{arrival}", arrival or "a place no one thought to note")
-    return line.replace("{turns}", str(max(1, int(turns or 0))))
+    return template.replace("{arrival}", arrival or "a place no one thought to note")
 
 
 def validate_era(era: dict, stem: Optional[str] = None) -> list[str]:
@@ -294,8 +294,15 @@ def validate_era(era: dict, stem: Optional[str] = None) -> list[str]:
     arrivals = meta.get("arrivals") or []
     if not isinstance(arrivals, list) or not all(isinstance(a, str) and a.strip() for a in arrivals):
         problems.append("meta.arrivals must be a list of non-empty strings")
-    elif meta.get("playable") and len(arrivals) < 2:
-        problems.append("meta.arrivals needs at least 2 entries when playable")
+    else:
+        # The chosen arrival is injected verbatim into the prompt and the fallback legend, so
+        # keep it a short phrase -- a sentence-length entry would cost tokens and read badly.
+        for entry in arrivals:
+            text = str(entry).strip()
+            if not (3 <= len(text) <= 60):
+                problems.append(f"meta.arrivals entries must be 3-60 characters: {text!r}")
+        if meta.get("playable") and len(arrivals) < 2:
+            problems.append("meta.arrivals needs at least 2 entries when playable")
     part = meta.get("part")
     if part is not None and not (isinstance(part, str) and part.strip()):
         problems.append("meta.part must be a string or null")

@@ -41,7 +41,8 @@ from .tool_schema import compact_schema  # noqa: E402
 from forge.world import render_world_text  # noqa: E402
 import device  # noqa: E402  # the Device (Text Time Traveler): vocabulary, cadence, control
 from web.eras import (  # noqa: E402
-    START_ERA, era_ids, era_legend, playable_eras, render_era_index, render_era_text,
+    START_ERA, era_arrivals, era_ids, era_legend, pick_arrival, playable_eras,
+    render_era_index, render_era_text,
 )
 from .ollama_stream import stream_chat  # noqa: E402
 from .stats import build_stats  # noqa: E402
@@ -375,27 +376,65 @@ def _player_era(player_path: str) -> str:
     return value if value in era_ids() else START_ERA
 
 
-def _player_arrival(player_path: str, era: str) -> str:
-    """The saved arrival point in `era`, or a fresh random one.
+def _arrival_candidates(places) -> list[str]:
+    """Arrival phrases for a set of seeded places: the first place entry, in its settlement.
 
-    The Device has no Compass Rose, so an arrival is never a stable fact: a
-    saved one is honoured (a reload lands you where you were), anything else is
-    drawn again.
+    The deepest entry (a room) reads oddly as an arrival, so the district/neighbourhood
+    stands for the place, qualified by the settlement it sits in.
+    """
+    out: list[str] = []
+    seen: set[str] = set()
+    for p in places or []:
+        place = [str(s).strip() for s in (p.get("place") or []) if str(s or "").strip()]
+        area = str(p.get("area") or "").strip()
+        if place and area:
+            phrase = f"{place[0]}, in {area}"
+        elif place:
+            phrase = place[0]
+        elif area:
+            phrase = area
+        else:
+            continue
+        key = phrase.lower()
+        if key not in seen:
+            seen.add(key)
+            out.append(phrase)
+    return out
+
+
+def _visited_arrival_candidates(player_path: str, era: str) -> list[str]:
+    """The arrival phrases for the places a save has already seen in an era (disk only)."""
+    try:
+        stem = os.path.splitext(os.path.basename(player_path))[0]
+        output_dir = os.path.dirname(player_path) or "."
+        return _arrival_candidates(known_scene_places(output_dir, stem, era))
+    except Exception:  # noqa: BLE001 - never fail a session over an arrival point
+        return []
+
+
+def _player_arrival(player_path: str, era: str) -> str:
+    """The saved arrival point in `era`, or a fresh one.
+
+    A visited-place arrival is engine-written and is not in the era's static list, so it
+    has to be validated against the places the save has actually seen too -- otherwise a
+    reload would discard it and re-roll a static phrase.
     """
     try:
         from web.eras import era_arrivals, pick_arrival
 
         options = era_arrivals(era)
     except Exception:  # noqa: BLE001 - never fail a session over the arrival point
-        return ""
-    if not options:
-        return ""
+        options = []
     try:
         with open(player_path, "r", encoding="utf-8") as f:
             value = str((json.load(f) or {}).get("arrival", "") or "").strip()
     except (OSError, ValueError, TypeError):
         value = ""
-    return value if value in options else pick_arrival(era)
+    if value and (value in options or value in _visited_arrival_candidates(player_path, era)):
+        return value
+    if options:
+        return pick_arrival(era)
+    return value
 
 
 def _split_journey(value) -> list[str]:
@@ -421,6 +460,28 @@ WARNING_TURNS = 1
 DEVICE_WARNING = (
     "The Device is ticking. This is the last turn of this age: bring it to a close now, "
     "because the jump comes next. Nobody else can hear it."
+)
+
+# Asked on the closing turn: the Game Master writes what the age will remember, in a marker
+# the client hides and the engine reads. This is the era-switch compaction output -- the
+# config template in `era_legend` is only the fallback when the GM does not answer.
+LEGEND_ASK = (
+    "Close this age. End the narrative of THIS turn with "
+    "{{_REMEMBERS: <one sentence -- what this age will remember about the Traveller>}} and "
+    "nothing after it."
+)
+
+# A player-driven jump has no warning turn, so the engine runs one closing turn first.
+DEVICE_CLOSES = (
+    "The Traveller turns the Device toward {name}. Narrate the last moment of this age -- "
+    "the world letting go -- and end with {{{{_REMEMBERS: <one sentence -- what this age "
+    "will remember about the Traveller>}}}} and nothing after it."
+)
+
+LEGEND_RECOVERY_NUDGE = (
+    "SYSTEM: this age's memory line is missing. Reply with ONLY the marker "
+    "{{_REMEMBERS: <one sentence -- what this age will remember about the Traveller>}} -- "
+    "no prose, no tool calls, nothing else."
 )
 
 DEVICE_FIRES = (
@@ -550,6 +611,31 @@ def _clean_pause_tokens(text: str) -> str:
     return text.strip()
 
 
+# The GM's era memory, written on the closing turn: `{{_REMEMBERS: <one sentence>}}`. The
+# client hides it while streaming; the engine keeps only the sentence.
+_REMEMBERS_RE = re.compile(r"\{\{_REMEMBERS:\s*(.*?)\s*\}\}", re.DOTALL)
+
+
+def _extract_legend(text: str) -> tuple[str, str]:
+    """Pull the `{{_REMEMBERS: ...}}` marker out of an assistant message.
+
+    Returns ``(legend, cleaned_text)``. A legend that merely echoes the placeholder, or is
+    absurdly short or long, is rejected -- the template fallback is better than a broken
+    memory line. A message without the marker is returned untouched.
+    """
+    raw = text or ""
+    match = _REMEMBERS_RE.search(raw)
+    if not match:
+        return "", raw
+    legend = " ".join(match.group(1).split())
+    cleaned = _REMEMBERS_RE.sub("", raw).strip()
+    if "<one sentence" in legend.lower() or legend.startswith("<") or "<" in legend:
+        return "", cleaned
+    if not (15 <= len(legend) <= 220):
+        return "", cleaned
+    return legend, cleaned
+
+
 class GameSession:
     """One in-memory, long-lived game session (single user, local server)."""
 
@@ -631,6 +717,9 @@ class GameSession:
         self.journey: list[str] = []
         # One adjustment per jump (wait +2 or hasten -2); reset when the jump fires.
         self._adjusted_jump = False
+        # The GM's memory line for the age it is leaving, captured from `{{_REMEMBERS: ...}}`
+        # on the closing turn; `_jump` prefers it over the config template and clears it.
+        self._pending_legend: str = ""
         # Injected in tests so the "random" era and band are reproducible.
         self._rng = random.Random()
         self._jump_at_turn: int | None = None
@@ -1008,7 +1097,7 @@ class GameSession:
         if not era or era == self.era:
             await self._device_refuse()
             return
-        await self._jump(to_era=era)
+        await self._close_and_jump(era)
 
     async def _device_refuse(self) -> None:
         await self._emit({"type": "notice", "title": "The Device",
@@ -1118,6 +1207,28 @@ class GameSession:
         options = [e for e in playable_eras() if e != self.era]
         return self._rng.choice(options) if options else self.era
 
+    def _pick_jump_arrival(self, era: str) -> str:
+        """Where a jump lands: an important place of the era, or one already visited.
+
+        The static destinations are the era's authored map (cities, landmarks, regions); the
+        visited places come from the save's scene manifest on disk. Both are candidates on
+        every jump -- the list never enters the prompt, so a larger pool costs nothing.
+        """
+        try:
+            places = known_scene_places(self.base_dir / OUTPUT_DIR, self.active_name or "", era)
+        except Exception:  # noqa: BLE001 - never fail a jump over the arrival point
+            places = []
+        candidates: list[str] = []
+        seen: set[str] = set()
+        for phrase in _arrival_candidates(places) + era_arrivals(era):
+            key = phrase.lower()
+            if key and key not in seen:
+                seen.add(key)
+                candidates.append(phrase)
+        if candidates:
+            return self._rng.choice(candidates)
+        return pick_arrival(era, rng=self._rng)
+
     def _reload_era_scene_state(self) -> None:
         """Re-read the places, cast and roles for the era the Traveller is now in."""
         try:
@@ -1159,19 +1270,23 @@ class GameSession:
         if battle:
             self._jump_at_turn += 1
             # The jump just moved out, so the "last turn of this age" the GM already holds may
-            # no longer be the last turn. Re-arm it and let the check below decide.
+            # no longer be the last turn. Re-arm it and let the check below decide -- and drop
+            # any memory line already written, because the age is still going.
             self._warned = False
+            self._pending_legend = ""
         remaining = self._jump_at_turn - self.turn_counter
         if remaining > 0:
             if remaining == WARNING_TURNS and not self._warned:
                 self._warned = True
                 # The GM hears it BEFORE the jump turn, so the age can be closed properly. A
                 # re-warning REPLACES the earlier one: that text claimed this was the last turn
-                # and the fight since made it false, so history holds exactly one claim.
+                # and the fight since made it false, so history holds exactly one claim. The
+                # memory ask rides the same turn.
                 self.messages = [m for m in self.messages
                                  if not (isinstance(m, dict)
-                                         and m.get("content") == DEVICE_WARNING)]
+                                         and m.get("content") in (DEVICE_WARNING, LEGEND_ASK))]
                 self.messages.append({"role": "system", "content": DEVICE_WARNING})
+                self.messages.append({"role": "system", "content": LEGEND_ASK})
                 await self._emit({"type": "notice", "title": "The Device", "text": DEVICE_WARNING})
             return
         if battle:
@@ -1212,12 +1327,33 @@ class GameSession:
             head.append({"role": "system", "content": memory})
         self.messages = head
 
+    async def _ensure_legend(self) -> None:
+        """Force the age's memory line with one quiet round (never shown as player prose)."""
+        if self._pending_legend:
+            return
+        await self._run_role(LEGEND_RECOVERY_NUDGE, "legend-fix", quiet=True)
+
+    async def _close_and_jump(self, era: str) -> None:
+        """A player-driven jump: one closing turn first, so the GM can say what the age keeps.
+
+        An automatic jump is warned ahead and the memory line rides its last turn; a jump the
+        Traveller triggers has no such turn, so the engine manufactures one.
+        """
+        await self._run_turn(DEVICE_CLOSES.format(name=device.era_label(era)), "closing")
+        await self._jump(to_era=era)
+
     async def _jump(self, to_era: str | None = None) -> None:
         """The Device fires: a new era, a rolled arrival, and the age left behind as one
         line. Whatever an era sees, it remembers. `to_era` is the player's chosen
         destination (a recovered part); without it the Device does not aim."""
         old = self.era
-        legend = era_legend(old, self.arrival, self.turn_counter - self._era_started_turn)
+        # The memory line is the compaction output, so it has to be known BEFORE the era is
+        # thrown away: the GM wrote it on the closing turn, and one quiet round forces a line
+        # if it did not. The config template is the last resort.
+        if not self.classic and not self._pending_legend:
+            await self._ensure_legend()
+        legend = self._pending_legend or era_legend(old, self.arrival)
+        self._pending_legend = ""
         # An era's memory of you is fixed the first time it sees you vanish; a return does
         # not rewrite it (and the era noticing your return is a story for later).
         self._legends.setdefault(old, legend)
@@ -1228,7 +1364,7 @@ class GameSession:
                 pass
         chosen = str(to_era or "").strip().lower()
         self.era = chosen if chosen in self._all_other_eras() else self._pick_era()
-        self.arrival = _player_arrival(self.player_path or "", self.era)
+        self.arrival = self._pick_jump_arrival(self.era)
         self._reload_era_scene_state()
         self._compact(old)
         self._era_started_turn = self.turn_counter
@@ -1453,6 +1589,11 @@ class GameSession:
 
         content = "".join(content_parts)
         thinking = "".join(thinking_parts)
+        # The closing turn's memory line rides the prose in a hidden marker; never let it
+        # reach the client or the stored history as text.
+        legend, content = _extract_legend(content)
+        if legend:
+            self._pending_legend = legend
         if not quiet and _clean_pause_tokens(content):
             # A narrative has reached the player this turn; never ask for it again. This must
             # test the CLEANED text: the pause token is emitted as *content*, so a bare

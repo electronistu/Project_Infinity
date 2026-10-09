@@ -93,6 +93,9 @@ def main():
     rec("every playable era offers >= 2 arrival points",
         all(len(eras.era_arrivals(e)) >= 2 for e in eras.playable_eras()),
         str({e: len(eras.era_arrivals(e)) for e in eras.playable_eras()}))
+    rec("every playable era offers a real spread of destinations (>= 8)",
+        all(len(eras.era_arrivals(e)) >= 8 for e in eras.playable_eras()),
+        str({e: len(eras.era_arrivals(e)) for e in eras.playable_eras()}))
     picks = {eras.pick_arrival("egypt", random.Random(n)) for n in range(20)}
     rec("pick_arrival draws from the era's own list",
         bool(picks) and picks <= set(eras.era_arrivals("egypt")), str(sorted(picks)))

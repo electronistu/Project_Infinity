@@ -57,7 +57,10 @@ function stripTokens(s) {
   return String(s)
     .replace(/\{\{_NEED_AN_OTHER_PROMPT\}\}/g, "")
     .replace(/\{\{_NEED_ANOTHER_PROMPT\}\}/g, "")
-    .replace(/\{\{_CONTINUE_EXECUTION\}\}/g, "");
+    .replace(/\{\{_CONTINUE_EXECUTION\}\}/g, "")
+    // The GM's era memory line (hidden while streaming and in the final render).
+    .replace(/\{\{_REMEMBERS:[\s\S]*?\}\}/g, "")
+    .replace(/\{\{_REMEMBERS:[\s\S]*$/g, "");
 }
 
 function fmtNum(n) { return Number(n || 0).toLocaleString(); }
