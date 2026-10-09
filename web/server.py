@@ -655,7 +655,7 @@ async def ws_endpoint(websocket: WebSocket, sid: str):
                 await session.submit_save()
             elif mtype == "device":
                 await session.submit_device(msg.get("action", ""), msg.get("era", ""),
-                                            msg.get("direction", ""))
+                                            msg.get("direction", ""), msg.get("delta"))
             elif mtype == "stats":
                 await session.submit_slash("/stats")
             elif mtype == "flags":

@@ -781,9 +781,10 @@ class GameSession:
     async def submit_save(self) -> None:
         await self._cmd_q.put({"type": "save"})
 
-    async def submit_device(self, action: str, era: str = "", direction: str = "") -> None:
+    async def submit_device(self, action: str, era: str = "", direction: str = "",
+                            delta=None) -> None:
         await self._cmd_q.put({"type": "device", "action": action,
-                               "era": era, "direction": direction})
+                               "era": era, "direction": direction, "delta": delta})
 
     async def resume(self) -> None:
         await self._cmd_q.put({"type": "resume"})

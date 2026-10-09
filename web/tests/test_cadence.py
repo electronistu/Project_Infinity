@@ -357,6 +357,38 @@ def main():
     rec("wait and hasten are the same once-per-jump ability",
         shared._jump_at_turn == after_hasten, str(shared._jump_at_turn))
 
+    # The WebSocket path: the button sends `delta`, and submit_device must carry it into
+    # the command queue (a dropped delta surfaced as "invalid Device adjustment: 0").
+    wire = _session(era="tang")
+    wire.parts_recovered = 1
+    wire._jump_at_turn = wire.turn_counter + 5
+    before = wire._jump_at_turn
+    asyncio.run(wire.submit_device("adjust", delta=2))
+    cmd = wire._cmd_q.get_nowait()
+    rec("submit_device carries the button's delta into the command queue",
+        cmd.get("delta") == 2, str(cmd))
+    asyncio.run(wire._handle_device_command(cmd))
+    wire_evts = []
+    while not wire._evt_q.empty():
+        wire_evts.append(wire._evt_q.get_nowait())
+    rec("wait +2 over the wire moves the countdown -- no 'invalid adjustment'",
+        wire._jump_at_turn == before + 2
+        and not any(e.get("type") == "error" for e in wire_evts),
+        f"{wire._jump_at_turn} {wire_evts}")
+
+    hurry = _session(era="tang")
+    hurry.parts_recovered = 1
+    hurry._jump_at_turn = hurry.turn_counter + 3
+    asyncio.run(hurry.submit_device("adjust", delta=-2))
+    asyncio.run(hurry._handle_device_command(hurry._cmd_q.get_nowait()))
+    hurry_evts = []
+    while not hurry._evt_q.empty():
+        hurry_evts.append(hurry._evt_q.get_nowait())
+    rec("hasten -2 over the wire pulls the countdown in -- no 'invalid adjustment'",
+        hurry._jump_at_turn == hurry.turn_counter + 1
+        and not any(e.get("type") == "error" for e in hurry_evts),
+        f"{hurry._jump_at_turn} {hurry_evts}")
+
     # The state the panel reads: wait always offered; hasten only at 3+ turns.
     panel = _session(era="tang")
     panel.parts_recovered = 1
