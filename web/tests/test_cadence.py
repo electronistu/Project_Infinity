@@ -239,29 +239,36 @@ def main():
         str(parked._cadence_state()))
 
     # -- a turn spent fighting is not a turn the Device counts (D34) ----------
-    # `COMBAT_TOOLS` running during a turn sets the flag; the turn is consumed at the end
-    # of it, and the jump is pushed one turn further out instead of ticking.
+    # `_in_combat` is sticky (derived from the combat registry, not a single turn), so the
+    # counter holds for the whole fight -- including turns that only narrate -- and ticks
+    # again on the first ordinary turn after it ends.
     fight = _session()
 
     async def fought():
-        fight._battle_turn = True  # as if resolve_attack had run this turn
+        fight._in_combat = True                # a hostile is registered
         fight.turn_counter += 1
         await fight._check_cadence()
         held = fight._cadence_state()["turns_until"]
-        fight.turn_counter += 1  # the next turn is an ordinary one
+        fight.turn_counter += 1                # a second fight turn (no combat tool needed)
         await fight._check_cadence()
-        return held, fight._cadence_state()["turns_until"]
+        held_again = fight._cadence_state()["turns_until"]
+        fight._in_combat = False               # the last hostile is down
+        fight.turn_counter += 1                # the first ordinary turn
+        await fight._check_cadence()
+        return held, held_again, fight._cadence_state()["turns_until"]
 
-    held, after = asyncio.run(fought())
+    held, held_again, after = asyncio.run(fought())
     rec("a battle turn does not tick the Device -- the counter holds", held == 5, str(held))
-    rec("... and the next ordinary turn ticks it again", after == 4, str(after))
-    rec("the flag is one turn's worth and is cleared", fight._battle_turn is False)
+    rec("... and the flag is sticky, so a second fight turn holds too",
+        held_again == 5, str(held_again))
+    rec("... and the first ordinary turn after the fight ticks it again",
+        after == 4, str(after))
 
     due = _session()
 
     async def due_during_a_fight():
         due._jump_at_turn = due.turn_counter + 1  # the jump is due on this very turn
-        due._battle_turn = True
+        due._in_combat = True
         due.turn_counter += 1
         await due._check_cadence()
         return due.era
@@ -280,13 +287,14 @@ def main():
         for _ in range(4):
             await _player_turn(rearm)          # turn 4 ends at remaining == 1: warned
         era0 = rearm.era
-        rearm._battle_turn = True              # as if resolve_attack had run this turn
-        await _player_turn(rearm)              # turn 5: a fight defers the jump
+        rearm._in_combat = True                # a fight starts on the warned turn
+        await _player_turn(rearm)              # turn 5: the fight defers the jump
         at_rest = {"jump": rearm._jump_at_turn, "turn": rearm.turn_counter,
                    "warned": rearm._warned, "era": rearm.era,
                    "warnings": sum(1 for m in rearm.messages
                                    if isinstance(m, dict)
                                    and m.get("content") == DEVICE_WARNING)}
+        rearm._in_combat = False               # the fight is over
         await _player_turn(rearm)              # turn 6: the jump
         return era0, at_rest, rearm.era
 

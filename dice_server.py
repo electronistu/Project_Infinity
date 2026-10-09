@@ -725,14 +725,23 @@ def _validate_item_add(name: str, declared: dict, weight) -> dict | None:
 
 
 def _in_active_combat() -> bool:
-    """True while the combat registry holds a living non-player combatant.
+    """True while the combat registry holds a living, hostile, active non-player.
 
     Donning or doffing armour takes minutes, so it cannot happen mid-fight; shields take one
-    action and are always allowed. A registry whose enemies are all dead no longer counts.
+    action and are always allowed. Combat is over when the last hostile has dropped to 0 HP
+    (``killed``), or fled or surrendered (an explicit ``status``). Allies and neutrals never
+    keep a fight alive.
     """
     for entry in (_COMBAT_REGISTRY or {}).values():
-        if isinstance(entry, dict) and not entry.get("is_player") and not entry.get("killed"):
-            return True
+        if not isinstance(entry, dict) or entry.get("is_player"):
+            continue
+        if str(entry.get("role") or "hostile").strip().lower() != "hostile":
+            continue
+        if entry.get("killed"):
+            continue
+        if str(entry.get("status") or "active").strip().lower() != "active":
+            continue
+        return True
     return False
 
 
@@ -3902,6 +3911,7 @@ def _normalize_combatant(c, add_to_existing=False) -> dict:
         "initiative_total": 0,
         "is_player": False,
         "killed": False,
+        "status": "active",
     }
     return normalized
 
@@ -3957,6 +3967,7 @@ def _player_registry_entry(cursor) -> dict:
         "initiative_total": 0,
         "is_player": True,
         "killed": False,
+        "status": "active",
     }
 
 
@@ -4012,6 +4023,9 @@ def _combatant_sheet_lines(name, entry) -> list[str]:
         lines.append("  Conditions: " + ", ".join(str(c) for c in entry["conditions"]))
     if int(entry.get("exhaustion") or 0) > 0:
         lines.append(f"  Exhaustion: {int(entry['exhaustion'])}")
+    status = str(entry.get("status") or "active").strip().lower()
+    if status != "active":
+        lines.append(f"  Status: {status}")
     return lines
 
 
@@ -4026,6 +4040,8 @@ def _registry_summary_list() -> list[dict]:
             "initiative": entry["initiative_total"],
             "is_player": entry.get("is_player", False),
             "role": entry.get("role", "hostile"),
+            "killed": bool(entry.get("killed", False)),
+            "status": str(entry.get("status") or "active"),
         }
         if entry.get("speed") is not None:
             summary["speed"] = entry["speed"]
@@ -4144,7 +4160,8 @@ def register_combatants(combatants: list[dict], add_to_existing: bool = False) -
 def update_combatant(name: str, conditions_add: list[str] | None = None,
                      conditions_remove: list[str] | None = None,
                      hp_delta: int | None = None, max_hp: int | None = None,
-                     ac: int | None = None, exhaustion_delta: int | None = None) -> dict:
+                     ac: int | None = None, exhaustion_delta: int | None = None,
+                     status: str | None = None) -> dict:
     """Change a registered combatant mid-fight: conditions, exhaustion, and (NPC) HP/defence.
 
     WHEN: a condition the fiction causes (a shove -> prone), a condition ends, a correction is needed, or an NPC's HP/AC changes.
@@ -4153,6 +4170,7 @@ def update_combatant(name: str, conditions_add: list[str] | None = None,
     - conditions_add / conditions_remove: adding an immune condition is refused (in 'blocked_conditions'); a condition a TOOL already applied returns 'already_present' and changes nothing.
     - exhaustion_delta: add/remove exhaustion levels 0-6 (player: updates the sheet and re-derives max HP; NPC: updates the registry entry).
     - hp_delta: (NPCs only) signed, clamped to [0, max_hp], sets 'killed' at 0. max_hp / ac: (NPCs only) correct the declared values.
+    - status: (NPCs only) 'active' | 'fled' | 'surrendered' -- a hostile that leaves the fight stops counting as in combat; 'active' returns it.
 
     RULES:
     - Conditions drive the engine automatically (advantage/disadvantage, auto-failed saves, melee crits vs helpless, petrified resists all damage).
@@ -4169,6 +4187,11 @@ def update_combatant(name: str, conditions_add: list[str] | None = None,
                 "reason": f"'{name}' is not in the combat registry.",
                 "combatants": list(_COMBAT_REGISTRY)}
     is_player = bool(entry.get("is_player"))
+    new_status = None if status is None else str(status).strip().lower()
+    if new_status is not None and new_status not in ("active", "fled", "surrendered"):
+        return {"success": False, "error": "invalid_status", "name": name,
+                "reason": f"status must be 'active', 'fled' or 'surrendered', not '{status}'.",
+                "narrative_format": f"{name}: refused — '{status}' is not a combat status."}
     notes = []
     blocked = []
     already_present = []
@@ -4239,6 +4262,19 @@ def update_combatant(name: str, conditions_add: list[str] | None = None,
                 elif int(hp_delta) > 0:
                     entry["killed"] = False
 
+    # `status` is the explicit out-of-combat mark for a hostile that fled or surrendered.
+    status_note = None
+    if new_status is not None:
+        if is_player:
+            notes.append("Player status is not tracked — conditions and HP live on the sheet.")
+        else:
+            old_status = str(entry.get("status") or "active").strip().lower()
+            entry["status"] = new_status
+            if new_status != old_status:
+                status_note = {"active": "back in the fight",
+                               "fled": "fled the fight",
+                               "surrendered": "surrendered"}[new_status]
+
     # Vitals appear only when this call actually changed them; otherwise the client tooltip
     # carries the live HP/AC. The player's AC is never shown here (ac= is ignored for the player).
     bits = []
@@ -4247,6 +4283,8 @@ def update_combatant(name: str, conditions_add: list[str] | None = None,
     if ac is not None and not is_player:
         bits.append(f"AC {entry['ac']}")
     narrative = f"{name}: {', '.join(bits)}" if bits else name
+    if status_note:
+        narrative += f" — {status_note}"
     if current:
         narrative += f" — {', '.join(current)}"
     if blocked:
@@ -4257,6 +4295,7 @@ def update_combatant(name: str, conditions_add: list[str] | None = None,
         "success": True, "name": name, "is_player": is_player,
         "hp": f"{entry['current_hp']}/{entry['max_hp']}", "ac": entry["ac"],
         "conditions": current, "exhaustion": int(entry.get("exhaustion") or 0),
+        "status": str(entry.get("status") or "active"),
         "blocked_conditions": blocked,
         "already_present": already_present,
         "note": " ".join(notes) or None,

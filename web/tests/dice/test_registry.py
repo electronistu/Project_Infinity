@@ -119,6 +119,67 @@ class RegistryTest(H.EngineCase):
         self.assertNotIn("Ogre HP:", hit["narrative_format"])
         self.assertEqual(hit["target_remaining_hp"], 48)  # JSON still carries it (tooltip)
 
+    # ── in combat: only a living, hostile, active non-player counts ──────────
+
+    def test_a_living_hostile_is_in_combat(self):
+        self._register(OGRE_ONLY, rolls=[10])
+        self.assertTrue(H.ds._in_active_combat())
+
+    def test_killing_the_last_hostile_ends_combat(self):
+        self._register(OGRE_ONLY, rolls=[10])
+        H.ds.update_combatant("Ogre", hp_delta=-99)
+        self.assertEqual(H.ds._registry_hp("Ogre"), 0)
+        self.assertFalse(H.ds._in_active_combat())
+
+    def test_status_fled_takes_a_hostile_out_of_combat(self):
+        self._register(OGRE_ONLY, rolls=[10])
+        r = H.ds.update_combatant("Ogre", status="fled")
+        self.assertTrue(r["success"])
+        self.assertEqual(r["status"], "fled")
+        self.assertIn("fled the fight", r["narrative_format"])
+        self.assertFalse(H.ds._in_active_combat())
+
+    def test_status_surrendered_and_back_to_active(self):
+        self._register(OGRE_ONLY, rolls=[10])
+        H.ds.update_combatant("Ogre", status="surrendered")
+        self.assertFalse(H.ds._in_active_combat())
+        r = H.ds.update_combatant("Ogre", status="active")
+        self.assertIn("back in the fight", r["narrative_format"])
+        self.assertTrue(H.ds._in_active_combat())
+
+    def test_invalid_status_is_refused_and_changes_nothing(self):
+        self._register(OGRE_ONLY, rolls=[10])
+        r = H.ds.update_combatant("Ogre", status="panicked")
+        self.assertFalse(r["success"])
+        self.assertEqual(r["error"], "invalid_status")
+        self.assertTrue(H.ds._in_active_combat())
+        self.assertEqual(H.ds._COMBAT_REGISTRY["Ogre"]["status"], "active")
+
+    def test_allies_and_neutrals_never_keep_combat_on(self):
+        with H.fixed_rolls([10, 11, 12]):
+            H.ds.register_combatants([
+                {"name": "Scout", "hp": 11, "ac": 13, "initiative_modifier": 1,
+                 "role": "ally"},
+                {"name": "Merchant", "hp": 9, "ac": 10, "initiative_modifier": 0,
+                 "role": "neutral"},
+            ])
+        self.assertFalse(H.ds._in_active_combat())
+
+    def test_registry_summary_carries_killed_and_status(self):
+        self._register(OGRE_ONLY, rolls=[10])
+        H.ds.update_combatant("Ogre", status="surrendered")
+        by = {e["name"]: e for e in H.ds._registry_summary_list()}
+        self.assertEqual(by["Ogre"]["status"], "surrendered")
+        self.assertFalse(by["Ogre"]["killed"])
+        self.assertEqual(by["Borin"]["status"], "active")
+
+    def test_player_status_is_not_tracked(self):
+        self._register(OGRE_ONLY, rolls=[10])
+        r = H.ds.update_combatant("Borin", status="fled")
+        self.assertTrue(r["success"])
+        self.assertIn("Player status is not tracked", r.get("note") or "")
+        self.assertTrue(H.ds._in_active_combat())  # the Ogre is still fighting
+
 
 if __name__ == "__main__":
     unittest.main()

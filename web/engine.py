@@ -702,6 +702,11 @@ class GameSession:
         self._combat_sheets: dict[str, list[str]] = {}
         self._combat_order: list[str] = []
         self._combat_initiative: dict[str, dict] = {}
+        # True while the registry holds a hostile, living, active non-player (derived from
+        # every combat tool's `registry_summary`). The Device does not count such turns, and
+        # a save is refused while it holds -- an unfinished fight would snapshot transient
+        # HP/conditions with no roster, and the timeline would not survive the reload.
+        self._in_combat = False
         # The engine-composed Mechanics block for the current turn: each tool result's
         # narrative_format, in call order, sent to the client as the `mechanics` event.
         self._mechanics_lines: list[str] = []
@@ -723,9 +728,6 @@ class GameSession:
         # Injected in tests so the "random" era and band are reproducible.
         self._rng = random.Random()
         self._jump_at_turn: int | None = None
-        # A turn in which a combat tool ran. The Device does not count those, so the jump
-        # is pushed one turn further out and the counter holds for the length of a fight.
-        self._battle_turn = False
         self._warned = False
         # Where the always-on era messages live, so a jump can rewrite them in place
         # instead of appending one index (and one tree) per age ever visited.
@@ -1164,6 +1166,7 @@ class GameSession:
         state.update({
             "total": total,
             "manual": manual,
+            "in_combat": self._in_combat,
             "abilities": abilities,
             "adjust": {
                 "turns": device.adjust_turns(),
@@ -1260,12 +1263,13 @@ class GameSession:
 
         A turn spent fighting is not a turn the Device counts: it pushes the jump one turn
         further out, so the counter holds for the length of a fight and the jump can never
-        interrupt one. The warning is then re-evaluated in this SAME call, because pushing the
+        interrupt one. `_in_combat` is sticky (a whole fight, not only the turns a combat tool
+        ran on), so a mid-fight turn that merely narrates still holds the clock. The warning is
+        then re-evaluated in this SAME call, because pushing the
         jump out makes the next turn the jump turn -- exactly the turn the warning has to
         precede. A fight landing on the warned turn used to leave the warning a turn stale.
         """
-        battle = self._battle_turn
-        self._battle_turn = False
+        battle = self._in_combat
         if self._jump_at_turn is None:
             return
         if battle:
@@ -1522,7 +1526,16 @@ class GameSession:
         Renaming was dropped when images arrived: portraits and scenes live in
         `output/images/{stem}/`, keyed to the world name, so a new stem would
         orphan them.
+
+        Refused mid-fight: the `.player` snapshot would capture transient HP/conditions with
+        no registry, while the timeline summary described an unfinished fight -- on reload the
+        two disagree and the fight cannot be resumed.
         """
+        if self._in_combat:
+            await self._emit({"type": "save_refused", "reason": "combat",
+                              "text": "You cannot save in the middle of a fight — the "
+                                      "timeline would not survive it."})
+            return
         await self._summarize_timeline(self.turn_counter)
         await self._save_to_active()
 
@@ -1821,12 +1834,12 @@ class GameSession:
             self._mechanics_lines.extend(mech)
             await self._emit({"type": "mechanics", "lines": list(self._mechanics_lines)})
         if name in COMBAT_TOOLS:
-            self._battle_turn = True
             roster = self._combat_roster_update(text)
             if roster is not None:
                 await self._emit({"type": "combat_roster", "combatants": roster,
                                   "order": list(self._combat_order),
-                                  "initiative": dict(self._combat_initiative)})
+                                  "initiative": dict(self._combat_initiative),
+                                  "in_combat": self._in_combat})
         if name == SCENE_TOOL and self.scene_images and warning is None and not self._scene_requested_turn:
             self._scene_requested_turn = True
             raw = args.get("place")
@@ -1913,6 +1926,16 @@ class GameSession:
                     if isinstance(lines, list):
                         self._combat_sheets[str(sheet["name"])] = [str(x) for x in lines]
         summary = payload.get("registry_summary")
+        if isinstance(summary, list):
+            # One hostile, living, active non-player keeps combat on. Derived here so the save
+            # gate and the Device cadence share the server's truth (`_in_active_combat`).
+            self._in_combat = any(
+                isinstance(e, dict)
+                and not e.get("is_player")
+                and str(e.get("role") or "hostile").strip().lower() == "hostile"
+                and not e.get("killed")
+                and str(e.get("status") or "active").strip().lower() == "active"
+                for e in summary)
         if not isinstance(summary, list) or not summary:
             return None
         init = payload.get("initiative")

@@ -35,6 +35,7 @@ const state = {
   sheetMode: "icons",                   // "icons" | "generate" | "text"
   lastStats: null,                      // last rendered sheet (for icon diffing)
   deviceControl: null,                  // latest cadence + control ladder from the engine
+  inCombat: false,                      // a fight is live: saving is refused (engine also gates)
   iconGenBusy: false,                   // one on-the-fly generation run at a time
   iconGenEpoch: 0,                      // bumped on session change to cancel a run
 };
@@ -1536,6 +1537,11 @@ function updateComposer() {
   sendBtn.disabled = !enabled;
   $("refresh-stats").disabled = !(state.connected && state.ready);
   $("end-session").disabled = !state.sessionId;
+  // No saving mid-fight: the engine refuses it too (an unfinished fight would put the
+  // .player snapshot and the timeline summary in disagreement on reload).
+  if ($("save-open")) $("save-open").disabled = !state.connected || !state.ready || state.inCombat;
+  if ($("save-confirm")) $("save-confirm").disabled = state.inCombat;
+  if ($("end-save")) $("end-save").disabled = state.inCombat;
 }
 
 function send(msg) {
@@ -1582,6 +1588,8 @@ function handleEvent(evt) {
       updateTurn();
       updateDevice(evt.cadence);
       state.deviceControl = evt.cadence || null;
+      state.inCombat = !!(evt.in_combat || (evt.cadence && evt.cadence.in_combat));
+      updateComposer();
       state.activeSaveName = (evt.world || "").replace(/\.player$/i, "");
       state.cur = null;
       updateSheetPortrait();
@@ -1648,6 +1656,7 @@ function handleEvent(evt) {
       state.combatRoster = Array.isArray(evt.combatants) ? evt.combatants : [];
       if (Array.isArray(evt.order)) state.combatOrder = evt.order.map(String);
       if (evt.initiative && typeof evt.initiative === "object") state.combatInitiative = evt.initiative;
+      if (typeof evt.in_combat === "boolean") { state.inCombat = evt.in_combat; updateComposer(); }
       break;
 
     case "mechanics":
@@ -1693,6 +1702,7 @@ function handleEvent(evt) {
 
     case "cadence":
       state.deviceControl = evt;
+      if (typeof evt.in_combat === "boolean") { state.inCombat = evt.in_combat; updateComposer(); }
       updateDevice(evt);
       renderDeviceCard();
       break;
@@ -1710,6 +1720,13 @@ function handleEvent(evt) {
       addSystem(`Saved to ${evt.save || (evt.name + ".player")}`);
       loadWorlds().catch(() => {});
       if (state.endAfterSave) { state.endAfterSave = false; finishEnd(); }
+      break;
+
+    case "save_refused":
+      addSystem(`Save: ${evt.text || "not now."}`);
+      // The engine refused (e.g. mid-fight) so no `saved` event is coming; never leave a
+      // "save & end" waiting on it. Reopen End so the player can end without saving or cancel.
+      if (state.endAfterSave) { state.endAfterSave = false; openEnd(); }
       break;
 
     case "busy":
@@ -2182,6 +2199,10 @@ async function regeneratePortrait() {
 
 function openSave() {
   if (!state.connected) { addError("Not connected to a session."); return; }
+  if (state.inCombat) {
+    addSystem("Save: you cannot save in the middle of a fight — the timeline would not survive it.");
+    return;
+  }
   // Save is in place: the world's own name owns its images, so it is never
   // renamed here (a new stem would orphan output/images/{stem}/).
   $("save-target").textContent = state.activeSaveName ? `${state.activeSaveName}.player` : "—";
@@ -2193,6 +2214,7 @@ function showSaveError(msg) { const el = $("save-error"); el.textContent = msg; 
 
 function confirmSave() {
   if (!state.connected) { showSaveError("Not connected."); return; }
+  if (state.inCombat) { showSaveError("You cannot save in the middle of a fight."); return; }
   send({ type: "save" });
   closeSave();
 }
@@ -2309,6 +2331,7 @@ function resetToHome() {
   state.endAfterSave = false;
   state.lastStats = null;      // never generate icons for a closed character
   state.combatRoster = [];     // never tooltip a closed fight
+  state.inCombat = false;
   state.combatOrder = [];
   state.combatInitiative = {};
   state.mechanicsLines = [];
