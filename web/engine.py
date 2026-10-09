@@ -722,6 +722,9 @@ class GameSession:
         self.journey: list[str] = []
         # One adjustment per jump (wait +2 or hasten -2); reset when the jump fires.
         self._adjusted_jump = False
+        # Pending steering for the next automatic jump: "" (drift), "previous" or
+        # "forward". Set at 2-3 parts, consumed and cleared by the next jump.
+        self._steer: str = ""
         # The GM's memory line for the age it is leaving, captured from `{{_REMEMBERS: ...}}`
         # on the closing turn; `_jump` prefers it over the config template and clears it.
         self._pending_legend: str = ""
@@ -1023,6 +1026,8 @@ class GameSession:
             await self._device_adjust(delta)
         elif action == "travel":
             await self._device_travel(cmd)
+        elif action == "steer":
+            await self._device_steer(cmd.get("direction"))
         else:
             await self._emit({"type": "error", "message": f"unknown Device action: {action}"})
 
@@ -1067,40 +1072,75 @@ class GameSession:
         await self._emit({"type": "cadence", **self._device_state()})
 
     async def _device_travel(self, cmd: dict) -> None:
-        """Travel now, as far as the recovered parts allow."""
+        """Travel now to a chosen age, as far as the recovered parts allow.
+
+        A deliberate jump is refused in combat: a fight is never interrupted, and the
+        automatic jump already holds for its length. Direction is not a jump -- it steers
+        the NEXT automatic one (`_device_steer`), so a direction message never lands here.
+        """
+        if self._in_combat:
+            await self._emit({"type": "notice", "title": "The Device",
+                              "text": "The Device will not answer in the middle of a fight."})
+            return
         parts = self.parts_recovered
-        era = None
+        era = str(cmd.get("era") or "").strip().lower()
         if parts >= device.part_total():
             # Complete: any age but this one, and the player chose to go now.
-            era = str(cmd.get("era") or "").strip().lower()
             if era not in self._all_other_eras():
                 await self._device_refuse()
                 return
         elif parts >= 3:
-            # Choose which age forward (the ladder wraps at the last age).
-            era = str(cmd.get("era") or "").strip().lower()
+            # Choose which age ahead of the current one (no wrapping).
             if era not in self._forward_era_ids():
-                await self._device_refuse()
-                return
-        elif parts >= 2:
-            # Direction only: the age just left, or a random one ahead.
-            direction = str(cmd.get("direction") or "").strip().lower()
-            if direction == "previous":
-                era = self._previous_era()
-            elif direction == "forward":
-                options = self._forward_era_ids()
-                era = self._rng.choice(options) if options else None
-            if not era or era == self.era:
                 await self._device_refuse()
                 return
         else:
             await self._emit({"type": "notice", "title": "The Device",
-                              "text": "The Device cannot be steered yet."})
-            return
-        if not era or era == self.era:
-            await self._device_refuse()
+                              "text": "The Device will not take you anywhere yet."})
             return
         await self._close_and_jump(era)
+
+    async def _device_steer(self, direction) -> None:
+        """Steer the NEXT automatic jump: "" (let it drift), "previous" or "forward".
+
+        Unlocked at 2-3 parts. Not a jump, so it is allowed in combat -- the jump it steers
+        will not fire until the fight is over. Sending the active direction toggles it off.
+        """
+        parts = self.parts_recovered
+        if parts >= device.part_total():
+            # A complete Device never fires on its own, so there is nothing to steer.
+            await self._emit({"type": "notice", "title": "The Device",
+                              "text": "The Device no longer drifts — choose where to go."})
+            return
+        if parts < 2:
+            await self._emit({"type": "notice", "title": "The Device",
+                              "text": "The Device cannot be steered yet."})
+            return
+        want = str(direction or "").strip().lower()
+        if want not in ("", "previous", "forward"):
+            await self._emit({"type": "error",
+                              "message": f"invalid Device steering: {direction}"})
+            return
+        if want == self._steer:
+            want = ""  # toggle the active direction off
+        if want == "previous" and not self._previous_era():
+            await self._emit({"type": "notice", "title": "The Device",
+                              "text": "There is no earlier age to point back to yet."})
+            return
+        if want == "forward" and not self._forward_era_ids():
+            await self._emit({"type": "notice", "title": "The Device",
+                              "text": "There is no age ahead to point to."})
+            return
+        self._steer = want
+        if want == "previous":
+            text = (f"The Device leans back toward "
+                    f"{device.era_label(self._previous_era())}.")
+        elif want == "forward":
+            text = "The Device leans forward — where it lands is still chance."
+        else:
+            text = "The Device drifts again — the next jump goes where it likes."
+        await self._emit({"type": "notice", "title": "The Device", "text": text})
+        await self._emit({"type": "cadence", **self._device_state()})
 
     async def _device_refuse(self) -> None:
         await self._emit({"type": "notice", "title": "The Device",
@@ -1133,18 +1173,40 @@ class GameSession:
         return [e for e in playable_eras() if e != self.era]
 
     def _forward_era_ids(self) -> list[str]:
-        """The era ladder ahead of the current one, wrapping at the last age."""
+        """The eras strictly ahead of the current one in the ladder (no wrapping).
+
+        The ages are a linear historical run, so the last age has nothing ahead of it --
+        the Traveller goes back with "previous", not by wrapping to the first age.
+        """
         order = playable_eras()
         if not order or self.era not in order:
             return [e for e in order if e != self.era]
         index = order.index(self.era)
-        return order[index + 1:] + order[:index]
+        return order[index + 1:]
 
     def _previous_era(self) -> str | None:
         """The last era the Traveller visited -- the one before the current in the journey."""
         if len(self.journey) >= 2:
             return self.journey[-2]
         return None
+
+    def _steered_era(self) -> str:
+        """Where an automatic jump lands, honouring the pending steering.
+
+        "" is the Device's own drift (any age but this one), "previous" the last age visited,
+        "forward" a random age strictly ahead. A steer with no valid target falls back to
+        the drift, so a jump never fails.
+        """
+        steer = str(self._steer or "").strip().lower()
+        if steer == "previous":
+            prev = self._previous_era()
+            if prev and prev != self.era:
+                return prev
+        elif steer == "forward":
+            options = self._forward_era_ids()
+            if options:
+                return self._rng.choice(options)
+        return self._pick_era()
 
     def _era_options(self, eras: list[str]) -> list[dict]:
         return [{"id": e, "name": device.era_label(e)} for e in eras]
@@ -1157,7 +1219,7 @@ class GameSession:
         manual = live and parts >= total
         abilities = {
             "adjust": live and parts >= 1,
-            "direction": live and parts >= 2,
+            "direction": live and 2 <= parts < total,
             "choose_forward": live and parts >= 3,
             "full": manual,
         }
@@ -1167,6 +1229,7 @@ class GameSession:
             "total": total,
             "manual": manual,
             "in_combat": self._in_combat,
+            "steer": self._steer,
             "abilities": abilities,
             "adjust": {
                 "turns": device.adjust_turns(),
@@ -1368,7 +1431,7 @@ class GameSession:
             except OSError:  # pragma: no cover - a read-only save must not sink the turn
                 pass
         chosen = str(to_era or "").strip().lower()
-        self.era = chosen if chosen in self._all_other_eras() else self._pick_era()
+        self.era = chosen if chosen in self._all_other_eras() else self._steered_era()
         self.arrival = self._pick_jump_arrival(self.era)
         self._reload_era_scene_state()
         self._compact(old)
@@ -1391,6 +1454,7 @@ class GameSession:
         self._jump_at_turn = None if span is None else self.turn_counter + span
         self._warned = False
         self._adjusted_jump = False
+        self._steer = ""
         await self._emit({"type": "cadence", **self._device_state()})
 
     async def _handle_slash(self, command: str) -> None:

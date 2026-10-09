@@ -1418,10 +1418,10 @@ function deviceActionRow(dev, ctrl) {
   const locked = !state.ready || state.busy;
   const wrap = document.createElement("div");
   wrap.className = "device-actions";
-  const btn = (label, onClick, enabled) => {
+  const btn = (label, onClick, enabled, active) => {
     const b = document.createElement("button");
     b.type = "button";
-    b.className = "ghost device-btn";
+    b.className = "ghost device-btn" + (active ? " active" : "");
     b.textContent = label;
     b.disabled = !enabled || locked;
     b.addEventListener("click", onClick);
@@ -1436,11 +1436,22 @@ function deviceActionRow(dev, ctrl) {
       () => sendDevice({ type: "device", action: "adjust", delta: -step }), a.can_hasten));
   }
   if (ab.direction) {
+    // 2-3 parts: steer the NEXT automatic jump (no travel on click).
     const prev = c.previous_era;
+    const steer = c.steer || "";
+    const hasForward = ((c.forward_eras || []).length > 0);
     wrap.appendChild(btn(prev ? `\u2190 previous: ${c.previous_era_name || prev}` : "\u2190 previous",
-      () => sendDevice({ type: "device", action: "travel", direction: "previous" }), !!prev));
+      () => sendDevice({ type: "device", action: "steer", direction: "previous" }),
+      !!prev, steer === "previous"));
     wrap.appendChild(btn("random forward \u2192",
-      () => sendDevice({ type: "device", action: "travel", direction: "forward" }), true));
+      () => sendDevice({ type: "device", action: "steer", direction: "forward" }),
+      hasForward, steer === "forward"));
+    const hint = document.createElement("div");
+    hint.className = "field-note";
+    if (steer === "previous") hint.textContent = "the next jump will go back";
+    else if (steer === "forward") hint.textContent = "the next jump will go forward, at random";
+    else hint.textContent = "steer the next jump \u2014 or let it drift";
+    wrap.appendChild(hint);
   }
   if (ab.choose_forward || ab.full) {
     const options = (ab.full ? c.all_eras : c.forward_eras) || [];
@@ -1455,8 +1466,14 @@ function deviceActionRow(dev, ctrl) {
       });
       sel.disabled = locked;
       wrap.appendChild(sel);
+      // A deliberate jump is refused mid-fight (the engine refuses too).
       wrap.appendChild(btn(ab.full ? "travel now" : "travel",
-        () => sendDevice({ type: "device", action: "travel", era: sel.value }), true));
+        () => sendDevice({ type: "device", action: "travel", era: sel.value }), !state.inCombat));
+    } else {
+      const note = document.createElement("div");
+      note.className = "field-note";
+      note.textContent = "No age ahead \u2014 use the direction to head back.";
+      wrap.appendChild(note);
     }
   }
   if (!ab.adjust && !ab.direction && !ab.choose_forward && !ab.full) {

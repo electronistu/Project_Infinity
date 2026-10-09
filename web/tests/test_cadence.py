@@ -411,46 +411,97 @@ def main():
         and not panel._device_state()["adjust"]["can_hasten"],
         str(panel._device_state()["adjust"]))
 
-    # 2 parts: direction -- the last era visited, or a random era forward.
+    # 2 parts: STEER the next automatic jump -- direction never travels on click.
     two = _session(era="tang")
     two.parts_recovered = 2
     two.journey = ["egypt", "tang"]
     two._jump_at_turn = two.turn_counter + two._cadence_span()
     rec("2 parts: 'previous' is the last era visited, not the order",
         two._previous_era() == "egypt", str(two._previous_era()))
+    asyncio.run(two._device_steer("previous"))
+    rec("2 parts: steering 'previous' sets the direction", two._steer == "previous", two._steer)
+    rec("... and the next automatic jump lands there", two._steered_era() == "egypt",
+        two._steered_era())
     asyncio.run(two._device_travel({"direction": "previous"}))
-    rec("2 parts: the Traveller can go back to it", two.era == "egypt", two.era)
+    rec("2 parts: a direction message never travels on click", two.era == "tang", two.era)
+    asyncio.run(two._device_steer("previous"))
+    rec("... and sending the active direction again clears it", two._steer == "", two._steer)
+
+    # The automatic jump itself honours the steering, then spends it.
+    auto = _session(era="tang")
+    auto.parts_recovered = 2
+    auto.journey = ["egypt", "tang"]
+    asyncio.run(auto._device_steer("previous"))
+    asyncio.run(auto._jump())
+    rec("an automatic jump lands on the steered age", auto.era == "egypt", auto.era)
+    rec("... and the steering is spent when the jump fires", auto._steer == "", auto._steer)
+
+    # Strictly ahead, no wrapping: the last age has nothing ahead.
     two2 = _session(era="tang")
     two2.parts_recovered = 2
-    forward = two2._forward_era_ids()
-    rec("2 parts: 'forward' is the ages ahead, wrapping at the last",
-        forward == ["wallachia", "victorian", "egypt"], str(forward))
+    rec("2 parts: 'forward' is strictly ahead (no wrap)",
+        two2._forward_era_ids() == ["wallachia", "victorian"], str(two2._forward_era_ids()))
+    last = _session(era="victorian")
+    last.parts_recovered = 2
+    last.journey = ["egypt", "victorian"]
+    asyncio.run(last._device_steer("forward"))
+    rec("... at the last age 'forward' has no target", last._steer == "", last._steer)
+    rec("... but 'previous' still points back", last._previous_era() == "egypt",
+        str(last._previous_era()))
 
-    # 3 parts: choose which age forward.
+    # 3 parts: steer stays available, plus choose an age ahead (travel now).
     three = _session(era="tang")
     three.parts_recovered = 3
+    rec("3 parts: steering is still offered",
+        three._device_state()["abilities"]["direction"] is True)
     asyncio.run(three._device_travel({"era": "wallachia"}))
-    rec("3 parts: the Traveller picks a forward age", three.era == "wallachia", three.era)
+    rec("3 parts: the Traveller picks an age ahead", three.era == "wallachia", three.era)
+    behind = _session(era="tang")
+    behind.parts_recovered = 3
+    asyncio.run(behind._device_travel({"era": "egypt"}))
+    rec("... and an age behind is refused (no wrap)", behind.era == "tang", behind.era)
     bad = _session(era="tang")
     bad.parts_recovered = 3
     asyncio.run(bad._device_travel({"era": "future"}))
     rec("... and a non-playable age (the future frame) is refused", bad.era == "tang", bad.era)
     wrap = _session(era="victorian")
     wrap.parts_recovered = 3
-    rec("... and 'forward' wraps at the last age", wrap._forward_era_ids()[0] == "egypt",
+    rec("... and the last age has nothing ahead", wrap._forward_era_ids() == [],
         str(wrap._forward_era_ids()))
 
-    # 4 parts: manual -- any age, and the player triggers the jump.
+    # 4 parts: manual -- any age, the player triggers the jump, no steering.
     four = _session(era="tang")
     four.parts_recovered = 4
     rec("4 parts: the Device no longer fires on its own", four._cadence_span() is None)
-    rec("4 parts: the panel says it is the player's call",
-        four._device_state()["manual"] and all(four._device_state()["abilities"].values()),
+    rec("4 parts: the panel says it is the player's call (and no steering)",
+        four._device_state()["manual"]
+        and four._device_state()["abilities"]["full"]
+        and not four._device_state()["abilities"]["direction"],
         str(four._device_state()["abilities"]))
     asyncio.run(four._device_travel({"era": "egypt"}))
     rec("4 parts: the Traveller can go anywhere, including back", four.era == "egypt", four.era)
     rec("... and the journey records where they have stood",
         four.journey == ["tang", "egypt"], str(four.journey))
+    asyncio.run(four._device_steer("previous"))
+    rec("... and there is nothing to steer", four._steer == "", four._steer)
+
+    # A deliberate jump is refused mid-fight; steering is not a jump, so it is allowed.
+    melee = _session(era="tang")
+    melee.parts_recovered = 3
+    melee._in_combat = True
+    asyncio.run(melee._device_travel({"era": "wallachia"}))
+    rec("a deliberate jump is refused mid-fight", melee.era == "tang", melee.era)
+    asyncio.run(melee._device_steer("forward"))
+    rec("... while steering is allowed (the jump it steers waits out the fight)",
+        melee._steer == "forward", melee._steer)
+
+    # The wire: a steer message reaches the engine through submit_device.
+    wired = _session(era="tang")
+    wired.parts_recovered = 2
+    wired.journey = ["egypt", "tang"]
+    asyncio.run(wired.submit_device("steer", direction="previous"))
+    asyncio.run(wired._handle_device_command(wired._cmd_q.get_nowait()))
+    rec("a steer over the wire sets the direction", wired._steer == "previous", wired._steer)
 
     # A Traveller whose Device has been taken has no cadence at all.
     taken0 = _session()
