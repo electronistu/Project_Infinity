@@ -256,23 +256,6 @@ def era_reputation_seed(era_id: str) -> dict:
     return {era_id: seed}
 
 
-def era_legend(era_id: str, arrival: str = "") -> str:
-    """The fallback one-liner for what this era remembers about the Traveller.
-
-    Authored per era in `meta.legend` with an `{arrival}` slot -- never in the prompt,
-    because `meta` is not rendered in the ERA INDEX. The Game Master writes its own line
-    on the closing turn now; this template is only the last-resort fallback when it does
-    not. The legend IS the era-switch compaction output, so the thing that saves tokens is
-    the thing the fiction is made of.
-    """
-    meta = load_era(era_id)["meta"]
-    name = str(meta.get("name") or era_id)
-    template = " ".join(str(meta.get("legend") or "").split())
-    if not template:
-        return f"{name} remembers: a stranger who was not there when they looked again."
-    return template.replace("{arrival}", arrival or "a place no one thought to note")
-
-
 def validate_era(era: dict, stem: Optional[str] = None) -> list[str]:
     """Format problems in one era, as human-readable strings (``[]`` is valid).
 

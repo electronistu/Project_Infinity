@@ -35,6 +35,7 @@ const state = {
   sheetMode: "icons",                   // "icons" | "generate" | "text"
   lastStats: null,                      // last rendered sheet (for icon diffing)
   deviceControl: null,                  // latest cadence + control ladder from the engine
+  sceneCaption: "",                     // text-mode scene caption (era + place) for the GM header
   inCombat: false,                      // a fight is live: saving is refused (engine also gates)
   iconGenBusy: false,                   // one on-the-fly generation run at a time
   iconGenEpoch: 0,                      // bumped on session change to cancel a run
@@ -138,12 +139,22 @@ function addTimeline(entry) {
 /* One GM bubble per turn (not per assistant message): a turn can span several
    model rounds (tool calls, thinking-only retries, resumes), all of which nest
    into this single bubble so the player sees one "Game Master" heading. */
+/* The GM bubble's header: the text-mode scene caption (age + place) when one is known,
+   else the plain "Game Master" line. The caption comes from the engine -- it knows the era
+   and the place; time of day and weather are image-only and never appear here. */
+function applyBubbleHead(bubble) {
+  if (!bubble || !bubble.head) return;
+  const caption = (!state.imagesEnabled && state.sceneCaption) ? state.sceneCaption : "";
+  bubble.head.textContent = caption
+    || (bubble.label === "awakening" ? "Game Master · awakening" : "Game Master");
+  bubble.head.classList.toggle("caption", !!caption);
+}
+
 function createTurnBubble(label) {
   const el = document.createElement("div");
   el.className = "msg gm";
   const head = document.createElement("div");
   head.className = "msg-head";
-  head.textContent = label === "awakening" ? "Game Master · awakening" : "Game Master";
   const think = document.createElement("details");
   think.className = "thinking";
   think.innerHTML = `<summary>thinking</summary><div class="thinking-body"></div>`;
@@ -154,8 +165,10 @@ function createTurnBubble(label) {
   el.appendChild(flow);
   transcript.appendChild(el);
   scrollToBottom(true);
-  return {
+  const bubble = {
     el,
+    head,
+    label,
     think,
     thinkBody: think.querySelector(".thinking-body"),
     flow,
@@ -164,6 +177,8 @@ function createTurnBubble(label) {
     segRaw: "",     // its raw markdown source
     hasNarrative: false,
   };
+  applyBubbleHead(bubble);
+  return bubble;
 }
 
 function beginSegment(tb) {
@@ -1611,8 +1626,14 @@ function handleEvent(evt) {
       updateComposer();
       state.activeSaveName = (evt.world || "").replace(/\.player$/i, "");
       state.cur = null;
+      state.sceneCaption = "";   // the engine sends a fresh `caption` right after `ready`
       updateSheetPortrait();
       addSystem(`Session ready · ${evt.tools ? evt.tools.length : 0} engine tools · ${evt.model}`);
+      break;
+
+    case "caption":
+      state.sceneCaption = evt.text || "";
+      applyBubbleHead(state.cur);
       break;
 
     case "assistant_start":

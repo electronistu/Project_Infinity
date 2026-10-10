@@ -18,6 +18,7 @@ from PIL import Image as PILImage  # noqa: E402
 
 from web.images import (  # noqa: E402
     ImageService, SceneService, known_scene_places, known_scene_locations, known_npc_names,
+    live_scene_manifest, discard_scene_manifest,
     _gear_line, _veterancy_line, appearance_override,
 )
 
@@ -491,7 +492,7 @@ def main() -> bool:
         seed_caps = [c for c in captured if "Empty and unpopulated" in c[0]]
         rec("a style-change redraw passes no old-seed reference",
             bool(seed_caps) and seed_caps[-1][1] is None, str(seed_caps[-1:] if seed_caps else []))
-        seeds_now = json.loads((scene_dir / "manifest.json").read_text(encoding="utf-8"))["seeds"]
+        seeds_now = live_scene_manifest(tmp, "scenetest")["seeds"]
         forge = [e for e in seeds_now.values() if e.get("place") == ["Hask's Smithy", "the forge"]]
         rec("the seed records the new style",
             bool(forge) and "Day of the Tentacle" in (forge[0].get("style") or ""), str(forge))
@@ -504,8 +505,8 @@ def main() -> bool:
                               kingdom="Borderlands", area="the Eldoria–Silverwood border",
                               place=["Lantern Row"])
         rec("actions are not tracked in the manifest (ephemeral)",
-            "actions" not in json.loads((scene_dir / "manifest.json").read_text(encoding="utf-8")),
-            (scene_dir / "manifest.json").read_text(encoding="utf-8")[:120])
+            "actions" not in live_scene_manifest(tmp, "scenetest"),
+            str(live_scene_manifest(tmp, "scenetest"))[:120])
         rec("seeds survive across places", len(list(scene_dir.glob("seed-*"))) == 3)
         got = sc3.get_scene("scenetest", r1["action"]["url"].rsplit("/", 1)[-1])
         rec("get_scene returns bytes + mime", bool(got) and got[1].startswith("image/"))
@@ -527,11 +528,10 @@ def main() -> bool:
         rec("the main NPCs' roles round-trip through the manifest",
             any(p["place"] == ["Hask's Smithy", "the forge"]
                 and p["main_npcs"][0]["role"] == "the smith" for p in places), str(places))
+        live_now = live_scene_manifest(tmp, "scenetest")
         rec("the cast is persisted in the manifest (v8)",
-            json.loads((scene_dir / "manifest.json").read_text(encoding="utf-8"))["version"] == 8
-            and "maera" in json.loads((scene_dir / "manifest.json").read_text(encoding="utf-8"))["cast"])
-        rec("no last_cast bookkeeping remains",
-            "last_cast" not in (scene_dir / "manifest.json").read_text(encoding="utf-8"))
+            live_now["version"] == 8 and "maera" in live_now["cast"])
+        rec("no last_cast bookkeeping remains", "last_cast" not in json.dumps(live_now))
         rec("known_npc_names lists place main NPCs + the storyline cast",
             known_npc_names(tmp, "scenetest") == {"gorson", "maera"},
             str(known_npc_names(tmp, "scenetest")))
@@ -545,8 +545,7 @@ def main() -> bool:
             sc4.ensure_scene("eratest", PLAYER, "world", description="a look around",
                              kingdom="Kingdom of Eldoria", area="Eldoria City", place=same,
                              establishing="a hot forge", era=era_id)
-        era_manifest = tmp / "images" / "eratest" / "scenes" / "manifest.json"
-        seeds4 = json.loads(era_manifest.read_text(encoding="utf-8"))["seeds"]
+        seeds4 = live_scene_manifest(tmp, "eratest")["seeds"]
         rec("the same place in two eras is two seeds with two keys (v8)",
             len(seeds4) == 2 and sorted(e.get("era") for e in seeds4.values()) == ["egypt", "wallachia"],
             str(sorted((e.get("era"), e.get("slug")) for e in seeds4.values())))
@@ -555,8 +554,7 @@ def main() -> bool:
         rec("known_scene_places reports each place's era",
             sorted(p["era"] for p in known_scene_places(tmp, "eratest")) == ["egypt", "wallachia"],
             str(known_scene_places(tmp, "eratest")))
-        rec("manifest version is 8",
-            json.loads(era_manifest.read_text(encoding="utf-8"))["version"] == 8)
+        rec("manifest version is 8", live_scene_manifest(tmp, "eratest")["version"] == 8)
         rec("a seed carries a `used` stamp for the LRU cap",
             all(isinstance(e.get("used"), int) and e["used"] >= e["created"]
                 for e in seeds4.values()), str(seeds4))
@@ -585,9 +583,9 @@ def main() -> bool:
             str(migrated["seeds"]))
         rec("migration is read-only (the file keeps its version until a write)",
             json.loads(legacy_manifest.read_text(encoding="utf-8"))["version"] == 7)
-        rec("a place with no era matches any era (pre-v8 leniency)",
-            [p["era"] for p in known_scene_places(tmp, "legacytest", "wallachia")] == [""]
-            and len(known_scene_places(tmp, "legacytest", "egypt")) == 1)
+        rec("a migrated place is scoped to the era it was read with",
+            [p["era"] for p in known_scene_places(tmp, "legacytest", "wallachia")] == ["wallachia"]
+            and known_scene_places(tmp, "legacytest", "egypt") == [])
         rec("known_scene_locations lists distinct place labels",
             known_scene_locations(tmp, "scenetest") == ["Hask's Smithy — common room",
                                                         "Hask's Smithy — the forge", "Lantern Row"],
@@ -643,6 +641,7 @@ def main() -> bool:
         # string main_npc becomes a one-item main_npcs list (no name -> no expansion).
         legacy = scene_dir / "action-legacy-1.jpg"
         legacy.write_bytes(jpeg(64, 36))
+        discard_scene_manifest(tmp, "scenetest")  # the registry is memory-only now
         (scene_dir / "manifest.json").write_text(json.dumps({
             "version": 3,
             "seeds": {"k": {"file": "seed-x.png", "location": "Old Place", "sublocation": "",

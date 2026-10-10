@@ -16,6 +16,7 @@ import hashlib
 import json
 import os
 import re
+import threading
 import time
 import zlib
 from pathlib import Path
@@ -1309,19 +1310,226 @@ def _manifest_entries(data) -> list[dict]:
             and (e.get("location") or e.get("place"))]
 
 
+# ── the live scene registry: in memory until the player saves ─────────────
+#
+# The scenes manifest (places + declared NPCs) is the save's companion, but it must change
+# on disk ONLY when the player saves -- an unsaved session has to leave the previous save
+# untouched. Every read/write during a session goes through this module-level registry,
+# loaded from disk on first access. `commit_scene_manifest` writes it (and prunes image
+# files the registry no longer lists); `discard_scene_manifest` drops it so the next read
+# reloads the save. The engine owns the session boundary; the scene service only reads and
+# mutates the dict.
+
+_SCENE_MANIFESTS: dict[str, dict] = {}
+_SCENE_LOCK = threading.RLock()  # scene writes run in a worker thread
+
+
+def _scene_key(kingdom, area, place, era="") -> str:
+    """A place's manifest key. The era is the root: two eras can share a place path,
+    and they are different places with different seeds."""
+    parts = [_slug(p) for p in (kingdom, area, *_place_path(place))]
+    return "|".join(([_slug(era)] if era else []) + parts)
+
+
+def _scenes_dir_for(output_dir, stem: str) -> Path:
+    return Path(output_dir or ".") / "images" / stem / "scenes"
+
+
+def _scene_cache_key(scenes: Path) -> str:
+    try:
+        return str(scenes.resolve())
+    except OSError:  # pragma: no cover - only on a broken path
+        return str(scenes)
+
+
+def _empty_scene_manifest() -> dict:
+    return {"version": 8, "seeds": {}, "cast": {}, "current": {}}
+
+
+def _normalise_scene_manifest(data, scenes: Path, era: str = "") -> dict:
+    """Normalize a scene manifest (v1 flat / v2-v8) to the v8 shape."""
+    if not isinstance(data, dict):
+        return _empty_scene_manifest()
+    if data.get("version") in (2, 3, 4, 5, 6, 7, 8) and isinstance(data.get("seeds"), dict):
+        if data.get("version") not in (4, 5, 6, 7, 8):
+            # Action images became ephemeral one-shot files in v4: clean up any left over.
+            for entry in (data.get("actions") or []):
+                try:
+                    (scenes / str((entry or {}).get("file") or "")).unlink()
+                except OSError:
+                    pass
+        seeds: dict = {}
+        for key, entry in data["seeds"].items():
+            if not isinstance(entry, dict):
+                continue
+            entry = dict(entry)
+            entry.pop("last_cast", None)
+            entry["main_npcs"] = _seed_main_npcs(entry)
+            entry.pop("main_npc", None)
+            place = _place_path(entry.get("place"))
+            if not place:
+                place = _place_path([entry.get("location"), entry.get("sublocation")])
+            entry["place"] = place
+            entry.pop("location", None)
+            entry.pop("sublocation", None)
+            # v7 and older carry no era: it defaults to the save's current one.
+            entry["era"] = str(entry.get("era") or "").strip() or era
+            seeds[_scene_key(entry.get("kingdom"), entry.get("area"), place, entry["era"])] = entry
+        cast: dict = {}
+        raw_cast = data.get("cast")
+        if isinstance(raw_cast, dict):
+            for entry in raw_cast.values():
+                fields = _npc_fields(entry)
+                if fields["name"]:
+                    cast[_slug(fields["name"])] = fields
+        current = data.get("current")
+        if isinstance(current, dict) and current:
+            cplace = _place_path(current.get("place"))
+            if not cplace:
+                cplace = _place_path([current.get("location"), current.get("sublocation")])
+            current = {k: v for k, v in current.items() if k not in ("location", "sublocation")}
+            current["place"] = cplace
+        else:
+            current = {}
+        return {"version": 8, "seeds": seeds, "cast": cast, "current": current}
+    # v1 flat manifest: {location_slug: entry}
+    seeds: dict = {}
+    now = int(time.time())
+    for slug, entry in (data or {}).items():
+        if not isinstance(entry, dict):
+            continue
+        place = _place_path([entry.get("location"), entry.get("sublocation")])
+        if not place:
+            continue
+        kingdom = str(entry.get("kingdom") or "").strip()
+        area = str(entry.get("area") or "").strip()
+        seeds[_scene_key(kingdom, area, place, era)] = {
+            "file": entry.get("file"), "slug": slug, "era": era,
+            "kingdom": kingdom, "area": area, "place": place,
+            "description": str(entry.get("description") or ""),
+            "main_npcs": _npc_list(entry.get("main_npc")),
+            "created": entry.get("created") or now,
+            "mime": entry.get("mime") or "image/png",
+        }
+    return {"version": 8, "seeds": seeds, "cast": {}, "current": {}}
+
+
+def _read_scene_manifest_file(scenes: Path, era: str = "") -> dict:
+    path = scenes / "manifest.json"
+    if not path.exists():
+        return _empty_scene_manifest()
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return _empty_scene_manifest()
+    return _normalise_scene_manifest(data, scenes, era)
+
+
+def live_scene_manifest(output_dir, stem: str, era: str = "") -> dict:
+    """The LIVE manifest for a save: from memory if a session holds it, else from disk.
+
+    Mutate the returned dict in place. Nothing reaches disk until `commit_scene_manifest`.
+    """
+    scenes = _scenes_dir_for(output_dir, stem)
+    key = _scene_cache_key(scenes)
+    with _SCENE_LOCK:
+        data = _SCENE_MANIFESTS.get(key)
+        if data is None:
+            data = _read_scene_manifest_file(scenes, era)
+            _SCENE_MANIFESTS[key] = data
+        return data
+
+
+def set_scene_manifest(output_dir, stem: str, data: dict) -> None:
+    """Keep a manifest dict as the live one for this save (memory only)."""
+    scenes = _scenes_dir_for(output_dir, stem)
+    with _SCENE_LOCK:
+        _SCENE_MANIFESTS[_scene_cache_key(scenes)] = data
+
+
+def _write_scene_manifest_file(scenes: Path, data: dict) -> None:
+    scenes.mkdir(parents=True, exist_ok=True)
+    path = scenes / "manifest.json"
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    os.replace(tmp, path)
+
+
+_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
+
+
+def _prune_scene_images(scenes: Path, data: dict) -> list[str]:
+    """Delete image files in the scenes dir that the committed registry does not list."""
+    referenced = {Path(str((e or {}).get("file") or "")).name
+                  for e in (data.get("seeds") or {}).values()
+                  if str((e or {}).get("file") or "").strip()}
+    removed: list[str] = []
+    try:
+        entries = list(scenes.iterdir())
+    except OSError:
+        return removed
+    for path in entries:
+        if path.is_file() and path.suffix.lower() in _IMAGE_EXTS and path.name not in referenced:
+            try:
+                path.unlink()
+                removed.append(path.name)
+            except OSError:
+                pass
+    return removed
+
+
+def commit_scene_manifest(output_dir, stem: str) -> dict | None:
+    """Write the live manifest to disk (the Save) and prune unreferenced scene images."""
+    scenes = _scenes_dir_for(output_dir, stem)
+    key = _scene_cache_key(scenes)
+    with _SCENE_LOCK:
+        data = _SCENE_MANIFESTS.get(key)
+        if data is None:
+            return None
+        # A save that never had a place gets no manifest file at all.
+        if not (data.get("seeds") or data.get("cast") or data.get("current")) \
+                and not (scenes / "manifest.json").exists():
+            return {"seeds": 0, "cast": 0, "pruned": []}
+        _write_scene_manifest_file(scenes, data)
+        pruned = _prune_scene_images(scenes, data)
+    return {"seeds": len(data.get("seeds") or {}), "cast": len(data.get("cast") or {}),
+            "pruned": pruned}
+
+
+def discard_scene_manifest(output_dir, stem: str) -> None:
+    """Drop the live manifest so the next read reloads the save from disk."""
+    scenes = _scenes_dir_for(output_dir, stem)
+    with _SCENE_LOCK:
+        _SCENE_MANIFESTS.pop(_scene_cache_key(scenes), None)
+
+
+def current_scene_place(output_dir, stem: str) -> dict | None:
+    """The save's current place pointer ({era, kingdom, area, place}), or None.
+
+    Set by `record_place` / `ensure_scene`. The text-mode scene caption reads it: the engine
+    knows the age and the place, never the time of day or the weather (only an image call
+    carries those).
+    """
+    data = live_scene_manifest(output_dir, stem)
+    current = data.get("current") if isinstance(data, dict) else None
+    if not isinstance(current, dict) or not current:
+        return None
+    place = _place_path(current.get("place"))
+    area = str(current.get("area") or "").strip()
+    if not place and not area:
+        return None
+    return {"era": str(current.get("era") or "").strip().lower(),
+            "kingdom": str(current.get("kingdom") or "").strip(),
+            "area": area, "place": place}
+
+
 def known_scene_places(output_dir, stem: str, era: str | None = None) -> list[dict]:
     """Seeded places for a save: {era, kingdom, area, place, description, main_npcs, used}.
 
     `era` scopes the list to one era. A place with no era -- only possible from a
     manifest written before v8, which the next write re-keys -- matches any era.
     """
-    path = Path(output_dir) / "images" / stem / "scenes" / "manifest.json"
-    if not path.exists():
-        return []
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return []
+    data = live_scene_manifest(output_dir, stem, era or "")
     want_era = None if era is None else str(era).strip().lower()
     seen: set[tuple[str, str, str, tuple[str, ...]]] = set()
     out: list[dict] = []
@@ -1348,12 +1556,8 @@ def known_scene_places(output_dir, stem: str, era: str | None = None) -> list[di
 
 def known_npc_names(output_dir, stem: str) -> set[str]:
     """Declared NPC names for a save (place main NPCs + the storyline cast), lowercased."""
-    path = Path(output_dir) / "images" / stem / "scenes" / "manifest.json"
+    data = live_scene_manifest(output_dir, stem)
     names: set[str] = set()
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return names
     for entry in _manifest_entries(data):
         for npc in _seed_main_npcs(entry):
             if npc["name"]:
@@ -1564,90 +1768,16 @@ class SceneService(ImageBackendHolder):
 
     @staticmethod
     def _key(kingdom, area, place, era="") -> str:
-        """A place's manifest key. The era is the root: two eras can share a place
-        path, and they are different places with different seeds."""
-        parts = [_slug(p) for p in (kingdom, area, *_place_path(place))]
-        return "|".join(([_slug(era)] if era else []) + parts)
+        """A place's manifest key. The era is the root (see `_scene_key`)."""
+        return _scene_key(kingdom, area, place, era)
 
     def _read_manifest(self, stem: str, era: str = "") -> dict:
-        path = self.manifest_path(stem)
-        empty = {"version": 8, "seeds": {}, "cast": {}, "current": {}}
-        if not path.exists():
-            return empty
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return empty
-        if isinstance(data, dict) and data.get("version") in (2, 3, 4, 5, 6, 7, 8) and isinstance(data.get("seeds"), dict):
-            if data.get("version") not in (4, 5, 6, 7, 8):
-                # Action images became ephemeral one-shot files in v4: clean up any left over.
-                for entry in (data.get("actions") or []):
-                    try:
-                        (self.scenes_dir(stem) / str((entry or {}).get("file") or "")).unlink()
-                    except OSError:
-                        pass
-            seeds: dict = {}
-            for key, entry in data["seeds"].items():
-                if not isinstance(entry, dict):
-                    continue
-                entry = dict(entry)
-                entry.pop("last_cast", None)
-                entry["main_npcs"] = _seed_main_npcs(entry)
-                entry.pop("main_npc", None)
-                place = _place_path(entry.get("place"))
-                if not place:
-                    place = _place_path([entry.get("location"), entry.get("sublocation")])
-                entry["place"] = place
-                entry.pop("location", None)
-                entry.pop("sublocation", None)
-                # v7 and older carry no era: it defaults to the save's current one.
-                entry["era"] = str(entry.get("era") or "").strip() or era
-                seeds[self._key(entry.get("kingdom"), entry.get("area"), place, entry["era"])] = entry
-            cast: dict = {}
-            raw_cast = data.get("cast")
-            if isinstance(raw_cast, dict):
-                for entry in raw_cast.values():
-                    fields = _npc_fields(entry)
-                    if fields["name"]:
-                        cast[_slug(fields["name"])] = fields
-            current = data.get("current")
-            if isinstance(current, dict) and current:
-                cplace = _place_path(current.get("place"))
-                if not cplace:
-                    cplace = _place_path([current.get("location"), current.get("sublocation")])
-                current = {k: v for k, v in current.items() if k not in ("location", "sublocation")}
-                current["place"] = cplace
-            else:
-                current = {}
-            return {"version": 8, "seeds": seeds, "cast": cast, "current": current}
-        # v1 flat manifest: {location_slug: entry}
-        seeds: dict = {}
-        now = int(time.time())
-        for slug, entry in (data or {}).items():
-            if not isinstance(entry, dict):
-                continue
-            place = _place_path([entry.get("location"), entry.get("sublocation")])
-            if not place:
-                continue
-            kingdom = str(entry.get("kingdom") or "").strip()
-            area = str(entry.get("area") or "").strip()
-            seeds[self._key(kingdom, area, place, era)] = {
-                "file": entry.get("file"), "slug": slug, "era": era,
-                "kingdom": kingdom, "area": area,
-                "place": place,
-                "description": str(entry.get("description") or ""),
-                "main_npcs": _npc_list(entry.get("main_npc")),
-                "created": entry.get("created") or now,
-                "mime": entry.get("mime") or "image/png",
-            }
-        return {"version": 8, "seeds": seeds, "cast": {}, "current": {}}
+        """The live manifest for this save: in memory, written to disk only on Save."""
+        return live_scene_manifest(self.output_dir or Path("."), stem, era)
 
     def _write_manifest(self, stem: str, data: dict) -> None:
-        path = self.manifest_path(stem)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-        os.replace(tmp, path)
+        """Keep the live manifest in memory; it reaches disk only on `commit_scene_manifest`."""
+        set_scene_manifest(self.output_dir or Path("."), stem, data)
 
     def _file_bytes(self, stem: str, entry) -> tuple[bytes, str] | None:
         path = self.scenes_dir(stem) / str((entry or {}).get("file") or "")

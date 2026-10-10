@@ -148,6 +148,9 @@ main { position: relative; flex: 1; display: grid; grid-template-columns: 1fr; m
 .msg-head { font-family: var(--sans); font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.6px; margin-bottom: 7px; }
 .msg.gm { background: var(--surface); border: 1px solid var(--border-soft); border-left: 3px solid var(--accent); }
 .msg.gm .msg-head { color: var(--accent-text); }
+/* Text-mode scene caption in the header (age + place): quiet, like the image caption. */
+.msg-head.caption { text-transform: none; letter-spacing: 0; font-family: var(--mono);
+                    font-size: 11px; color: var(--muted); }
 .msg-flow { display: flow-root; width: 100%; }
 .msg-flow > * + * { margin-top: 10px; }
 /* A right-floated scene figure lets the narrative wrap to its left, and keeps

@@ -19,7 +19,8 @@ from web.engine import (  # noqa: E402
     KNOWN_PLACES_HEADER, KNOWN_PLACES_HEADER_TEXT, KNOWN_PLACES_EMPTY_TEXT,
 )
 from web.images import (  # noqa: E402
-    SceneService, known_scene_places, known_npc_names,
+    SceneService, known_scene_places, known_npc_names, live_scene_manifest,
+    commit_scene_manifest, discard_scene_manifest, current_scene_place,
 )
 from web.eras import era_arrivals  # noqa: E402
 
@@ -91,24 +92,34 @@ async def main() -> bool:
         rec("the place carries its regulars by name + role",
             places[0]["main_npcs"] == [{"name": "Maera", "description": "",
                                         "role": "the harbourmaster"}], str(places))
+        cur = current_scene_place(out, "save")
+        rec("current_scene_place reports the last declared place",
+            bool(cur) and cur["area"] == "Wapping" and cur["place"] == PLACE, str(cur))
+
+        # The caption falls back to the rolled arrival when no place is declared yet (a jump).
+        cap = GameSession(base_dir=Path(td), model="test", scene_images=False)
+        cap.era = "wallachia"
+        cap.arrival = "the princely court at Târgoviște"
+        cap._current_place = None
+        rec("the caption falls back to the rolled arrival before a place is declared",
+            cap._caption_text() == "Wallachia · the princely court at Târgoviște",
+            cap._caption_text())
         rec("names are era-scoped",
             known_scene_places(out, "save", "tang") == [], "not empty in tang")
         rec("known_npc_names includes the place's main NPC",
             "maera" in known_npc_names(out, "save"), str(known_npc_names(out, "save")))
 
         # Re-recording updates names/roles without touching an existing image file.
-        manifest_path = out / "images" / "save" / "scenes" / "manifest.json"
-        data = json.loads(manifest_path.read_text(encoding="utf-8"))
-        key = next(iter(data["seeds"]))
-        data["seeds"][key]["file"] = "seed-warehouse.png"
-        data["seeds"][key]["slug"] = "seed-warehouse"
-        data["seeds"][key]["style"] = "old"
-        manifest_path.write_text(json.dumps(data), encoding="utf-8")
+        live = live_scene_manifest(out, "save")
+        key = next(iter(live["seeds"]))
+        live["seeds"][key]["file"] = "seed-warehouse.png"
+        live["seeds"][key]["slug"] = "seed-warehouse"
+        live["seeds"][key]["style"] = "old"
         svc.record_place("save", era=ERA, kingdom="London", area="Wapping", place=PLACE,
                          main_npcs=[{"name": "Maera", "role": "the wharf-mistress"}],
                          cast=CAST)
         after = known_scene_places(out, "save", ERA)[0]
-        raw = json.loads(manifest_path.read_text(encoding="utf-8"))["seeds"][key]
+        raw = live_scene_manifest(out, "save")["seeds"][key]
         rec("re-recording keeps an existing image seed's file/slug",
             raw.get("file") == "seed-warehouse.png" and raw.get("slug") == "seed-warehouse",
             str(raw))
@@ -155,6 +166,12 @@ async def main() -> bool:
         rec("note_place emits one place_note event",
             len(notes) == 1 and notes[0]["place"] == PLACE
             and notes[0]["era"] == ERA, str(notes))
+        caps = [e for e in evts if e.get("type") == "caption"]
+        rec("note_place also emits the scene caption (era + place)",
+            bool(caps) and str(caps[-1].get("text", "")).startswith(
+                "Victorian Britain · Wapping · Ropehaven Wharf")
+            and "time_of_day" not in str(caps[-1]),
+            str(caps[-1] if caps else None))
         rec("note_place updates the live place map",
             gs._scene_places.get(tuple(s.lower().replace(" ", "-") for s in PLACE))
             == ("London", "Wapping"), str(gs._scene_places))
@@ -214,10 +231,40 @@ async def main() -> bool:
                              kingdom="London", area="Wapping", place=PLACE)
         rec("turning images on draws a text-only place's missing seed",
             r["seed_created"] is True, str(r))
-        seeded = json.loads(manifest_path.read_text(encoding="utf-8"))["seeds"][key]
+        seeded = live_scene_manifest(out, "save")["seeds"][key]
         rec("the drawn seed keeps the text-declared regulars",
             seeded.get("file") and any(n["name"] == "Maera" for n in seeded.get("main_npcs", [])),
             str(seeded))
+
+        # ── the registry is memory-only until Save ─────────────────────────────
+        out2 = Path(td) / "persist"
+        svc2 = SceneService(out2)
+        svc2.record_place("hero", era=ERA, kingdom="London", area="Wapping", place=PLACE)
+        manifest2 = out2 / "images" / "hero" / "scenes" / "manifest.json"
+        rec("a recorded place is live in memory",
+            len(known_scene_places(out2, "hero", ERA)) == 1)
+        rec("... but nothing reaches disk until Save", not manifest2.exists())
+
+        # an orphan seed (drawn but never saved) is pruned on commit; a listed one is kept
+        scenes2 = out2 / "images" / "hero" / "scenes"
+        scenes2.mkdir(parents=True, exist_ok=True)
+        (scenes2 / "seed-orphan.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"0" * 8)
+        live = live_scene_manifest(out2, "hero")
+        next(iter(live["seeds"].values()))["file"] = "seed-kept.png"
+        (scenes2 / "seed-kept.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"0" * 8)
+        commit_scene_manifest(out2, "hero")
+        rec("a Save writes the live registry to disk", manifest2.exists())
+        rec("... and prunes scene images the registry does not list",
+            not (scenes2 / "seed-orphan.png").exists() and (scenes2 / "seed-kept.png").exists())
+
+        # a place declared AFTER the save is dropped when the next session starts
+        svc2.record_place("hero", era=ERA, kingdom="Paris", area="Le Marais",
+                          place=["the Rue des Rosiers"])
+        rec("a post-save place is live in this session",
+            len(known_scene_places(out2, "hero")) == 2)
+        discard_scene_manifest(out2, "hero")  # a new session starts
+        rec("... and is gone after the session restarts (it was never saved)",
+            [p["area"] for p in known_scene_places(out2, "hero", ERA)] == ["Wapping"])
 
     return all(RESULTS)
 

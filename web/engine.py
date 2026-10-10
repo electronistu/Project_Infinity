@@ -38,12 +38,15 @@ from mcp import ClientSession, StdioServerParameters  # noqa: E402
 from mcp.client.stdio import stdio_client  # noqa: E402
 from ollama import AsyncClient  # noqa: E402
 
-from .images import known_npc_names, known_scene_places  # noqa: E402
+from .images import (  # noqa: E402
+    commit_scene_manifest, current_scene_place, discard_scene_manifest, known_npc_names,
+    known_scene_places,
+)
 from .tool_schema import compact_schema  # noqa: E402
 from forge.world import render_world_text  # noqa: E402
 import device  # noqa: E402  # the Device (Text Time Traveler): vocabulary, cadence, control
 from web.eras import (  # noqa: E402
-    START_ERA, era_arrivals, era_ids, era_legend, pick_arrival, playable_eras,
+    START_ERA, era_arrivals, era_ids, pick_arrival, playable_eras,
     render_era_index, render_era_text,
 )
 from .ollama_stream import stream_chat  # noqa: E402
@@ -522,26 +525,41 @@ DEVICE_WARNING = (
     "because the jump comes next. Nobody else can hear it."
 )
 
+# The scope of an age's memory. The legend is what the era actually knows -- the Traveller
+# may arrive unseen, so a look, a name or a piece of kit is only remembered when a witness
+# survived to carry it; what happened in the open, and what was left behind, always is.
+# The GM REWRITES the age's whole memory on each departure (keep what still matters, add what
+# this leaving means); it may write a few sentences, up to roughly the cap below.
+_MEMORY_SCOPE = (
+    "one or a few sentences, up to about 1200 characters -- what this age now remembers about "
+    "the Traveller. Rewrite the age's whole memory: keep what still matters and add what this "
+    "leaving means. Only what was seen to happen or what was left behind; never the Traveller's "
+    "look, name or kit unless a witness lived to speak of it"
+)
+
+# An era's memory is one growing paragraph; bound it so the always-on memory block stays cheap.
+MAX_LEGEND_CHARS = 1200
+# The extractor accepts more than the cap, so a slightly-over rewrite is trimmed, not rejected.
+MAX_LEGEND_EXTRACT = 2000
+
 # Asked on the closing turn: the Game Master writes what the age will remember, in a marker
-# the client hides and the engine reads. This is the era-switch compaction output -- the
-# config template in `era_legend` is only the fallback when the GM does not answer.
+# the client hides and the engine reads. This is the era-switch compaction output -- the GM
+# rewrites the age's whole memory; there is no engine-authored fallback.
 LEGEND_ASK = (
     "Close this age. End the narrative of THIS turn with "
-    "{{_REMEMBERS: <one sentence -- what this age will remember about the Traveller>}} and "
-    "nothing after it."
+    "{{_REMEMBERS: <" + _MEMORY_SCOPE + ">}} and nothing after it."
 )
 
 # A player-driven jump has no warning turn, so the engine runs one closing turn first.
 DEVICE_CLOSES = (
     "The Traveller turns the Device toward {name}. Narrate the last moment of this age -- "
-    "the world letting go -- and end with {{{{_REMEMBERS: <one sentence -- what this age "
-    "will remember about the Traveller>}}}} and nothing after it."
+    "the world letting go -- and end with {{{{_REMEMBERS: <" + _MEMORY_SCOPE + ">}}}} and "
+    "nothing after it."
 )
 
 LEGEND_RECOVERY_NUDGE = (
     "SYSTEM: this age's memory line is missing. Reply with ONLY the marker "
-    "{{_REMEMBERS: <one sentence -- what this age will remember about the Traveller>}} -- "
-    "no prose, no tool calls, nothing else."
+    "{{_REMEMBERS: <" + _MEMORY_SCOPE + ">}} -- no prose, no tool calls, nothing else."
 )
 
 DEVICE_FIRES = (
@@ -549,8 +567,8 @@ DEVICE_FIRES = (
     "You arrive at {arrival}.\n\n"
     "You still have everything you carried, exactly as it is: nothing is translated, "
     "nothing is left behind. This age has never seen its like, and people will notice.\n\n"
-    "Call `lookup(\"here\")` for this era, then narrate the arrival -- the disorientation, "
-    "what the place smells and sounds like at this hour, and who notices a stranger appear."
+    "Narrate the arrival -- the disorientation, what the place smells and sounds like at "
+    "this hour, and whether anyone notices a stranger appear."
 )
 
 # The Traveller keeps the whole kit, and it stays LITERAL in every era. No
@@ -694,9 +712,26 @@ def _extract_legend(text: str) -> tuple[str, str]:
     cleaned = _REMEMBERS_RE.sub("", raw).strip()
     if "<one sentence" in legend.lower() or legend.startswith("<") or "<" in legend:
         return "", cleaned
-    if not (15 <= len(legend) <= 220):
+    if not (15 <= len(legend) <= MAX_LEGEND_EXTRACT):
         return "", cleaned
     return legend, cleaned
+
+
+def _trim_legend(text: str, limit: int = MAX_LEGEND_CHARS) -> str:
+    """Bound an era's memory to `limit` characters, dropping the OLDEST sentences.
+
+    The GM rewrites the whole memory; on overflow the earliest events are dropped, at a
+    sentence boundary, so the most recent memory survives intact."""
+    text = " ".join(str(text or "").split())
+    if len(text) <= limit:
+        return text
+    kept = ""
+    for sentence in reversed(re.split(r"(?<=[.!?])\s+", text)):
+        candidate = f"{sentence} {kept}".strip()
+        if len(candidate) > limit:
+            break
+        kept = candidate
+    return kept or text[-limit:].lstrip()
 
 
 class GameSession:
@@ -815,6 +850,9 @@ class GameSession:
         self._era_index_at: int | None = None
         self._places_at: int | None = None
         self._primed: list[dict] = []
+        # The scene caption's place: the last declared/used place (age and place are the only
+        # scene fields the engine knows; time and weather are dropped in text mode).
+        self._current_place: dict | None = None
         # ── what the ages remember ──────────────────────────────────────
         # One or two lines per era, read from the save's timeline and injected lazily: the
         # eras the Traveller is not in cost nothing.
@@ -846,6 +884,9 @@ class GameSession:
         self.classic = self.mode == MODE_CLASSIC
         self.era = "" if self.classic else _player_era(self.player_path)
         self.arrival = "" if self.classic else _player_arrival(self.player_path, self.era)
+        # The places/NPC registry is memory-only for a session: start it from the last Save,
+        # never from a working copy a previous unsaved session left behind.
+        discard_scene_manifest(os.path.dirname(self.player_path), self.active_name)
         self._task = asyncio.create_task(self._run())
 
     async def events(self):
@@ -902,6 +943,10 @@ class GameSession:
             except (asyncio.CancelledError, Exception):  # noqa: BLE001
                 pass
         self._task = None
+        # Drop the memory-only registry: a session that ends without saving must not leak
+        # its places/NPCs into the next one.
+        if self.player_path:
+            discard_scene_manifest(os.path.dirname(self.player_path), self.active_name)
 
     # ── internals ─────────────────────────────────────────────────────────
 
@@ -1024,6 +1069,8 @@ class GameSession:
                         "turn": self.turn_counter,
                         "tools": [t["function"]["name"] for t in self.tools_schema],
                     })
+                    # The scene caption the client shows as the GM header (era + place).
+                    await self._emit_caption()
 
                     # ── Awakening: ERA_FILE -> tools -> pause token -> resume -> opening scene ──
                     # (The opening illustration is requested by the GM itself, in
@@ -1615,6 +1662,11 @@ class GameSession:
         self._primed = places
         self._scene_places = {_scene_key(p["place"]): (p["kingdom"], p["area"]) for p in places}
         try:
+            self._current_place = current_scene_place(
+                self.base_dir / OUTPUT_DIR, self.active_name or "")
+        except Exception:  # noqa: BLE001 - never fail a session over the caption
+            self._current_place = None
+        try:
             self._cast_names = known_npc_names(self.base_dir / OUTPUT_DIR, self.active_name or "")
         except Exception:  # noqa: BLE001
             self._cast_names = set()
@@ -1623,6 +1675,40 @@ class GameSession:
         self._npc_roles = {}
         for p in places:
             self._remember_roles(p.get("main_npcs"))
+
+    def _caption_text(self) -> str:
+        """The scene caption from what the engine knows: the age (era game only) and the
+        current place, falling back to the rolled arrival when no place is declared yet (e.g.
+        just after a jump). Never time of day or weather -- text mode has no scene tool to carry
+        them, so they are dropped."""
+        parts: list[str] = []
+        if not self.classic and self.era:
+            parts.append(str(device.era_label(self.era) or "").strip())
+        placed = False
+        current = self._current_place
+        if isinstance(current, dict):
+            cur_era = str(current.get("era") or "").strip().lower()
+            # A place from another age is stale -- never caption it.
+            if self.classic or not cur_era or cur_era == str(self.era or "").strip().lower():
+                area = str(current.get("area") or "").strip()
+                place = " — ".join(str(p).strip() for p in (current.get("place") or [])
+                                   if str(p or "").strip())
+                if area:
+                    parts.append(area)
+                if place:
+                    parts.append(place)
+                placed = bool(area or place)
+        if not placed:
+            arrival = str(self.arrival or "").strip()
+            if arrival:
+                parts.append(arrival)
+        return " · ".join(p for p in parts if p)
+
+    async def _emit_caption(self) -> None:
+        """Tell the client the current scene caption (the text-mode Game Master header)."""
+        await self._emit({"type": "caption", "text": self._caption_text(),
+                          "era": "" if self.classic else str(self.era or ""),
+                          "era_name": "" if self.classic else device.era_label(self.era)})
 
     def _places_body(self) -> str:
         primed = _primed_places(self._primed)
@@ -1706,10 +1792,14 @@ class GameSession:
         self.messages = head
 
     async def _ensure_legend(self) -> None:
-        """Force the age's memory line with one quiet round (never shown as player prose)."""
-        if self._pending_legend:
-            return
-        await self._run_role(LEGEND_RECOVERY_NUDGE, "legend-fix", quiet=True)
+        """Force the age's memory with quiet rounds (never shown as player prose).
+
+        The legend is the only thing that survives the compaction, so it is worth a second
+        attempt before giving up -- there is no engine-authored fallback."""
+        for _ in range(2):
+            if self._pending_legend:
+                return
+            await self._run_role(LEGEND_RECOVERY_NUDGE, "legend-fix", quiet=True)
 
     async def _close_and_jump(self, era: str) -> None:
         """A player-driven jump: one closing turn first, so the GM can say what the age keeps.
@@ -1730,20 +1820,20 @@ class GameSession:
         # if it did not. The config template is the last resort.
         if not self.classic and not self._pending_legend:
             await self._ensure_legend()
-        legend = self._pending_legend or era_legend(old, self.arrival)
+        legend = _trim_legend(self._pending_legend)
         self._pending_legend = ""
-        # An era's memory of you is fixed the first time it sees you vanish; a return does
-        # not rewrite it (and the era noticing your return is a story for later).
-        self._legends.setdefault(old, legend)
-        if self.timeline_path:
-            try:
-                append_legend(self.timeline_path, old, legend)
-            except OSError:  # pragma: no cover - a read-only save must not sink the turn
-                pass
+        # The GM rewrites the age's whole memory on each departure: keep what still matters and
+        # add what this leaving means. A failed rewrite keeps the memory already held. It lives
+        # in memory only here -- the timeline is written on Save, so an unsaved session leaves the
+        # previous save's memories intact.
+        if legend:
+            self._legends[old] = legend
+        memory = self._legends.get(old, "")
         chosen = str(to_era or "").strip().lower()
         self.era = chosen if chosen in self._all_other_eras() else self._steered_era()
         self.arrival = self._pick_jump_arrival(self.era)
         self._reload_era_scene_state()
+        self._current_place = None  # a new age, a new place: the caption resets below
         self._compact(old)
         self._era_started_turn = self.turn_counter
         # The engine DB must agree: the GM's reputation paths and `dump_player_db` read the
@@ -1754,10 +1844,18 @@ class GameSession:
         self.journey = list(self.journey or []) + [self.era]
         await self._call_tool_text("set_player_field", {"key": "journey",
                                                          "value": ",".join(self.journey)})
-        await self._emit({"type": "notice", "title": "The Age Remembers", "text": legend})
-        await self._run_turn(
-            DEVICE_FIRES.format(old=old, new=self.era, arrival=self.arrival or "somewhere"),
-            "jump")
+        if memory:
+            await self._emit({"type": "notice", "title": "The Age Remembers", "text": memory})
+        # The new age's caption now (era only -- the arrival place is not declared yet).
+        await self._emit_caption()
+        jump = DEVICE_FIRES.format(old=old, new=self.era, arrival=self.arrival or "somewhere")
+        # Hand the new age's scaffold WITH the jump, as the awakening does. Asking the GM to
+        # `lookup` it first mixed a tool call with narration (the protocol forbids that), and a
+        # model resolved the conflict with a holding line -- "I'll consult the era first." --
+        # which stalled the turn with no narration.
+        if not self.classic:
+            jump = f"{jump}\n\n{render_era_text(self.era)}"
+        await self._run_turn(jump, "jump")
         # Rearm AFTER the jump turn: that turn is itself a turn, and counting it keeps the
         # player's actions between jumps equal to the band (5 at the start, 5 again after).
         span = self._cadence_span()
@@ -1835,7 +1933,7 @@ class GameSession:
             json.dump(db_data, f, indent=2)
         os.replace(tmp, player_path)
 
-    async def _save_to_active(self):
+    async def _save_to_active(self, timeline_entry=None):
         if self.session is None or not self.player_path:
             return None
         try:
@@ -1844,6 +1942,19 @@ class GameSession:
         except Exception as exc:  # noqa: BLE001
             await self._emit({"type": "error", "message": f"save failed: {type(exc).__name__}: {exc}"})
             return None
+        # The places/NPC registry is memory-only until now: commit it with the save (and
+        # prune scene images the registry no longer lists). A failure here must not sink
+        # the character save.
+        try:
+            commit_scene_manifest(os.path.dirname(self.player_path), self.active_name)
+        except Exception:  # noqa: BLE001 - never sink a save over places
+            pass
+        # The timeline is written here and only here: the ages' legends live in memory until
+        # the player saves, so an unsaved session leaves the previous save's timeline intact.
+        try:
+            self._write_timeline(timeline_entry)
+        except OSError:  # pragma: no cover - a read-only save must not sink the save
+            pass
         info = {
             "type": "saved",
             "name": self.active_name,
@@ -1881,7 +1992,9 @@ class GameSession:
         return "".join(parts)
 
     async def _summarize_timeline(self, target_turn: int):
-        """Append a comprehensive timeline segment covering turns since the last save."""
+        """Produce a comprehensive timeline segment covering turns since the last save.
+
+        Returned, never written: the caller writes the whole timeline in one go on Save."""
         if target_turn <= self.last_timeline_turn:
             return None
         start = self.last_timeline_turn + 1
@@ -1891,11 +2004,37 @@ class GameSession:
         text = await self._plain_summary(prompt)
         entry = _clean_pause_tokens(text or "")
         if entry and "**Key Events**" in entry:
-            append_timeline_file(self.timeline_path, entry)
             self.last_timeline_turn = target_turn
             await self._emit({"type": "timeline", "entry": entry})
             return entry
         return None
+
+    def _write_timeline(self, entry=None) -> None:
+        """Rewrite the save's timeline atomically: header, the ages' legends, the session
+        history, and the new summary entry.
+
+        Called on Save only. Legends live in memory (`self._legends`) until here, so an
+        unsaved session never touches the file; rebuilding the legend block keeps a save
+        idempotent (no duplicate legends)."""
+        if not self.timeline_path:
+            return
+        session_text = load_timeline(self.timeline_path)  # the file with legends stripped
+        if not (session_text or entry or self._legends):
+            return  # nothing to record yet: do not create an empty timeline
+        blocks = ["# Session Timeline"]
+        if self._legends:
+            blocks.append("\n".join(f"<!-- legend:{era} --> {text}"
+                                    for era, text in self._legends.items()))
+        if session_text:
+            blocks.append(session_text)
+        if entry:
+            blocks.append(entry.strip())
+        body = "\n\n".join(b.strip() for b in blocks if b and b.strip()) + "\n"
+        os.makedirs(os.path.dirname(self.timeline_path) or ".", exist_ok=True)
+        tmp = f"{self.timeline_path}.tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(body)
+        os.replace(tmp, self.timeline_path)
 
     async def _handle_save_command(self) -> None:
         """Save in place: the session writes the world's own files (never renames).
@@ -1913,8 +2052,8 @@ class GameSession:
                               "text": "You cannot save in the middle of a fight — the "
                                       "timeline would not survive it."})
             return
-        await self._summarize_timeline(self.turn_counter)
-        await self._save_to_active()
+        entry = await self._summarize_timeline(self.turn_counter)
+        await self._save_to_active(entry)
 
     async def _run_role(self, role_content, label: str, quiet: bool = False) -> str:
         """Append a message and run the streaming tool loop, auto-resuming pauses."""
@@ -2270,6 +2409,8 @@ class GameSession:
 
         if name == PLACE_TOOL and not is_error:
             await self._emit_place_note(args)
+            # The place moved: refresh the scene caption.
+            await self._emit_caption()
 
         if name == "update_player_list":
             await self._sync_device_after_inventory(text)
@@ -2438,6 +2579,8 @@ class GameSession:
             live["area"] = area or live.get("area", "")
             if people:
                 live["main_npcs"] = people
+        # The scene caption's place is the one just declared.
+        self._current_place = {"era": era, "kingdom": kingdom, "area": area, "place": place}
 
     async def _emit_place_note(self, args: dict) -> None:
         """Tell the server to persist the place (the manifest's single writer)."""

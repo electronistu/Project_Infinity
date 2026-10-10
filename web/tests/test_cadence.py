@@ -9,6 +9,7 @@ Run from the repo root:
 
 import asyncio
 import json
+import os
 import random
 import sys
 import tempfile
@@ -23,7 +24,7 @@ from web.engine import (  # noqa: E402
     CADENCE_BANDS, CARRY_NOTE, DEVICE_FIRES, DEVICE_WARNING, LEGEND_ASK, WARNING_TURNS,
     GameSession, load_legends, load_timeline,
 )
-from web.eras import era_arrivals, render_era_index  # noqa: E402
+from web.eras import era_arrivals, render_era_index, render_era_text  # noqa: E402
 
 RESULTS = []
 
@@ -158,6 +159,8 @@ def main():
     gs.messages.extend({"role": "user", "content": f"a turn that happened ({i})"} for i in range(20))
     rec("the history is in the context before the jump", len(gs.messages) >= 24,
         f"{len(gs.messages)} messages")
+    # The memory line is the GM's (there is no engine template): give it one for the jump.
+    gs._pending_legend = "Egypt remembers a stranger who crossed it and vanished."
 
     async def jump():
         await _player_turn(gs)
@@ -181,18 +184,21 @@ def main():
         gs.messages[3]["content"].startswith("WHAT THE AGES REMEMBER")
         and before_era.title().split()[0] in gs.messages[3]["content"],
         gs.messages[3]["content"])
-    rec("the legend is written to the save, permanently",
-        load_legends(gs.timeline_path).get(before_era, "").startswith("Egypt remembers"),
-        str(load_legends(gs.timeline_path)))
+    rec("the legend is held in memory (it reaches disk only on Save)",
+        gs._legends.get(before_era, "").startswith("Egypt remembers")
+        and load_legends(gs.timeline_path) == {},
+        str(gs._legends))
     rec("the legend is not a session event -- the timeline read back has no markers",
         "legend:" not in load_timeline(gs.timeline_path))
     rec("the Device is rearmed so the player gets the same 5 turns between jumps",
         gs._jump_at_turn == gs.turn_counter + 5 and gs._warned is False,
         f"next jump at {gs._jump_at_turn}, now turn {gs.turn_counter}")
-    rec("the GM is told to fetch the new era, not handed it",
-        any(DEVICE_FIRES.split("{")[0].strip() in str(m.get("content") or "")
-            for m in gs.messages)
-        and any('lookup("here")' in str(m.get("content") or "") for m in gs.messages))
+    jump_msgs = [str(m.get("content") or "") for m in gs.messages
+                 if DEVICE_FIRES.split("{")[0].strip() in str(m.get("content") or "")]
+    rec("the jump hands the new era's scaffold, with no lookup step",
+        bool(jump_msgs) and any(render_era_text(gs.era) in t for t in jump_msgs)
+        and all('lookup("here")' not in t for t in jump_msgs),
+        str(jump_msgs)[:120])
 
     # -- the engine DB is told, or reputation lands in the wrong era ---------
     keys = [a.get("key") for n, a in gs.session.calls if n == "set_player_field"]
@@ -213,6 +219,9 @@ def main():
         str(gs.session.calls))
     rec("the jump says the kit is untouched and literal",
         "nothing is translated" in DEVICE_FIRES and "nothing is left behind" in DEVICE_FIRES)
+    rec("a jump leaves it to the GM whether anyone notices the arrival",
+        "whether anyone notices a stranger appear" in DEVICE_FIRES
+        and "who notices a stranger appear" not in DEVICE_FIRES)
     rec("the gear rule is stated with a new era, and never re-skinned",
         "seen its like" in CARRY_NOTE and "consumable" in CARRY_NOTE
         and "seen its like" in gs._era_opening(),
@@ -617,10 +626,58 @@ def main():
         f"{got!r} / {cleaned!r}")
     rec("an echoed placeholder is rejected",
         _extract_legend("{{_REMEMBERS: <one sentence -- what this age will remember>}}")[0] == "")
+
+    # -- the legend is scoped to what the age can actually know -----------------
+    from web.engine import (  # noqa: E402
+        DEVICE_CLOSES, LEGEND_RECOVERY_NUDGE, MAX_LEGEND_CHARS, MAX_LEGEND_EXTRACT,
+        _MEMORY_SCOPE, _trim_legend,
+    )
+    from web.eras import load_era  # noqa: E402
+
+    rec("the memory ask is scoped: seen happen, or left behind -- not a face without a witness",
+        "left behind" in _MEMORY_SCOPE and "witness lived to speak of it" in _MEMORY_SCOPE)
+    rec("... and all three asks carry that scope",
+        _MEMORY_SCOPE in LEGEND_ASK and _MEMORY_SCOPE in DEVICE_CLOSES
+        and _MEMORY_SCOPE in LEGEND_RECOVERY_NUDGE)
+    rec("... and the marker is still well-formed after DEVICE_CLOSES is formatted",
+        "{{_REMEMBERS:" in DEVICE_CLOSES.format(name="Egypt")
+        and "}}" in DEVICE_CLOSES.format(name="Egypt"))
+    rec("an echo of the new placeholder is still rejected",
+        _extract_legend("{{_REMEMBERS: <" + _MEMORY_SCOPE + ">}}")[0] == "")
+    rec("the per-era fallbacks no longer claim a sighting",
+        all("seen" not in str((load_era(e)["meta"] or {}).get("legend") or "")
+            for e in ("egypt", "tang", "wallachia", "victorian")))
     rec("a too-short memory line is rejected",
         _extract_legend("{{_REMEMBERS: short.}}")[0] == "")
     rec("prose without a marker is untouched",
         _extract_legend("Just prose.") == ("", "Just prose."))
+
+    long_legend = "Egypt remembers " + "a stranger crossed the flood and was gone again. " * 20
+    rec("a long, multi-sentence legend is accepted (the cap is a backstop above the bound)",
+        len(long_legend) < MAX_LEGEND_EXTRACT
+        and _extract_legend("{{_REMEMBERS: " + long_legend + "}}")[0].startswith("Egypt remembers"),
+        str(len(long_legend)))
+    rec("a legend past the hard backstop is still rejected",
+        _extract_legend("{{_REMEMBERS: " + "x" * (MAX_LEGEND_EXTRACT + 10) + "}}")[0] == "")
+    trimmed = _trim_legend("One. " * 400)
+    rec("the era's memory is trimmed oldest-first at a sentence boundary",
+        len(trimmed) <= MAX_LEGEND_CHARS and trimmed.endswith("One."), str(len(trimmed)))
+
+    # The GM rewrites the age's whole memory each departure (no first-wins).
+    rw = _session()
+    rw._pending_legend = "Egypt remembers a stranger who crossed it."
+    asyncio.run(rw._jump())
+    rw.era = "egypt"  # come back to the age
+    rw._pending_legend = "Egypt remembers a stranger who crossed it twice, and the second time it rained."
+    asyncio.run(rw._jump())
+    rec("a later departure rewrites the age's memory (no first-wins)",
+        rw._legends.get("egypt", "").startswith("Egypt remembers a stranger who crossed it twice"),
+        str(rw._legends))
+
+    plain = _session()
+    asyncio.run(plain._jump())  # no GM line; `_ensure_legend` is a no-op in the harness
+    rec("with no GM line the age remembers nothing (no engine template)",
+        plain._legends.get("egypt", "") == "", str(plain._legends))
 
     # The warning turn asks for the line.
     want = _session()
@@ -635,8 +692,8 @@ def main():
     prefers._pending_legend = "Chang'an remembers a foreigner who was not there the next morning."
     asyncio.run(prefers._jump())
     rec("the GM's memory line wins over the template",
-        load_legends(prefers.timeline_path).get("egypt", "").startswith("Chang'an remembers"),
-        str(load_legends(prefers.timeline_path)))
+        prefers._legends.get("egypt", "").startswith("Chang'an remembers"),
+        str(prefers._legends))
     rec("... and is cleared once the jump has used it", prefers._pending_legend == "")
 
     # Missing line: one quiet round is forced.
@@ -651,7 +708,23 @@ def main():
     asyncio.run(forced._jump())
     rec("a missing memory line forces one quiet round",
         forced_calls == [True]
-        and "crossed it" in load_legends(forced.timeline_path).get("egypt", ""))
+        and "crossed it" in forced._legends.get("egypt", ""))
+
+    # The timeline is written on Save only: the in-memory legends reach disk there.
+    saved = _session()
+    saved._legends["egypt"] = "Egypt remembers a stranger who crossed it and vanished."
+    fd2, saved.timeline_path = tempfile.mkstemp(suffix=".timeline")
+    os.close(fd2)
+    os.unlink(saved.timeline_path)
+    saved._write_timeline("## Turns 1-1 | somewhere | dusk\n**Key Events**:\n- a thing happened")
+    rec("a Save writes the in-memory legends to the timeline",
+        load_legends(saved.timeline_path).get("egypt", "").startswith("Egypt remembers"))
+    rec("... and the session summary alongside them",
+        "**Key Events**" in load_timeline(saved.timeline_path))
+    saved._write_timeline(None)
+    with open(saved.timeline_path, "r", encoding="utf-8") as fh:
+        twice = fh.read().count("<!-- legend:egypt -->")
+    rec("rewriting the timeline does not duplicate a legend", twice == 1, str(twice))
 
     # A player-driven jump runs a closing turn first.
     closing = _session(era="tang")

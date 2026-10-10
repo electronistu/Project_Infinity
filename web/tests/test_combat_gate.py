@@ -53,7 +53,7 @@ def _save_attempt(in_combat):
     async def _summarize(_turn):
         calls.append("summarize")
 
-    async def _save():
+    async def _save(_timeline_entry=None):
         calls.append("save")
 
     gs._summarize_timeline = _summarize

@@ -32,7 +32,7 @@ from .icons import (  # noqa: E402
     DEFAULT_FAMILY, KNOWN_FAMILIES, IconService, all_icon_keys, family_for_model,
     safe_family, slugify_key, spell_detail,
 )
-from .images import ImageError, ImageService, SceneService, image_mime
+from .images import ImageError, ImageService, SceneService, discard_scene_manifest, image_mime
 from .eras import START_ERA, render_era_text  # noqa: E402
 from .models import (
     DEFAULT_ICON_MODEL,
@@ -290,6 +290,8 @@ async def delete_world(filename: str):
     if image_dir.is_dir():
         shutil.rmtree(image_dir, ignore_errors=True)
         removed.append(f"images/{save.stem}")
+    # Drop the memory-only registry for the deleted save.
+    discard_scene_manifest(OUTPUT_DIR, save.stem)
     return {"deleted": name, "removed": removed}
 
 
