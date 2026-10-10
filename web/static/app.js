@@ -1596,6 +1596,8 @@ function handleEvent(evt) {
   switch (evt.type) {
     case "ready":
       state.model = evt.model;
+      state.dev = !!evt.dev;
+      updateDevButton();
       state.contextWindow = evt.context_window || 0;
       $("world-label").textContent = evt.world || "";
       $("model-label").textContent = evt.model || "";
@@ -1696,6 +1698,7 @@ function handleEvent(evt) {
       state.ready = true;
       setStatus("Awaiting your action");
       updateComposer();
+      updateDevButton();
       requestStats();
       break;
 
@@ -1722,6 +1725,44 @@ function handleEvent(evt) {
       if (typeof evt.in_combat === "boolean") { state.inCombat = evt.in_combat; updateComposer(); }
       updateDevice(evt);
       renderDeviceCard();
+      break;
+
+    case "dev_applied":
+      devUi.draft = {};
+      devUi.raw = {};
+      devUi.device = null;
+      devUi.cadence = null;
+      $("dev-note").textContent = evt.note || "applied";
+      buildDevSheet();
+      break;
+
+    case "dev_raw":
+      devUi.rawFields = evt.data || {};
+      renderRawBrowser();
+      break;
+
+    case "gm_context":
+      if (evt.mode === "flush") {
+        devUi.gmJournal = evt.journal || [];
+        devUi.gmTools = evt.tools || null;
+        devUi.gmCapped = !!evt.capped;
+        devUi.gmHeads = {};
+        if (devUi.tab === "gm") renderGm();
+      } else if (evt.mode === "update") {
+        const snap = devUi.gmJournal.find((s) => s.seq === evt.seq);
+        if (snap) snap.actual_tokens = evt.actual_tokens;
+        const head = devUi.gmHeads[evt.seq];
+        if (head && snap) head.textContent = gmHeadText(snap);
+      } else if (evt.snapshot) {
+        devUi.gmJournal.push(evt.snapshot);
+        devUi.gmCapped = !!evt.capped;
+        if (devUi.tab === "gm") {
+          // Append in place: a full re-render would collapse whatever is open.
+          const box = $("dev-gm");
+          if (box.querySelector(".muted")) box.innerHTML = "";
+          box.appendChild(gmSnapshotEl(evt.snapshot, true));
+        }
+      }
       break;
 
     case "notice":
@@ -1814,11 +1855,15 @@ async function startSession(save) {
   state.combatInitiative = {};
   state.mechanicsLines = [];
   state.iconGenEpoch += 1;     // cancel any in-flight generation run
+  devUi.draft = {}; devUi.raw = {}; devUi.rawFields = {}; devUi.rawPath = [];
+  devUi.device = null; devUi.cadence = null;
+  devUi.gmJournal = []; devUi.gmTools = null; devUi.gmCapped = false;
   transcript.innerHTML = "";
   const res = await fetch("/api/sessions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ save, model, temperature, think: true, scene_images: !!state.imagesEnabled }),
+    body: JSON.stringify({ save, model, temperature, think: true,
+                           scene_images: !!state.imagesEnabled, dev: !!state.dev }),
   });
   if (!res.ok) throw new Error("HTTP " + res.status + " — " + (await res.text()));
   const data = await res.json();
@@ -1838,6 +1883,8 @@ async function startSession(save) {
 async function begin() {
   $("begin").disabled = true;
   const save = $("world-select").value;
+  // Read the dev flag from the home screen; it travels with the session.
+  state.dev = !!($("toggle-dev") && $("toggle-dev").checked);
   const wanted = confirmPortrait(save);
   try {
     await startSession(save);
@@ -2670,6 +2717,568 @@ async function finishCreate(terminal) {
   }
 }
 
+/* ── developer mode: live sheet editor + GM-context inspector ──
+   Enabled per session from the home screen. The sheet tab stages edits locally and
+   `Apply` batches them to the engine in one go; the GM tab shows exactly what the GM
+   model is sent (recorded by the engine, since a jump's compaction erases history). */
+
+const devUi = {
+  tab: "sheet",
+  draft: {},        // staged scalar edits: key -> value
+  raw: {},          // staged raw fields: dotted key -> parsed JSON value
+  rawFields: {},    // the raw stored player rows, for the field browser
+  rawPath: [],      // the browser's current drill-down path
+  device: null,     // staged {present, parts:[]}
+  cadence: null,    // staged {turns, steer}
+  gmJournal: [],
+  gmTools: null,
+  gmCapped: false,
+  gmHeads: {},      // seq -> <summary> node, for in-place token updates
+};
+
+function updateDevButton() {
+  const btn = $("dev-open");
+  if (!btn) return;
+  btn.classList.toggle("hidden", !(state.dev && state.ready));
+}
+
+function openDev() {
+  if (!state.dev) return;
+  devUi.draft = {};
+  devUi.raw = {};
+  devUi.rawFields = {};
+  devUi.rawPath = [];
+  devUi.device = null;
+  devUi.cadence = null;
+  $("dev-overlay").classList.remove("hidden");
+  $("dev-note").textContent = "";
+  switchDevTab("sheet");
+  if (state.connected) send({ type: "dev", op: "raw" });
+}
+
+function closeDev() {
+  $("dev-overlay").classList.add("hidden");
+  if (state.connected) send({ type: "dev", op: "gm_close" });
+}
+
+function switchDevTab(tab) {
+  devUi.tab = tab;
+  $("dev-tab-sheet").classList.toggle("active", tab === "sheet");
+  $("dev-tab-gm").classList.toggle("active", tab === "gm");
+  $("dev-sheet").classList.toggle("hidden", tab !== "sheet");
+  $("dev-gm").classList.toggle("hidden", tab !== "gm");
+  if (tab === "sheet") buildDevSheet();
+  else requestGmContext();
+}
+
+function devNumField(label, key, value) {
+  const wrap = document.createElement("div");
+  wrap.className = "dev-field";
+  const lab = document.createElement("label");
+  lab.textContent = label;
+  const inp = document.createElement("input");
+  inp.type = "number";
+  inp.value = value == null ? "" : value;
+  inp.addEventListener("input", () => {
+    devUi.draft[key] = inp.value === "" ? 0 : Number(inp.value);
+    inp.classList.add("dirty");
+  });
+  wrap.appendChild(lab);
+  wrap.appendChild(inp);
+  return wrap;
+}
+
+function buildDevSheet() {
+  const box = $("dev-sheet");
+  const d = state.lastStats;
+  box.innerHTML = "";
+  if (!d || !d.character) {
+    box.innerHTML = '<div class="muted">No sheet yet.</div>';
+    return;
+  }
+  const section = (title, kids) => {
+    const s = document.createElement("div");
+    s.className = "dev-section";
+    const h = document.createElement("h2");
+    h.textContent = title;
+    s.appendChild(h);
+    const g = document.createElement("div");
+    g.className = "dev-grid";
+    kids.forEach((k) => g.appendChild(k));
+    s.appendChild(g);
+    box.appendChild(s);
+  };
+
+  const c = d.character || {};
+  const cb = d.combat || {};
+  section("Character", [
+    devNumField("Level", "level", c.level),
+    devNumField("XP", "xp", c.xp),
+    devNumField("Gold", "gold", c.gold),
+  ]);
+  section("Combat", [
+    devNumField("Current HP", "current_hit_points", cb.hp_current),
+    devNumField("Max HP", "total_hit_points", cb.hp_max),
+    devNumField("Temp HP", "temporary_hit_points", cb.temporary_hit_points),
+    devNumField("Armor Class", "armor_class", cb.armor_class),
+    devNumField("Speed", "speed", cb.speed),
+    devNumField("Proficiency", "proficiency_bonus", cb.proficiency_bonus),
+    devNumField("Exhaustion", "exhaustion", cb.exhaustion),
+  ]);
+
+  // Ability scores: one staged `stats` object, rebuilt from the live sheet on each change.
+  const baseStats = {};
+  (d.stats || []).forEach((s) => { if (s.key) baseStats[s.key.toLowerCase()] = s.value; });
+  const statKids = (d.stats || []).map((s) => {
+    const key = (s.key || "").toLowerCase();
+    const wrap = document.createElement("div");
+    wrap.className = "dev-field";
+    const lab = document.createElement("label");
+    lab.textContent = s.name || s.key || key;
+    const inp = document.createElement("input");
+    inp.type = "number";
+    inp.value = s.value == null ? "" : s.value;
+    inp.addEventListener("input", () => {
+      const next = { ...baseStats, [key]: Number(inp.value) };
+      devUi.draft.__stats__ = next;
+      inp.classList.add("dirty");
+    });
+    wrap.appendChild(lab);
+    wrap.appendChild(inp);
+    return wrap;
+  });
+  if (statKids.length) section("Ability scores", statKids);
+
+  // The Device.
+  const dev = d.device || {};
+  const ctrl = state.deviceControl || {};
+  if (dev.parts && dev.parts.length) {
+    const kids = [];
+    const presentWrap = document.createElement("div");
+    presentWrap.className = "dev-field";
+    const plab = document.createElement("label");
+    plab.textContent = "Device present";
+    const pchk = document.createElement("input");
+    pchk.type = "checkbox";
+    pchk.checked = !!dev.present;
+    presentWrap.appendChild(plab);
+    presentWrap.appendChild(pchk);
+    kids.push(presentWrap);
+    const partChecks = {};
+    dev.parts.forEach((p) => {
+      const w = document.createElement("div");
+      w.className = "dev-field";
+      const l = document.createElement("label");
+      l.textContent = p.name;
+      const chk = document.createElement("input");
+      chk.type = "checkbox";
+      chk.checked = !!p.recovered;
+      partChecks[p.name] = chk;
+      chk.addEventListener("change", () => stageDevice());
+      w.appendChild(l);
+      w.appendChild(chk);
+      kids.push(w);
+    });
+    function stageDevice() {
+      devUi.device = {
+        present: pchk.checked,
+        parts: Object.keys(partChecks).filter((n) => partChecks[n].checked),
+      };
+    }
+    pchk.addEventListener("change", () => stageDevice());
+
+    const jumpWrap = document.createElement("div");
+    jumpWrap.className = "dev-field";
+    const jlab = document.createElement("label");
+    jlab.textContent = "Jump now to";
+    const jsel = document.createElement("select");
+    (ctrl.all_eras || ctrl.forward_eras || []).forEach((e) => {
+      const o = document.createElement("option");
+      o.value = e.id;
+      o.textContent = e.name;
+      jsel.appendChild(o);
+    });
+    const jbtn = document.createElement("button");
+    jbtn.type = "button";
+    jbtn.className = "ghost";
+    jbtn.textContent = "jump";
+    jbtn.addEventListener("click", () => {
+      if (!jsel.value) return;
+      send({ type: "dev", op: "apply", ops: [{ kind: "jump", era: jsel.value }] });
+    });
+    jumpWrap.appendChild(jlab);
+    jumpWrap.appendChild(jsel);
+    jumpWrap.appendChild(jbtn);
+    kids.push(jumpWrap);
+
+    const turnsWrap = document.createElement("div");
+    turnsWrap.className = "dev-field";
+    const tlab = document.createElement("label");
+    tlab.textContent = "Turns until jump (blank = manual)";
+    const tinp = document.createElement("input");
+    tinp.type = "number";
+    tinp.value = ctrl.turns_until == null ? "" : ctrl.turns_until;
+    turnsWrap.appendChild(tlab);
+    turnsWrap.appendChild(tinp);
+    kids.push(turnsWrap);
+
+    const steerWrap = document.createElement("div");
+    steerWrap.className = "dev-field";
+    const slab = document.createElement("label");
+    slab.textContent = "Steer";
+    const ssel = document.createElement("select");
+    [["", "drift"], ["previous", "previous"], ["forward", "forward"]].forEach(([v, t]) => {
+      const o = document.createElement("option");
+      o.value = v;
+      o.textContent = t;
+      ssel.appendChild(o);
+    });
+    ssel.value = ctrl.steer || "";
+    steerWrap.appendChild(slab);
+    steerWrap.appendChild(ssel);
+    kids.push(steerWrap);
+
+    const stageCadence = () => {
+      devUi.cadence = {
+        turns: tinp.value === "" ? null : Number(tinp.value),
+        steer: ssel.value,
+      };
+    };
+    tinp.addEventListener("input", stageCadence);
+    ssel.addEventListener("change", stageCadence);
+    section("Device", kids);
+  }
+
+  // Every stored field, as a live drill-down browser (raw keys, values stage into `devUi.raw`).
+  const raw = document.createElement("div");
+  raw.className = "dev-section";
+  const rawH = document.createElement("h2");
+  rawH.textContent = "Fields";
+  raw.appendChild(rawH);
+  const host = document.createElement("div");
+  host.id = "dev-raw-host";
+  raw.appendChild(host);
+  box.appendChild(raw);
+  renderRawBrowser();
+}
+
+/* ── the raw field browser ─────────────────────────────────── */
+
+function rawType(v) {
+  if (v === null) return "null";
+  if (Array.isArray(v)) return "array";
+  return typeof v;
+}
+
+function rawPreview(v) {
+  let s;
+  try { s = JSON.stringify(v); } catch (e) { s = String(v); }
+  if (s == null) s = String(v);
+  return s.length > 64 ? s.slice(0, 61) + "…" : s;
+}
+
+function rawResolve(root, path) {
+  let node = root;
+  for (const seg of path) {
+    if (Array.isArray(node)) node = node[Number(seg)];
+    else if (node && typeof node === "object") node = node[seg];
+    else return undefined;
+  }
+  return node;
+}
+
+function rawPathStr(path) { return path.join("."); }
+
+function stageRaw(path, value) {
+  devUi.raw[rawPathStr(path)] = value;
+  updateRawStaged();
+}
+
+function updateRawStaged() {
+  const keys = Object.keys(devUi.raw);
+  $("dev-note").textContent = keys.length
+    ? "staged: " + keys.map((k) => k + " = " + JSON.stringify(devUi.raw[k])).join("; ")
+    : "";
+}
+
+function rawLeafInput(path, value, type) {
+  if (type === "boolean") {
+    const inp = document.createElement("input");
+    inp.type = "checkbox";
+    inp.checked = !!value;
+    inp.addEventListener("change", () => stageRaw(path, inp.checked));
+    return inp;
+  }
+  if (type === "number") {
+    const inp = document.createElement("input");
+    inp.type = "number";
+    inp.value = value;
+    inp.addEventListener("input", () => { if (inp.value !== "") stageRaw(path, Number(inp.value)); });
+    return inp;
+  }
+  const inp = document.createElement("input");
+  inp.type = "text";
+  inp.value = value === null ? "" : String(value);
+  if (value === null) inp.placeholder = "(null)";
+  inp.addEventListener("input", () => stageRaw(path, inp.value));
+  return inp;
+}
+
+function toggleRawJson(row, path, value) {
+  const existing = row.querySelector(".dev-raw-editor");
+  if (existing) { existing.remove(); return; }
+  const box = document.createElement("div");
+  box.className = "dev-raw-editor";
+  const ta = document.createElement("textarea");
+  ta.value = JSON.stringify(value, null, 2);
+  const stage = document.createElement("button");
+  stage.type = "button";
+  stage.className = "ghost";
+  stage.textContent = "stage JSON";
+  stage.addEventListener("click", () => {
+    let parsed;
+    try { parsed = JSON.parse(ta.value); } catch (e) { parsed = ta.value; }
+    stageRaw(path, parsed);
+  });
+  box.appendChild(ta);
+  box.appendChild(stage);
+  row.appendChild(box);
+}
+
+function rawRowEl(key, value, path) {
+  const row = document.createElement("div");
+  row.className = "dev-raw-row";
+  const k = document.createElement("span");
+  k.className = "dev-raw-key";
+  k.textContent = key;
+  row.appendChild(k);
+  const type = rawType(value);
+  const t = document.createElement("span");
+  t.className = "dev-raw-type";
+  t.textContent = type;
+  row.appendChild(t);
+  const isContainer = value !== null && typeof value === "object";
+  if (isContainer) {
+    const prev = document.createElement("span");
+    prev.className = "dev-raw-val";
+    prev.textContent = rawPreview(value);
+    row.appendChild(prev);
+    const actions = document.createElement("span");
+    actions.className = "dev-raw-actions";
+    const open = document.createElement("button");
+    open.type = "button";
+    open.className = "ghost";
+    open.textContent = "open";
+    open.addEventListener("click", () => { devUi.rawPath = path.slice(); renderRawBrowser(); });
+    actions.appendChild(open);
+    const json = document.createElement("button");
+    json.type = "button";
+    json.className = "ghost";
+    json.textContent = "JSON";
+    json.addEventListener("click", () => toggleRawJson(row, path, value));
+    actions.appendChild(json);
+    row.appendChild(actions);
+    return row;
+  }
+  row.appendChild(rawLeafInput(path, value, type));
+  return row;
+}
+
+function renderRawBrowser() {
+  const host = $("dev-raw-host");
+  if (!host) return;
+  host.innerHTML = "";
+  const root = devUi.rawFields || {};
+  const crumb = document.createElement("div");
+  crumb.className = "dev-crumb";
+  const mk = (label, path) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "dev-crumb-btn";
+    b.textContent = label;
+    b.addEventListener("click", () => { devUi.rawPath = path; renderRawBrowser(); });
+    return b;
+  };
+  crumb.appendChild(mk("root", []));
+  devUi.rawPath.forEach((seg, i) => {
+    const sep = document.createElement("span");
+    sep.className = "dev-crumb-sep";
+    sep.textContent = " / ";
+    crumb.appendChild(sep);
+    crumb.appendChild(mk(seg, devUi.rawPath.slice(0, i + 1)));
+  });
+  host.appendChild(crumb);
+
+  const keys = Object.keys(root);
+  if (!keys.length) {
+    const m = document.createElement("div");
+    m.className = "muted";
+    m.textContent = "loading fields…";
+    host.appendChild(m);
+    return;
+  }
+  const node = rawResolve(root, devUi.rawPath);
+  if (node === undefined) {
+    devUi.rawPath = [];  // a staged edit replaced a subtree; fall back to root
+    renderRawBrowser();
+    return;
+  }
+  if (node === null || typeof node !== "object") {
+    const row = document.createElement("div");
+    row.className = "dev-raw-row";
+    const k = document.createElement("span");
+    k.className = "dev-raw-key";
+    k.textContent = devUi.rawPath[devUi.rawPath.length - 1] || "value";
+    row.appendChild(k);
+    row.appendChild(rawLeafInput(devUi.rawPath.slice(), node, rawType(node)));
+    host.appendChild(row);
+    return;
+  }
+  const entries = Array.isArray(node)
+    ? node.map((v, i) => [String(i), v])
+    : Object.entries(node);
+  if (!entries.length) {
+    const m = document.createElement("div");
+    m.className = "muted";
+    m.textContent = "(empty)";
+    host.appendChild(m);
+    return;
+  }
+  const list = document.createElement("div");
+  list.className = "dev-raw-list";
+  entries.forEach(([key, value]) => list.appendChild(rawRowEl(key, value, devUi.rawPath.concat([key]))));
+  host.appendChild(list);
+}
+
+function buildDevOps() {
+  const ops = [];
+  Object.keys(devUi.draft).forEach((key) => {
+    if (key === "__stats__") {
+      ops.push({ kind: "set", key: "stats", value: devUi.draft.__stats__ });
+    } else {
+      ops.push({ kind: "set", key, value: devUi.draft[key] });
+    }
+  });
+  if (devUi.device) {
+    ops.push({ kind: "device", present: devUi.device.present, parts: devUi.device.parts });
+  }
+  if (devUi.cadence) {
+    ops.push({ kind: "cadence", turns: devUi.cadence.turns, steer: devUi.cadence.steer });
+  }
+  Object.keys(devUi.raw).forEach((key) => {
+    ops.push({ kind: "set", key, value: devUi.raw[key] });
+  });
+  return ops;
+}
+
+function applyDev() {
+  const ops = buildDevOps();
+  if (!ops.length) {
+    $("dev-note").textContent = "nothing staged";
+    return;
+  }
+  send({ type: "dev", op: "apply", ops });
+  $("dev-note").textContent = "applying…";
+}
+
+function revertDev() {
+  devUi.draft = {};
+  devUi.raw = {};
+  devUi.device = null;
+  devUi.cadence = null;
+  $("dev-note").textContent = "reverted";
+  buildDevSheet();
+}
+
+function requestGmContext() {
+  devUi.gmJournal = [];
+  devUi.gmTools = null;
+  devUi.gmHeads = {};
+  $("dev-gm").innerHTML = '<div class="muted">loading…</div>';
+  send({ type: "dev", op: "gm_open" });
+}
+
+function gmHeadText(snap) {
+  const meta = [`#${snap.seq}`, snap.label];
+  if (snap.round != null) {
+    meta.push(`r${snap.round}${snap.trigger ? " (" + snap.trigger + ")" : ""}`);
+  }
+  meta.push(`turn ${snap.turn}`, `${(snap.messages || []).length} msgs`);
+  if (snap.actual_tokens != null) {
+    meta.push(`${snap.actual_tokens} tok`);
+  } else {
+    meta.push(`~${snap.tokens} tok (msgs ~${snap.message_tokens == null ? "?" : snap.message_tokens}` +
+      ` + tools ~${snap.tool_tokens == null ? 0 : snap.tool_tokens})`);
+  }
+  return meta.join(" · ");
+}
+
+function gmSnapshotEl(snap, open) {
+  const det = document.createElement("details");
+  det.className = "dev-gm-snap";
+  if (open) det.open = true;
+  const sum = document.createElement("summary");
+  sum.className = "dev-gm-head";
+  sum.textContent = gmHeadText(snap);
+  devUi.gmHeads[snap.seq] = sum;
+  det.appendChild(sum);
+  let built = false;
+  const build = () => { built = true; det.appendChild(gmMessagesEl(snap.messages || [])); };
+  det.addEventListener("toggle", () => { if (det.open && !built) build(); });
+  if (open) build();
+  return det;
+}
+
+function gmMessagesEl(messages) {
+  const wrap = document.createElement("div");
+  messages.forEach((m, i) => {
+    const msg = document.createElement("div");
+    msg.className = "dev-gm-msg";
+    const role = document.createElement("div");
+    role.className = "dev-gm-role";
+    role.textContent = `${i} · ${m.role || "?"}${m.name ? " (" + m.name + ")" : ""}`;
+    msg.appendChild(role);
+    const pre = document.createElement("pre");
+    let text = m.content == null ? "" : String(m.content);
+    if (m.tool_calls) text += "\n[tool_calls] " + JSON.stringify(m.tool_calls);
+    pre.textContent = text || "(empty)";
+    msg.appendChild(pre);
+    wrap.appendChild(msg);
+  });
+  return wrap;
+}
+
+function renderGm() {
+  const box = $("dev-gm");
+  box.innerHTML = "";
+  if (devUi.gmCapped) {
+    const warn = document.createElement("div");
+    warn.className = "dev-warn";
+    warn.textContent = "The prompt journal hit its size cap; the earliest prompts are kept and later ones are not recorded.";
+    box.appendChild(warn);
+  }
+  if (devUi.gmTools) {
+    const off = document.createElement("div");
+    off.className = "dev-gm-tools";
+    off.textContent = "Offered to the GM: " + (devUi.gmTools.offered || []).map((t) => t.name).join(", ");
+    const hid = document.createElement("div");
+    hid.className = "dev-gm-tools";
+    hid.textContent = "Hidden from the GM: " + (devUi.gmTools.hidden || []).map((t) => t.name).join(", ");
+    box.appendChild(off);
+    box.appendChild(hid);
+  }
+  if (!devUi.gmJournal.length) {
+    const empty = document.createElement("div");
+    empty.className = "muted";
+    empty.textContent = "No prompts recorded yet.";
+    box.appendChild(empty);
+    return;
+  }
+  devUi.gmJournal.forEach((snap, i) => {
+    box.appendChild(gmSnapshotEl(snap, i === devUi.gmJournal.length - 1));
+  });
+}
+
 /* ── bootstrap ────────────────────────────────────────────── */
 
 async function init() {
@@ -2706,6 +3315,12 @@ async function init() {
   });
   $("theme-toggle").addEventListener("click", toggleTheme);
   $("sheet-toggle").addEventListener("click", toggleSheet);
+  $("dev-open").addEventListener("click", openDev);
+  $("dev-close").addEventListener("click", closeDev);
+  $("dev-tab-sheet").addEventListener("click", () => switchDevTab("sheet"));
+  $("dev-tab-gm").addEventListener("click", () => switchDevTab("gm"));
+  $("dev-apply").addEventListener("click", applyDev);
+  $("dev-revert").addEventListener("click", revertDev);
   $("sheet-close").addEventListener("click", closeSheet);
   $("portrait-regen").addEventListener("click", regeneratePortrait);
   $("sheet-backdrop").addEventListener("click", closeSheet);
@@ -2715,6 +3330,7 @@ async function init() {
     if (!$("save-overlay").classList.contains("hidden")) closeSave();
     else if (!$("load-overlay").classList.contains("hidden")) closeLoad();
     else if (!$("end-overlay").classList.contains("hidden")) closeEnd();
+    else if (!$("dev-overlay").classList.contains("hidden")) closeDev();
     else if ($("sidebar").classList.contains("open")) closeSheet();
   });
   $("save-open").addEventListener("click", openSave);

@@ -181,6 +181,7 @@ class CreateSessionBody(BaseModel):
     temperature: float | None = None
     think: bool | None = None
     scene_images: bool = False
+    dev: bool = False
 
 
 class PortraitBody(BaseModel):
@@ -587,7 +588,7 @@ async def create_session(body: CreateSessionBody):
         raise HTTPException(status_code=400, detail=f"unknown model: {body.model}")
     sid, session = await manager.create(
         body.save, model=body.model, temperature=body.temperature, think=body.think,
-        scene_images=body.scene_images,
+        scene_images=body.scene_images, dev=body.dev,
     )
     return {
         "session_id": sid,
@@ -677,6 +678,8 @@ async def ws_endpoint(websocket: WebSocket, sid: str):
             elif mtype == "device":
                 await session.submit_device(msg.get("action", ""), msg.get("era", ""),
                                             msg.get("direction", ""), msg.get("delta"))
+            elif mtype == "dev":
+                await session.submit_dev(msg)
             elif mtype == "stats":
                 await session.submit_slash("/stats")
             elif mtype == "flags":

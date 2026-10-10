@@ -341,7 +341,7 @@ async def main() -> bool:
     gs_r = GameSession(base_dir=REPO, model="test", scene_images=True)
     pause_rounds: list[str] = []
 
-    async def _pause_stream(label, quiet=False):
+    async def _pause_stream(label, quiet=False, gm=None):
         pause_rounds.append(label)
         return ("{{_NEED_AN_OTHER_PROMPT}}", "", [], False)
 
@@ -397,7 +397,7 @@ async def main() -> bool:
     # At awakening the resume re-anchors the step a bare token leaves implicit.
     resume_labels: list[str] = []
 
-    async def _pause_then_prose(label, quiet=False):
+    async def _pause_then_prose(label, quiet=False, gm=None):
         resume_labels.append(label)
         return (("{{_NEED_ANOTHER_PROMPT}}", "", [], False) if len(resume_labels) == 1
                 else ("You wake in the dark.", "", [], False))
@@ -502,7 +502,7 @@ async def main() -> bool:
     async def _exec5(tc):
         executed5.append((tc.get("function") or {}).get("name"))
 
-    async def _stream5(label, quiet=False):
+    async def _stream5(label, quiet=False, gm=None):
         rounds5.append(label)
         if len(rounds5) == 1:
             return ("You step into the forge, heat rolling out.", "", [
@@ -527,7 +527,7 @@ async def main() -> bool:
     gs8._scene_requested_turn = False
     rounds8: list[str] = []
 
-    async def _stream8(label, quiet=False):
+    async def _stream8(label, quiet=False, gm=None):
         rounds8.append(label)
         if len(rounds8) == 1:
             return ("You push open the door.", "", [{"function": {
@@ -550,7 +550,7 @@ async def main() -> bool:
     async def _exec6(tc):
         executed5.append((tc.get("function") or {}).get("name"))
 
-    async def _stream6(label, quiet=False):
+    async def _stream6(label, quiet=False, gm=None):
         rounds6.append(label)
         if len(rounds6) == 1:
             return ("", "", [{"function": {"name": "roll_dice", "arguments": {}}}], False)
@@ -570,7 +570,7 @@ async def main() -> bool:
     async def _exec9(tc):
         pass
 
-    async def _stream9(label, quiet=False):
+    async def _stream9(label, quiet=False, gm=None):
         rounds9.append(label)
         if len(rounds9) == 1:
             return ("", "", [{"function": {"name": "request_scene_image",
@@ -594,7 +594,7 @@ async def main() -> bool:
     async def _exec10(tc):
         pass
 
-    async def _stream10(label, quiet=False):
+    async def _stream10(label, quiet=False, gm=None):
         rounds10.append(label)
         return ("", "", [{"function": {"name": "request_scene_image",
                               "arguments": {"description": "a beat"}}}], False)
@@ -612,7 +612,7 @@ async def main() -> bool:
     async def _exec11(tc):
         pass
 
-    async def _stream11(label, quiet=False):
+    async def _stream11(label, quiet=False, gm=None):
         rounds11.append(label)
         return ("", "", [{"function": {"name": "request_scene_image",
                               "arguments": {"description": "a beat"}}}], False)
@@ -631,7 +631,7 @@ async def main() -> bool:
     async def _exec12(tc):
         pass
 
-    async def _stream12(label, quiet=False):
+    async def _stream12(label, quiet=False, gm=None):
         rounds12.append(label)
         if len(rounds12) == 1:
             return ("You set the strongbox on the table.", "", [
@@ -652,7 +652,7 @@ async def main() -> bool:
     async def _exec13(tc):
         pass
 
-    async def _stream13(label, quiet=False):
+    async def _stream13(label, quiet=False, gm=None):
         rounds13.append(label)
         if len(rounds13) == 1:
             return ("The lock gives with a click.", "", [
@@ -673,7 +673,7 @@ async def main() -> bool:
     gs14._scene_requested_turn = False
     rounds14: list[str] = []
 
-    async def _stream14(label, quiet=False):
+    async def _stream14(label, quiet=False, gm=None):
         rounds14.append(label)
         if len(rounds14) == 1:
             gs14._narrative_emitted_turn = True  # the real _stream_assistant does this

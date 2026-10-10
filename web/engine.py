@@ -19,11 +19,13 @@ notice, timeline, busy, error, fatal, closed
 """
 
 import asyncio
+import copy
 import json
 import os
 import random
 import re
 import sys
+import time
 import traceback
 from pathlib import Path
 
@@ -182,6 +184,15 @@ def _tool_schema(tool) -> dict:
             "parameters": compact_schema(params),
         },
     }
+
+
+def _safe_json(text: str) -> dict:
+    """A tool result parsed to a dict, or wrapped so a dev result is never lost."""
+    try:
+        value = json.loads(text)
+    except (json.JSONDecodeError, TypeError):
+        return {"raw": text}
+    return value if isinstance(value, dict) else {"raw": value}
 
 
 SCENE_TOOL = "request_scene_image"
@@ -481,7 +492,21 @@ def _split_journey(value) -> list[str]:
 
 # Tools the GM never sees: called directly by the session for its own bookkeeping, filtered
 # out of the GM's tool list (and out of the measured prefix -- see tools/token_budget.py).
-ENGINE_ONLY_TOOLS = ("set_player_field", "dump_player_save_state")
+# The `debug_*` tools are the developer's levers (dev mode only); the GM is never offered
+# them, and they no-op unless the dice server was started with `--debug`.
+ENGINE_ONLY_TOOLS = ("set_player_field", "dump_player_save_state",
+                     "debug_set_field", "debug_device")
+
+# The one system message a dev Apply leaves for the GM, so the next turn narrates against
+# the state the developer just set instead of a stale sheet.
+DEV_NOTE_HEADER = (
+    "DEBUG STATE UPDATE -- the developer changed state outside the story. These values are "
+    "canonical now; do not contradict them or narrate the change as a story event:"
+)
+# How many bytes of GM-prompt snapshots the inspector journal will hold before it stops
+# appending (a safety valve; dev mode only). The first entries are kept, and `capped` is
+# reported so the panel can say the history is partial.
+GM_JOURNAL_MAX_BYTES = 20_000_000
 
 # The Device's cadence, keyed by how many of its four parts are back: each part widens the
 # interval AND unlocks an ability (see `_device_state`). Band 4 is absent on purpose -- a
@@ -679,7 +704,8 @@ class GameSession:
 
     def __init__(self, base_dir, model: str, context_window: int = DEFAULT_CONTEXT_WINDOW,
                  temperature: float = 1.0, think=None, thinking_level=None, verbose: bool = False,
-                 debug: bool = False, scene_images: bool = False, provider: str = "ollama"):
+                 debug: bool = False, scene_images: bool = False, provider: str = "ollama",
+                 dev: bool = False):
         self.base_dir = Path(base_dir)
         self.model = model
         self.provider = provider or "ollama"
@@ -691,6 +717,20 @@ class GameSession:
         self.thinking_level = thinking_level
         self.verbose = verbose
         self.debug = debug
+        # Developer mode: unlocks the live state editor and the GM-context inspector.
+        # Off by default; the dice server is also started with `--debug` so the debug
+        # tools exist. Never changes the GM protocol.
+        self.dev = bool(dev)
+        # The GM prompt journal (dev only): one full snapshot per model call, so the
+        # inspector can show EVERYTHING fed to the GM even across a jump's compaction.
+        self._gm_journal: list[dict] = []
+        self._gm_journal_bytes = 0
+        self._gm_capped = False
+        self._gm_watch = False
+        self._gm_seq = 0
+        self._all_tools: list[dict] = []
+        # Estimated tokens of the offered tool schemas (set at session start).
+        self._tool_tokens = 0
         # Set at session start; gates the GM's scene-imagery instructions + tool.
         self.scene_images = bool(scene_images)
         # Set at session start from the character's `.player`; gates the EASY GM rules.
@@ -829,6 +869,13 @@ class GameSession:
         await self._cmd_q.put({"type": "device", "action": action,
                                "era": era, "direction": direction, "delta": delta})
 
+    async def submit_dev(self, cmd: dict) -> None:
+        """A developer-mode command (state edit, Device control, GM-inspector watch).
+
+        Queued like any other command, so it is applied after an in-flight turn and can
+        never interleave with one."""
+        await self._cmd_q.put({"type": "dev", **dict(cmd or {})})
+
     async def resume(self) -> None:
         await self._cmd_q.put({"type": "resume"})
 
@@ -888,7 +935,7 @@ class GameSession:
         try:
             params = StdioServerParameters(
                 command=sys.executable,
-                args=["dice_server.py", self.player_path],
+                args=["dice_server.py", self.player_path] + (["--debug"] if self.dev else []),
                 cwd=str(self.base_dir),
             )
             async with stdio_client(params, errlog=errlog) as (read, write):
@@ -897,7 +944,14 @@ class GameSession:
                     await session.initialize()
                     listing = await session.list_tools()
                     tools = [_tool_schema(t) for t in listing.tools]
+                    # The full listing (before filtering) is what the dev inspector shows as
+                    # "not offered to the GM".
+                    self._all_tools = tools
                     self.tools_schema = filter_tools(tools, self.scene_images, self.mode)
+                    # The tools ride every request (a separate `tools` parameter), so the
+                    # inspector's per-prompt token estimate must include them. Fixed per
+                    # session, so cost it once.
+                    self._tool_tokens = self._estimate_tokens(self.tools_schema)
                     if self.provider != "gemini":
                         self._client = AsyncClient()
 
@@ -962,6 +1016,7 @@ class GameSession:
                         "model": self.model,
                         "provider": self.provider,
                         "difficulty": self.difficulty,
+                        "dev": self.dev,
                         "era": self.era,
                         "arrival": self.arrival,
                         "cadence": self._device_state(),
@@ -1024,6 +1079,8 @@ class GameSession:
             await self._handle_save_command()
         elif kind == "device":
             await self._handle_device_command(cmd)
+        elif kind == "dev":
+            await self._handle_dev_command(cmd)
         elif kind == "close":
             await self._cmd_q.put(None)
 
@@ -1184,6 +1241,218 @@ class GameSession:
     async def _device_refuse(self) -> None:
         await self._emit({"type": "notice", "title": "The Device",
                           "text": "The Device cannot reach there."})
+
+    # ── developer mode: live state edits + the GM-context inspector ───────
+
+    async def _handle_dev_command(self, cmd: dict) -> None:
+        """A developer-mode command. Never reachable unless the session was created dev."""
+        if not self.dev:
+            await self._emit({"type": "error",
+                              "message": "developer mode is not enabled for this session"})
+            return
+        op = str(cmd.get("op") or "").strip().lower()
+        if op == "apply":
+            await self._dev_apply(cmd.get("ops") or [])
+        elif op == "stats":
+            await self._emit_stats()
+        elif op == "raw":
+            await self._emit_dev_raw()
+        elif op == "gm_open":
+            self._gm_watch = True
+            await self._emit_gm_context(flush=True)
+        elif op == "gm_close":
+            self._gm_watch = False
+        elif op == "gm_dump":
+            await self._emit_gm_context(flush=True)
+        else:
+            await self._emit({"type": "error", "message": f"unknown dev op: {op}"})
+
+    async def _dev_apply(self, ops) -> None:
+        """Apply a batch of dev edits in one go, then refresh and tell the GM once."""
+        results: list[dict] = []
+        notes: list[str] = []
+        db_touched = False
+        new_era = None
+        for raw in (ops if isinstance(ops, list) else []):
+            if not isinstance(raw, dict):
+                continue
+            kind = str(raw.get("kind") or "").strip().lower()
+            if kind == "set":
+                key = str(raw.get("key") or "").strip()
+                if not key:
+                    continue
+                value = raw.get("value")
+                text = await self._call_tool_text(
+                    "debug_set_field", {"key": key, "value": json.dumps(value)})
+                results.append({"kind": "set", "key": key, **_safe_json(text)})
+                notes.append(f"{key} = {json.dumps(value, ensure_ascii=False)}")
+                db_touched = True
+                if key == "era":
+                    new_era = str(value or "").strip().lower()
+            elif kind == "device":
+                text = await self._call_tool_text(
+                    "debug_device", {"parts": raw.get("parts") or [],
+                                     "present": bool(raw.get("present", True))})
+                results.append({"kind": "device", **_safe_json(text)})
+                parts = [str(p) for p in (raw.get("parts") or [])]
+                notes.append("Device present" if raw.get("present", True) else "Device absent")
+                if parts:
+                    notes.append("Device parts recovered: " + ", ".join(parts))
+                db_touched = True
+            elif kind == "cadence":
+                self._dev_set_cadence(raw.get("turns"), raw.get("steer"))
+                results.append({"kind": "cadence", "turns": raw.get("turns"),
+                                "steer": self._steer})
+                remaining = self._cadence_state().get("turns_until")
+                notes.append(f"Device countdown set to {remaining} turns")
+            elif kind == "jump":
+                era = str(raw.get("era") or "").strip().lower()
+                notes.append(f"Device jumped to {device.era_label(era) if era else 'a new age'}")
+                results.append({"kind": "jump", "era": era})
+                await self._dev_force_jump(era)
+            else:
+                results.append({"kind": kind, "error": "unknown dev op"})
+        if db_touched:
+            await self._refresh_device()
+        # A raw `era` edit must move the engine too, or the place tree and the jump go stale.
+        if isinstance(new_era, str) and new_era in era_ids():
+            self.era = new_era
+            self._reload_era_scene_state()
+            if (self._era_index_at is not None
+                    and 0 <= self._era_index_at < len(self.messages)):
+                self.messages[self._era_index_at] = {
+                    "role": "system", "content": render_era_index(self.era)}
+        await self._emit_stats()
+        await self._emit({"type": "cadence", **self._device_state()})
+        if notes:
+            self.messages.append({"role": "system",
+                                  "content": DEV_NOTE_HEADER + "\n"
+                                  + "\n".join(f"- {n}" for n in notes)})
+        await self._emit({"type": "dev_applied", "results": results,
+                          "note": "\n".join(notes), "capped": self._gm_capped})
+        # The stored rows can change shape as a result (a new key, a new list entry),
+        # so the field browser re-reads them.
+        await self._emit_dev_raw()
+
+    def _dev_set_cadence(self, turns, steer=None) -> None:
+        """Set the Device countdown (absolute turns from now) and the pending steering."""
+        if turns is None or (isinstance(turns, str) and not turns.strip()):
+            self._jump_at_turn = None
+        else:
+            try:
+                self._jump_at_turn = self.turn_counter + max(0, int(turns))
+            except (TypeError, ValueError):
+                self._jump_at_turn = None
+        if steer is not None:
+            want = str(steer or "").strip().lower()
+            self._steer = want if want in ("previous", "forward") else ""
+        self._warned = False
+        self._adjusted_jump = False
+
+    async def _dev_force_jump(self, era: str) -> None:
+        """The developer's jump: any other age, now, even in combat."""
+        if self.classic:
+            await self._emit({"type": "notice", "title": "The Device",
+                              "text": "There is no Device in a classic game."})
+            return
+        await self._jump(to_era=era or None)
+
+    async def _emit_stats(self) -> None:
+        """Emit the live sheet (the same payload `/stats` sends)."""
+        try:
+            text = await self._call_tool_text("dump_player_db", {})
+            db_data = json.loads(text)
+        except Exception:  # noqa: BLE001 - a stats read must never sink the command
+            db_data = {}
+        await self._emit({"type": "stats",
+                          "data": build_stats(db_data) if isinstance(db_data, dict) else {}})
+
+    async def _emit_dev_raw(self) -> None:
+        """Emit the raw stored player rows (the settable fields) for the field browser.
+
+        `dump_player_save_state` is the unreduced row map -- the derived blocks the sheet
+        shows (`_carrying`/`_equipment`/`_passive`) are not in it, because they are
+        recomputed and cannot be set."""
+        try:
+            text = await self._call_tool_text("dump_player_save_state", {})
+            data = json.loads(text)
+        except Exception:  # noqa: BLE001 - a raw read must never sink the command
+            data = {}
+        await self._emit({"type": "dev_raw",
+                          "data": data if isinstance(data, dict) else {}})
+
+    # ── the GM-context inspector ──────────────────────────────────────────
+
+    def _gm_tool_listing(self) -> dict:
+        """What the GM is offered this session, and what was filtered out."""
+        offered = {t["function"]["name"]: t["function"] for t in self.tools_schema}
+        hidden = [{"name": t["function"]["name"],
+                   "description": t["function"].get("description", "")}
+                  for t in self._all_tools if t["function"]["name"] not in offered]
+        return {
+            "offered": [{"name": fn["name"], "description": fn.get("description", ""),
+                         "parameters": fn.get("parameters")} for fn in offered.values()],
+            "hidden": hidden,
+        }
+
+    @staticmethod
+    def _estimate_tokens(messages) -> int:
+        try:
+            chars = len(json.dumps(messages, ensure_ascii=True))
+        except (TypeError, ValueError):
+            return 0
+        return max(1, chars // 4)
+
+    def _gm_snapshot(self, label: str, round=None, trigger=None) -> dict:
+        self._gm_seq += 1
+        messages = copy.deepcopy(self.messages)
+        message_tokens = self._estimate_tokens(messages)
+        tool_tokens = int(getattr(self, "_tool_tokens", 0) or 0)
+        return {"seq": self._gm_seq, "label": label, "turn": self.turn_counter,
+                "ts": time.time(), "round": round, "trigger": trigger,
+                "message_tokens": message_tokens, "tool_tokens": tool_tokens,
+                "tokens": message_tokens + tool_tokens, "messages": messages}
+
+    async def _record_gm_prompt(self, label: str, round=None, trigger=None):
+        """Record exactly what the GM is about to be sent (dev only), and stream it live.
+
+        Returns the snapshot so the caller can stamp the provider's real token count once
+        the reply lands; `None` when dev mode is off."""
+        if not self.dev:
+            return None
+        snap = self._gm_snapshot(label, round=round, trigger=trigger)
+        if not self._gm_capped:
+            size = len(json.dumps(snap, ensure_ascii=True))
+            if self._gm_journal_bytes + size > GM_JOURNAL_MAX_BYTES:
+                self._gm_capped = True
+            else:
+                self._gm_journal.append(snap)
+                self._gm_journal_bytes += size
+        if self._gm_watch:
+            await self._emit({"type": "gm_context", "mode": "live", "snapshot": snap,
+                              "capped": self._gm_capped})
+        return snap
+
+    async def _stamp_actual_tokens(self, snap, prompt_eval) -> None:
+        """Attach the provider's own prompt-token count to the finished snapshot.
+
+        This is the exact size of the request (messages + tools), so it supersedes the
+        chars/4 estimate. The panel is patched in place by `seq` when the watch is on."""
+        if not self.dev or not isinstance(snap, dict) or not prompt_eval:
+            return
+        snap["actual_tokens"] = int(prompt_eval)
+        if self._gm_watch:
+            await self._emit({"type": "gm_context", "mode": "update",
+                              "seq": snap.get("seq"), "actual_tokens": int(prompt_eval)})
+
+    async def _emit_gm_context(self, flush: bool = False) -> None:
+        payload = {"type": "gm_context", "mode": "flush" if flush else "live",
+                   "tools": self._gm_tool_listing(), "turn": self.turn_counter,
+                   "capped": self._gm_capped}
+        if flush:
+            payload["journal"] = list(self._gm_journal)
+            payload["messages"] = copy.deepcopy(self.messages)
+        await self._emit(payload)
 
     # ── the Device: the cadence, and the jump itself ─────────────
 
@@ -1588,6 +1857,7 @@ class GameSession:
     async def _plain_summary(self, prompt: str) -> str:
         """Tool-free, one-off model call for a summary; does not touch history."""
         messages = self.messages + [{"role": "user", "content": prompt}]
+        snap = await self._record_gm_prompt("summary")
         parts: list[str] = []
         if self.provider == "gemini":
             if self._gemini is None:
@@ -1604,6 +1874,8 @@ class GameSession:
         async for evt in events:
             if evt["type"] == "narrative_delta":
                 parts.append(evt["text"])
+            elif evt["type"] == "done":
+                await self._stamp_actual_tokens(snap, evt.get("prompt_eval_count", 0) or 0)
             elif evt["type"] == "error":
                 return ""
         return "".join(parts)
@@ -1653,8 +1925,11 @@ class GameSession:
 
         origin = label  # the first label matters; `label` becomes "resume" after a pause
         resumes = 0
+        # Inspector metadata: `round` is the model-call number within this role, `trigger`
+        # why the call is being made (start / tools / thinking / recovery / pause).
+        gm = {"round": 0, "trigger": "start"}
         while True:
-            result = await self._chat_with_tools(label, quiet=quiet)
+            result = await self._chat_with_tools(label, quiet=quiet, gm=gm)
             if result == "__SYSTEM_PAUSE__":
                 await self._emit({"type": "paused"})
                 resumes += 1
@@ -1671,14 +1946,16 @@ class GameSession:
                     nudge = "{{_CONTINUE_EXECUTION}}"
                 self.messages.append({"role": "user", "content": nudge})
                 label = "resume"
+                gm["trigger"] = "pause"
                 continue
             return result
 
-    async def _stream_assistant(self, label: str, quiet: bool = False):
+    async def _stream_assistant(self, label: str, quiet: bool = False, gm: dict | None = None):
         """Stream one assistant message; emit deltas; append it to history.
 
         `quiet` suppresses narrative/thinking output (used for the scene-image
         corrective round, whose only visible effect is the tool call itself).
+        `gm` carries the inspector's round/trigger metadata for this model call.
         """
         if not quiet:
             await self._emit({"type": "assistant_start", "label": label})
@@ -1688,6 +1965,9 @@ class GameSession:
         prompt_eval = 0
         malformed = False
 
+        gm = gm or {}
+        snap = await self._record_gm_prompt(label, round=gm.get("round"),
+                                            trigger=gm.get("trigger"))
         async for evt in self._stream(self.messages, self.tools_schema):
             et = evt["type"]
             if et == "thinking_delta":
@@ -1721,6 +2001,7 @@ class GameSession:
             self._narrative_emitted_turn = True
         if prompt_eval:
             self.current_context_tokens = prompt_eval
+        await self._stamp_actual_tokens(snap, prompt_eval)
         await self._emit({"type": "context", "tokens": self.current_context_tokens,
                           "window": self.context_window})
         if not quiet:
@@ -1734,10 +2015,14 @@ class GameSession:
         self.messages.append(entry)
         return content, thinking, tool_calls, malformed
 
-    async def _chat_with_tools(self, label: str, quiet: bool = False) -> str:
+    async def _chat_with_tools(self, label: str, quiet: bool = False,
+                               gm: dict | None = None) -> str:
+        gm = gm if gm is not None else {"round": 0, "trigger": "start"}
         recovered_prose = False
         while True:
-            content, thinking, tool_calls, malformed = await self._stream_assistant(label, quiet=quiet)
+            gm["round"] = int(gm.get("round", 0)) + 1
+            content, thinking, tool_calls, malformed = await self._stream_assistant(
+                label, quiet=quiet, gm=gm)
             if malformed:
                 return "The GM stumbles over their words... (malformed response)"
 
@@ -1746,7 +2031,10 @@ class GameSession:
             while thinking_only and retries < MAX_THINKING_RETRIES:
                 retries += 1
                 self.messages.append({"role": "user", "content": "Continue"})
-                content, thinking, tool_calls, malformed = await self._stream_assistant("continue", quiet=quiet)
+                gm["round"] = int(gm.get("round", 0)) + 1
+                gm["trigger"] = "thinking"
+                content, thinking, tool_calls, malformed = await self._stream_assistant(
+                    "continue", quiet=quiet, gm=gm)
                 if malformed:
                     return "The GM stumbles over their words... (malformed response)"
                 thinking_only = bool(thinking and not content and not tool_calls)
@@ -1777,11 +2065,13 @@ class GameSession:
                         # for the missing narration once, then end the turn either way.
                         recovered_prose = True
                         self.messages.append({"role": "user", "content": PROSE_RECOVERY_NUDGE})
+                        gm["trigger"] = "recovery"
                         continue
                     return content
                 # A rejected scene call (missing seed) keeps looping so the GM can
                 # re-call with `establishing`; any other tool-only round loops back to
                 # the prose the engine still needs.
+                gm["trigger"] = "tools"
                 continue
 
             if any(token in (content or "") for token in PAUSE_TOKENS):

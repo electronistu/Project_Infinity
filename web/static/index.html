@@ -23,6 +23,7 @@
         <label class="chk" title="Show tool calls"><input type="checkbox" id="toggle-tools" /> tools</label>
         <label class="chk" title="Show model thinking"><input type="checkbox" id="toggle-thinking" /> thinking</label>
         <button id="save-open" class="ghost" type="button" title="Save game">save</button>
+        <button id="dev-open" class="ghost dev-only hidden" type="button" title="Developer mode">dev</button>
         <button id="load-open" class="ghost" type="button" title="Load game">load</button>
         <button id="end-session" class="ghost danger" type="button" title="End session and return home">end</button>
         <button id="theme-toggle" class="icon-btn" type="button" title="Toggle light / dark" aria-label="Toggle light or dark theme">◐</button>
@@ -83,6 +84,7 @@
       <label>Model<select id="model-select"></select></label>
       <label>Temperature<input id="temp-input" type="number" min="0" max="2" step="0.1" value="1.0" /></label>
       <label class="chk images-chk" title="Paint the character portrait and illustrate the story's key moments"><input type="checkbox" id="toggle-images" class="images-toggle" /> images</label>
+      <label class="chk" title="Developer mode: edit live state and inspect everything sent to the GM"><input type="checkbox" id="toggle-dev" /> developer mode</label>
       <label class="model-row" title="Model for the character portrait and storyline scene images">Story model
         <select id="image-model-select" class="image-model-select"></select>
       </label>
@@ -169,6 +171,27 @@
         <button id="end-cancel" class="ghost" type="button">Cancel</button>
         <button id="end-discard" class="ghost danger" type="button">End without saving</button>
         <button id="end-save" class="primary" type="button">Save &amp; end</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="dev-overlay" class="overlay hidden">
+    <div class="dev-card">
+      <div class="wizard-head">
+        <h1>Developer mode</h1>
+        <span id="dev-status" class="wizard-progress"></span>
+        <button id="dev-close" class="ghost">close</button>
+      </div>
+      <div class="dev-tabs">
+        <button id="dev-tab-sheet" class="dev-tab active" type="button">Sheet</button>
+        <button id="dev-tab-gm" class="dev-tab" type="button">GM context</button>
+      </div>
+      <div id="dev-sheet" class="dev-pane"></div>
+      <div id="dev-gm" class="dev-pane hidden"></div>
+      <div class="dev-actions">
+        <span id="dev-note" class="muted"></span>
+        <button id="dev-revert" class="ghost" type="button">revert</button>
+        <button id="dev-apply" class="primary" type="button">Apply</button>
       </div>
     </div>
   </div>

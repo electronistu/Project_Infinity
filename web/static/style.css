@@ -471,6 +471,13 @@ button.wide { width: 100%; margin-top: 10px; }
   text-transform: none; letter-spacing: 0; font-family: var(--sans); font-size: 12px; color: var(--muted); }
 .images-chk input { width: auto; margin: 0; accent-color: var(--accent); }
 .images-chk:has(input:disabled) { opacity: .55; cursor: not-allowed; }
+/* A plain checkbox in the start card: `.start-card label` is a block/uppercase field,
+   so an inline `.chk` there would lose and the box would sit on its own full-width row. */
+.start-card .chk { display: flex; align-items: center; gap: 7px; width: 100%; margin: 14px 0 0;
+  cursor: pointer; text-transform: none; letter-spacing: 0; font-family: var(--sans);
+  font-size: 12px; color: var(--muted); }
+.start-card .chk input { width: auto; margin: 0; accent-color: var(--accent); }
+.start-card .chk:has(input:disabled) { opacity: .55; cursor: not-allowed; }
 /* temperature is Ollama-only; disabled (dimmed) when a Gemini model is selected */
 .start-card label:has(> input:disabled) { opacity: .55; }
 
@@ -559,3 +566,92 @@ img.zoomed {
 @media (hover: hover) {
   .scene-figure img { cursor: zoom-in; }
 }
+
+/* ── developer mode ───────────────────────────────────────── */
+.dev-card {
+  width: min(1000px, 96vw);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+}
+.dev-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+.dev-tab {
+  font-family: var(--mono); font-size: 12px; padding: 5px 12px; cursor: pointer;
+  background: var(--surface-2); color: var(--muted); border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.dev-tab.active { color: var(--text); border-color: var(--accent); }
+.dev-pane { overflow: auto; flex: 1; min-height: 120px; }
+.dev-actions {
+  display: flex; align-items: center; gap: 10px; margin-top: 12px;
+  border-top: 1px solid var(--border); padding-top: 10px;
+}
+.dev-actions #dev-note { flex: 1; font-family: var(--mono); font-size: 11.5px; white-space: pre-wrap; }
+.dev-section { margin-bottom: 16px; }
+.dev-section h2 {
+  font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+  color: var(--muted); margin: 0 0 8px;
+}
+.dev-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.dev-field { display: flex; flex-direction: column; gap: 3px; }
+.dev-field label { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+.dev-field input, .dev-field select, .dev-raw textarea {
+  font-family: var(--mono); font-size: 12px; color: var(--text);
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 4px 6px; width: 100%;
+}
+.dev-field input:focus, .dev-field select:focus, .dev-raw textarea:focus {
+  outline: none; border-color: var(--accent);
+}
+.dev-field input.dirty, .dev-field select.dirty { border-color: var(--accent); }
+.dev-raw { display: grid; grid-template-columns: 220px 1fr auto; gap: 8px; align-items: start; }
+.dev-raw textarea { min-height: 60px; resize: vertical; }
+.dev-gm-snap { border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 10px; }
+.dev-gm-head {
+  font-family: var(--mono); font-size: 11.5px; color: var(--muted);
+  padding: 6px 9px; background: var(--surface-2); border-bottom: 1px solid var(--border);
+  display: flex; gap: 10px; cursor: pointer;
+}
+.dev-gm-msg { border-top: 1px solid var(--border); padding: 6px 9px; }
+.dev-gm-msg:first-child { border-top: none; }
+.dev-gm-role { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 1px; color: var(--accent-text); }
+.dev-gm-msg pre {
+  margin: 4px 0 0; white-space: pre-wrap; word-break: break-word;
+  font-family: var(--mono); font-size: 11.5px; color: var(--text);
+}
+.dev-gm-tools { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.dev-gm-tools code { color: var(--accent-text); }
+.dev-warn { color: var(--danger); font-family: var(--mono); font-size: 11.5px; }
+
+/* ── dev field browser ────────────────────────────────────── */
+.dev-crumb { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin-bottom: 8px;
+  font-family: var(--mono); font-size: 11.5px; }
+.dev-crumb-btn { background: none; border: none; color: var(--accent-text); cursor: pointer;
+  font-family: var(--mono); font-size: 11.5px; padding: 1px 3px; }
+.dev-crumb-btn:hover { text-decoration: underline; }
+.dev-crumb-sep { color: var(--faint); }
+.dev-raw-list { border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.dev-raw-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  padding: 5px 8px; border-top: 1px solid var(--border-soft); }
+.dev-raw-row:first-child { border-top: none; }
+.dev-raw-key { font-family: var(--mono); font-size: 12px; color: var(--text); min-width: 130px; }
+.dev-raw-type { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 1px 6px; }
+.dev-raw-val { font-family: var(--mono); font-size: 11px; color: var(--muted); flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dev-raw-actions { display: flex; gap: 5px; margin-left: auto; }
+.dev-raw-row input[type="number"], .dev-raw-row input[type="text"] { width: auto; min-width: 140px;
+  margin-left: auto; font-family: var(--mono); font-size: 12px; color: var(--text);
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 3px 6px; }
+.dev-raw-row input:focus { outline: none; border-color: var(--accent); }
+.dev-raw-editor { flex-basis: 100%; display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.dev-raw-editor textarea { width: 100%; min-height: 80px; resize: vertical;
+  font-family: var(--mono); font-size: 12px; color: var(--text); background: var(--surface-2);
+  border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 5px 7px; }
+.dev-raw-editor textarea:focus { outline: none; border-color: var(--accent); }

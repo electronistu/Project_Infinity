@@ -22,6 +22,11 @@ mcp = FastMCP("InfinityRolls", log_level="WARNING")
 
 DB_CONNECTION = None
 
+# Developer mode: the `debug_*` tools exist only to let the engine edit live state from
+# the UI. They are off unless the server was started with `--debug` (the engine passes it
+# when the session was created with the dev flag). They are never offered to the GM.
+DEBUG_MODE = False
+
 _COMBAT_REGISTRY: dict[str, dict] = {}
 
 XP_THRESHOLDS = [
@@ -2677,6 +2682,88 @@ def set_player_field(key: str, value: str) -> dict:
         return {"success": True, "key": str(key), "value": str(value)}
     except Exception as e:
         return {"success": False, "error": f"Error setting '{key}': {str(e)}"}
+
+
+@mcp.tool()
+def debug_set_field(key: str, value: str) -> dict:
+    """DEBUG ONLY -- set one stored player field to an arbitrary JSON value.
+
+    Unlike `set_player_field`, which stringifies everything, this writes the value as real
+    JSON, so dicts, lists, numbers, booleans and null all survive. The derived blocks are
+    recomputed afterwards (armour class, spell save DC / attack, max HP). Enabled only when
+    the engine started this server with `--debug`.
+    """
+    global DB_CONNECTION
+    if not DEBUG_MODE:
+        return {"success": False, "error": "developer mode is not enabled."}
+    if DB_CONNECTION is None:
+        return {"success": False, "error": "Database not initialized."}
+    try:
+        parsed = json.loads(value)
+    except (json.JSONDecodeError, TypeError):
+        parsed = value
+    try:
+        cursor = DB_CONNECTION.cursor()
+        key = str(key)
+        if '.' in key:
+            root_key, _, path_in_obj = key.partition('.')
+            cursor.execute("SELECT value FROM player WHERE key = ?", (root_key,))
+            row = cursor.fetchone()
+            data = json.loads(row[0]) if row else {}
+            set_nested_value(data, path_in_obj, parsed)
+            cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)",
+                           (root_key, json.dumps(data)))
+        else:
+            cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)",
+                           (key, json.dumps(parsed)))
+        DB_CONNECTION.commit()
+        ac = _recompute_armor_class(cursor)
+        DB_CONNECTION.commit()
+        return {"success": True, "key": key, "value": parsed,
+                "armor_class": ac if ac is not None else _db_val(cursor, "armor_class", None)}
+    except Exception as e:
+        return {"success": False, "error": f"Error setting '{key}': {str(e)}"}
+
+
+@mcp.tool()
+def debug_device(parts: list[str] | None = None, present: bool = True) -> dict:
+    """DEBUG ONLY -- set the Device's recovered parts directly.
+
+    Replaces every Device / part inventory entry: keeps the Device when `present`, then adds
+    each named part (canonical names, in config order) stamped with the current era. This
+    bypasses the GM's add guards on purpose -- it is the developer's lever. Enabled only
+    when the engine started this server with `--debug`.
+    """
+    global DB_CONNECTION
+    if not DEBUG_MODE:
+        return {"success": False, "error": "developer mode is not enabled."}
+    if DB_CONNECTION is None:
+        return {"success": False, "error": "Database not initialized."}
+    try:
+        cursor = DB_CONNECTION.cursor()
+        era = str(_db_val(cursor, "era", "") or "").strip().lower()
+        inventory = _db_val(cursor, "inventory", []) or []
+        if not isinstance(inventory, list):
+            inventory = []
+        kept = [e for e in inventory
+                if not (isinstance(e, dict) and (e.get("device") or e.get("device_part")))]
+        if present:
+            kept.append(device.device_entry())
+        wanted = {device.canonical_part(p) for p in (parts or []) if device.canonical_part(p)}
+        recovered = []
+        for name in device.part_names():
+            if name in wanted:
+                kept.append(device.part_entry(name, era or "egypt"))
+                recovered.append(name)
+        cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)",
+                       ("inventory", json.dumps(kept)))
+        DB_CONNECTION.commit()
+        _recompute_armor_class(cursor)
+        DB_CONNECTION.commit()
+        return {"success": True, "present": bool(present), "parts": recovered,
+                "total": device.part_total()}
+    except Exception as e:
+        return {"success": False, "error": f"Error setting the Device: {str(e)}"}
 
 
 @mcp.tool()
@@ -6402,8 +6489,9 @@ def resolve_magic(
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        player_file = sys.argv[1]
+    DEBUG_MODE = "--debug" in sys.argv
+    player_file = next((a for a in sys.argv[1:] if not a.startswith("--")), None)
+    if player_file:
         init_status = init_player_db(player_file)
         print(f"Server DB Init: {init_status}", file=sys.stderr)
 

@@ -40,7 +40,7 @@ class SessionManager:
 
     async def create(self, save: str, model: str | None = None,
                      temperature: float | None = None, think=None,
-                     scene_images: bool = False):
+                     scene_images: bool = False, dev: bool = False):
         model_id = model or DEFAULT_MODEL
         spec = resolve_model(model_id)
         context = spec["context"] if spec else 1_048_576
@@ -56,6 +56,7 @@ class SessionManager:
             thinking_level=gemini_thinking_level(spec),
             scene_images=scene_images,
             provider=provider,
+            dev=dev,
         )
         sid = uuid.uuid4().hex
         self._sessions[sid] = session
@@ -64,6 +65,7 @@ class SessionManager:
             "last": time.time(),
             "world": save,
             "model": model_id,
+            "dev": bool(dev),
         }
         await session.start(save)
         return sid, session
@@ -95,6 +97,7 @@ class SessionManager:
             "temperature": session.temperature,
             "think": session.think,
             "thinking_level": session.thinking_level,
+            "dev": bool(getattr(session, "dev", False)),
             "created": meta.get("created"),
             "last_activity": meta.get("last"),
         }
