@@ -20,14 +20,14 @@ budgets:
     unit: tokens
     status: enforced
     measure: static_prefix_scenes_on
-    note: "Raised 10,500 -> 11,000 on 2026-10-08: the original ceiling predated the ERA INDEX and the `lookup` tool it was planning for. 10,539 today."
+    note: "Raised 10,500 -> 11,000 on 2026-10-08: the original ceiling predated the ERA INDEX and the `lookup` tool it was planning for. 10,772 today. From 2026-10-10 the measurement applies `filter_tools`, so a hidden tool is never counted (see the row below)."
 
   - name: static_prefix_scenes_off
     ceiling: 11000
     unit: tokens
     status: enforced
     measure: static_prefix_scenes_off
-    note: "The same prefix with the scene blocks stripped (images off). Raised with the row above."
+    note: "The same prefix with the scene blocks stripped (images off). Raised with the row above. 9,891 today. From 2026-10-10 it also drops the tools `filter_tools` hides with images off (`request_scene_image`, `register_npcs`) and counts the text-only `note_place` row it instead offers -- correcting a ~1.1k over-count."
 
   - name: static_prefix_classic
     ceiling: 11000

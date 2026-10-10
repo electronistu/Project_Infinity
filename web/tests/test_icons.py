@@ -200,6 +200,28 @@ def main() -> bool:
     rec("fit_to_frame flattens background to the exact colour", flat.getpixel((0, 0)) == (30, 26, 19),
         str(flat.getpixel((0, 0))))
 
+    # ── the frozen Gemini recipe must match the committed assets ────────────
+    gemini_manifest = REPO / "assets" / "gemini" / "manifest.json"
+    if gemini_manifest.exists():
+        committed = json.loads(gemini_manifest.read_text(encoding="utf-8")).get("icons") or {}
+        gem = IconService(REPO / "assets", "gemini")
+        loc = IconService(REPO / "assets", "local")
+        rec("the gemini family resolves its own frozen style",
+            "Flat codex emblem" in gem.icon_style, gem.icon_style[:60])
+        rec("the local family resolves a different style",
+            bool(loc.icon_style) and loc.icon_style != gem.icon_style)
+        rec("every committed gemini prompt carries the frozen style",
+            bool(committed) and all(str(v.get("prompt", "")).endswith(gem.icon_style)
+                                    for v in committed.values()))
+        reproduced = [k for k, v in committed.items()
+                      if gem.prompt_for(v["kind"], v["name"]) == v["prompt"]]
+        rec("the frozen recipe reproduces committed prompts byte for byte",
+            len(reproduced) >= 100, f"{len(reproduced)}/{len(committed)} detail-free keys")
+        v = committed.get("weapon/dagger")
+        rec("the frozen recipe reproduces the stored source_hash",
+            v is not None and gem._source_hash("weapon/dagger", v["prompt"],
+                                               model=v.get("model")) == v.get("source_hash"))
+
     return all(RESULTS)
 
 

@@ -1977,15 +1977,25 @@ class SceneService(ImageBackendHolder):
                 kingdom = str(found.get("kingdom") or "")
                 area = str(found.get("area") or "")
                 path = _place_path(found.get("place")) or path
+        # A text-only (`note_place`) entry is seed-shaped but has no image. Treat it as
+        # unseeded so enabling images draws it now -- preserving its declared main NPCs
+        # and description -- instead of treating the metadata as an already-drawn seed.
+        text_entry = None
+        if seed is not None and self._file_bytes(stem, seed) is None:
+            text_entry = seed
+            seed = None
         seed_created = seed_regenerated = False
         style_changed = seed is not None and seed.get("style") != effective_style
         if seed is None:
             label = " — ".join(path) or "an unnamed place"
+            seed_main = main_npcs if main_npcs else _seed_main_npcs(text_entry)
+            seed_desc = establishing or str((text_entry or {}).get("description") or "")
             raw = self.generate_seed(world, kingdom, area, path,
-                                     establishing or f"An atmospheric view of {label}.",
+                                     seed_desc or f"An atmospheric view of {label}.",
                                      model=effective, style=effective_style)
             seed = self._store_seed(stem, manifest, kingdom, area, path,
-                                    establishing, main_npcs, raw, style=effective_style, era=era)
+                                    seed_desc, seed_main, raw, existing=text_entry,
+                                    style=effective_style, era=era)
             seed_created = True
         elif seed_change or style_changed:
             # A permanent change redraws with the old seed as a reference; a pure style change
@@ -2043,3 +2053,63 @@ class SceneService(ImageBackendHolder):
             "place": path,
             "seed_created": seed_created, "seed_regenerated": seed_regenerated,
         }
+
+    # ── text-only registry (images off; no generation) ──────────────────────
+
+    def record_place(self, stem: str, era: str = "", kingdom: str = "", area: str = "",
+                     place=None, main_npcs=None, cast=None, description: str = "") -> dict:
+        """Remember a place (and its regulars) with no image: the text-only registry.
+
+        Used when storyline images are off, so the GM keeps the same place/NPC continuity
+        the manifest gives the image path. The entry is seed-shaped with `file: None`, and
+        `ensure_scene` later treats a file-less entry as unseeded and draws it. Names +
+        roles only: `cast` keeps its description empty (looks are image-only).
+        """
+        path = _place_path(place)
+        if not path:
+            return {"recorded": False, "reason": "no place path"}
+        era = str(era or "").strip().lower()
+        kingdom = re.sub(r"\s+", " ", str(kingdom or "")).strip()[:80]
+        area = re.sub(r"\s+", " ", str(area or "")).strip()[:80]
+        main = _npc_list(main_npcs)[:20]
+        declared = _npc_list(cast)[:20]
+        manifest = self._read_manifest(stem, era)
+        seeds = manifest.setdefault("seeds", {})
+        key = self._key(kingdom, area, path, era)
+        now = int(time.time())
+        entry = seeds.get(key)
+        if entry is None:
+            entry = {"file": None, "slug": None, "era": era,
+                     "kingdom": kingdom, "area": area, "place": path,
+                     "description": str(description or ""), "main_npcs": main,
+                     "created": now, "used": now}
+            seeds[key] = entry
+        else:
+            # Never clobber an existing image seed's file/slug: update the address and
+            # the declared people only.
+            entry["kingdom"] = kingdom or str(entry.get("kingdom") or "")
+            entry["area"] = area or str(entry.get("area") or "")
+            entry["place"] = path
+            if description:
+                entry["description"] = str(description)
+            if main:
+                entry["main_npcs"] = main
+            entry["used"] = now
+        cast_map = manifest.setdefault("cast", {})
+        added: list[str] = []
+        for npc in declared:
+            if not npc["name"]:
+                continue
+            slug = _slug(npc["name"])
+            prior = cast_map.get(slug) or {}
+            cast_map[slug] = {"name": npc["name"],
+                              "description": str(prior.get("description") or ""),
+                              "role": npc["role"] or str(prior.get("role") or "")}
+            added.append(npc["name"])
+        manifest["current"] = {"era": era, "kingdom": kingdom, "area": area,
+                               "place": path, "updated": now}
+        self._write_manifest(stem, manifest)
+        return {"recorded": True, "place": path, "era": era, "kingdom": kingdom,
+                "area": area,
+                "main_npcs": [n["name"] for n in _seed_main_npcs(entry) if n["name"]],
+                "cast": added, "file": entry.get("file")}

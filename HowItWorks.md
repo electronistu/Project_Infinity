@@ -37,7 +37,7 @@ Under the hood:
 
 ## What the Game Master sees
 
-A session loads, in order: the **GM protocol** ([`GameMaster_MCP.md`](GameMaster_MCP.md)); the **ERA INDEX** — the era ladder, one line each (the era you are in, and the others it could throw you into); the save's **timeline**; and, when images are on, the **known image places** — a `kingdom → area → place path` tree (realm → settlement → district → spot → any nested rooms, any depth) with each place's **main NPC names** (e.g. *The Drowned Lantern → Common Room · NPCs: Maera, the grandson*). The tree is **scoped to the current era**, **capped at the 12 most recently used places**, and deliberately **names-only** — place descriptions stay in the save. An NPC's **role** does not live in the tree: it comes back with the character itself, because whenever one walks on stage the scene result reminds the GM of it (`on stage: Maera (the innkeeper)`).
+A session loads, in order: the **GM protocol** ([`GameMaster_MCP.md`](GameMaster_MCP.md)); the **ERA INDEX** — the era ladder, one line each (the era you are in, and the others it could throw you into); the save's **timeline**; and the **known places** — a `kingdom → area → place path` tree (realm → settlement → district → spot → any nested rooms, any depth) with each place's **main NPC names** (e.g. *The Drowned Lantern → Common Room · NPCs: Maera, the grandson*). The tree is **scoped to the current era**, **capped at the 12 most recently used places**, and deliberately **names-only** — place descriptions stay in the save. An NPC's **role** does not live in the tree: it comes back with the character itself, because whenever one walks on stage the result reminds the GM of it (`on stage: Maera (the innkeeper)`). With images off the tree comes from the places the GM declares with `note_place` instead of from the illustrator's manifest; the engine keeps the same registry either way.
 
 The character is then pulled live from the database — stats, HP, inventory, equipped gear and the carrying/encumbrance block. The current era's scaffold ([`config/eras/`](config/eras/)) arrives with the awakening, and only **that** era's history and polities are ever in play.
 
@@ -79,7 +79,7 @@ The mode costs nothing when it is not in play: the protocol is marker-gated and 
 
 ## Storyline image continuity
 
-**Images are recommended.** The place-and-NPC tree the GM sees, and the places a Time Traveler jump can land in, are both read from the scene manifest — which is only written while images are on. With images off the game is text-only.
+**Images are recommended.** The place-and-NPC tree the GM sees, and the places a Time Traveler jump can land in, are kept in **both modes**: with images on they are read from the scene manifest the illustrator writes; with images off the GM declares each new place once with `note_place` and the engine keeps the same registry (a place with no picture). The jump pool is the era's own places plus the ones you have visited, drawn at random. Images add the portrait and the per-turn illustration.
 
 - **A place has an address** — `kingdom → area → place path` (realm → settlement → district → spot → nested rooms, any depth), named once and reused exactly.
 - **Every place gets a hidden "seed"** — an empty, permanent establishing view, never shown to you.

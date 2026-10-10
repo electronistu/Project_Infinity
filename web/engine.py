@@ -188,6 +188,9 @@ SCENE_TOOL = "request_scene_image"
 # Declares recurring NPCs (name + description). The engine buffers them and the
 # server persists them; the GM then refers to those NPCs by name alone.
 NPC_TOOL = "register_npcs"
+# The text-only place/NPC registry (images off): declares a place and its regulars by
+# name + role with no image. Hidden when images are on (the scene call records places there).
+PLACE_TOOL = "note_place"
 # Tools the GM may attach to narrative prose (the Narrative Phase). A round that
 # carries prose plus only these tools is the turn's last word: the tool loop must
 # NOT run another model round, or the GM re-narrates the whole turn.
@@ -201,19 +204,32 @@ _SCENE_BLOCK = re.compile(
     r"(?ms)^[ \t]*<!-- SCENE:ON -->.*?^[ \t]*<!-- SCENE:END -->[ \t]*\n?"
 )
 _SCENE_MARKERS = re.compile(r"(?m)^[ \t]*<!-- SCENE:(?:ON|END) -->[ \t]*\n?")
+# The text-only place rules (`note_place`); sent only when images are OFF. The mirror
+# of the SCENE block: whichever game is not being played costs nothing.
+_TEXT_BLOCK = re.compile(
+    r"(?ms)^[ \t]*<!-- TEXT:ON -->.*?^[ \t]*<!-- TEXT:END -->[ \t]*\n?"
+)
+_TEXT_MARKERS = re.compile(r"(?m)^[ \t]*<!-- TEXT:(?:ON|END) -->[ \t]*\n?")
 # Easy-mode balancing rules live between these markers; they are sent to the GM
 # only when the character was created at "easy" difficulty (see `.player`).
 _EASY_BLOCK = re.compile(
     r"(?ms)^[ \t]*<!-- EASY:ON -->.*?^[ \t]*<!-- EASY:END -->[ \t]*\n?"
 )
 _EASY_MARKERS = re.compile(r"(?m)^[ \t]*<!-- EASY:(?:ON|END) -->[ \t]*\n?")
-# The KNOWN IMAGE PLACES awakening priming: a header + the place tree (names + main NPCs,
+# The KNOWN PLACES awakening priming: a header + the place tree (names + main NPCs,
 # never the descriptions). Shared with tools/token_budget.py so the count never drifts.
 # Kept terse on purpose: this block is re-sent every turn, and the whole tree is capped.
 KNOWN_PLACES_HEADER = (
-    "KNOWN IMAGE PLACES (reuse these exact kingdom / area / place paths; use a "
-    "place's NPCs by NAME, never their look; a new name only for a genuinely "
-    "new place, seeded with `establishing`):"
+    "KNOWN PLACES (reuse these exact kingdom / area / place paths; use a "
+    "place's NPCs by NAME, never their look; a new place is seeded once with "
+    "`establishing`):"
+)
+# The images-off variant: the same tree, but a new place is declared with `note_place`
+# (no seed, no establishing description).
+KNOWN_PLACES_HEADER_TEXT = (
+    "KNOWN PLACES (reuse these exact kingdom / area / place paths; use a "
+    "place's NPCs by NAME, never their look; a new place is declared once with "
+    "`note_place`):"
 )
 
 # The primed list is scoped to the current era and capped: the tree is
@@ -222,10 +238,14 @@ PLACE_TREE_CAP = 12
 # ... and a place's NPC names are capped too, so one busy place cannot blow the ceiling.
 NPC_NAMES_PER_PLACE = 2
 KNOWN_PLACES_EMPTY = (
-    "KNOWN IMAGE PLACES: none recorded yet. On entering a place, declare "
+    "KNOWN PLACES: none recorded yet. On entering a place, declare "
     "its `kingdom`, `area` and `place` path and request its seed with "
     "`establishing` (a short, people-free description) together with the "
     "action image."
+)
+KNOWN_PLACES_EMPTY_TEXT = (
+    "KNOWN PLACES: none recorded yet. On entering a place, declare its "
+    "`kingdom`, `area` and full `place` path once with `note_place`."
 )
 
 
@@ -238,6 +258,19 @@ def _scene_key(place) -> tuple[str, ...]:
     if not isinstance(place, (list, tuple)):
         return ()
     return tuple(_s(p) for p in place if str(p or "").strip())
+
+
+def _people_list(value) -> list[dict]:
+    """Normalize a `note_place` people list to the seed shape ({name, role}, empty look)."""
+    out: list[dict] = []
+    for entry in value or []:
+        if not isinstance(entry, dict):
+            continue
+        name = " ".join(str(entry.get("name") or "").split())
+        if name:
+            out.append({"name": name, "description": "",
+                        "role": " ".join(str(entry.get("role") or "").split())})
+    return out
 
 
 def _primed_places(places: list[dict], cap: int = PLACE_TREE_CAP) -> list[dict]:
@@ -323,8 +356,10 @@ def render_protocol(text: str, scene_images: bool, difficulty: str = "hard",
     out = text or ""
     if scene_images:
         out = _SCENE_MARKERS.sub("", out)
+        out = _TEXT_BLOCK.sub("", out)
     else:
         out = _SCENE_BLOCK.sub("", out)
+        out = _TEXT_MARKERS.sub("", out)
     if str(difficulty or "").strip().lower() == "easy":
         out = _EASY_MARKERS.sub("", out)
     else:
@@ -514,6 +549,8 @@ def filter_tools(tools: list[dict], scene_images: bool,
     hidden = set(ENGINE_ONLY_TOOLS)
     if not scene_images:
         hidden |= {SCENE_TOOL, NPC_TOOL}
+    else:
+        hidden.add(PLACE_TOOL)
     if str(mode or "").strip().lower() == MODE_CLASSIC:
         hidden |= {LOOKUP_TOOL}
     return [t for t in tools
@@ -553,6 +590,7 @@ _GM_VIEW_KEEP: dict[str, tuple[str, ...]] = {
     # Acknowledgements: the GM just made the call, so only the outcome is new.
     "request_scene_image": ("status", "note"),
     "register_npcs": ("status", "count", "note"),
+    "note_place": ("status", "kingdom", "area", "place", "main_npcs", "cast", "note"),
 }
 # Added on failure so the GM can explain and act on a refused/wrong call.
 _GM_VIEW_ERROR_EXTRA = (
@@ -894,10 +932,11 @@ class GameSession:
                             ),
                         })
 
-                    if self.scene_images:
-                        self._reload_era_scene_state()
-                        self._places_at = len(self.messages)
-                        self.messages.append({"role": "system", "content": self._places_body()})
+                    # The place/NPC tree is primed in BOTH modes: with images on it comes
+                    # from the scene manifest, with images off from the text registry.
+                    self._reload_era_scene_state()
+                    self._places_at = len(self.messages)
+                    self.messages.append({"role": "system", "content": self._places_body()})
 
                     # What the ages remember: this era's legend, if it has one. The ages
                     # exist only in the era game, so a classic session never hears them.
@@ -1275,11 +1314,12 @@ class GameSession:
         return self._rng.choice(options) if options else self.era
 
     def _pick_jump_arrival(self, era: str) -> str:
-        """Where a jump lands: an important place of the era, or one already visited.
+        """Where a jump lands: one place from the era's pool, drawn uniformly.
 
-        The static destinations are the era's authored map (cities, landmarks, regions); the
-        visited places come from the save's scene manifest on disk. Both are candidates on
-        every jump -- the list never enters the prompt, so a larger pool costs nothing.
+        The pool is the deduped union of the era's authored destinations (cities,
+        landmarks, regions) and the places this save has visited -- a visited place is one
+        entry like any other, with no preference for recency or repeat visits. The list
+        never enters the prompt, so a larger pool costs nothing.
         """
         try:
             places = known_scene_places(self.base_dir / OUTPUT_DIR, self.active_name or "", era)
@@ -1317,9 +1357,11 @@ class GameSession:
 
     def _places_body(self) -> str:
         primed = _primed_places(self._primed)
-        if not primed:
-            return KNOWN_PLACES_EMPTY
-        return KNOWN_PLACES_HEADER + "\n" + format_known_places(primed)
+        if self.scene_images:
+            return (KNOWN_PLACES_EMPTY if not primed
+                    else KNOWN_PLACES_HEADER + "\n" + format_known_places(primed))
+        return (KNOWN_PLACES_EMPTY_TEXT if not primed
+                else KNOWN_PLACES_HEADER_TEXT + "\n" + format_known_places(primed))
 
     async def _check_cadence(self) -> None:
         """After a turn: warn once before the jump, then jump when it is due.
@@ -1387,9 +1429,8 @@ class GameSession:
         head = [self.messages[0], {"role": "system", "content": render_era_index(self.era)}]
         self._era_index_at = 1
         self._places_at = None
-        if self.scene_images:
-            self._places_at = len(head)
-            head.append({"role": "system", "content": self._places_body()})
+        self._places_at = len(head)
+        head.append({"role": "system", "content": self._places_body()})
         memory = self._memory_message(just_left)
         if memory:
             head.append({"role": "system", "content": memory})
@@ -1877,6 +1918,8 @@ class GameSession:
             self._collect_declarations(args)
         if name == NPC_TOOL:
             self._remember_declared(args.get("npcs"))
+        if name == PLACE_TOOL and not is_error:
+            self._record_place_live(args)
         gm_text = _gm_tool_view(name, text)
         if name == SCENE_TOOL and warning is None:
             for note in (self._undeclared_note(args), self._on_stage_note(args)):
@@ -1934,6 +1977,9 @@ class GameSession:
                 **(await self._scene_player_hints()),
                 "turn": self.turn_counter,
             })
+
+        if name == PLACE_TOOL and not is_error:
+            await self._emit_place_note(args)
 
         if name == "update_player_list":
             await self._sync_device_after_inventory(text)
@@ -2066,6 +2112,57 @@ class GameSession:
             role = " ".join(str(entry.get("role") or "").split())
             if name and role:
                 self._npc_roles[name.lower()] = (name, role)
+
+    def _record_place_live(self, args: dict) -> None:
+        """Apply a `note_place` declaration to the live session (the tree updates at once)."""
+        raw = args.get("place")
+        place = [str(p).strip() for p in raw if str(p or "").strip()] if isinstance(raw, list) else []
+        if not place:
+            return
+        era = "" if self.classic else str(self.era or "")
+        kingdom = " ".join(str(args.get("kingdom") or "").split())
+        area = " ".join(str(args.get("area") or "").split())
+        main = args.get("main_npcs") if isinstance(args.get("main_npcs"), list) else []
+        cast = args.get("cast") if isinstance(args.get("cast"), list) else []
+        self._scene_places[_scene_key(place)] = (kingdom, area)
+        self._remember_roles(main)
+        self._remember_roles(cast)
+        for entry in list(main) + list(cast):
+            if isinstance(entry, dict):
+                name = " ".join(str(entry.get("name") or "").split())
+                if name:
+                    self._cast_names.add(name.lower())
+        key = _scene_key(place)
+        live = None
+        for p in self._primed:
+            if _scene_key(p.get("place")) == key and str(p.get("era") or "") == era:
+                live = p
+                break
+        people = _people_list(main)
+        if live is None:
+            self._primed.append({"era": era, "kingdom": kingdom, "area": area,
+                                 "place": place, "description": "",
+                                 "main_npcs": people, "used": 0})
+        else:
+            live["kingdom"] = kingdom or live.get("kingdom", "")
+            live["area"] = area or live.get("area", "")
+            if people:
+                live["main_npcs"] = people
+
+    async def _emit_place_note(self, args: dict) -> None:
+        """Tell the server to persist the place (the manifest's single writer)."""
+        raw = args.get("place")
+        place = [str(p).strip() for p in raw if str(p or "").strip()] if isinstance(raw, list) else []
+        await self._emit({
+            "type": "place_note",
+            "era": "" if self.classic else str(self.era or ""),
+            "kingdom": " ".join(str(args.get("kingdom") or "").split()),
+            "area": " ".join(str(args.get("area") or "").split()),
+            "place": place,
+            "main_npcs": args.get("main_npcs") if isinstance(args.get("main_npcs"), list) else [],
+            "cast": args.get("cast") if isinstance(args.get("cast"), list) else [],
+            "turn": self.turn_counter,
+        })
 
     def _on_stage_note(self, args: dict) -> str:
         """The role of each declared NPC the GM just put on stage.

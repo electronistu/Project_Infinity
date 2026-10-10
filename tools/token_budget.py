@@ -130,7 +130,7 @@ def _public(row):
 
 
 def _synthetic_places(n: int) -> list[dict]:
-    """N representative places for the KNOWN IMAGE PLACES priming measure."""
+    """N representative places for the KNOWN PLACES priming measure."""
     out = []
     for i in range(n):
         out.append({
@@ -145,7 +145,7 @@ def _synthetic_places(n: int) -> list[dict]:
 
 
 def known_places_block(n: int, count):
-    """The awakening KNOWN IMAGE PLACES message for N places (header + tree)."""
+    """The awakening KNOWN PLACES message for N places (header + tree)."""
     from web.engine import KNOWN_PLACES_HEADER, format_known_places
     text = KNOWN_PLACES_HEADER + "\n" + format_known_places(_synthetic_places(n))
     return text, count(text)
@@ -165,7 +165,7 @@ def check_gate_ready(exact: bool) -> tuple[bool, str]:
 
 
 def _metric_place_tree(count):
-    """KNOWN IMAGE PLACES at the S0.3 cap, or None if the engine is unavailable."""
+    """KNOWN PLACES at the S0.3 cap, or None if the engine is unavailable."""
     try:
         _, tokens = known_places_block(PLACE_TREE_CAP, count)
         return tokens
@@ -208,6 +208,23 @@ def _metric_lookup_schema(rows):
         if r["name"] == "lookup":
             return r["desc_tokens"] + r["schema_tokens"]
     return None
+
+
+def _offered_tool_tokens(rows, scene_images: bool, mode: str):
+    """Tool tokens the GM is actually offered in a configuration.
+
+    `filter_tools` hides `request_scene_image` / `register_npcs` with images off, and
+    `note_place` with images on (plus `lookup` in classic). Measuring the raw table
+    over-stated the text-only prefix by ~1.1k tokens.
+    """
+    try:
+        from web.engine import filter_tools
+
+        offered = {t["function"]["name"] for t in filter_tools(
+            [{"function": {"name": r["name"]}} for r in rows], scene_images, mode)}
+        return sum(r["desc_tokens"] + r["schema_tokens"] for r in rows if r["name"] in offered)
+    except Exception:  # pragma: no cover - fall back to the conservative total
+        return sum(r["desc_tokens"] + r["schema_tokens"] for r in rows)
 
 
 def _metrics(prefix_on, prefix_off, era_index_tokens, count, rows=None,
@@ -298,7 +315,7 @@ def main() -> int:
                     help="fail (exit 1) if the scenes-on static prefix (tools + protocol + "
                          "ERA INDEX) exceeds this many tokens")
     ap.add_argument("--places", type=int, default=20,
-                    help="KNOWN IMAGE PLACES to measure in the priming (0 to skip)")
+                    help="KNOWN PLACES to measure in the priming (0 to skip)")
     ap.add_argument("--gate", action="store_true",
                     help="assert every ceiling in tools/budgets.yml (requires tiktoken)")
     ap.add_argument("--budgets", default=str(BUDGETS),
@@ -325,9 +342,12 @@ def main() -> int:
     # The static prefix is everything always-on: tools + protocol + the ERA INDEX.
     era_index_text = _era_index_text()
     era_index_tokens = count(era_index_text) if era_index_text else 0
-    on_tokens = tool_tokens + proto_on_tokens + era_index_tokens
-    off_tokens = tool_tokens + proto_off_tokens + era_index_tokens
-    classic_tool_tokens = tool_tokens - (_metric_lookup_schema(rows) or 0)
+    # Each configuration pays only for the tools it is offered (see _offered_tool_tokens).
+    on_tool_tokens = _offered_tool_tokens(rows, True, "time_traveler")
+    off_tool_tokens = _offered_tool_tokens(rows, False, "time_traveler")
+    on_tokens = on_tool_tokens + proto_on_tokens + era_index_tokens
+    off_tokens = off_tool_tokens + proto_off_tokens + era_index_tokens
+    classic_tool_tokens = _offered_tool_tokens(rows, True, "classic")
     classic_on_tokens = classic_tool_tokens + count(proto_classic)
     places_text, places_tokens = (known_places_block(args.places, count)
                                   if args.places > 0 else ("", 0))
@@ -381,7 +401,7 @@ def main() -> int:
         print(f"GameMaster_MCP.md  scenes OFF: {len(proto_off):6d} chars  {proto_off_tokens:6d} tok")
         print(f"ERA INDEX (always on)        : {len(era_index_text):6d} chars  {era_index_tokens:6d} tok")
         if args.places > 0:
-            print(f"KNOWN IMAGE PLACES (N={args.places}) : {len(places_text):6d} chars  "
+            print(f"KNOWN PLACES (N={args.places}) : {len(places_text):6d} chars  "
                   f"{places_tokens:6d} tok")
         print(f"\nSTATIC PREFIX  scenes ON : {tool_chars + len(proto_on) + len(era_index_text):7d} chars  "
               f"{on_tokens:6d} tok  (tools + protocol + index)")

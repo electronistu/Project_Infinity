@@ -78,6 +78,9 @@ Wait for `{{_CONTINUE_EXECUTION}}`.
 <!-- SCENE:ON -->
 - Attach exactly ONE `request_scene_image` to THIS response — the only tool allowed alongside prose. It ends the turn.
 <!-- SCENE:END -->
+<!-- TEXT:ON -->
+- When the story enters a genuinely NEW place, declare it ONCE with `note_place` — in the SAME response as the prose, or in the tool batch. Not every turn.
+<!-- TEXT:END -->
 
 ## STATE: RECOVERY (an omission discovered during narrative)
 0. Only for a call that never ran. If the tools already returned, state is reconciled — do NOT re-narrate; resume at the first un-narrated beat.
@@ -121,6 +124,13 @@ Wait for `{{_CONTINUE_EXECUTION}}`.
 - opening: the AWAKENING narrative (step 3) carries the opening image, with a specific `place` path.
 - no rules line — the illustration is its own disclosure; weave the moment into prose naturally.
 <!-- SCENE:END -->
+
+<!-- TEXT:ON -->
+### places
+- tool: note_place — call it ONCE when the story enters a genuinely new place, and again only when a place gains a regular. Never every turn. Reuse the exact `kingdom` / `area` / `place` path and the exact names thereafter.
+- authoring: the field rules are in the note_place description. Regulars are NAME + ROLE only — a place's own in `main_npcs`, travelling ones in `cast` — never a look.
+- the engine primes the KNOWN PLACES tree each session; the places you declare also join the pool a Device jump can land in.
+<!-- TEXT:END -->
 
 ### systems (engine-owned — never hand-apply)
 - exhaustion: a level 0–6. Use modify_exhaustion(delta=…) or update_combatant(exhaustion_delta=…); the engine applies the level table and a long rest removes one level.

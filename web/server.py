@@ -613,6 +613,25 @@ async def delete_session(sid: str):
     return {"closed": sid}
 
 
+def _persist_place_note(session, evt: dict) -> None:
+    """Persist a text-only `note_place` into the scene manifest (the single writer)."""
+    stem = getattr(session, "active_name", "") or ""
+    if not stem:
+        return
+    try:
+        scene_service.record_place(
+            stem,
+            era=str(evt.get("era") or ""),
+            kingdom=str(evt.get("kingdom") or ""),
+            area=str(evt.get("area") or ""),
+            place=evt.get("place") or [],
+            main_npcs=evt.get("main_npcs") or [],
+            cast=evt.get("cast") or [],
+        )
+    except Exception:  # noqa: BLE001 - never sink the turn over a place note
+        pass
+
+
 @app.websocket("/ws/{sid}")
 async def ws_endpoint(websocket: WebSocket, sid: str):
     session = manager.get(sid)
@@ -631,6 +650,8 @@ async def ws_endpoint(websocket: WebSocket, sid: str):
             # in from a session it has already left.
             if isinstance(evt, dict):
                 evt = {**evt, "session_id": sid}
+            if evt.get("type") == "place_note":
+                await asyncio.to_thread(_persist_place_note, session, evt)
             await websocket.send_json(evt)
             if evt.get("type") == "closed":
                 break

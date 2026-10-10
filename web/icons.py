@@ -560,8 +560,14 @@ class IconService(ImageBackendHolder):
             family=self.family,
         )
         self.assets_dir = Path(assets_dir) if assets_dir else DEFAULT_ASSETS_DIR
-        self.icon_style = str(cfg.get("icon_style") or cfg.get("style") or "").strip()
-        self.templates = cfg.get("icon") if isinstance(cfg.get("icon"), dict) else {}
+        # A family may carry its own prompt recipe (`cfg[<family>]`); the top-level
+        # `icon_style` / `icon:` are the default. The Gemini override is frozen to match
+        # the committed assets, so local-model work can never shadow it.
+        fam = cfg.get(self.family) if isinstance(cfg.get(self.family), dict) else {}
+        self.icon_style = str(fam.get("icon_style") or cfg.get("icon_style")
+                              or cfg.get("style") or "").strip()
+        self.templates = (fam.get("icon") if isinstance(fam.get("icon"), dict)
+                          else (cfg.get("icon") if isinstance(cfg.get("icon"), dict) else {}))
         try:
             self.max_side = int(cfg.get("icon_max_side") or 256)
         except (TypeError, ValueError):

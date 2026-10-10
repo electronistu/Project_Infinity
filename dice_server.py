@@ -2772,7 +2772,7 @@ def request_scene_image(description: str, kingdom: str = "", area: str = "",
     - seed_change: a PERMANENT change to the place regenerates its seed immediately.
     - mood: a short mood word for the light/atmosphere.
 
-    PLACES: kingdom -> area -> place path (realm -> settlement -> district -> spot -> any nested rooms). Example: kingdom `Eldoria`, area `Eldoria City`, place `["Ropehaven Wharf", "Warehouse Nine", "the counting office"]`. On entering a NEW place (not in KNOWN IMAGE PLACES), also pass `establishing` so the engine builds the hidden seed (never shown); every action image is drawn FRESH from that seed. A missing seed returns a WARNING -- call again with `establishing`.
+    PLACES: kingdom -> area -> place path (realm -> settlement -> district -> spot -> any nested rooms). Example: kingdom `Eldoria`, area `Eldoria City`, place `["Ropehaven Wharf", "Warehouse Nine", "the counting office"]`. On entering a NEW place (not in KNOWN PLACES), also pass `establishing` so the engine builds the hidden seed (never shown); every action image is drawn FRESH from that seed. A missing seed returns a WARNING -- call again with `establishing`.
 
     PLAYER: refer to them as 'the protagonist'; say where they are and what they do (facing the action, back to camera is fine), but NEVER describe their appearance -- the portrait is attached automatically. Describe clothing/armour/weapons ONLY from what they actually have equipped (check `_equipment`); never invent a hood, cloak, cowl, hat, helmet, armour or other item.
 
@@ -2817,6 +2817,49 @@ def register_npcs(npcs: list[dict]) -> dict:
         "npcs": cleaned,
         "count": len(cleaned),
         "note": "The engine stores these descriptions; use the names alone from now on.",
+    }
+
+
+@mcp.tool()
+def note_place(kingdom: str, area: str, place: list[str],
+               main_npcs: list[dict] | None = None,
+               cast: list[dict] | None = None) -> dict:
+    """Remember a place (and its regulars) in the storyline when images are off.
+
+    WHEN: once, on entering a genuinely NEW place -- not every turn. The engine primes the
+    tree (names only) each session, and pools these places with the era's own for a jump.
+    FIELDS:
+    - place: ordered path BELOW the settlement, deepest last, at least 2 entries -- [district/neighbourhood, the exact building/room, (any room inside it, ...)]. Reuse the exact path once used.
+    - kingdom = realm; area = settlement (city/town).
+    - main_npcs: the place's OWN regulars, [{name, role}] -- one person per entry.
+    - cast: recurring people NOT tied to one place (a villain, a companion), [{name, role}].
+
+    RULES:
+    - Names + roles only: never a look, a pose or a second person's details.
+    - Re-declaring a name updates it; reuse names and paths exactly.
+    - Does not change game state; the engine remembers the place.
+    """
+    path = [" ".join(str(p).split()) for p in (place or []) if str(p or "").strip()]
+
+    def _people(value):
+        out = []
+        for entry in (value or []):
+            if not isinstance(entry, dict):
+                continue
+            name = " ".join(str(entry.get("name") or "").split())
+            if name:
+                out.append({"name": name,
+                            "role": " ".join(str(entry.get("role") or "").split())})
+        return out
+
+    return {
+        "status": "noted",
+        "kingdom": " ".join(str(kingdom or "").split()),
+        "area": " ".join(str(area or "").split()),
+        "place": path,
+        "main_npcs": _people(main_npcs),
+        "cast": _people(cast),
+        "note": "The place is remembered; reuse the exact path and names.",
     }
 
 
