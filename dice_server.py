@@ -5589,12 +5589,18 @@ def _ensure_spell_attribution(result, narrative_parts) -> None:
     heads = (f"{actor} {spell}", f"{actor} casts {spell}")
     if any(str(line).startswith(heads) for line in narrative_parts):
         return
-    names = result.get("condition_targets") or []
+    names = [str(n).strip() for n in (result.get("condition_targets") or [])
+             if str(n or "").strip()]
+    if not names:
+        names = [str(n).strip() for n in (result.get("targets_named_only") or [])
+                 if str(n or "").strip()]
     if not names and isinstance(result.get("targets"), list):
-        names = [t.get("name") for t in result["targets"] if isinstance(t, dict)]
+        names = [str(t.get("name")).strip() for t in result["targets"]
+                 if isinstance(t, dict) and str(t.get("name") or "").strip()]
     target = str(result.get("target_name") or "").strip()
     if not target or target == "{player_name}":
-        target = str(names[0]).strip() if len(names) == 1 and names[0] else ""
+        shown = ", ".join(names[:3])
+        target = shown + (f" +{len(names) - 3}" if len(names) > 3 else "")
     arrow = f" \u2192 {target}" if target else ""
     narrative_parts.insert(0, f"{actor} casts {spell}{arrow}")
 
@@ -6014,7 +6020,7 @@ def resolve_magic(
     - challenge_rating: CR for XP (auto-looked up if omitted). target_save_modifier: save bonus for a single-target save (omit for a registry target). player_situational_modifier: situational add-on to the player's save when is_npc_attack=True (never pass the base modifier).
     - slot_level: upcast level (defaults to the spell's level). is_scroll: no slot consumed, above-level scrolls need a check. maintain_spell: True re-targets the player's own active concentration spell (Eyebite) -- no slot, and a creature that already saved against this casting is refused. is_npc_attack: NPC->player, damage auto-applied, no slot. is_npc_vs_npc: NPC->NPC, no player HP, no auto XP. caster_level: for NPC-vs-NPC cantrip scaling.
     - damage_dice/damage_modifier/damage_type: custom damage (needed for unknown spells). cantrip_scaling: auto-scale at 5/11/17. higher_levels: upcast string (e.g. '+1d6'). healing: heals instead. aoe: area. ritual: no slot. advantage/force_crit: attack_roll only. components: override (else config/components.yml; unknown = V,S,M). boost_damage_type: which component of Flame Strike the upcast empowers. delayed_rounds: rounds a Delayed Blast Fireball waited. eyebite_effect: Eyebite's chosen effect — asleep, panicked, or sickened (sickened repeats its save).
-    - targets: multi-target list. Shapes by type -- HP pool {name, current_hp}; save {name} (HP/save/CR auto from the registry) or {name, current_hp, save_modifier, challenge_rating} (add {is_player: True} for the player); projectiles {name, darts} (darts must total the count; omit to send them all at one target); attack_roll = one attack per target.
+    - targets: multi-target list. Shapes by type -- HP pool {name, current_hp}; save {name} (HP/save/CR auto from the registry) or {name, current_hp, save_modifier, challenge_rating} (add {is_player: True} for the player); projectiles {name, darts} (darts must total the count; omit to send them all at one target); attack_roll = one attack per target; automatic = names only (the spell has no per-target roll, so the list only names whom it touched).
 
     RULES:
     1. The slot is validated BEFORE dice; empty slots are returned. Cantrips, rituals, scrolls and NPC attacks consume none.
@@ -6348,15 +6354,15 @@ def resolve_magic(
         return {"success": False, "error": f"Spell '{spell_name}' requires an attack roll. Provide target_ac (or a registered target_name)."}
     if sp_attack_type == "saving_throw" and spell_save_dc <= 0:
         return {"success": False, "error": f"Spell '{spell_name}' requires a saving throw. You must provide spell_save_dc."}
-    # A target list the engine cannot resolve must never be dropped silently.
+    # An automatic spell has no per-target shape, but a targets[] list is still the caster's
+    # word for whom the spell touched: keep the names (naming-only) so the Mechanics line can
+    # say who, and flag that no per-target mechanics ran -- a target list is never dropped
+    # silently.
+    named_only: list[str] = []
     if has_targets and not is_multi_projectile and not sp_hp_pool and not sp_healing \
             and sp_attack_type not in ("saving_throw", "attack_roll"):
-        return {
-            "success": False, "spell_name": spell_name, "error": "targets_unsupported",
-            "hint": f"{spell_name} resolves as '{sp_attack_type}' with no per-target shape; "
-                    "call it without targets.",
-            "targets_ignored": [t.get("name") for t in targets if isinstance(t, dict)],
-        }
+        named_only = [str(t.get("name")).strip() for t in targets
+                      if isinstance(t, dict) and str(t.get("name") or "").strip()]
 
     # ── CONSUME SPELL SLOT ──
     slot_result_data = None
@@ -6481,6 +6487,8 @@ def resolve_magic(
         "attack_type": sp_attack_type,
         "slot_consumed": slot_consumed,
     }
+    if named_only:
+        result["targets_named_only"] = named_only
     if slot_level_used is not None:
         result["slot_level_used"] = slot_level_used
     if sp_repeat:
@@ -7309,6 +7317,33 @@ def resolve_magic(
         result["target_killed"] = None
         if is_npc_vs_npc:
             result["npc_vs_npc"] = True
+
+    # An automatic spell takes no branch above; if it carries an ENGINE condition, apply it to
+    # the declared targets (or the caster for a self-buff). A GM-adjudicated tag (Trapped,
+    # Teleported, ...) is left to the GM -- only CONDITION_EFFECTS are tracked here.
+    if (sp_condition and not result.get("condition")
+            and sp_attack_type not in ("saving_throw", "attack_roll")
+            and str(sp_condition).strip().lower() in CONDITION_EFFECTS):
+        who = [str(n).strip() for n in (result.get("targets_named_only") or [])
+               if str(n or "").strip()]
+        if not who:
+            label = _target_label(cursor, target_name, bool(is_npc_attack)) or target_name
+            if label:
+                who = [label]
+        if not who:
+            caster = str(actor or "").strip()
+            if not caster or caster == "{player_name}":
+                caster = (_db_val(cursor, "name", actor) if cursor is not None else "") or actor
+            who = [caster]
+        result["condition"] = sp_condition
+        if sp_condition_duration:
+            result["condition_duration"] = sp_condition_duration
+        if sp_requires_concentration:
+            result["requires_concentration"] = True
+        result["condition_targets"] = who
+        for t in who:
+            narrative_parts.append(
+                f"{t}: Affected — {sp_condition} ({sp_condition_duration})")
 
     return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc, is_npc_vs_npc)
 

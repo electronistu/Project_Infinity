@@ -1765,6 +1765,10 @@ class GameSession:
         live = (not self.classic) and self.has_device
         pw = self.device_powers if live else {}
         has_charge = live and bool(pw.get(device.CHARGE))
+        # A fully-assembled Device has no cadence band, so it never forces a jump: the
+        # Mainspring's hold toggle would change nothing and is not offered (`manual`); its
+        # charge is still held (the Escapement needs it).
+        manual = live and CADENCE_BANDS.get(self.parts_recovered) is None
         holding = has_charge and self._hold
         can_release = has_charge and bool(pw.get(device.RELEASE))
         abilities = {
@@ -1777,7 +1781,7 @@ class GameSession:
         state = self._cadence_state()
         state.update({
             "total": total,
-            "manual": holding,
+            "manual": manual,
             "holding": holding,
             "in_combat": self._in_combat,
             "steer": self._steer,

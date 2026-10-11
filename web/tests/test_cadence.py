@@ -346,7 +346,8 @@ def main():
     main = _with_parts(_session(), "Mainspring")
     rec("Mainspring: the charge holds the Device (no forced jump) at one part",
         main._device_state()["abilities"]["charge"] is True
-        and main._device_state()["holding"] is True and main._cadence_span() is None,
+        and main._device_state()["holding"] is True and main._cadence_span() is None
+        and main._device_state()["manual"] is False,
         str(main._device_state()))
     rec("... but alone it cannot release (no Escapement)",
         main._device_state()["abilities"]["release"] is False)
@@ -519,6 +520,8 @@ def main():
         five._jump_at_turn is None and five.parts_recovered == 5
         and all(five._device_state()["abilities"].values()),
         str(five._device_state()["abilities"]))
+    rec("... and a fully-assembled Device is manual, so the hold toggle is not offered",
+        five._device_state()["manual"] is True and five._cadence_span() is None)
 
     gone = _session()
     async def fake_gone(name, args):

@@ -1,10 +1,11 @@
-"""Spell resolution contract: registry AC fallback, config-vs-GM conflicts, and the
-rule that a targets[] list is never silently dropped.
+"""Spell resolution contract: registry AC fallback, config-vs-GM conflicts, and the rule
+that a targets[] list is never silently dropped (an automatic spell keeps it as names).
 
 Run from the repo root:
     venv\\Scripts\\python.exe -m unittest web.tests.dice.test_spell_resolution
 """
 
+import json
 import unittest
 
 from web.tests.dice import harness as H
@@ -66,11 +67,12 @@ class TargetsNeverDroppedTest(H.EngineCase):
         self.assertEqual([t["remaining_hp"] for t in r["targets"]], [1, 1])
         self.assertEqual(H.ds._COMBAT_REGISTRY["Goblin A"]["current_hp"], 1)
 
-    def test_automatic_spell_with_targets_is_refused_not_dropped(self):
+    def test_automatic_spell_with_targets_names_them_without_mechanics(self):
         r = H.ds.resolve_magic(spell_name="Mage Armor", actor="Senna",
                                targets=[{"name": "Senna"}])
-        self.assertFalse(r["success"])
-        self.assertEqual(r["error"], "targets_unsupported")
+        self.assertTrue(r["success"])
+        self.assertEqual(r["targets_named_only"], ["Senna"])
+        self.assertIn("casts Mage Armor", r["narrative_format"])
 
 
 class ConfigWinsWarnTest(H.EngineCase):
@@ -605,6 +607,53 @@ class SpellAttributionTest(H.EngineCase):
         self.assertIsNone(r.get("condition_targets"))
         self.assertEqual(H.ds._COMBAT_REGISTRY["Ogre"].get("conditions"), [])
         self.assertIn("Unaffected \u2014 HP exceeds remaining pool", r["narrative_format"])
+
+
+class AutomaticSpellTest(H.EngineCase):
+    """An automatic spell keeps its targets as names, and applies an engine condition."""
+
+    player_factory = staticmethod(H.wizard_l3)  # Senna: a 2nd-level slot
+
+    def _register(self, *names):
+        with H.fixed_rolls([15] + [6] * len(names)):
+            H.ds.register_combatants([{"name": n, "hp": 52, "ac": 18,
+                                       "initiative_modifier": 2, "role": "hostile"}
+                                      for n in names])
+
+    def test_a_targets_list_is_kept_as_names_only(self):
+        self._register("Preda")
+        r = H.ds.resolve_magic(actor="Power", spell_name="Forcecage", is_npc_vs_npc=True,
+                               targets=[{"name": "Preda"}])
+        self.assertTrue(r["success"])
+        self.assertEqual(r["targets_named_only"], ["Preda"])
+        self.assertTrue(r["narrative_format"].startswith("Power casts Forcecage \u2192 Preda"))
+
+    def test_a_gm_adjudicated_condition_is_left_to_the_gm(self):
+        self._register("Preda")
+        r = H.ds.resolve_magic(actor="Power", spell_name="Forcecage", is_npc_vs_npc=True,
+                               targets=[{"name": "Preda"}])
+        # Trapped is not in CONDITION_EFFECTS: named, but never engine-applied.
+        self.assertNotIn("conditions_applied", r)
+        self.assertEqual(H.ds._COMBAT_REGISTRY["Preda"].get("conditions"), [])
+
+    def test_an_engine_condition_is_applied_to_a_target(self):
+        self._register("Preda")
+        r = H.ds.resolve_magic(actor="Mage", spell_name="Power Word Stun", target_name="Preda",
+                               is_npc_vs_npc=True)
+        self.assertEqual(r["conditions_applied"], ["Preda"])
+        self.assertIn("stunned", H.ds._COMBAT_REGISTRY["Preda"]["conditions"])
+
+    def test_a_self_buff_applies_its_engine_condition(self):
+        r = H.ds.resolve_magic(spell_name="Invisibility", slot_level=2)
+        self.assertEqual(r["conditions_applied"], ["Senna"])
+        sheet = H.ds.dump_player_db()
+        self.assertIn("invisible", (json.loads(sheet) if isinstance(sheet, str) else sheet)["conditions"])
+
+    def test_many_named_targets_render_a_list(self):
+        self._register("A", "B")
+        r = H.ds.resolve_magic(actor="Mage", spell_name="Antimagic Field", is_npc_vs_npc=True,
+                               targets=[{"name": "A"}, {"name": "B"}])
+        self.assertIn("casts Antimagic Field \u2192 A, B", r["narrative_format"])
 
 
 if __name__ == "__main__":

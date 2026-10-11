@@ -1387,7 +1387,7 @@ function updateDevice(c) {
   const left = c.turns_until;
   if (left === null || left === undefined) {
     // A held Device (the Mainspring) still shows that it waits for the release.
-    if (c.holding) { el.hidden = false; el.textContent = "device \u2014 held"; el.classList.remove("device-warn"); return; }
+    if (c.holding && !c.manual) { el.hidden = false; el.textContent = "device \u2014 held"; el.classList.remove("device-warn"); return; }
     el.hidden = true;
     return;
   }
@@ -1401,7 +1401,7 @@ function updateDevice(c) {
 function deviceSummary(dev, ctrl) {
   const c = ctrl || {};
   const parts = `${dev.recovered} of ${dev.total} parts recovered`;
-  if (c.holding) return `held \u00b7 ${parts} \u00b7 release it to choose when`;
+  if (c.holding && !c.manual) return `held \u00b7 ${parts} \u00b7 release it to choose when`;
   const left = c.turns_until;
   if (left === null || left === undefined) return parts;
   return `${parts} \u00b7 fires in ${left} ordinary ${left === 1 ? "turn" : "turns"}`;
@@ -1500,7 +1500,8 @@ function deviceActionRow(dev, ctrl) {
     ? (placeSel.options[placeSel.selectedIndex].dataset.era || "") : "";
 
   // The Mainspring: the charge holds the Device (no forced jumps); it can be let go again.
-  if (ab.charge) {
+  // A fully-assembled Device is manual (no cadence to stop), so the toggle is not offered.
+  if (ab.charge && !c.manual) {
     wrap.appendChild(btn(c.holding ? "let it run" : "hold the Device",
       () => sendDevice({ type: "device", action: "hold", value: !c.holding }), true));
   }
@@ -1570,7 +1571,7 @@ function deviceActionRow(dev, ctrl) {
     wrap.appendChild(btn("release the Device", () => sendDevice({
       type: "device", action: "release",
       era: eraSel ? eraSel.value : placeEra(),
-      place: (placeSel && !placeSel.disabled) ? placeSel.value : "" }), false));
+      place: (placeSel && !placeSel.disabled) ? placeSel.value : "" }), true));
   }
 
   if (!ab.charge && !ab.direction && !ab.era && !ab.release && !ab.place) {
