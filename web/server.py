@@ -280,7 +280,7 @@ async def delete_world(filename: str):
     if not save.exists():
         raise HTTPException(status_code=404, detail="unknown save")
     stem = save.with_suffix("")
-    targets = [save, Path(f"{stem}.timeline"), Path(f"{stem}.wwf")]
+    targets = [save, Path(f"{stem}.timeline"), Path(f"{stem}.timeline.bak"), Path(f"{stem}.wwf")]
     removed = []
     for target in targets:
         if target.exists():

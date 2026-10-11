@@ -112,7 +112,7 @@ There is nothing to do but play out the age you are in.
 
 ### Saving and loading
 
-**There is no autosave — progress persists only when you save.** Saving is **in place**: a save writes its own files and never renames them, because its images live under a folder keyed to its name. A save rewrites your character and appends a session **timeline**, the Game Master's concise summary of the story so far. Loading injects that timeline, so a long campaign stays coherent. Saves are listed on the start screen and in the **Load** picker.
+**There is no autosave — progress persists only when you save.** Saving is **in place**: a save writes its own files and never renames them, because its images live under a folder keyed to its name. A save rewrites your character, appends a session **timeline** — the Game Master's concise account of the turns since the last save — and rewrites a short **state notebook** (your current goal, the live hooks, who stands where, what you owe, what only you know). Loading injects both, so a long campaign stays coherent. Because that memory must not grow without limit, the older entries are periodically **compacted into one chronicle** — the recent events stay verbatim, everything older becomes a single short "story so far". **Saving is refused while a fight is live** — you'll be told *"Combat is not over. If you think it is, inform the Game Master."* and can end it by telling the GM. Saves are listed on the start screen and in the **Load** picker.
 
 ### When the Game Master forgets something
 

@@ -151,6 +151,27 @@ def known_places_block(n: int, count):
     return text, count(text)
 
 
+# A representative injected session-memory line set: a chronicle/entry mix dense enough to
+# tokenize like the real block (prose + field names + punctuation).
+_TIMELINE_SAMPLE = (
+    "**Key Events**:\n- You bribed the dockmaster and sailed at midnight.\n"
+    "- The Strigoi followed; you lost it in the fog off Gravesend.\n"
+    "**Standing**: Marlow (the dockmaster) — knows your face, wants coin.\n"
+    "**Hooks**: the Strigoi is still hunting; the Regulator is missing.\n"
+)
+
+
+def timeline_block(count):
+    """The injected SESSION_TIMELINE body at its cap (MAX_TIMELINE_CHARS): STATE notebook
+    + chronicle + kept entries. This is the block compaction bounds."""
+    from web.engine import MAX_TIMELINE_CHARS
+    text = ""
+    while len(text) < MAX_TIMELINE_CHARS:
+        text += _TIMELINE_SAMPLE
+    text = text[:MAX_TIMELINE_CHARS]
+    return text, count(text)
+
+
 BUDGETS = REPO / "tools" / "budgets.yml"
 ERA_DIR = REPO / "config" / "eras"
 PLACE_TREE_CAP = 12
@@ -168,6 +189,15 @@ def _metric_place_tree(count):
     """KNOWN PLACES at the S0.3 cap, or None if the engine is unavailable."""
     try:
         _, tokens = known_places_block(PLACE_TREE_CAP, count)
+        return tokens
+    except Exception:
+        return None
+
+
+def _metric_injected_timeline(count):
+    """The injected SESSION_TIMELINE body at its cap, or None if unavailable."""
+    try:
+        _, tokens = timeline_block(count)
         return tokens
     except Exception:
         return None
@@ -247,6 +277,7 @@ def _metrics(prefix_on, prefix_off, era_index_tokens, count, rows=None,
         "place_tree": tree,
         "era_file_bytes": _metric_era_file_bytes(),
         "lookup_schema": _metric_lookup_schema(rows),
+        "injected_timeline": _metric_injected_timeline(count),
         "always_on_total": always_on,
         "always_on_total_classic": classic_prefix_on,
         # Not built yet: named so a manifest row resolves; value unknown.

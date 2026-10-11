@@ -178,7 +178,7 @@ class RecurringSaveTest(H.EngineCase):
         with H.fixed_rolls([1, 10, 10, 10, 10]):  # WIS save fails, then 4d10 psychic
             r = H.ds.resolve_attack(actor="Gao", attack="Spear", target_name="Power",
                                     is_npc_attack=True)
-        self.assertIn("WIS Save (Phantasmal Killer)", r["narrative_format"])
+        self.assertIn("WIS Save (Phantasmal Killer, cast by Power)", r["narrative_format"])
         self.assertEqual(r["recurring"][0]["damage"], 40)
         self.assertEqual(r["recurring"][0]["remaining_hp"], 0)
         self.assertTrue(r["recurring"][0]["killed"])
@@ -557,6 +557,54 @@ class DamagingConditionTest(H.EngineCase):
                                    target_name="Senna")
         self.assertTrue(r["save_success"])
         self.assertNotIn("conditions_applied", r)
+
+
+class SpellAttributionTest(H.EngineCase):
+    """Every spell's Mechanics line names the caster and the spell (and a target when lone)."""
+
+    player_factory = staticmethod(power_l20)
+
+    def test_condition_only_spell_names_the_caster_and_target(self):
+        with H.fixed_rolls([1]):  # the player fails the WIS save
+            r = H.ds.resolve_magic(actor="Magistrate Guo", spell_name="Hold Person",
+                                   targets=[{"is_player": True, "name": "Power"}],
+                                   is_npc_attack=True, spell_save_dc=14)
+        self.assertTrue(
+            r["narrative_format"].startswith("Magistrate Guo casts Hold Person \u2192 Power"),
+            r["narrative_format"])
+        self.assertEqual(r["condition_targets"], ["Power"])
+
+    def test_damage_spell_does_not_get_a_duplicate_lead(self):
+        with H.fixed_rolls([20, 5, 5]):
+            H.ds.register_combatants([
+                {"name": "Goblin", "hp": 7, "ac": 15, "initiative_modifier": 2,
+                 "challenge_rating": 0.25, "saves": {"dex": 2}}])
+        with H.fixed_rolls([4, 4, 4, 1]):  # 3d6 fire, then the DEX save
+            r = H.ds.resolve_magic(spell_name="Fireball", spell_save_dc=19,
+                                   targets=[{"name": "Goblin"}])
+        self.assertNotIn("casts", r["narrative_format"])
+
+    def test_single_target_sleep_applies_and_names_the_condition(self):
+        with H.fixed_rolls([15, 6]):
+            H.ds.register_combatants([{"name": "Sleeper", "hp": 3, "ac": 12,
+                                       "initiative_modifier": 0, "role": "hostile"}])
+        with H.fixed_rolls([8, 8, 8, 8, 8]):  # a 40-point pool covers 3 HP
+            r = H.ds.resolve_magic(actor="Evil Mage", spell_name="Sleep",
+                                   target_name="Sleeper", spell_save_dc=13, is_npc_vs_npc=True)
+        self.assertEqual(r["condition_targets"], ["Sleeper"])
+        self.assertIn("unconscious", H.ds._COMBAT_REGISTRY["Sleeper"]["conditions"])
+        self.assertIn("Sleeper: Affected \u2014 Unconscious", r["narrative_format"])
+
+    def test_single_target_sleep_leaves_a_target_over_the_pool_unaffected(self):
+        with H.fixed_rolls([15, 6]):
+            H.ds.register_combatants([{"name": "Ogre", "hp": 59, "ac": 11,
+                                       "initiative_modifier": -1, "role": "hostile"}])
+        with H.fixed_rolls([1, 1, 1, 1, 1]):  # a 5-point pool cannot cover 59 HP
+            r = H.ds.resolve_magic(actor="Evil Mage", spell_name="Sleep",
+                                   target_name="Ogre", spell_save_dc=13, is_npc_vs_npc=True)
+        self.assertIsNone(r.get("condition_targets"))
+        self.assertEqual(H.ds._COMBAT_REGISTRY["Ogre"].get("conditions"), [])
+        self.assertIn("Unaffected \u2014 HP exceeds remaining pool", r["narrative_format"])
 
 
 if __name__ == "__main__":

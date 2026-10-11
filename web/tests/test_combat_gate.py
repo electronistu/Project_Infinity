@@ -16,7 +16,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO))
 
-from web.engine import GameSession  # noqa: E402
+from web.engine import COMBAT_HOLD_MESSAGE, COMBAT_TOOLS, GameSession  # noqa: E402
+import device as device_mod  # noqa: E402
 
 RESULTS = []
 
@@ -99,16 +100,31 @@ def main() -> bool:
     rec("a tool result without a roster leaves the flag alone", gs._in_combat is True)
 
     # -- the save gate ------------------------------------------------------------
+    rec("end_combat is a combat tool the engine routes", "end_combat" in COMBAT_TOOLS)
     calls, evts = _save_attempt(True)
     rec("a save mid-fight writes nothing", calls == [], str(calls))
     rec("... and the client is told why",
-        any(e.get("type") == "save_refused" and e.get("reason") == "combat" for e in evts),
+        any(e.get("type") == "save_refused" and e.get("reason") == "combat"
+            and e.get("text") == COMBAT_HOLD_MESSAGE for e in evts),
         str(evts))
 
     calls, evts = _save_attempt(False)
     rec("a save out of combat still summarizes, then writes",
         calls == ["summarize", "save"], str(calls))
     rec("... with no refusal", not any(e.get("type") == "save_refused" for e in evts), str(evts))
+
+    # -- the Device gate ----------------------------------------------------------
+    gs2 = _session()
+    gs2.device_powers = {device_mod.CHARGE: True, device_mod.RELEASE: True}
+    gs2._in_combat = True
+    asyncio.run(gs2._device_release({}))
+    dev_evts = []
+    while not gs2._evt_q.empty():
+        dev_evts.append(gs2._evt_q.get_nowait())
+    rec("releasing the Device mid-fight is refused with the hold message",
+        any(e.get("type") == "notice" and e.get("text") == COMBAT_HOLD_MESSAGE
+            for e in dev_evts),
+        str(dev_evts))
 
     return all(RESULTS)
 

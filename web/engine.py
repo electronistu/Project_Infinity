@@ -24,6 +24,7 @@ import json
 import os
 import random
 import re
+import shutil
 import sys
 import time
 import traceback
@@ -57,20 +58,85 @@ LOCK_FILE = "GameMaster_MCP.md"
 OUTPUT_DIR = "output"
 
 
-def load_timeline(timeline_path):
-    """Load an existing session timeline, if any.
-
-    The era legends live in the same file but are not session events: they are stripped
-    here and read by `load_legends`."""
-    if os.path.exists(timeline_path):
-        with open(timeline_path, "r", encoding="utf-8") as f:
-            return _LEGEND_RE.sub("", f.read()).strip()
-    return ""
-
-
-# A legend, marked so it survives in the save's timeline without being read back as a
-# session event: `<!-- legend:egypt --> Egypt remembers a stranger who ...`.
+# ── the save's timeline ─────────────────────────────────────────────
+# One file holds blocks with different lifetimes, each marked so it can be parsed back:
+#   `<!-- legend:era -->`    what an age remembers (diegetic, per-era)
+#   `<!-- state -->`         what is TRUE NOW -- the GM's notebook, rewritten every Save
+#   `<!-- chronicle:A-B -->` old events collapsed into prose, at compaction
+#   `## Turns X-Y ...`       recent events, kept verbatim
+_TIMELINE_HEADER = "# Session Timeline"
 _LEGEND_RE = re.compile(r"(?m)^<!-- legend:([a-z0-9_-]+) -->[ \t]*(.*?)[ \t]*$")
+_CHRONICLE_RE = re.compile(
+    r"(?ms)^<!-- chronicle:(?P<a>\d+)-(?P<b>\d+) -->[ \t]*\n(?P<body>.*?)^<!-- /chronicle -->[ \t]*$")
+_STATE_RE = re.compile(r"(?ms)^<!-- state -->[ \t]*\n(?P<body>.*?)^<!-- /state -->[ \t]*$")
+# The `## Turns …` / legacy `## Rounds …` entry boundary.
+_ENTRY_SPLIT_RE = re.compile(r"(?m)^(?=##\s+(?:Rounds?|Turns?)\s+\d)")
+
+
+def _read_timeline_file(timeline_path) -> str:
+    if not timeline_path or not os.path.exists(timeline_path):
+        return ""
+    try:
+        with open(timeline_path, "r", encoding="utf-8") as f:
+            return f.read()
+    except OSError:
+        return ""
+
+
+def load_timeline(timeline_path):
+    """The kept (recent) session entries: the header, the legends, the STATE block and the
+    chronicle are stripped. This is what `_write_timeline` rebuilds from, and what turn
+    numbering reads."""
+    text = _LEGEND_RE.sub("", _read_timeline_file(timeline_path))
+    text = _STATE_RE.sub("", text)
+    text = _CHRONICLE_RE.sub("", text)
+    text = re.sub(r"(?m)^# Session Timeline[ \t]*\n?", "", text, count=1)
+    return text.strip()
+
+
+def load_state(timeline_path) -> str:
+    """What is true now -- the GM's notebook, rewritten on every Save."""
+    match = _STATE_RE.search(_read_timeline_file(timeline_path))
+    return match.group("body").strip() if match else ""
+
+
+def load_chronicle(timeline_path) -> tuple[int, int, str] | None:
+    """The collapsed event history: `(first_turn, last_turn, prose)`, or None."""
+    match = _CHRONICLE_RE.search(_read_timeline_file(timeline_path))
+    if not match:
+        return None
+    return int(match.group("a")), int(match.group("b")), match.group("body").strip()
+
+
+def _extract_state(text: str) -> tuple[str, str]:
+    """Pull a `<!-- state --> … <!-- /state -->` block out of a model reply.
+
+    Returns ``(state_body, cleaned_text)``. A state that merely echoes the placeholder is
+    rejected -- the state already held is better than a broken one."""
+    raw = text or ""
+    match = _STATE_RE.search(raw)
+    if not match:
+        return "", raw
+    body = match.group("body").strip()
+    cleaned = _STATE_RE.sub("", raw).strip()
+    if not body or "<" in body:
+        return "", cleaned
+    return body, cleaned
+
+
+def _split_timeline_entries(text: str) -> list[str]:
+    """The `## Turns …` entries in a timeline body, in order."""
+    return [e.strip() for e in _ENTRY_SPLIT_RE.split(text or "") if e.strip()]
+
+
+def _entry_turn_range(entry: str) -> tuple[int, int]:
+    """`(lowest, highest)` turn in one entry's headings; `(0, 0)` when it has none."""
+    lo = hi = 0
+    for first, second in _TURN_HEADING_RE.findall(entry or ""):
+        a, b = int(first), int(second or first)
+        lo = a if lo == 0 else min(lo, a)
+        hi = max(hi, b)
+    return lo, hi
 
 
 def load_legends(timeline_path) -> dict:
@@ -158,15 +224,47 @@ AWAKENING_RESUME = (
     "same response as exactly ONE `request_scene_image`."
 )
 
-# Web-local timeline prompt: the database is authoritative, so mechanical changes
-# are NOT summarised (the terminal CLI's prompt is gone).
-TIMELINE_PROMPT = """SYSTEM INSTRUCTION: The player is saving the game. Write a session timeline entry covering the turns listed below, in the following EXACT format. Replace bracketed text with actual content. Keep it concise. Output ONLY the entry — no extra narration, no tool calls.
+# Web-local timeline prompt: the database is authoritative, so mechanical changes are NOT
+# summarised (the terminal CLI's prompt is gone). The response carries TWO blocks -- the
+# event entry AND the STATE notebook (what is true now, rewritten in place every Save).
+TIMELINE_PROMPT = """SYSTEM INSTRUCTION: The player is saving the game. Output TWO blocks covering the turns listed below, in this EXACT order and format. Replace bracketed text with actual content. Keep it concise. Output ONLY these blocks — no extra narration, no tool calls.
 
 ## Turns X-Y | [current location] | [in-game time]
 **Key Events**:
 - [event in one sentence]
-**NPCs**: [names and roles of new NPCs encountered, or "none"]
-**Active Hooks**: [all unresolved plot threads, one per line]"""
+
+<!-- state -->
+**Goal**: [what the Traveller is trying to do now, one line]
+**Hooks**: [every unresolved thread, one per line; drop resolved ones]
+**Standing**: [Name (role) — how they stand toward the Traveller, one per line]
+**Clocks**: [what advances if the Traveller does nothing]
+**Debts**: [promises, oaths and bargains owed or held]
+**Secrets**: [what the Traveller knows that others do not]
+**Canon**: [details that must stay true — keep it short]
+**Unpaid**: [foreshadowing planted but not yet paid off]
+<!-- /state -->"""
+
+# The compaction output: the older entries, rewritten as one short in-voice chronicle. The
+# STATE block is already current, so it is not folded here -- only events are.
+CHRONICLE_PROMPT = """SYSTEM INSTRUCTION: These are earlier session timeline entries from a long-running game, covering turns {a}-{b}. Rewrite them as ONE compact "story so far" in the same voice as the entries but much shorter. Keep the events that still matter; drop resolved detail and anything the story has moved past. Do not invent. Keep it under about 1000 characters, as prose — do NOT include a "## Turns" heading, and do not write a STATE block. Output ONLY the chronicle.
+
+{old}"""
+
+# The injected session memory: STATE (current truth) + EVENTS (chronicle + kept entries).
+SESSION_TIMELINE_HEADER = (
+    "SESSION_TIMELINE — earlier in this story. Refer to past events when the player asks; "
+    "do not replay or re-describe them. The STATE block is what is TRUE NOW — honour it.\n\n"
+)
+
+# The timeline is bounded by COMPACTION, not by dropping history: once the injected body
+# passes the cap (or the entry-count floor), the older entries are rewritten as one
+# GM-authored chronicle and the raw entries are discarded. Events decay; the STATE block
+# is rewritten in place and does not grow.
+MAX_TIMELINE_CHARS = 4500   # the injected body: STATE + chronicle + kept entries
+TIMELINE_KEEP_ENTRIES = 2   # newest entries kept verbatim at a compaction
+TIMELINE_MAX_ENTRIES = 6    # always compact past this many entries
+MAX_CHRONICLE_CHARS = 1200  # the event chronicle
+MAX_STATE_CHARS = 1200      # the STATE block
 
 HELP_TEXT = (
     "/help  - show this help\n"
@@ -175,6 +273,11 @@ HELP_TEXT = (
     "/quit  - end the session\n\n"
     "Anything else is sent to the Game Master as an action."
 )
+
+# Shown when the player tries to save or release the Device while a fight is live. The
+# engine ends combat on its own once every hostile is dead, fled or surrendered; this is the
+# nudge for the cases it cannot see (the player left, the foes are caged, a parley).
+COMBAT_HOLD_MESSAGE = "Combat is not over. If you think it is, inform the Game Master."
 
 
 def _tool_schema(tool) -> dict:
@@ -210,8 +313,8 @@ PLACE_TOOL = "note_place"
 # NOT run another model round, or the GM re-narrates the whole turn.
 NARRATIVE_PHASE_TOOLS = frozenset({SCENE_TOOL})
 # Tools whose result may change the combat roster the client shows as tooltips.
-COMBAT_TOOLS = frozenset({"register_combatants", "update_combatant", "resolve_attack",
-                          "resolve_magic", "modify_exhaustion", "make_death_save"})
+COMBAT_TOOLS = frozenset({"register_combatants", "update_combatant", "end_combat",
+                          "resolve_attack", "resolve_magic", "modify_exhaustion", "make_death_save"})
 # Scene-imagery instructions live in GameMaster_MCP.md between these markers;
 # they are sent to the GM only when storyline image generation is enabled.
 _SCENE_BLOCK = re.compile(
@@ -641,6 +744,7 @@ _GM_VIEW_KEEP: dict[str, tuple[str, ...]] = {
         "warnings", "already_attuned"),
     "rest": ("success", "rest_type", "changes", "hints"),
     "register_combatants": ("success", "initiative_order", "registry_summary"),
+    "end_combat": ("success",),
     "update_combatant": ("success", "name", "is_player", "hp", "ac", "conditions",
                          "exhaustion", "blocked_conditions", "already_present", "note"),
     "modify_exhaustion": ("success", "exhaustion", "old", "delta", "effects", "max_hp"),
@@ -747,6 +851,25 @@ def _trim_legend(text: str, limit: int = MAX_LEGEND_CHARS) -> str:
             break
         kept = candidate
     return kept or text[-limit:].lstrip()
+
+
+def _clamp_block(text: str, limit: int) -> str:
+    """Hard-bound a multi-line block to `limit` characters, at a line boundary.
+
+    Unlike `_trim_legend` this keeps line structure (the STATE notebook is a list of
+    fields, not one paragraph) and, on overflow, keeps the EARLIEST lines -- the prompt
+    orders the fields by importance (Goal and Hooks first)."""
+    text = (text or "").strip()
+    if len(text) <= limit:
+        return text
+    out: list[str] = []
+    total = 0
+    for line in text.splitlines():
+        if total + len(line) + 1 > limit:
+            break
+        out.append(line)
+        total += len(line) + 1
+    return "\n".join(out) or text[:limit]
 
 
 class GameSession:
@@ -879,6 +1002,13 @@ class GameSession:
         # One or two lines per era, read from the save's timeline and injected lazily: the
         # eras the Traveller is not in cost nothing.
         self._legends: dict[str, str] = {}
+        # The current-truth notebook and the collapsed event chronicle: both live in memory
+        # until Save, like the legends, so an unsaved session never touches the file.
+        self._state: str = ""
+        self._chronicle: tuple[int, int, str] | None = None
+        # The kept entries a compaction produced, consumed once by `_write_timeline` so the
+        # folded raw entries are not re-read from disk and written back.
+        self._timeline_kept: str | None = None
         self._era_started_turn = 0
         # Declared NPC identity (role, race, class), by lowercased name ->
         # (canonical name, role, race, class). Echoed with the character that appears,
@@ -1035,9 +1165,14 @@ class GameSession:
                         key_content = render_world_text()
                     else:
                         key_content = f"{self._era_opening()}\n\n{render_era_text(self.era)}"
-                    existing_timeline = load_timeline(self.timeline_path)
-                    # Continue turn numbering where the loaded timeline left off.
-                    self.turn_counter = self.last_timeline_turn = _max_timeline_turn(existing_timeline)
+                    kept = load_timeline(self.timeline_path)
+                    self._chronicle = load_chronicle(self.timeline_path)
+                    self._state = load_state(self.timeline_path)
+                    # Continue turn numbering where the timeline left off: the kept entries,
+                    # or the chronicle's covered range when it reaches further back.
+                    self.turn_counter = self.last_timeline_turn = _max_timeline_turn(kept)
+                    if self._chronicle and self._chronicle[1] > self.last_timeline_turn:
+                        self.turn_counter = self.last_timeline_turn = self._chronicle[1]
 
                     self.messages = [{"role": "system", "content": render_protocol(
                         lock_content, self.scene_images, self.difficulty, self.mode)}]
@@ -1049,15 +1184,10 @@ class GameSession:
                     if not self.classic:
                         self._era_index_at = len(self.messages)
                         self.messages.append({"role": "system", "content": render_era_index(self.era)})
-                    if existing_timeline:
-                        self.messages.append({
-                            "role": "system",
-                            "content": (
-                                "SESSION_TIMELINE — these are events that happened earlier this session.\n"
-                                "Refer to them when the player asks about past events. Do not replay or "
-                                "re-describe them.\n\n" + existing_timeline
-                            ),
-                        })
+                    memory_body = self._timeline_body()
+                    if memory_body:
+                        self.messages.append({"role": "system",
+                                              "content": SESSION_TIMELINE_HEADER + memory_body})
 
                     # The place/NPC tree is primed in BOTH modes: with images on it comes
                     # from the scene manifest, with images off from the text registry.
@@ -1265,7 +1395,7 @@ class GameSession:
             return
         if self._in_combat:
             await self._emit({"type": "notice", "title": "The Device",
-                              "text": "The Device will not answer in the middle of a fight."})
+                              "text": COMBAT_HOLD_MESSAGE})
             return
         era = str(cmd.get("era") or "").strip().lower()
         place = self._clean_aim_place(cmd.get("place"))
@@ -1508,9 +1638,9 @@ class GameSession:
             return 0
         return max(1, chars // 4)
 
-    def _gm_snapshot(self, label: str, round=None, trigger=None) -> dict:
+    def _gm_snapshot(self, label: str, round=None, trigger=None, messages=None) -> dict:
         self._gm_seq += 1
-        messages = copy.deepcopy(self.messages)
+        messages = copy.deepcopy(self.messages if messages is None else messages)
         message_tokens = self._estimate_tokens(messages)
         tool_tokens = int(getattr(self, "_tool_tokens", 0) or 0)
         return {"seq": self._gm_seq, "label": label, "turn": self.turn_counter,
@@ -1518,14 +1648,14 @@ class GameSession:
                 "message_tokens": message_tokens, "tool_tokens": tool_tokens,
                 "tokens": message_tokens + tool_tokens, "messages": messages}
 
-    async def _record_gm_prompt(self, label: str, round=None, trigger=None):
+    async def _record_gm_prompt(self, label: str, round=None, trigger=None, messages=None):
         """Record exactly what the GM is about to be sent (dev only), and stream it live.
 
         Returns the snapshot so the caller can stamp the provider's real token count once
         the reply lands; `None` when dev mode is off."""
         if not self.dev:
             return None
-        snap = self._gm_snapshot(label, round=round, trigger=trigger)
+        snap = self._gm_snapshot(label, round=round, trigger=trigger, messages=messages)
         if not self._gm_capped:
             size = len(json.dumps(snap, ensure_ascii=True))
             if self._gm_journal_bytes + size > GM_JOURNAL_MAX_BYTES:
@@ -2126,10 +2256,10 @@ class GameSession:
         await self._emit(info)
         return info
 
-    async def _plain_summary(self, prompt: str) -> str:
-        """Tool-free, one-off model call for a summary; does not touch history."""
-        messages = self.messages + [{"role": "user", "content": prompt}]
-        snap = await self._record_gm_prompt("summary")
+    async def _plain_call(self, messages, label: str = "summary") -> str:
+        """Tool-free, one-off model call; does not touch history. `messages` IS the whole
+        request, so a housekeeping call can send only what it needs, not the full history."""
+        snap = await self._record_gm_prompt(label, messages=messages)
         parts: list[str] = []
         if self.provider == "gemini":
             if self._gemini is None:
@@ -2152,40 +2282,120 @@ class GameSession:
                 return ""
         return "".join(parts)
 
-    async def _summarize_timeline(self, target_turn: int):
-        """Produce a comprehensive timeline segment covering turns since the last save.
+    async def _plain_summary(self, prompt: str) -> str:
+        """The timeline summary rides the whole session history, so the GM can see the
+        previous STATE block it is rewriting."""
+        return await self._plain_call(self.messages + [{"role": "user", "content": prompt}],
+                                      "summary")
 
-        Returned, never written: the caller writes the whole timeline in one go on Save."""
+    async def _summarize_timeline(self, target_turn: int):
+        """Produce the save's event entry AND the current STATE block.
+
+        Returned, never written: the caller writes the whole timeline in one go on Save.
+        The STATE is kept even when the entry's shape drifts -- a malformed entry must not
+        cost the notebook."""
         if target_turn <= self.last_timeline_turn:
             return None
         start = self.last_timeline_turn + 1
         await self._emit({"type": "notice", "title": "Timeline",
                           "text": f"Summarising turns {start}-{target_turn} for the save..."})
         prompt = TIMELINE_PROMPT.replace("X-Y", f"{start}-{target_turn}")
-        text = await self._plain_summary(prompt)
-        entry = _clean_pause_tokens(text or "")
+        text = _clean_pause_tokens(await self._plain_summary(prompt) or "")
+        state, text = _extract_state(text)
+        if state:
+            self._state = _clamp_block(state, MAX_STATE_CHARS)
+        entry = text.strip()
         if entry and "**Key Events**" in entry:
             self.last_timeline_turn = target_turn
             await self._emit({"type": "timeline", "entry": entry})
             return entry
         return None
 
-    def _write_timeline(self, entry=None) -> None:
-        """Rewrite the save's timeline atomically: header, the ages' legends, the session
-        history, and the new summary entry.
+    def _timeline_body(self) -> str:
+        """The injected session memory: STATE, then the EVENTS (chronicle + kept entries)."""
+        state = (self._state or "").strip()
+        chronicle = self._chronicle[2].strip() if self._chronicle else ""
+        kept = (self._timeline_kept if self._timeline_kept is not None
+                else load_timeline(self.timeline_path))
+        parts: list[str] = []
+        if state:
+            parts.append("STATE — current truth; honour it.\n" + state)
+        if chronicle:
+            parts.append("EVENTS\n" + chronicle)
+        if kept:
+            parts.append(kept)
+        return "\n\n".join(parts)
 
-        Called on Save only. Legends live in memory (`self._legends`) until here, so an
-        unsaved session never touches the file; rebuilding the legend block keeps a save
-        idempotent (no duplicate legends)."""
+    async def _summarize_chronicle(self, old_text: str, a: int, b: int) -> str:
+        """One tool-free call that folds older entries into a single chronicle. It gets
+        only the old text -- never the session history -- so the compaction is cheap."""
+        prompt = CHRONICLE_PROMPT.format(a=a, b=b, old=old_text)
+        return _clean_pause_tokens(await self._plain_call(
+            [{"role": "user", "content": prompt}], "chronicle") or "").strip()
+
+    async def _compact_timeline(self, entry: str | None) -> None:
+        """Collapse the older entries into ONE chronicle when the injected memory would
+        pass its cap (or the entry-count floor). Events decay; the STATE is untouched.
+
+        A failed or non-shrinking chronicle leaves everything as it was -- history is never
+        lost to a bad summariser."""
         if not self.timeline_path:
             return
-        session_text = load_timeline(self.timeline_path)  # the file with legends stripped
-        if not (session_text or entry or self._legends):
+        entries = _split_timeline_entries(load_timeline(self.timeline_path))
+        pending_count = len(entries) + (1 if entry else 0)
+        candidate = self._timeline_body()
+        if entry:
+            candidate += "\n\n" + entry.strip()
+        if len(candidate) <= MAX_TIMELINE_CHARS and pending_count <= TIMELINE_MAX_ENTRIES:
+            return
+        if len(entries) <= 1:
+            return  # nothing old enough to fold without losing the only entry
+        keep_n = TIMELINE_KEEP_ENTRIES if len(entries) > TIMELINE_KEEP_ENTRIES else 1
+        fold, keep = entries[: len(entries) - keep_n], entries[len(entries) - keep_n:]
+        chron_body = self._chronicle[2] if self._chronicle else ""
+        fold_lo, _ = _entry_turn_range(fold[0])
+        _, fold_hi = _entry_turn_range(fold[-1])
+        a = self._chronicle[0] if self._chronicle else fold_lo
+        old_text = "\n\n".join(x for x in [chron_body] + fold if x.strip())
+        await self._emit({"type": "notice", "title": "Chronicle",
+                          "text": f"Condensing turns {a}-{fold_hi} into the story so far..."})
+        body = await self._summarize_chronicle(old_text, a, fold_hi)
+        if not body or "<" in body or len(body) >= len(old_text):
+            return
+        # Insurance: keep the pre-fold file (the old chronicle + the raw entries about to be
+        # folded) so a plausible-but-lossy chronicle can be undone. Disk only; never read.
+        try:
+            shutil.copy2(self.timeline_path, self.timeline_path + ".bak")
+        except OSError:
+            pass
+        self._chronicle = (a, fold_hi, _trim_legend(body, MAX_CHRONICLE_CHARS))
+        # The entries the rewrite keeps, so `_write_timeline` does not read the folded ones
+        # back from disk; the fold is now represented by the chronicle.
+        self._timeline_kept = "\n\n".join(keep)
+
+    def _write_timeline(self, entry=None) -> None:
+        """Rewrite the save's timeline atomically: header, the ages' legends, the STATE
+        notebook, the chronicle, the kept entries, and the new entry.
+
+        Called on Save only. Legends, the STATE and the chronicle live in memory until here,
+        so an unsaved session never touches the file; rebuilding each block keeps a save
+        idempotent (no duplicates)."""
+        if not self.timeline_path:
+            return
+        source = self._timeline_kept
+        self._timeline_kept = None
+        session_text = source if source is not None else load_timeline(self.timeline_path)
+        if not (session_text or entry or self._legends or self._state or self._chronicle):
             return  # nothing to record yet: do not create an empty timeline
-        blocks = ["# Session Timeline"]
+        blocks = [_TIMELINE_HEADER]
         if self._legends:
             blocks.append("\n".join(f"<!-- legend:{era} --> {text}"
                                     for era, text in self._legends.items()))
+        if self._state:
+            blocks.append(f"<!-- state -->\n{self._state.strip()}\n<!-- /state -->")
+        if self._chronicle:
+            a, b, body = self._chronicle
+            blocks.append(f"<!-- chronicle:{a}-{b} -->\n{body.strip()}\n<!-- /chronicle -->")
         if session_text:
             blocks.append(session_text)
         if entry:
@@ -2210,10 +2420,10 @@ class GameSession:
         """
         if self._in_combat:
             await self._emit({"type": "save_refused", "reason": "combat",
-                              "text": "You cannot save in the middle of a fight — the "
-                                      "timeline would not survive it."})
+                              "text": COMBAT_HOLD_MESSAGE})
             return
         entry = await self._summarize_timeline(self.turn_counter)
+        await self._compact_timeline(entry)
         await self._save_to_active(entry)
 
     async def _run_role(self, role_content, label: str, quiet: bool = False) -> str:

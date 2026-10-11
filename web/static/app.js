@@ -36,10 +36,14 @@ const state = {
   lastStats: null,                      // last rendered sheet (for icon diffing)
   deviceControl: null,                  // latest cadence + control ladder from the engine
   sceneCaption: "",                     // text-mode scene caption (era + place) for the GM header
-  inCombat: false,                      // a fight is live: saving is refused (engine also gates)
+  inCombat: false,                      // a fight is live: save/Device attempts show COMBAT_HOLD_MESSAGE (engine also gates)
   iconGenBusy: false,                   // one on-the-fly generation run at a time
   iconGenEpoch: 0,                      // bumped on session change to cancel a run
 };
+
+// Shown when the player tries to save or release the Device while a fight is live. The engine
+// refuses the request with the same wording, so this is only the immediate feedback.
+const COMBAT_HOLD_MESSAGE = "Combat is not over. If you think it is, inform the Game Master.";
 
 const $ = (id) => document.getElementById(id);
 const transcript = $("transcript");
@@ -1566,7 +1570,7 @@ function deviceActionRow(dev, ctrl) {
     wrap.appendChild(btn("release the Device", () => sendDevice({
       type: "device", action: "release",
       era: eraSel ? eraSel.value : placeEra(),
-      place: (placeSel && !placeSel.disabled) ? placeSel.value : "" }), !state.inCombat));
+      place: (placeSel && !placeSel.disabled) ? placeSel.value : "" }), false));
   }
 
   if (!ab.charge && !ab.direction && !ab.era && !ab.release && !ab.place) {
@@ -1647,11 +1651,9 @@ function updateComposer() {
   sendBtn.disabled = !enabled;
   $("refresh-stats").disabled = !(state.connected && state.ready);
   $("end-session").disabled = !state.sessionId;
-  // No saving mid-fight: the engine refuses it too (an unfinished fight would put the
-  // .player snapshot and the timeline summary in disagreement on reload).
-  if ($("save-open")) $("save-open").disabled = !state.connected || !state.ready || state.inCombat;
-  if ($("save-confirm")) $("save-confirm").disabled = state.inCombat;
-  if ($("end-save")) $("end-save").disabled = state.inCombat;
+  // Save and the Device stay clickable mid-fight: the attempt surfaces COMBAT_HOLD_MESSAGE
+  // (the engine refuses too, so the wording never depends on the client alone).
+  if ($("save-open")) $("save-open").disabled = !state.connected || !state.ready;
 }
 
 function send(msg) {
@@ -2363,7 +2365,7 @@ async function regeneratePortrait() {
 function openSave() {
   if (!state.connected) { addError("Not connected to a session."); return; }
   if (state.inCombat) {
-    addSystem("Save: you cannot save in the middle of a fight — the timeline would not survive it.");
+    addSystem(`Save: ${COMBAT_HOLD_MESSAGE}`);
     return;
   }
   // Save is in place: the world's own name owns its images, so it is never
@@ -2377,7 +2379,7 @@ function showSaveError(msg) { const el = $("save-error"); el.textContent = msg; 
 
 function confirmSave() {
   if (!state.connected) { showSaveError("Not connected."); return; }
-  if (state.inCombat) { showSaveError("You cannot save in the middle of a fight."); return; }
+  if (state.inCombat) { showSaveError(COMBAT_HOLD_MESSAGE); return; }
   send({ type: "save" });
   closeSave();
 }

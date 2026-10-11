@@ -3738,7 +3738,8 @@ def _roll_recurring_effect(name, entry, eff, cursor):
     d20, rolls, mode, _cancelled = _roll_d20(advantage=advantage, disadvantage=disadvantage)
     total = d20 + mod
     success = total >= eff["dc"] and not auto_fail
-    out = {"name": name, "spell": eff["spell"], "save_type": ability,
+    out = {"name": name, "spell": eff["spell"], "caster": eff.get("caster") or "",
+           "save_type": ability,
            "save_roll": d20, "save_modifier": mod, "save_total": total,
            "save_dc": eff["dc"], "save_success": success, "damage": 0,
            "damage_type": eff.get("damage_type") or "", "ended": False}
@@ -3818,7 +3819,10 @@ def _roll_recurring_effect(name, entry, eff, cursor):
 
 def _recurring_line(res: dict) -> str:
     verdict = "Success" if res["save_success"] else "Failure"
-    line = (f"{res['name']} {str(res['save_type']).upper()} Save ({res['spell']}): "
+    spell = str(res.get("spell") or "")
+    caster = str(res.get("caster") or "").strip()
+    label = f"{spell}, cast by {caster}" if (spell and caster) else (spell or "the spell")
+    line = (f"{res['name']} {str(res['save_type']).upper()} Save ({label}): "
             f"{res['save_total']} vs DC {res['save_dc']} ({verdict}) "
             f"({res['save_roll']} + {res['save_modifier']})")
     if res.get("damage"):
@@ -4619,7 +4623,7 @@ def register_combatants(combatants: list[dict], add_to_existing: bool = False) -
     RULES:
     - Declare the FULL stat block -- the engine derives attacks/saves/AC/damage from it and you never repeat those values; estimate only when a creature truly has no block.
     - resolve_attack/resolve_magic auto-look up HP/AC/CR/saves, so you need not pass them each call; HP carries forward.
-    - Re-calling without add_to_existing overwrites the registry -- that is how a fight ends and a new one begins (there is no end-combat call).
+    - Re-calling without add_to_existing overwrites the registry and starts a new fight; to end a fight with NO new one, call `end_combat`.
     - Declared conditions drive advantage/disadvantage, auto failures and crits automatically.
 
     EX:
@@ -4861,6 +4865,19 @@ def update_combatant(name: str, conditions_add: list[str] | None = None,
         "conditions_woke": woke or None,
         "narrative_format": narrative,
     }
+
+
+@mcp.tool()
+def end_combat() -> dict:
+    """End the combat: clear the combat registry.
+
+    WHEN: the fiction ends a fight with no new fight beginning -- the player escaped or teleported away, the foes are dead, caged or gone, or a truce is struck. The engine already ends combat on its own when every hostile is killed, fled or surrendered; call this for the cases it cannot see. Never call it mid-fight.
+    """
+    global _COMBAT_REGISTRY
+    _COMBAT_REGISTRY = {}
+    _reset_combat_cursor()
+    return {"success": True, "registry_summary": [],
+            "narrative_format": "The combat is over."}
 
 
 @mcp.tool()
@@ -5558,6 +5575,30 @@ def _apply_special_buff(cursor, spell_name, field, value):
     return None
 
 
+def _ensure_spell_attribution(result, narrative_parts) -> None:
+    """Guarantee the Mechanics block says who cast what: `{actor} casts {spell} -> target`.
+
+    Most paths already lead with `{actor} {spell_name}` (Attack / Damage / Healing / HP Pool /
+    projectiles); a condition-only or utility spell, an NPC heal, a post-hit save, or a
+    recurring effect does not. Insert the line only when no line already attributes the spell,
+    so nothing is duplicated."""
+    actor = str(result.get("actor") or "").strip()
+    spell = str(result.get("spell_name") or "").strip()
+    if not actor or not spell:
+        return
+    heads = (f"{actor} {spell}", f"{actor} casts {spell}")
+    if any(str(line).startswith(heads) for line in narrative_parts):
+        return
+    names = result.get("condition_targets") or []
+    if not names and isinstance(result.get("targets"), list):
+        names = [t.get("name") for t in result["targets"] if isinstance(t, dict)]
+    target = str(result.get("target_name") or "").strip()
+    if not target or target == "{player_name}":
+        target = str(names[0]).strip() if len(names) == 1 and names[0] else ""
+    arrow = f" \u2192 {target}" if target else ""
+    narrative_parts.insert(0, f"{actor} casts {spell}{arrow}")
+
+
 def _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc, is_npc_vs_npc=False):
     buffs_applied = {}
     active_names = None
@@ -5725,6 +5766,7 @@ def _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_re
     # The acting combatant's turn starts here: resolve any pending repeating saves.
     _flush_recurring_into(result, narrative_parts)
 
+    _ensure_spell_attribution(result, narrative_parts)
     result["narrative_format"] = "\n".join(narrative_parts)
     result["registry_summary"] = _registry_summary_list()
     return result
@@ -6772,7 +6814,17 @@ def resolve_magic(
                 narrative_parts.append(
                     f"{t['name']}: Unaffected — HP exceeds remaining pool ({remaining_pool})")
         elif sp_condition:
-            narrative_parts.append(f"Condition: {sp_condition} ({sp_condition_duration})")
+            who = _target_label(cursor, target_name, bool(is_npc_attack)) or target_name or actor
+            tchp = target_current_hp
+            if tchp is None and target_name:
+                tchp = _registry_hp(target_name)
+            if tchp is None or tchp <= hp_pool_total:
+                result["condition_targets"] = [who]
+                narrative_parts.append(
+                    f"{who}: Affected — {sp_condition} ({sp_condition_duration})")
+            else:
+                narrative_parts.append(
+                    f"{who}: Unaffected — HP exceeds remaining pool ({hp_pool_total})")
 
         return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc, is_npc_vs_npc)
 

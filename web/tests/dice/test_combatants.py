@@ -358,5 +358,30 @@ class UpdateCombatantTest(H.EngineCase):
         self.assertEqual(r["error"], "not_registered")
 
 
+class EndCombatTest(H.EngineCase):
+    """`end_combat`: the explicit end-of-fight call for what the registry cannot see."""
+
+    player_factory = staticmethod(H.fighter_l5)
+
+    def _register(self, npcs):
+        with H.fixed_rolls([15] + [6] * len(npcs)):
+            return H.ds.register_combatants(npcs)
+
+    def test_end_combat_clears_the_registry(self):
+        self._register([GOBLIN])
+        self.assertTrue(H.ds._in_active_combat())
+        r = H.ds.end_combat()
+        self.assertTrue(r["success"])
+        self.assertEqual(r["registry_summary"], [])
+        self.assertEqual(H.ds._COMBAT_REGISTRY, {})
+        self.assertFalse(H.ds._in_active_combat())
+
+    def test_end_combat_with_no_fight_is_harmless(self):
+        self.assertFalse(H.ds._in_active_combat())
+        r = H.ds.end_combat()
+        self.assertTrue(r["success"])
+        self.assertEqual(r["registry_summary"], [])
+
+
 if __name__ == "__main__":
     unittest.main()

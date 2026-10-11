@@ -106,8 +106,8 @@ async def _mcp() -> None:
                 rec("the repeat save fires on the target's turn",
                     any(e.get("name") == "Gao" and e.get("damage", 0) > 0 for e in recurring),
                     str(recurring))
-                rec("the mechanics line names the save and the spell",
-                    "WIS Save (Phantasmal Killer)" in turn.get("narrative_format", ""),
+                rec("the mechanics line names the save, the spell and the caster",
+                    "WIS Save (Phantasmal Killer, cast by Power)" in turn.get("narrative_format", ""),
                     turn.get("narrative_format", ""))
 
 

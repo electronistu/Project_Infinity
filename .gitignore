@@ -8,6 +8,7 @@ __pycache__/
 # Ignore generated save files
 *.player
 *.timeline
+*.timeline.bak
 *.kate-swp
 
 # Local secrets (Gemini API key for image generation)

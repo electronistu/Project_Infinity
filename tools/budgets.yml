@@ -16,25 +16,25 @@
 
 budgets:
   - name: static_prefix_scenes_on
-    ceiling: 11000
+    ceiling: 11200
     unit: tokens
     status: enforced
     measure: static_prefix_scenes_on
-    note: "Raised 10,500 -> 11,000 on 2026-10-08: the original ceiling predated the ERA INDEX and the `lookup` tool it was planning for. 10,772 today. From 2026-10-10 the measurement applies `filter_tools`, so a hidden tool is never counted (see the row below)."
+    note: "Raised 10,500 -> 11,000 on 2026-10-08: the original ceiling predated the ERA INDEX and the `lookup` tool it was planning for. Raised 11,000 -> 11,200 on 2026-10-12 for the `end_combat` tool (the explicit end-of-fight call for what the registry derivation cannot see) and its protocol lines; 11,127 today. From 2026-10-10 the measurement applies `filter_tools`, so a hidden tool is never counted (see the row below)."
 
   - name: static_prefix_scenes_off
-    ceiling: 11000
+    ceiling: 11200
     unit: tokens
     status: enforced
     measure: static_prefix_scenes_off
-    note: "The same prefix with the scene blocks stripped (images off). Raised with the row above. 9,891 today. From 2026-10-10 it also drops the tools `filter_tools` hides with images off (`request_scene_image`, `register_npcs`) and counts the text-only `note_place` row it instead offers -- correcting a ~1.1k over-count."
+    note: "The same prefix with the scene blocks stripped (images off). Raised with the rows above. From 2026-10-10 it also drops the tools `filter_tools` hides with images off (`request_scene_image`, `register_npcs`) and counts the text-only `note_place` row it instead offers -- correcting a ~1.1k over-count."
 
   - name: static_prefix_classic
-    ceiling: 11000
+    ceiling: 11200
     unit: tokens
     status: enforced
     measure: static_prefix_classic
-    note: "The other game's prefix, measured separately: the classic protocol wording (no era rules) and every tool except `lookup`, which a classic session is never offered. It is normally the smaller of the two, and it is enforced so a change that only costs the classic game cannot slip through."
+    note: "The other game's prefix, measured separately: the classic protocol wording (no era rules) and every tool except `lookup`, which a classic session is never offered. It is normally the smaller of the two, and it is enforced so a change that only costs the classic game cannot slip through. Raised with the rows above."
 
   - name: era_index
     ceiling: 150
@@ -95,3 +95,10 @@ budgets:
     status: target
     measure: always_on_total_classic
     note: "The classic game has no era to fetch and no place tree keyed by era, so its floor is just its prefix. Report-only, and it is the number the classic game actually pays every turn."
+
+  - name: injected_timeline
+    ceiling: 1250
+    unit: tokens
+    status: enforced
+    measure: injected_timeline
+    note: "The injected SESSION_TIMELINE body at its cap (web/engine.py MAX_TIMELINE_CHARS = 4500): STATE notebook + chronicle + kept entries. 1,169 today. Compaction (web/engine.py _compact_timeline) keeps it bounded; the ceiling fails the gate if the cap is raised."
