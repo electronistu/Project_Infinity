@@ -143,7 +143,9 @@ class ChainLightningIncidentTest(H.EngineCase):
         self.assertEqual(r["killed_count"], 2)
         self.assertEqual(r["xp_awarded"], 125)
         self.assertIn("Corporal Gao DEX Save", r["narrative_format"])
-        self.assertEqual(H.ds._COMBAT_REGISTRY["Corporal Gao"]["current_hp"], 0)
+        final = {e["name"]: e for e in r["registry_summary"]}
+        self.assertEqual(final["Corporal Gao"]["hp"], "0/22")
+        self.assertEqual(H.ds._COMBAT_REGISTRY, {})   # the last hostile fell: the fight is over
 
 
 class RecurringSaveTest(H.EngineCase):
@@ -184,7 +186,7 @@ class RecurringSaveTest(H.EngineCase):
         self.assertEqual(r["recurring"][0]["damage"], 40)
         self.assertEqual(r["recurring"][0]["remaining_hp"], 0)
         self.assertTrue(r["recurring"][0]["killed"])
-        self.assertEqual(H.ds._COMBAT_REGISTRY["Gao"]["recurring"], [])  # consumed on the kill
+        self.assertEqual(H.ds._COMBAT_REGISTRY, {})   # consumed on the kill; the fight is over
 
     def test_a_skipped_turn_still_fires_when_the_cursor_passes_it(self):
         self._register(extra=[
@@ -428,7 +430,8 @@ class EyebiteVariantTest(H.EngineCase):
                                       damage_dice="1d6", damage_type="bludgeoning",
                                       target_ac=5, target_name="Goblin")
         self.assertEqual([w["name"] for w in hit["conditions_woke"]], ["Goblin"])
-        self.assertNotIn("unconscious", H.ds._COMBAT_REGISTRY["Goblin"]["conditions"])
+        final = {e["name"]: e for e in hit["registry_summary"]}
+        self.assertNotIn("unconscious", final["Goblin"].get("conditions") or [])
         self.assertIn("wakes", hit["narrative_format"])
 
     def test_update_combatant_damage_also_wakes(self):
@@ -468,7 +471,8 @@ class SleepWakeOnDamageTest(H.EngineCase):
                                       damage_type="bludgeoning", target_ac=5,
                                       target_name="Goblin")
         self.assertEqual([w["name"] for w in hit["conditions_woke"]], ["Goblin"])
-        self.assertNotIn("unconscious", H.ds._COMBAT_REGISTRY["Goblin"]["conditions"])
+        final = {e["name"]: e for e in hit["registry_summary"]}
+        self.assertNotIn("unconscious", final["Goblin"].get("conditions") or [])
         self.assertIn("wakes", hit["narrative_format"])
 
     def test_gm_declared_unconscious_does_not_wake_on_damage(self):
@@ -481,7 +485,8 @@ class SleepWakeOnDamageTest(H.EngineCase):
                                       damage_type="bludgeoning", target_ac=5,
                                       target_name="Goblin")
         self.assertNotIn("conditions_woke", hit)
-        self.assertIn("unconscious", H.ds._COMBAT_REGISTRY["Goblin"]["conditions"])
+        final = {e["name"]: e for e in hit["registry_summary"]}
+        self.assertIn("unconscious", final["Goblin"].get("conditions") or [])
 
     def test_unregistered_player_sleep_wakes_on_damage(self):
         """Sleep's AoE can catch the player with no registry entry to hang the mark on."""

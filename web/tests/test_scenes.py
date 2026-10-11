@@ -246,6 +246,21 @@ async def main() -> bool:
         len(idnote) == 1 and "Corvin" in idnote[0]["text"]
         and "race and a class" in idnote[0]["text"], str(idnote))
 
+    # A companion's declared look rides the same pipeline: `register_companion` buffers it
+    # (the stats live in the engine's store, never in the prompt), and `forget` does not.
+    gs_cp = GameSession(base_dir=REPO, model="test", scene_images=True)
+    gs_cp.session = _FakeMCP()
+    await gs_cp._execute_tool({"function": {"name": "register_companion", "arguments": {
+        "name": "Bryn", "sheet": {"race": "half-orc", "class": "fighter",
+                                   "description": "a scarred half-orc woman in a dented cuirass",
+                                   "ac": 16, "max_hp": 44}}}})
+    rec("a companion's look is buffered for the illustrator",
+        [p["name"] for p in gs_cp._pending_npcs] == ["Bryn"], str(gs_cp._pending_npcs))
+    gs_cp._pending_npcs = []
+    await gs_cp._execute_tool({"function": {"name": "register_companion", "arguments": {
+        "name": "Bryn", "action": "forget"}}})
+    rec("forget feeds the illustrator nothing", not gs_cp._pending_npcs, str(gs_cp._pending_npcs))
+
     # New-place seed gate: a scene call with no establishing view is rejected with
     # a warning and no scene_request, then accepted once `establishing` is supplied.
     gs7 = GameSession(base_dir=REPO, model="test", scene_images=True)

@@ -16,11 +16,11 @@
 
 budgets:
   - name: static_prefix_scenes_on
-    ceiling: 11200
+    ceiling: 11650
     unit: tokens
     status: enforced
     measure: static_prefix_scenes_on
-    note: "Raised 10,500 -> 11,000 on 2026-10-08: the original ceiling predated the ERA INDEX and the `lookup` tool it was planning for. Raised 11,000 -> 11,200 on 2026-10-12 for the `end_combat` tool (the explicit end-of-fight call for what the registry derivation cannot see) and its protocol lines; 11,127 today. From 2026-10-10 the measurement applies `filter_tools`, so a hidden tool is never counted (see the row below)."
+    note: "Raised 10,500 -> 11,000 on 2026-10-08: the original ceiling predated the ERA INDEX and the `lookup` tool it was planning for. Raised 11,000 -> 11,200 on 2026-10-12 for the `end_combat` tool (the explicit end-of-fight call for what the registry derivation cannot see) and its protocol lines. Raised 11,200 -> 11,500 on 2026-10-11 for `register_companion` (a companion's durable, world-bound sheet, declared on demand -- nothing is injected per turn). Raised 11,500 -> 11,650 on 2026-10-11 for the combat-only companion sheet (required ability scores, `advantages`, the check derivation) and the line it adds to `perform_check`; 11,588 today. From 2026-10-10 the measurement applies `filter_tools`, so a hidden tool is never counted (see the row below)."
 
   - name: static_prefix_scenes_off
     ceiling: 11200

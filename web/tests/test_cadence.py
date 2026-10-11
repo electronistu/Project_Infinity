@@ -534,6 +534,53 @@ def main():
     rec("taking the Device cancels the countdown",
         gone._jump_at_turn is None and not gone.has_device)
 
+    # The developer panel's Device op must re-derive the countdown too (the same re-arm the
+    # live inventory path uses): a Device completed there has no cadence band, so a countdown
+    # armed at session start has to be cleared, or it keeps firing while the panel hides the
+    # Mainspring's hold.
+    def _dev_fake(parts):
+        inv = [device_mod.device_entry()] + [device_mod.part_entry(p, "egypt") for p in parts]
+
+        async def _call(name, args):
+            if name == "dump_player_db":
+                return json.dumps({"inventory": inv, "journey": "egypt", "era": "egypt"})
+            return '{"success": true}'
+        return _call
+
+    panel = _session()
+    panel._call_tool_text = _dev_fake(device_mod.part_names())
+    panel._jump_at_turn = panel.turn_counter + 5   # armed at start, with no parts
+    asyncio.run(panel._dev_apply([{"kind": "device", "present": True,
+                                   "parts": list(device_mod.part_names())}]))
+    rec("a Device completed in the dev panel stops the countdown",
+        panel._jump_at_turn is None and panel.parts_recovered == 5
+        and panel._device_state()["manual"] is True and panel._cadence_span() is None,
+        f"jump_at={panel._jump_at_turn} parts={panel.parts_recovered}")
+
+    armed_again = _session()
+    armed_again._call_tool_text = _dev_fake([])
+    armed_again._jump_at_turn = None               # manual: a full Device, to begin with
+    asyncio.run(armed_again._dev_apply([{"kind": "device", "present": True, "parts": []}]))
+    rec("... and stripping the parts arms a fresh countdown",
+        armed_again._jump_at_turn is not None and armed_again.parts_recovered == 0,
+        str(armed_again._jump_at_turn))
+
+    explicit = _session()
+    explicit._call_tool_text = _dev_fake(device_mod.part_names())
+    explicit._jump_at_turn = explicit.turn_counter + 5
+    asyncio.run(explicit._dev_apply([
+        {"kind": "device", "present": True, "parts": list(device_mod.part_names())},
+        {"kind": "cadence", "turns": 3, "steer": ""}]))
+    rec("an explicit dev countdown is not clobbered by the Device op",
+        explicit._jump_at_turn == explicit.turn_counter + 3, str(explicit._jump_at_turn))
+
+    raw = _session()
+    raw._call_tool_text = _dev_fake(device_mod.part_names())
+    raw._jump_at_turn = raw.turn_counter + 5
+    asyncio.run(raw._dev_apply([{"kind": "set", "key": "inventory", "value": []}]))
+    rec("a raw inventory edit re-derives the countdown too", raw._jump_at_turn is None,
+        str(raw._jump_at_turn))
+
     # -- a jump lands in a place already visited in the target era --------------
     base = Path(tempfile.mkdtemp())
     stem = "trav"

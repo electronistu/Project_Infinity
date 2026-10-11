@@ -269,7 +269,7 @@ class ConditionTest(H.EngineCase):
     def test_paralyzed_target_is_hit_critically_and_auto_fails_saves(self):
         self._setup()
         H.ds.update_combatant("Goblin", conditions_add=["paralyzed"])
-        with H.fixed_rolls([18, 3]):
+        with H.fixed_rolls([18, 1]):  # a crit, but not a kill: the target must live to be hexed
             r = H.ds.resolve_attack(actor="Borin", attack_modifier=7, damage_dice="1d8",
                                     damage_modifier=4, target_name="Goblin")
         self.assertTrue(r["forced_crit"])
@@ -316,7 +316,10 @@ class UpdateCombatantTest(H.EngineCase):
             H.ds.register_combatants([GOBLIN])
         r = H.ds.update_combatant("Goblin", hp_delta=-100)
         self.assertEqual(r["hp"], "0/7")
-        self.assertTrue(H.ds._COMBAT_REGISTRY["Goblin"]["killed"])
+        final = {e["name"]: e for e in r["registry_summary"]}
+        self.assertTrue(final["Goblin"]["killed"])
+        # The last hostile fell: the fight is over and the registry is emptied behind the result.
+        self.assertEqual(H.ds._COMBAT_REGISTRY, {})
 
     def test_player_hp_is_not_edited_here(self):
         with H.fixed_rolls([15, 6, 7]):

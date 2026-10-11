@@ -127,9 +127,12 @@ class RegistryTest(H.EngineCase):
 
     def test_killing_the_last_hostile_ends_combat(self):
         self._register(OGRE_ONLY, rolls=[10])
-        H.ds.update_combatant("Ogre", hp_delta=-99)
-        self.assertEqual(H.ds._registry_hp("Ogre"), 0)
+        r = H.ds.update_combatant("Ogre", hp_delta=-99)
+        self.assertEqual(r["hp"], "0/59")
         self.assertFalse(H.ds._in_active_combat())
+        # The fight is over: the registry is emptied behind the result that ended it, so an
+        # ally's HP cannot leak into the next fight -- the GM declares it afresh.
+        self.assertEqual(H.ds._COMBAT_REGISTRY, {})
 
     def test_status_fled_takes_a_hostile_out_of_combat(self):
         self._register(OGRE_ONLY, rolls=[10])
@@ -139,13 +142,15 @@ class RegistryTest(H.EngineCase):
         self.assertIn("fled the fight", r["narrative_format"])
         self.assertFalse(H.ds._in_active_combat())
 
-    def test_status_surrendered_and_back_to_active(self):
+    def test_surrendering_the_last_hostile_ends_the_fight(self):
         self._register(OGRE_ONLY, rolls=[10])
-        H.ds.update_combatant("Ogre", status="surrendered")
+        r = H.ds.update_combatant("Ogre", status="surrendered")
+        self.assertTrue(r["success"])
+        self.assertIn("surrendered", r["narrative_format"])
         self.assertFalse(H.ds._in_active_combat())
-        r = H.ds.update_combatant("Ogre", status="active")
-        self.assertIn("back in the fight", r["narrative_format"])
-        self.assertTrue(H.ds._in_active_combat())
+        # The registry is fight state: the fight is over, so it is emptied. A foe that returns
+        # later is registered afresh instead of being flipped back to `active`.
+        self.assertEqual(H.ds._COMBAT_REGISTRY, {})
 
     def test_invalid_status_is_refused_and_changes_nothing(self):
         self._register(OGRE_ONLY, rolls=[10])
@@ -167,8 +172,9 @@ class RegistryTest(H.EngineCase):
 
     def test_registry_summary_carries_killed_and_status(self):
         self._register(OGRE_ONLY, rolls=[10])
-        H.ds.update_combatant("Ogre", status="surrendered")
-        by = {e["name"]: e for e in H.ds._registry_summary_list()}
+        r = H.ds.update_combatant("Ogre", status="surrendered")
+        # The result carries the FINAL roster, before the registry is emptied.
+        by = {e["name"]: e for e in r["registry_summary"]}
         self.assertEqual(by["Ogre"]["status"], "surrendered")
         self.assertFalse(by["Ogre"]["killed"])
         self.assertEqual(by["Borin"]["status"], "active")

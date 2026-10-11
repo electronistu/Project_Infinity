@@ -29,6 +29,11 @@ DEBUG_MODE = False
 
 _COMBAT_REGISTRY: dict[str, dict] = {}
 
+# A companion is a person of the age it was found in and cannot travel in time, so each era
+# keeps its own declared companions -- at most this many. Current HP is never stored: a fight
+# states it (default: full).
+COMPANION_LIMIT = 3
+
 XP_THRESHOLDS = [
     (2, 300), (3, 900), (4, 2700), (5, 6500),
     (6, 14000), (7, 23000), (8, 33000), (9, 48000),
@@ -763,6 +768,27 @@ def _in_active_combat() -> bool:
             continue
         return True
     return False
+
+
+def _finish_combat_if_over() -> None:
+    """The fight is over when no living, active hostile is left: empty the registry behind the
+    result that ended it.
+
+    The registry is fight state -- initiative, live HP, conditions, recurring saves. A companion's
+    health between fights is the Game Master's to declare when the next fight is registered, not
+    a number to carry, so nothing may leak from one fight into the next. The result that ends the
+    fight still carries the FINAL roster (the deaths the engine tracks, the client's tooltips);
+    only the calls that follow see an empty registry. `end_combat` is the explicit form of the
+    same thing, for the endings the engine cannot see."""
+    global _COMBAT_REGISTRY
+    if not _COMBAT_REGISTRY:
+        return
+    if not any(str(e.get("role") or "hostile").strip().lower() == "hostile"
+               for e in _COMBAT_REGISTRY.values() if isinstance(e, dict)):
+        return  # an allies-only registration is not a fight
+    if not _in_active_combat():
+        _COMBAT_REGISTRY = {}
+        _reset_combat_cursor()
 
 
 def _blocked_action(cursor, error: str, reason: str, item: str | None = None,
@@ -2938,7 +2964,7 @@ def note_place(kingdom: str, area: str, place: list[str],
     """Remember a place (and its regulars) in the storyline when images are off.
 
     WHEN: once, on entering a genuinely NEW place -- not every turn. The engine primes the
-    tree (names only) each session, and pools these places with the era's own for a jump.
+    tree (names only) each session, and pools these places with the ones it already knows.
     FIELDS:
     - place: ordered path BELOW the settlement, deepest last, at least 2 entries -- [district/neighbourhood, the exact building/room, (any room inside it, ...)]. Reuse the exact path once used.
     - kingdom = realm; area = settlement (city/town).
@@ -3445,7 +3471,7 @@ def perform_check(modifier: int | None = None, dc: int = 0, check_name: str = "C
 
     WHEN: the success/failure of a save or ability/skill check. Weapon attacks -> resolve_attack; spells -> resolve_magic.
     FIELDS:
-    - modifier: only for an NPC, or a custom player check with no ability and no known skill (e.g. 'Luck'). IGNORED for a player check/save the engine can derive.
+    - modifier: only for an NPC with no declared companion sheet, or a custom player check with no ability and no known skill (e.g. 'Luck'). IGNORED for a player check/save, and for a declared companion -- both are engine-derived.
     - dc: the DC to beat. check_name: a label (e.g. 'Athletics', 'Dexterity save'). actor: who acts.
     - ability: 'str' | 'dex' | 'con' | 'int' | 'wis' | 'cha'; REQUIRED for a player save (save=True).
     - save: True for a SAVING THROW -- the engine computes the player's modifier (effective ability + proficiency + item bonuses) and adds situational_modifier; do NOT pass modifier.
@@ -3456,6 +3482,7 @@ def perform_check(modifier: int | None = None, dc: int = 0, check_name: str = "C
 
     RULES:
     - Player checks/saves are engine-derived: effective ability + proficiency (doubled for Expertise, halved for Jack of All Trades) + item bonuses. Never compute them yourself.
+    - A declared companion's check/save is derived from HER sheet the same way (ability + proficiency / Expertise); never pass a modifier for her.
     - Heavily encumbered or unproficient armour: STR/DEX/CON checks roll with disadvantage; the result carries 'disadvantage_sources' and both dice.
     - Grapple with no free hand is refused with turn_lost=true (no roll).
 
@@ -3513,7 +3540,27 @@ def perform_check(modifier: int | None = None, dc: int = 0, check_name: str = "C
                 _carry_get(cursor), check_name, context)
             modifier += check_bonus
     else:
-        modifier = int(modifier or 0)
+        # A declared companion's check and save are derived from her own sheet, exactly as the
+        # player's are: the engine rolls her numbers, never a number the GM computed.
+        sheet = _companion_here(cursor, actor)
+        elsewhere = "" if sheet is not None else _companion_world(cursor, actor)
+        if elsewhere:
+            return _action_failure(
+                "companion_not_here",
+                f"{actor} was found in {device.era_label(elsewhere) or elsewhere} "
+                "and cannot travel in time.")
+        saves = (sheet or {}).get("saves") if sheet is not None else None
+        ab = str(ability or "").strip().lower()[:3]
+        if sheet is not None and save and ab and isinstance(saves, dict) and ab in saves:
+            modifier = int(saves[ab]) + int(situational_modifier or 0)
+        elif sheet is not None and sheet.get("stats") and (skills.skill_name(check_name) or ability):
+            check_detail = _companion_check_detail(sheet, check_name, ability,
+                                                   situational_modifier or 0)
+            modifier = check_detail["modifier"]
+        else:
+            # A sheet written before the ability scores were required, or an NPC that is no
+            # companion at all: the caller's number, as before.
+            modifier = int(modifier or 0)
 
     dice_bonus = 0
     dice_sources = []
@@ -4608,6 +4655,259 @@ def _registry_summary_list() -> list[dict]:
     return out
 
 
+def _companions_all(cursor) -> dict:
+    """The declared companion sheets, `{era: {lowername: sheet}}` (era '' in the classic game)."""
+    raw = _db_val(cursor, "companions", {}) if cursor is not None else {}
+    if not isinstance(raw, dict):
+        return {}
+    out: dict = {}
+    for era, bucket in raw.items():
+        if isinstance(bucket, dict):
+            out[str(era).strip().lower()] = {str(k).strip().lower(): v
+                                             for k, v in bucket.items() if isinstance(v, dict)}
+    return out
+
+
+def _save_companions(cursor, data: dict) -> None:
+    cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)",
+                   ("companions", json.dumps(data)))
+    DB_CONNECTION.commit()
+
+
+# The durable fields of a companion sheet. Everything else a combatant entry carries
+# (current HP, conditions, exhaustion, initiative) is fight state and is never stored.
+_COMPANION_KEEP = (
+    "role", "ac", "max_hp", "speed", "saves", "attacks", "multiattack", "spellcasting",
+    "damage_resistances", "damage_immunities", "damage_vulnerabilities",
+    "condition_immunities", "initiative_modifier", "initiative_advantage",
+)
+# A companion is a full character, so her ability scores are required: they are what lets the
+# engine roll her own checks and saves instead of trusting a number the GM computed.
+COMPANION_ABILITY_KEYS = ("str", "dex", "con", "int", "wis", "cha")
+COMPANION_DEFAULT_PROF = 2   # the floor for any creature; give the real bonus when she is stronger
+
+
+def _companion_sheet(name: str, sheet: dict, era: str) -> dict | None:
+    """One companion's durable sheet: static combat data, validated through the combatant
+    normaliser, plus what an out-of-combat check needs.
+
+    Requires a name, an `ac`, a `max_hp` (an `hp` in the declaration is read as the max) and the
+    six `stats` -- a companion is a full character, and her ability scores are what let the
+    engine derive her checks (`skills` may be empty, `proficiency_bonus` defaults to +2).
+    `advantages` are her combat-only special rules (Sneak Attack 2d6, Pack Tactics), which the
+    registry calls `traits`. `description`/`race`/`class` are identity for the illustrator, never
+    combat data. Returns None when the declaration is too thin to fight with."""
+    name = " ".join(str(name or "").split())
+    if not isinstance(sheet, dict) or not name:
+        return None
+    max_hp = sheet.get("max_hp", sheet.get("hp"))
+    raw_stats = sheet.get("stats") if isinstance(sheet.get("stats"), dict) else {}
+    stats = {k: int(raw_stats[k]) for k in COMPANION_ABILITY_KEYS
+             if isinstance(raw_stats.get(k), (int, float))}
+    if max_hp is None or not sheet.get("ac") or len(stats) != len(COMPANION_ABILITY_KEYS):
+        return None
+    advantages = _string_list(sheet.get("advantages"))
+    declared = dict(sheet)
+    declared.update({"name": name, "hp": max_hp, "role": "ally", "traits": advantages})
+    entry = _normalize_combatant(declared)
+    out = {k: entry[k] for k in _COMPANION_KEEP if k in entry}
+    out.update({
+        "name": name,
+        "role": "ally",
+        "max_hp": int(max_hp),
+        "stats": stats,
+        "advantages": advantages,
+        "skills": _string_list(sheet.get("skills")),
+        "expertise": _string_list(sheet.get("expertise")),
+        "proficiency_bonus": int(sheet.get("proficiency_bonus") or COMPANION_DEFAULT_PROF),
+        "race": " ".join(str(sheet.get("race") or "").split()),
+        "class": " ".join(str(sheet.get("class") or "").split()),
+        "description": " ".join(str(sheet.get("description") or "").split()),
+        "era": era,
+    })
+    return out
+
+
+def _expand_companions(cursor, combatants):
+    """Fill a name-only combatant from a declared companion's sheet of THIS age.
+
+    Returns ``(combatants, filled, problem)``; `filled` is ``{lowername: sheet}`` for the
+    entries the engine filled. An entry carrying `ac` is an explicit stat block and is never
+    shadowed. A companion cannot travel in time, so one declared in another age is refused
+    rather than silently registered, and a name-only entry that is no companion at all is
+    refused with words instead of the normalizer's KeyError."""
+    if cursor is None or not isinstance(combatants, list):
+        return combatants, {}, None
+    store = _companions_all(cursor)
+    era = str(_db_val(cursor, "era", "") or "").strip().lower()
+    here = store.get(era, {})
+    filled: dict = {}
+    out: list = []
+    for c in combatants:
+        if not isinstance(c, dict) or "ac" in c:
+            out.append(c)
+            continue
+        name = " ".join(str(c.get("name") or "").split())
+        if not name:
+            out.append(c)
+            continue
+        sheet = here.get(name.lower())
+        if sheet is None:
+            elsewhere = next((e for e, b in store.items() if name.lower() in b), "")
+            if elsewhere:
+                return combatants, {}, {
+                    "success": False, "error": "companion_not_here",
+                    "reason": f"{name} was found in "
+                              f"{device.era_label(elsewhere) or elsewhere} and cannot travel in time.",
+                    "gm_instruction": "Only a companion declared where the Traveller stands "
+                                      "now can be registered.",
+                }
+            return combatants, {}, {
+                "success": False, "error": "not_declared",
+                "reason": f"{name} has no stat block and is not a declared companion.",
+                "gm_instruction": "Declare the companion with register_companion, or give hp and ac.",
+            }
+        entry = dict(sheet)
+        entry["name"] = name
+        entry["role"] = "ally"
+        # The registry's field for a companion's combat-only special rules is `traits`; a sheet
+        # written before the field was renamed stored them under `traits` directly.
+        entry["traits"] = list(sheet.get("advantages") or sheet.get("traits") or [])
+        entry["hp"] = (int(c["hp"]) if isinstance(c.get("hp"), (int, float))
+                       else int(sheet.get("max_hp") or 1))
+        filled[name.lower()] = sheet
+        out.append(entry)
+    return out, filled, None
+
+
+def _companion_line(sheet: dict, entry: dict) -> str:
+    """One compact line for the Game Master: who the companion is and how they fight."""
+    ident = ", ".join(p for p in (sheet.get("race"), sheet.get("class")) if p)
+    line = (f"{sheet.get('name')} ({ident})" if ident else str(sheet.get("name")))
+    line += f" — {entry['current_hp']}/{entry['max_hp']} HP, AC {entry['ac']}"
+    if entry.get("speed") is not None:
+        line += f", speed {entry['speed']}"
+    attacks = entry.get("attacks") or []
+    if attacks:
+        line += "; " + "; ".join(_fmt_attack(a) for a in attacks)
+    traits = entry.get("traits") or []
+    if traits:
+        line += "; " + "; ".join(str(t) for t in traits)
+    return line
+
+
+def _companion_here(cursor, name: str) -> dict | None:
+    """The declared companion of THIS world with that name, or None."""
+    if cursor is None:
+        return None
+    era = str(_db_val(cursor, "era", "") or "").strip().lower()
+    return (_companions_all(cursor).get(era) or {}).get(str(name or "").strip().lower())
+
+
+def _companion_world(cursor, name: str) -> str:
+    """The world a declared companion belongs to, or '' when the name is no companion."""
+    if cursor is None:
+        return ""
+    key = str(name or "").strip().lower()
+    for era, bucket in _companions_all(cursor).items():
+        if key in bucket:
+            return era
+    return ""
+
+
+def _companion_check_detail(sheet: dict, check_name: str, ability: str | None,
+                            situational: int = 0) -> dict:
+    """A companion's ability/skill check modifier, derived from her own sheet.
+
+    The player path's shape and arithmetic, without the item/feature layers a player has: the
+    ability modifier from her `stats`, plus her proficiency bonus when the check is a skill she
+    is proficient in (doubled for Expertise). `proficiency_bonus` defaults to +2."""
+    skill = skills.skill_name(check_name) if check_name else None
+    ab = (str(ability or "").strip().lower()[:3]
+          or (skills.SKILL_ABILITIES.get(skill, "") if skill else ""))
+    stats = sheet.get("stats") or {}
+    ability_mod = _ability_mod(int(stats.get(ab, 10))) if ab else 0
+    prof_bonus = int(sheet.get("proficiency_bonus") or COMPANION_DEFAULT_PROF)
+    key = skills.normalize(skill) if skill else ""
+    known = {skills.normalize(s) for s in (sheet.get("skills") or [])}
+    expert = {skills.normalize(s) for s in (sheet.get("expertise") or [])}
+    proficient = bool(key) and key in known
+    expertise = proficient and key in expert
+    prof_part = 2 * prof_bonus if expertise else (prof_bonus if proficient else 0)
+    return {
+        "skill": skill, "ability": ab, "ability_modifier": ability_mod,
+        "proficiency_bonus": prof_part, "proficient": proficient, "expertise": expertise,
+        "jack_of_all_trades": False, "item_bonus": 0, "item_sources": [],
+        "advantage": False, "advantage_sources": [],
+        "situational": int(situational or 0),
+        "modifier": ability_mod + prof_part + int(situational or 0),
+    }
+
+
+@mcp.tool()
+def register_companion(name: str, sheet: dict | None = None, action: str = "declare") -> dict:
+    """Declare a companion's character sheet once, or forget it.
+
+    WHEN: a companion joins (declare in FULL, once), changes lastingly (re-declare the same name), or leaves or dies (forget).
+    A companion belongs to the world it was found in; each world keeps its own, at most 3. In a fight, register it BY NAME ALONE -- the engine fills the block, at full HP unless `hp` is given.
+    - name: the exact name you keep using.
+    - sheet: the companion's static COMBAT sheet. REQUIRED: `stats` (all six ability scores -- her checks and saves are derived from them), `ac`, `max_hp`. Optional: `attacks`, `advantages` (combat-only special rules, e.g. 'Sneak Attack 2d6'), `skills` (the skills she is proficient in), `expertise`, `proficiency_bonus` (+2 default), `speed`, `saves`, `spellcasting`, damage/condition resistances and immunities. `race`, `class` and `description` (the stable physical look the illustrator keeps) are identity, not combat. There is NO current-HP field.
+    - action: 'declare' (add or update) | 'forget' (remove).
+
+    RULES: at 3 companions a new one is refused -- ask the player which companion leaves; re-declaring a name updates it; never restate the sheet again.
+    """
+    global DB_CONNECTION
+    if DB_CONNECTION is None:
+        return {"success": False, "error": "Database not initialized."}
+    action = str(action or "declare").strip().lower()
+    key = " ".join(str(name or "").split())
+    if action not in ("declare", "forget"):
+        return {"success": False, "error": "invalid_action",
+                "reason": "action must be 'declare' or 'forget'."}
+    if not key:
+        return {"success": False, "error": "name_required", "reason": "A companion needs a name."}
+    try:
+        cursor = DB_CONNECTION.cursor()
+        era = str(_db_val(cursor, "era", "") or "").strip().lower()
+        store = _companions_all(cursor)
+        bucket = store.get(era, {})
+        if action == "forget":
+            if key.lower() not in bucket:
+                return {"success": True, "status": "absent", "name": key, "era": era,
+                        "note": f"No companion named {key} is declared here."}
+            bucket.pop(key.lower(), None)
+            if bucket:
+                store[era] = bucket
+            else:
+                store.pop(era, None)
+            _save_companions(cursor, store)
+            return {"success": True, "status": "forgotten", "name": key, "era": era,
+                    "count": len(bucket), "note": f"{key} is forgotten."}
+        entry = _companion_sheet(key, sheet or {}, era)
+        if entry is None:
+            return {"success": False, "error": "incomplete_sheet",
+                    "reason": "A companion sheet needs `ac` and `max_hp` (and a name).",
+                    "gm_instruction": "Give the full sheet: description, race, class, ac, "
+                                      "max_hp, attacks, saves."}
+        if key.lower() not in bucket and len(bucket) >= COMPANION_LIMIT:
+            return {"success": False, "error": "companion_limit",
+                    "reason": f"This world already keeps {COMPANION_LIMIT} companions. "
+                              "The player needs to decide which companion to remove if he "
+                              "wants a new one.",
+                    "companions": sorted(str(v.get("name") or k) for k, v in bucket.items()),
+                    "gm_instruction": "Ask the player which companion leaves, then call "
+                                      "register_companion(name=..., action='forget')."}
+        bucket[key.lower()] = entry
+        store[era] = bucket
+        _save_companions(cursor, store)
+        return {"success": True, "status": "declared", "name": entry["name"], "era": era,
+                "count": len(bucket), "limit": COMPANION_LIMIT,
+                "note": "Register this companion by name alone from now on; the engine fills "
+                        "the sheet."}
+    except Exception as e:  # noqa: BLE001 - a declaration must never crash the server
+        return {"success": False, "error": f"Error declaring the companion: {str(e)}"}
+
+
 @mcp.tool()
 def register_combatants(combatants: list[dict], add_to_existing: bool = False) -> dict:
     """Register every combatant for a battle and roll initiative; the player is auto-registered.
@@ -4630,6 +4930,13 @@ def register_combatants(combatants: list[dict], add_to_existing: bool = False) -
     register_combatants(combatants=[{"name":"Goblin","hp":7,"ac":15,"initiative_modifier":2,"challenge_rating":0.25,"role":"hostile","attacks":[{"name":"Scimitar","attack_bonus":4,"damage_dice":"1d6","damage_modifier":2,"damage_type":"slashing"}]}])
     """
     global _COMBAT_REGISTRY, DB_CONNECTION
+
+    # A companion is registered by NAME ALONE: the engine fills its declared sheet here, so the
+    # Game Master never restates the stat block. An explicit block is left as it is.
+    cursor = DB_CONNECTION.cursor() if DB_CONNECTION is not None else None
+    combatants, companions_filled, problem = _expand_companions(cursor, combatants)
+    if problem is not None:
+        return problem
 
     if not add_to_existing:
         _COMBAT_REGISTRY = {}
@@ -4689,12 +4996,27 @@ def register_combatants(combatants: list[dict], add_to_existing: bool = False) -
         if entry is not None:
             sheets.append({"name": nname, "lines": _combatant_sheet_lines(nname, entry)})
 
+    # The companions the engine filled in, so the Game Master plays them with their real
+    # numbers instead of remembering the sheet (the roster and the sheets never reach it).
+    companion_lines = []
+    for cname in new_npc_names:
+        sheet = companions_filled.get(cname.lower())
+        entry = _COMBAT_REGISTRY.get(cname)
+        if sheet is not None and entry is not None:
+            companion_lines.append({
+                "name": cname,
+                "hp": f"{entry['current_hp']}/{entry['max_hp']}",
+                "ac": entry["ac"],
+                "line": _companion_line(sheet, entry),
+            })
+
     if add_to_existing:
         added_names = [c["name"] for c in combatants]
         return {
             "success": True,
             "registry_summary": registry_summary,
             "sheets": sheets,
+            "companions": companion_lines,
             "narrative_format": (f"Combatants registered ({total} total). "
                                  f"Added to existing registry: {', '.join(added_names)}"),
         }
@@ -4708,6 +5030,7 @@ def register_combatants(combatants: list[dict], add_to_existing: bool = False) -
         "initiative_order": order,
         "registry_summary": registry_summary,
         "sheets": sheets,
+        "companions": companion_lines,
         "narrative_format": f"Combatants registered ({total} total). Initiative Order",
     }
 
@@ -4853,6 +5176,10 @@ def update_combatant(name: str, conditions_add: list[str] | None = None,
         narrative += f" (immune to {', '.join(b['condition'] for b in blocked)})"
     if already_present:
         narrative += f" ({', '.join(already_present)} already present — no change)"
+    # This call may have ended the fight (the last hostile killed, fled or surrendered): the
+    # roster below is the FINAL one, and the registry empties behind it.
+    summary = _registry_summary_list()
+    _finish_combat_if_over()
     return {
         "success": True, "name": name, "is_player": is_player,
         "hp": f"{entry['current_hp']}/{entry['max_hp']}", "ac": entry["ac"],
@@ -4861,7 +5188,7 @@ def update_combatant(name: str, conditions_add: list[str] | None = None,
         "blocked_conditions": blocked,
         "already_present": already_present,
         "note": " ".join(notes) or None,
-        "registry_summary": _registry_summary_list(),
+        "registry_summary": summary,
         "conditions_woke": woke or None,
         "narrative_format": narrative,
     }
@@ -5174,6 +5501,7 @@ def resolve_attack(
             _flush_recurring_into(result, narrative_parts)
             result["narrative_format"] = "\n".join(narrative_parts)
             result["registry_summary"] = _registry_summary_list()
+            _finish_combat_if_over()
             return result
 
         primary_die_size, primary_rolls, primary_sum = _parse_and_roll_dice(damage_dice)
@@ -5351,6 +5679,7 @@ def resolve_attack(
 
         result["narrative_format"] = "\n".join(narrative_parts)
         result["registry_summary"] = _registry_summary_list()
+        _finish_combat_if_over()
 
         return result
 
@@ -5775,6 +6104,7 @@ def _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_re
     _ensure_spell_attribution(result, narrative_parts)
     result["narrative_format"] = "\n".join(narrative_parts)
     result["registry_summary"] = _registry_summary_list()
+    _finish_combat_if_over()
     return result
 
 

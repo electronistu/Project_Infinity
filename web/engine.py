@@ -380,7 +380,7 @@ TIMELINE_PROMPT = """SYSTEM INSTRUCTION: The player is saving the game. Output T
 <!-- state -->
 **Goal**: [what the Traveller is trying to do now, one line]
 **Hooks**: [every unresolved thread, one per line; drop resolved ones]
-**Standing**: [Name — how they stand toward the Traveller, one per line; a bare name, never a race, class or role]
+**Standing**: [Name — how they stand toward the Traveller, one per line; a bare name, never a race, class or role; a companion belongs here]
 **Clocks**: [what advances if the Traveller does nothing]
 **Debts**: [promises, oaths and bargains owed or held]
 **Secrets**: [what the Traveller knows that others do not]
@@ -413,7 +413,7 @@ TIMELINE_PROMPT_ERA = """SYSTEM INSTRUCTION: The player is saving the game. Outp
 <!-- state:{era} -->
 **Goal**: [what the Traveller is trying to do in THIS age, one line]
 **Hooks**: [every unresolved thread in this age, one per line; drop resolved ones]
-**Standing**: [Name — how they stand toward the Traveller, one per line; a bare name, never a race, class or role]
+**Standing**: [Name — how they stand toward the Traveller, one per line; a bare name, never a race, class or role; a companion of this age belongs here]
 **Clocks**: [what advances in this age if the Traveller does nothing]
 **Canon**: [details of this age that must stay true — keep it short]
 **Unpaid**: [foreshadowing planted here but not yet paid off]
@@ -490,6 +490,10 @@ SCENE_TOOL = "request_scene_image"
 # Declares recurring NPCs (name + description). The engine buffers them and the
 # server persists them; the GM then refers to those NPCs by name alone.
 NPC_TOOL = "register_npcs"
+# Declares a companion's durable character sheet (engine-owned, era-scoped). The look in it
+# rides the same image pipeline as a recurring NPC; its stats are filled in when the GM later
+# registers the companion by name alone.
+COMPANION_TOOL = "register_companion"
 # The text-only place/NPC registry (images off): declares a place and its regulars by
 # name + role with no image. Hidden when images are on (the scene call records places there).
 PLACE_TOOL = "note_place"
@@ -950,7 +954,7 @@ _GM_VIEW_KEEP: dict[str, tuple[str, ...]] = {
         "success", "action", "item", "attuned", "attunement_slots_free",
         "warnings", "already_attuned"),
     "rest": ("success", "rest_type", "changes", "hints"),
-    "register_combatants": ("success", "initiative_order", "registry_summary"),
+    "register_combatants": ("success", "initiative_order", "registry_summary", "companions"),
     "end_combat": ("success",),
     "update_combatant": ("success", "name", "is_player", "hp", "ac", "conditions",
                          "exhaustion", "blocked_conditions", "already_present", "note"),
@@ -959,6 +963,7 @@ _GM_VIEW_KEEP: dict[str, tuple[str, ...]] = {
     # Acknowledgements: the GM just made the call, so only the outcome is new.
     "request_scene_image": ("status", "note"),
     "register_npcs": ("status", "count", "note"),
+    "register_companion": ("success", "status", "name", "era", "count", "limit", "note"),
     "note_place": ("status", "kingdom", "area", "place", "main_npcs", "cast", "note"),
 }
 # Added on failure so the GM can explain and act on a refused/wrong call.
@@ -1722,6 +1727,8 @@ class GameSession:
         results: list[dict] = []
         notes: list[str] = []
         db_touched = False
+        device_touched = False  # a Device / inventory edit must re-derive the countdown
+        cadence_staged = False  # an explicit countdown is the more specific instruction
         new_era = None
         for raw in (ops if isinstance(ops, list) else []):
             if not isinstance(raw, dict):
@@ -1737,6 +1744,8 @@ class GameSession:
                 results.append({"kind": "set", "key": key, **_safe_json(text)})
                 notes.append(f"{key} = {json.dumps(value, ensure_ascii=False)}")
                 db_touched = True
+                if key == "inventory":
+                    device_touched = True
                 if key == "era":
                     new_era = str(value or "").strip().lower()
             elif kind == "device":
@@ -1749,12 +1758,14 @@ class GameSession:
                 if parts:
                     notes.append("Device parts recovered: " + ", ".join(parts))
                 db_touched = True
+                device_touched = True
             elif kind == "cadence":
                 self._dev_set_cadence(raw.get("turns"), raw.get("steer"))
                 results.append({"kind": "cadence", "turns": raw.get("turns"),
                                 "steer": self._steer})
                 remaining = self._cadence_state().get("turns_until")
                 notes.append(f"Device countdown set to {remaining} turns")
+                cadence_staged = True
             elif kind == "jump":
                 era = str(raw.get("era") or "").strip().lower()
                 notes.append(f"Device jumped to {device.era_label(era) if era else 'a new age'}")
@@ -1764,6 +1775,10 @@ class GameSession:
                 results.append({"kind": kind, "error": "unknown dev op"})
         if db_touched:
             await self._refresh_device()
+        # A Device edit must re-derive the countdown, or a Device completed in the panel keeps
+        # firing on the band it was armed with. An explicit cadence op wins.
+        if device_touched and not cadence_staged:
+            self._rearm_cadence()
         # A raw `era` edit must move the engine too, or the place tree and the jump go stale.
         if isinstance(new_era, str) and new_era in era_ids():
             self.era = new_era
@@ -3103,6 +3118,8 @@ class GameSession:
             self._collect_declarations(args)
         if name == NPC_TOOL:
             self._remember_declared(args.get("npcs"))
+        if name == COMPANION_TOOL and not is_error:
+            self._remember_companion(args)
         if name == PLACE_TOOL and not is_error:
             self._record_place_live(args)
         gm_text = _gm_tool_view(name, text)
@@ -3183,16 +3200,23 @@ class GameSession:
             return
         if isinstance(payload, dict) and payload.get("key") == "inventory":
             await self._refresh_device()
-            # Recover a part and the Device grips harder immediately; take the Device (or
-            # reach 4 of 4) and the countdown stops. Going back the other way arms a fresh
-            # one. An existing countdown is never reset by a change, only its band.
-            span = self._cadence_span()
-            if span is None:
-                self._jump_at_turn = None
-                self._warned = False
-            elif self._jump_at_turn is None:
-                self._jump_at_turn = self.turn_counter + span
+            self._rearm_cadence()
             await self._emit({"type": "cadence", **self._device_state()})
+
+    def _rearm_cadence(self) -> None:
+        """Re-derive the countdown from the live part set, without resetting a ticking one.
+
+        A complete Device (all five parts, no cadence band), a held Mainspring, or a Device
+        that is gone has no cadence at all, so an armed countdown is cleared -- this is what
+        makes a Device finished in the developer panel stop firing on its own. A change that
+        merely re-bands an already ticking countdown leaves it alone, and a Device that starts
+        ticking again (the parts were stripped) arms a fresh one from the current turn."""
+        span = self._cadence_span()
+        if span is None:
+            self._jump_at_turn = None
+            self._warned = False
+        elif self._jump_at_turn is None:
+            self._jump_at_turn = self.turn_counter + span
 
     def _collect_mechanics(self, text: str) -> list[str]:
         """The narrative_format lines from a tool result, for the engine-composed block."""
@@ -3258,6 +3282,22 @@ class GameSession:
             item["sheet"] = self._combat_sheets.get(str(entry["name"]), [])
             roster.append(item)
         return roster
+
+    def _remember_companion(self, args: dict) -> None:
+        """A companion's look rides the image pipeline exactly like a recurring NPC's.
+
+        `register_companion` declares the sheet once; the description inside it is buffered
+        here so the illustrator keeps the face, and the GM names the companion from then on.
+        The stats live in the engine's companion store, never in the prompt."""
+        if str(args.get("action") or "declare").strip().lower() == "forget":
+            return
+        sheet = args.get("sheet") if isinstance(args.get("sheet"), dict) else {}
+        name = " ".join(str(args.get("name") or "").split())
+        if not name:
+            return
+        self._remember_declared([{"name": name, "race": sheet.get("race"),
+                                  "class": sheet.get("class"),
+                                  "description": sheet.get("description")}])
 
     def _remember_declared(self, npcs) -> list[str]:
         """Buffer declared NPCs (name + race/class + description) and remember their names."""
