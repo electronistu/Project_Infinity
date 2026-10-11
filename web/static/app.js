@@ -1427,12 +1427,12 @@ function devicePartRow(part) {
   return d;
 }
 
-function devicePlaceSelect(ctrl, era, selected, locked) {
-  // The Vernier's whole menu: the places this save has already stood in, in that age.
+function fillDevicePlaces(sel, note, ctrl, era, selected, locked) {
+  // The Regulator picks the age, the Vernier picks a place inside it: the places this
+  // save has already stood in, in that age. The select always exists, so changing the
+  // age re-fills it; an age with nothing visited disables it and says so.
   const places = ((ctrl || {}).places || {})[era] || [];
-  if (!places.length) return null;
-  const sel = document.createElement("select");
-  sel.className = "device-place";
+  sel.innerHTML = "";
   places.forEach((p) => {
     const o = document.createElement("option");
     o.value = p;
@@ -1440,8 +1440,12 @@ function devicePlaceSelect(ctrl, era, selected, locked) {
     sel.appendChild(o);
   });
   if (selected && places.indexOf(selected) >= 0) sel.value = selected;
-  sel.disabled = locked;
-  return sel;
+  sel.disabled = locked || !places.length;
+  if (note) {
+    note.textContent = places.length ? "" : "You have not stood anywhere in this age yet.";
+    note.hidden = !!places.length;
+  }
+  return places.length > 0;
 }
 
 function deviceAnyPlaceSelect(ctrl, selected, locked) {
@@ -1526,18 +1530,22 @@ function deviceActionRow(dev, ctrl) {
     eraSel.disabled = locked || !options.length;
     wrap.appendChild(eraSel);
     if (ab.place) {
-      placeSel = devicePlaceSelect(c, eraSel.value, c.aim_place, locked);
-      if (placeSel) wrap.appendChild(placeSel);
-      eraSel.addEventListener("change", () => {
-        if (!placeSel) return;
-        const next = devicePlaceSelect(c, eraSel.value, "", locked);
-        placeSel.innerHTML = "";
-        if (next) Array.from(next.childNodes).forEach((n) => placeSel.appendChild(n));
-      });
+      // Always present (so changing the age can fill it), disabled with a note when the
+      // chosen age holds no visited place yet.
+      placeSel = document.createElement("select");
+      placeSel.className = "device-place";
+      wrap.appendChild(placeSel);
+      const placeNote = document.createElement("div");
+      placeNote.className = "field-note";
+      wrap.appendChild(placeNote);
+      const refill = (selected) =>
+        fillDevicePlaces(placeSel, placeNote, c, eraSel.value, selected, locked);
+      refill(c.aim_place);
+      eraSel.addEventListener("change", () => refill(""));
     }
     wrap.appendChild(btn("aim", () => sendDevice({
       type: "device", action: "aim", era: eraSel.value,
-      place: placeSel ? placeSel.value : "" }), options.length > 0));
+      place: (placeSel && !placeSel.disabled) ? placeSel.value : "" }), options.length > 0));
   } else if (ab.place) {
     // The Vernier alone: a place the save has stood in names its own age.
     placeSel = deviceAnyPlaceSelect(c, c.aim_place, locked);
@@ -1558,7 +1566,7 @@ function deviceActionRow(dev, ctrl) {
     wrap.appendChild(btn("release the Device", () => sendDevice({
       type: "device", action: "release",
       era: eraSel ? eraSel.value : placeEra(),
-      place: placeSel ? placeSel.value : "" }), !state.inCombat));
+      place: (placeSel && !placeSel.disabled) ? placeSel.value : "" }), !state.inCombat));
   }
 
   if (!ab.charge && !ab.direction && !ab.era && !ab.release && !ab.place) {

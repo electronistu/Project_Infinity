@@ -551,6 +551,7 @@ def main():
 
     landed = GameSession(base_dir=base, model="test")
     landed.active_name = stem
+    landed.has_device = True
     landed._rng = random.Random(1)
     visited = {"Ropehaven Wharf, in Memphis", "Stone Row, in Thebes"}
     static = set(era_arrivals("egypt"))
@@ -578,6 +579,15 @@ def main():
     rec("... and the aimed place rides the next jump",
         landed._chosen_arrival("egypt") == "Stone Row, in Thebes")
     landed._aim_place = ""
+
+    # The Vernier's menu (the panel's place list): visited places grouped by age.
+    places_map = landed._device_state()["places"]
+    rec("the Vernier's places map groups visited places by age",
+        places_map.get("egypt") == ["Ropehaven Wharf, in Memphis", "Stone Row, in Thebes"]
+        and places_map.get("tang") == ["West Market, in Chang'an"]
+        and places_map.get("wallachia") == [], str(places_map))
+    rec("... and no places map without the Vernier",
+        _with_parts(_session(era="egypt"), "Regulator")._device_state()["places"] == {})
 
     # The Vernier on its own names an age through a place the save has stood in.
     landed.era = "tang"
