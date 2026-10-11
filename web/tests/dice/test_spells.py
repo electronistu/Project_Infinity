@@ -281,6 +281,22 @@ class ConditionAutoApplyTest(H.EngineCase):
         self.assertEqual(H.ds._COMBAT_REGISTRY["Construct"]["conditions"], [])
 
 
+class LesserRestorationTest(H.EngineCase):
+    """SRD: Lesser Restoration ends a condition --- it is NOT a heal. A stray `flat_healing`
+    (0 heal dice + full_restore) made it fully restore HP before the 2026-10-11 stat gate."""
+
+    player_factory = staticmethod(H.wizard_l3)
+
+    def test_lesser_restoration_does_not_heal(self):
+        H.ds.modify_player_numeric(key="current_hit_points", delta=-5)  # 13 -> 8
+        r = H.ds.resolve_magic(spell_name="Lesser Restoration", actor="Senna",
+                               slot_level=2, target_name="Senna")
+        self.assertTrue(r.get("success", True), r)
+        self.assertEqual(H.dbv("current_hit_points"), 8)  # untouched
+        self.assertNotIn("targets_healed", r)
+        self.assertNotIn("healing_total", r)
+
+
 class ScorchingRayTest(H.EngineCase):
     player_factory = staticmethod(H.wizard_l3)  # has 2nd-level slots
 

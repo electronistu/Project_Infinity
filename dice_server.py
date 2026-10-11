@@ -121,9 +121,10 @@ def _compute_spell_damage(spell: dict, character_level: int, slot_level: int | N
     elif slot_level is not None and slot_level > native_level and not is_cantrip:
         hl_str = spell.get("higher_levels", None)
         if hl_str:
-            levels_above = slot_level - native_level
+            per = int(spell.get("higher_levels_per", 1) or 1)
+            levels_above = (slot_level - native_level) // per
             parsed = _parse_higher_levels(hl_str)
-            if parsed:
+            if parsed and levels_above > 0:
                 kind, num, size, flat = parsed
                 if kind == "dice":
                     extra_dice_str = f"{num * levels_above}d{size}"
@@ -137,9 +138,10 @@ def _compute_spell_damage(spell: dict, character_level: int, slot_level: int | N
     if extra_dice_str and slot_level is not None and slot_level > native_level and not is_cantrip:
         ehl_str = spell.get("extra_higher_levels", None)
         if ehl_str:
-            levels_above = slot_level - native_level
+            eper = int(spell.get("extra_higher_levels_per", 1) or 1)
+            levels_above = (slot_level - native_level) // eper
             eparsed = _parse_higher_levels(ehl_str)
-            if eparsed:
+            if eparsed and levels_above > 0:
                 ekind, enum, esize, eflat = eparsed
                 if ekind == "dice":
                     extra_dice_str = _combine_dice(extra_dice_str, f"{enum * levels_above}d{esize}")
@@ -291,6 +293,11 @@ def _derived_save(cursor, ability, situational: int = 0, against=None, damage=No
     item_bonus = int(state.get("save_bonus") or 0)
     advantage, advantage_sources = equipment.save_advantage_for(
         _carry_get(cursor), against=against, damage=damage, condition=condition)
+    active_adv, active_src = equipment.active_advantage_for(
+        _carry_get(cursor), "save_advantage", key)
+    if active_adv:
+        advantage = True
+        advantage_sources = [*advantage_sources, *active_src]
     return {
         "ability": key,
         "ability_modifier": ability_mod,
@@ -361,6 +368,12 @@ def _derived_check(cursor, check_name, ability=None, context=None, situational: 
     else:
         prof_part = 0
     item_bonus, item_sources = equipment.check_bonus_for(_carry_get(cursor), check_name, context)
+    active_bonus, active_sources = equipment.active_check_bonus_for(
+        _carry_get(cursor), check_name, ab)
+    check_adv, check_adv_sources = equipment.active_advantage_for(
+        _carry_get(cursor), "check_advantage", skill or ab)
+    item_bonus += active_bonus
+    item_sources = [*item_sources, *active_sources]
     return {
         "skill": skill,
         "ability": ab,
@@ -371,6 +384,8 @@ def _derived_check(cursor, check_name, ability=None, context=None, situational: 
         "jack_of_all_trades": joat,
         "item_bonus": item_bonus,
         "item_sources": list(item_sources or []),
+        "advantage": check_adv,
+        "advantage_sources": list(check_adv_sources or []),
         "situational": int(situational or 0),
         "modifier": ability_mod + prof_part + item_bonus + int(situational or 0),
     }
@@ -1342,6 +1357,10 @@ def _apply_hp_change(cursor, delta):
 
     _db_set(cursor, "current_hit_points", str(new_val))
     DB_CONNECTION.commit()
+    if new_val < current_hp:
+        player_name = _db_val(cursor, "name", "") or ""
+        if player_name:
+            _wake_on_damage(player_name)  # damage ends a marked condition (Eyebite: Asleep)
 
     result = {
         "success": True,
@@ -2853,7 +2872,7 @@ def request_scene_image(description: str, kingdom: str = "", area: str = "",
 
     WHEN: every narrative turn -- exactly ONE, in the SAME response as the prose; it ENDS the turn.
     FIELDS:
-    - description: what HAPPENS -- the protagonist's action and notable transient events. NAME every NPC; never identify anyone by look. Never describe a person's look, the place, its furniture, its light, the time or the weather (the seed carries the place, time_of_day/weather carry the light, a declared NPC's look comes from the registry). You MAY say where the protagonist stands or sits. DO restate anything still visible from earlier (spilled ale, blood, a body, an open door).
+    - description: what HAPPENS -- the protagonist's action and notable transient events. NAME every NPC; never identify anyone by look. Never describe a person's look, the place, its furniture, its light, the time or the weather. You MAY say where the protagonist stands or sits. DO restate anything still visible from earlier (spilled ale, blood, a body, an open door).
     - place: the ordered path of nested places BELOW the settlement, deepest last, at least 2 entries -- [district/neighbourhood, the exact building/room, (any room inside it, ...)]. A different room is a longer path. Reuse the exact path you have used; keep the levels distinct (a district is a `place` entry, never the `area`).
     - kingdom = the realm; area = the settlement (city/town); both only when creating the seed (with `establishing`), else reuse the exact known names.
     - time_of_day/weather: fed straight to the generator (e.g. 'dusk', 'heavy rain'); keep them out of `description`.
@@ -3335,6 +3354,10 @@ def make_death_save() -> dict:
     successes = int(_db_val(cursor, "death_save_successes", 0) or 0)
     failures = int(_db_val(cursor, "death_save_failures", 0) or 0)
     roll = random.randint(1, 20)
+    # Active spell effects (Beacon of Hope, Foresight) can grant advantage on death saves.
+    if equipment.active_advantage_for(_carry_get(cursor), "save_advantage", "death")[0]:
+        second = random.randint(1, 20)
+        roll = max(roll, second)
     if roll == 20:
         hp = _apply_hp_change(cursor, 1)
         _clear_death_saves(cursor)
@@ -3483,6 +3506,7 @@ def perform_check(modifier: int | None = None, dc: int = 0, check_name: str = "C
             check_detail = _derived_check(cursor, check_name, ability, context,
                                           situational_modifier or 0)
             modifier = check_detail["modifier"]
+            advantage = bool(check_detail.get("advantage"))
         else:
             modifier = int(modifier or 0) + int(situational_modifier or 0)
             check_bonus, check_bonus_sources = equipment.check_bonus_for(
@@ -3502,6 +3526,8 @@ def perform_check(modifier: int | None = None, dc: int = 0, check_name: str = "C
             if rolled:
                 dice_bonus += sign * rolled
                 dice_sources.append(f"{raw} ({dice.get('spell')})")
+                if dice.get("charges") is not None:
+                    _consume_buff_charge(cursor, dice.get("spell"), field)
 
     roll, rolls, roll_mode, _cancelled = _roll_d20(advantage=advantage, disadvantage=disadvantage)
     total = roll + modifier + dice_bonus
@@ -3547,6 +3573,14 @@ def perform_check(modifier: int | None = None, dc: int = 0, check_name: str = "C
         if bits:
             narrative += " [" + ", ".join(bits) + "]"
 
+    # The acting combatant's turn starts here: resolve any pending repeating saves.
+    rec_results, rec_lines = _advance_turn(actor)
+    if rec_lines:
+        narrative += "\n" + "\n".join(rec_lines)
+    woke = _drain_woke()
+    for entry in woke:
+        narrative += f"\n{entry['name']} wakes — {', '.join(entry['conditions'])} ends"
+
     response = {
         "actor": actor,
         "check_name": check_name,
@@ -3557,6 +3591,10 @@ def perform_check(modifier: int | None = None, dc: int = 0, check_name: str = "C
         "outcome": result,
         "narrative_format": narrative,
     }
+    if rec_results:
+        response["recurring"] = rec_results
+    if woke:
+        response["conditions_woke"] = woke
     if save_detail is not None:
         response["save"] = save_detail
         if save_detail.get("advantage"):
@@ -3594,6 +3632,8 @@ def _registry_ac(target_name: str) -> int | None:
 def _registry_update_hp(target_name: str, new_hp: int):
     entry = _COMBAT_REGISTRY.get(target_name)
     if entry:
+        if new_hp < int(entry.get("current_hp") or 0):
+            _wake_on_damage(target_name)  # damage ends a marked condition (Eyebite: Asleep)
         entry["current_hp"] = new_hp
 
 
@@ -3601,6 +3641,267 @@ def _registry_kill(target_name: str):
     entry = _COMBAT_REGISTRY.get(target_name)
     if entry:
         entry["killed"] = True
+
+
+# ── RECURRING ("repeat") SAVES ───────────────────────────────────────────────
+# A spell carrying a `repeat_save` block forces a save at the start (or end) of each of
+# the target's turns, with damage and/or a ladder of successes/failures. The engine owns
+# the rolls: the effect is registered when the initial save fails and resolved as the
+# initiative cursor passes the target (see _advance_turn), so a turn the GM skips still
+# resolves (a creature whose turn starts is passed over by whoever acts next).
+_COMBAT_POS = -1
+_COMBAT_ROUND = 0
+
+
+def _record_saved_target(caster, spell, target):
+    """Remember, for this fight, that `target` saved against `caster`'s casting of `spell`.
+
+    SRD 5.1 (Eyebite): a creature that has already succeeded cannot be targeted by this casting
+    again. The memory lives on the caster's registry entry, so it dies with the fight the way a
+    concentration spell does."""
+    entry = _COMBAT_REGISTRY.get(caster)
+    if not entry or not target or not spell:
+        return
+    saved = entry.setdefault("spell_saved_targets", {})
+    names = saved.setdefault(spell, [])
+    if target not in names:
+        names.append(target)
+
+
+def _reset_combat_cursor():
+    global _COMBAT_POS, _COMBAT_ROUND
+    _COMBAT_POS = -1
+    _COMBAT_ROUND = 0
+
+
+def _scale_repeat_dice(base: str, higher_levels: str, levels_above: int) -> str:
+    """Apply a `+NdM` upcast to a repeating effect's damage dice (baked in at cast time)."""
+    parsed = _parse_higher_levels(higher_levels)
+    if not parsed or levels_above <= 0:
+        return base
+    if parsed[0] == "dice":
+        _, num, size, flat = parsed
+        extra = f"{num * levels_above}d{size}"
+        if flat:
+            extra += f"+{flat * levels_above}"
+        return _combine_dice(base, extra)
+    return base
+
+
+def _register_recurring(name, spell_name, block, dc, caster):
+    """Attach a repeating-save effect to a combatant. Re-registering the same spell replaces it."""
+    entry = _COMBAT_REGISTRY.get(name)
+    if entry is None:
+        return None
+    eff = {
+        "spell": spell_name,
+        "save_type": str(block.get("save_type") or "").strip().lower()[:3],
+        "dc": int(dc or 0),
+        "timing": str(block.get("timing") or "start_of_turn").strip().lower(),
+        "damage_dice": block.get("damage_dice"),
+        "damage_type": block.get("damage_type") or "",
+        "ends_on_success": bool(block.get("ends_on_success", False)),
+        "successes_to_end": block.get("successes_to_end"),
+        "failures_to_lock": block.get("failures_to_lock"),
+        "failures_to_effect": block.get("failures_to_effect"),
+        "condition_on_failure": block.get("condition_on_failure"),
+        "caster": caster,
+        "successes": 0,
+        "failures": 0,
+        "locked": False,
+    }
+    effects = entry.setdefault("recurring", [])
+    effects[:] = [e for e in effects if e.get("spell") != spell_name]
+    effects.append(eff)
+    return eff
+
+
+def _roll_recurring_effect(name, entry, eff, cursor):
+    """Roll one repeating save, apply its damage/condition, and step its ladder."""
+    is_player = bool(entry.get("is_player"))
+    ability = eff.get("save_type") or "wis"
+    save_detail = None
+    if is_player and cursor is not None:
+        save_detail = _derived_save(cursor, ability, 0, against="spells",
+                                    damage=eff.get("damage_type"),
+                                    condition=eff.get("condition_on_failure"))
+        mod = save_detail["modifier"]
+        advantage = bool(save_detail.get("advantage"))
+    else:
+        mod = _registry_save(name, ability)
+        mod = 0 if mod is None else mod
+        advantage = False
+    disadvantage, dis_sources = _encumbrance(cursor, is_player, ability)
+    cond_dis, auto_fail, cond_sources = _condition_save_effects(
+        _conditions_for(cursor, name, is_player=is_player), ability)
+    disadvantage = disadvantage or cond_dis
+    d20, rolls, mode, _cancelled = _roll_d20(advantage=advantage, disadvantage=disadvantage)
+    total = d20 + mod
+    success = total >= eff["dc"] and not auto_fail
+    out = {"name": name, "spell": eff["spell"], "save_type": ability,
+           "save_roll": d20, "save_modifier": mod, "save_total": total,
+           "save_dc": eff["dc"], "save_success": success, "damage": 0,
+           "damage_type": eff.get("damage_type") or "", "ended": False}
+    if save_detail is not None:
+        out["save"] = save_detail
+    if rolls:
+        out[f"save_{mode}_rolls"] = rolls
+    if disadvantage and dis_sources:
+        out["disadvantage_sources"] = list(dis_sources)
+    if auto_fail:
+        out["save_auto_failed"] = True
+
+    if success:
+        if eff.get("successes_to_end"):
+            eff["successes"] = int(eff.get("successes") or 0) + 1
+            out["successes"] = eff["successes"]
+            if eff["successes"] >= int(eff["successes_to_end"]):
+                out["ended"] = True
+        elif eff.get("ends_on_success"):
+            out["ended"] = True
+        return out
+
+    if eff.get("damage_dice"):
+        die, dmg_rolls, raw = _parse_and_roll_dice(eff["damage_dice"])
+        if die is not None:
+            out["damage_rolls"] = dmg_rolls
+            damage = raw
+            if is_player and cursor is not None:
+                damage, note = _apply_player_damage_modifiers(cursor, damage, eff.get("damage_type") or "")
+                if note:
+                    out["damage_modified"] = note
+                hp = _apply_hp_change(cursor, -damage)
+                out["hp_change"] = hp
+                out["remaining_hp"] = hp.get("new_value")
+                entry["current_hp"] = hp.get("new_value", entry.get("current_hp"))
+            else:
+                damage, note = _apply_damage_modifiers(entry, damage, eff.get("damage_type") or "")
+                if note:
+                    out["damage_modified"] = note
+                before = entry.get("current_hp", 0)
+                remaining = before - damage
+                entry["current_hp"] = max(remaining, 0)
+                if damage > 0:
+                    _wake_on_damage(name)
+                out["remaining_hp"] = max(remaining, 0)
+                if before > 0 and remaining <= 0:
+                    entry["killed"] = True
+                    out["killed"] = True
+                    out["ended"] = True  # a repeating effect dies with its target
+                    cr = entry.get("challenge_rating")
+                    if cr is not None and cursor is not None and not is_player:
+                        xp = CR_XP_TABLE.get(cr, 0)
+                        if xp > 0:
+                            out["xp_change"] = modify_player_numeric(key="xp", delta=xp)
+                            out["xp_awarded"] = xp
+            out["damage"] = damage
+
+    if eff.get("failures_to_effect"):
+        eff["failures"] = int(eff.get("failures") or 0) + 1
+        out["failures"] = eff["failures"]
+        if eff["failures"] >= int(eff["failures_to_effect"]):
+            eff["locked"] = True
+            out["locked"] = True
+            cond = eff.get("condition_on_failure")
+            if cond:
+                out["effect_applied"] = cond
+                if cursor is not None:
+                    _apply_combat_condition(cursor, name, cond)
+    elif eff.get("failures_to_lock"):
+        eff["failures"] = int(eff.get("failures") or 0) + 1
+        out["failures"] = eff["failures"]
+        if eff["failures"] >= int(eff["failures_to_lock"]):
+            eff["locked"] = True
+            out["locked"] = True
+    return out
+
+
+def _recurring_line(res: dict) -> str:
+    verdict = "Success" if res["save_success"] else "Failure"
+    line = (f"{res['name']} {str(res['save_type']).upper()} Save ({res['spell']}): "
+            f"{res['save_total']} vs DC {res['save_dc']} ({verdict}) "
+            f"({res['save_roll']} + {res['save_modifier']})")
+    if res.get("damage"):
+        line += f" — {res['damage']} {res.get('damage_type') or ''}".rstrip()
+        if res.get("remaining_hp") is not None:
+            line += f", {res['remaining_hp']} HP"
+        if res.get("killed"):
+            line += " (KILLED)"
+        if res.get("xp_awarded"):
+            line += f", +{res['xp_awarded']} XP"
+    if res.get("effect_applied"):
+        line += f" — {res['effect_applied']}"
+    if res.get("ended"):
+        line += " — the spell ends"
+    return line
+
+
+def _flush_recurring(names):
+    """Resolve every pending repeating save for the named combatants whose turn starts now."""
+    if DB_CONNECTION is None:
+        return [], []
+    cursor = DB_CONNECTION.cursor()
+    results, lines = [], []
+    for name in names:
+        entry = _COMBAT_REGISTRY.get(name)
+        if not entry:
+            continue
+        effects = entry.get("recurring") or []
+        if not effects:
+            continue
+        keep = []
+        for eff in effects:
+            if eff.get("locked"):
+                keep.append(eff)
+                continue
+            res = _roll_recurring_effect(name, entry, eff, cursor)
+            results.append(res)
+            lines.append(_recurring_line(res))
+            if not res.get("ended"):
+                keep.append(eff)
+        entry["recurring"] = keep
+    return results, lines
+
+
+def _advance_turn(actor):
+    """Advance the initiative cursor to `actor` and resolve every turn that started on the
+    way. Returns (results, narrative_lines). Turn-advancing calls name an actor; the cursor
+    fires each position it passes, so a combatant whose turn the GM skipped still resolves."""
+    global _COMBAT_POS, _COMBAT_ROUND
+    if not _COMBAT_REGISTRY or not actor:
+        return [], []
+    order = sorted(_COMBAT_REGISTRY,
+                   key=lambda n: (-_COMBAT_REGISTRY[n].get("initiative_total", 0), n))
+    if actor not in order:
+        order.append(actor)
+    q = order.index(actor)
+    if _COMBAT_POS < 0:
+        fired = order[:q + 1]
+        _COMBAT_ROUND = 1
+    elif q > _COMBAT_POS:
+        fired = order[_COMBAT_POS + 1:q + 1]
+    elif q < _COMBAT_POS:
+        fired = order[_COMBAT_POS + 1:] + order[:q + 1]
+        _COMBAT_ROUND += 1
+    else:
+        fired = []
+    _COMBAT_POS = q
+    return _flush_recurring(fired)
+
+
+def _flush_recurring_into(result, narrative_parts):
+    """The end-of-tool hook: the acting combatant's turn may start here, and any condition
+    that damage ended (Eyebite's Asleep) is reported."""
+    rec_results, rec_lines = _advance_turn(result.get("actor"))
+    if rec_lines:
+        result["recurring"] = rec_results
+        narrative_parts.extend(rec_lines)
+    woke = _drain_woke()
+    if woke:
+        result["conditions_woke"] = woke
+        for entry in woke:
+            narrative_parts.append(
+                f"{entry['name']} wakes — {', '.join(entry['conditions'])} ends")
 
 
 def _registry_cr(target_name: str) -> float | None:
@@ -3838,6 +4139,97 @@ def _apply_combat_condition(cursor, name, condition):
     return "added", None
 
 
+# A condition a spell marks `ends_on_damage` (Sleep's Unconscious, Eyebite's Asleep) ends the
+# moment its holder takes damage. `_WOKE` collects what this tool call woke so the wrapper can
+# tell the GM. A registered combatant carries the mark on its registry entry; a spell can also
+# put an unregistered player to sleep (Sleep's AoE), whose condition lives only on the sheet, so
+# those marks are held here.
+_WOKE: list[dict] = []
+_SHEET_WAKE_CONDITIONS: dict[str, set] = {}
+
+
+def _mark_condition_ends_on_damage(name, condition):
+    """Remember that `condition` on `name` ends when they take damage (registry or sheet)."""
+    cond = str(condition or "").strip().lower()
+    if not cond or not name:
+        return
+    entry = _COMBAT_REGISTRY.get(name)
+    if isinstance(entry, dict):
+        entry["conditions_end_on_damage"] = sorted(
+            {str(c).strip().lower() for c in (entry.get("conditions_end_on_damage") or [])}
+            | {cond})
+        return
+    _SHEET_WAKE_CONDITIONS.setdefault(name, set()).add(cond)
+
+
+def _clear_combat_condition(cursor, name, condition):
+    """Undo `_apply_combat_condition` for a registered combatant or the player's sheet."""
+    cond = str(condition or "").strip().lower()
+    marks = _SHEET_WAKE_CONDITIONS.get(name)
+    if marks is not None:
+        marks.discard(cond)
+        if not marks:
+            _SHEET_WAKE_CONDITIONS.pop(name, None)
+    entry = _COMBAT_REGISTRY.get(name)
+    if entry is None:
+        if cursor is not None and _is_player_name(cursor, name):
+            current = _player_conditions(cursor)
+            if cond in current:
+                _db_set(cursor, "conditions", sorted(current - {cond}))
+                DB_CONNECTION.commit()
+                return True
+        return False
+    if entry.get("is_player"):
+        if cursor is not None:
+            _db_set(cursor, "conditions", sorted(_player_conditions(cursor) - {cond}))
+            DB_CONNECTION.commit()
+        entry["conditions"] = sorted(
+            {str(c).strip().lower() for c in (entry.get("conditions") or [])} - {cond})
+        return True
+    current = {str(c).strip().lower() for c in (entry.get("conditions") or [])}
+    if cond not in current:
+        return False
+    entry["conditions"] = sorted(current - {cond})
+    return True
+
+
+def _wake_on_damage(name):
+    """End every condition on `name` that was marked as ending on damage."""
+    entry = _COMBAT_REGISTRY.get(name)
+    if not isinstance(entry, dict):
+        marked = _SHEET_WAKE_CONDITIONS.get(name)
+        if not marked:
+            return
+        cursor = DB_CONNECTION.cursor() if DB_CONNECTION is not None else None
+        if cursor is None:
+            return
+        woke = sorted(marked & _player_conditions(cursor))
+        if not woke:
+            return
+        for cond in woke:
+            _clear_combat_condition(cursor, name, cond)
+        _WOKE.append({"name": name, "conditions": woke})
+        return
+    marked = {str(c).strip().lower() for c in (entry.get("conditions_end_on_damage") or [])}
+    if not marked:
+        return
+    current = {str(c).strip().lower() for c in (entry.get("conditions") or [])}
+    woke = sorted(marked & current)
+    if not woke:
+        return
+    cursor = DB_CONNECTION.cursor() if DB_CONNECTION is not None else None
+    for cond in woke:
+        _clear_combat_condition(cursor, name, cond)
+    entry["conditions_end_on_damage"] = sorted(marked - set(woke))
+    _WOKE.append({"name": name, "conditions": woke})
+
+
+def _drain_woke() -> list[dict]:
+    global _WOKE
+    out, _WOKE = _WOKE, []
+    return out
+
+
 def _condition_attack_effects(attacker_conditions, target_conditions, ranged=False):
     """(advantage?, disadvantage?, force_crit?, sources) from conditions on both sides."""
     advantage = disadvantage = force_crit = False
@@ -3926,6 +4318,28 @@ def _apply_damage_modifiers(entry, damage, damage_type) -> tuple[int, str | None
     if factor == 1.0:
         return damage, None
     return int(damage * factor), f"{damage} -> {int(damage * factor)} ({dtype}: x{factor:g})"
+
+
+def _apply_component_damage(entry, total, primary, extra, primary_type, extra_type,
+                             halved=False) -> tuple[int, str | None]:
+    """Apply resistances to each damage component separately, then sum (SRD 5.1).
+
+    A multi-component spell (Ice Storm, Flame Strike, Meteor Swarm) resists per type. When a
+    successful save already halved the total, the components are split back out proportionally
+    (the rounding difference is at most 1 point per component)."""
+    if entry is None or total <= 0:
+        return total, None
+    if not extra_type or extra <= 0 or not primary_type:
+        return _apply_damage_modifiers(entry, total, primary_type)
+    if halved and (primary + extra) > 0:
+        part_p = min(total, int(round(total * primary / (primary + extra))))
+        part_e = total - part_p
+    else:
+        part_p = min(primary, total)
+        part_e = max(0, total - part_p)
+    part_p, note_p = _apply_damage_modifiers(entry, part_p, primary_type)
+    part_e, note_e = _apply_damage_modifiers(entry, part_e, extra_type)
+    return part_p + part_e, "; ".join(n for n in (note_p, note_e) if n) or None
 
 
 def _player_defenses(cursor) -> dict:
@@ -4215,6 +4629,7 @@ def register_combatants(combatants: list[dict], add_to_existing: bool = False) -
 
     if not add_to_existing:
         _COMBAT_REGISTRY = {}
+        _reset_combat_cursor()
 
     initiative_results = []
 
@@ -4398,6 +4813,8 @@ def update_combatant(name: str, conditions_add: list[str] | None = None,
                     entry["killed"] = True
                 elif int(hp_delta) > 0:
                     entry["killed"] = False
+                if int(hp_delta) < 0:
+                    _wake_on_damage(name)  # damage ends a marked condition (Eyebite: Asleep)
 
     # `status` is the explicit out-of-combat mark for a hostile that fled or surrendered.
     status_note = None
@@ -4415,11 +4832,15 @@ def update_combatant(name: str, conditions_add: list[str] | None = None,
     # Vitals appear only when this call actually changed them; otherwise the client tooltip
     # carries the live HP/AC. The player's AC is never shown here (ac= is ignored for the player).
     bits = []
+    woke = _drain_woke()
     if hp_delta is not None and not is_player:
         bits.append(f"{entry['current_hp']}/{entry['max_hp']} HP")
     if ac is not None and not is_player:
         bits.append(f"AC {entry['ac']}")
     narrative = f"{name}: {', '.join(bits)}" if bits else name
+    if woke:
+        narrative += (" — wakes: "
+                       + ", ".join(f"{w['name']} ({', '.join(w['conditions'])})" for w in woke))
     if status_note:
         narrative += f" — {status_note}"
     if current:
@@ -4437,6 +4858,7 @@ def update_combatant(name: str, conditions_add: list[str] | None = None,
         "already_present": already_present,
         "note": " ".join(notes) or None,
         "registry_summary": _registry_summary_list(),
+        "conditions_woke": woke or None,
         "narrative_format": narrative,
     }
 
@@ -4487,7 +4909,6 @@ def resolve_attack(
 
     EX:
     resolve_attack(actor='{player_name}', weapon='Longsword', target_ac=13, target_name='Goblin', target_current_hp=12, challenge_rating=0.5)
-    resolve_attack(actor='Goblin', attack='Scimitar', target_name='{player_name}', is_npc_attack=True)
     """
     global DB_CONNECTION
     if DB_CONNECTION is None:
@@ -4618,6 +5039,14 @@ def resolve_attack(
             attacker_conditions, target_conditions, ranged)
         if cond_crit:
             force_crit = True
+        # Active spell effects: Foresight grants the player advantage on their attacks, and
+        # disadvantage on attacks made against them.
+        if is_player_attacker and cursor is not None:
+            if equipment.active_advantage_for(_carry_get(cursor), "attack_advantage")[0]:
+                advantage = True
+        if target_is_player and cursor is not None:
+            if equipment.active_advantage_for(_carry_get(cursor), "attackers_disadvantage")[0]:
+                cond_dis = True
         enc_disadvantage, encumbrance_sources = _roll_disadvantage(cursor, is_player_attacker)
         encumbrance_sources = [*encumbrance_sources, *cond_sources]
         exh = _exhaustion_effects(_exhaustion_level_for(
@@ -4725,6 +5154,7 @@ def resolve_attack(
             result["target_killed"] = None
             if is_npc_vs_npc:
                 result["npc_vs_npc"] = True
+            _flush_recurring_into(result, narrative_parts)
             result["narrative_format"] = "\n".join(narrative_parts)
             result["registry_summary"] = _registry_summary_list()
             return result
@@ -4787,8 +5217,18 @@ def resolve_attack(
                 raw = str(dice.get("value") or "").strip()
                 sign = -1 if raw.startswith("-") else 1
                 _, _, rolled = _parse_and_roll_dice(raw.lstrip("+-"))
-                if rolled:
-                    damage_dice_bonus += sign * rolled
+                if not rolled:
+                    continue
+                value = sign * rolled
+                # A typed buff (Branding Smite: radiant) resists on its own type.
+                buff_type = dice.get("damage_type")
+                buff_target = _COMBAT_REGISTRY.get(target_name) if target_name else None
+                if buff_type and buff_target is not None and value > 0:
+                    value, _buff_note = _apply_damage_modifiers(buff_target, value, buff_type)
+                damage_dice_bonus += value
+                # A one-shot buff (the next hit) is spent now.
+                if dice.get("charges") is not None:
+                    _consume_buff_charge(cursor, dice.get("spell"), "damage_rolls")
         total_damage = primary_damage + extra_damage + damage_dice_bonus
         result["damage_dice_bonus"] = damage_dice_bonus
 
@@ -4889,6 +5329,9 @@ def resolve_attack(
         else:
             result["target_killed"] = None
 
+        # The acting combatant's turn starts here: resolve any pending repeating saves.
+        _flush_recurring_into(result, narrative_parts)
+
         result["narrative_format"] = "\n".join(narrative_parts)
         result["registry_summary"] = _registry_summary_list()
 
@@ -4953,12 +5396,15 @@ def _apply_active_buff(cursor, spell_name, field, delta):
     if isinstance(buff_data_raw, str):
         buff_data_raw = json.loads(buff_data_raw)
 
-    if spell_name in buff_data_raw:
+    # Reject a re-application of the SAME field (the recast guard is at the `resolve_magic`
+    # level); a multi-field buff like Haste (speed + armour_class) must be able to add each.
+    existing = buff_data_raw.get(spell_name) or []
+    if any(isinstance(e, dict) and e.get("field") == field for e in existing):
         return {
             "error": "already_active",
             "spell_name": spell_name,
             "hint": (
-                f"{spell_name} is already active. Remove it first via "
+                f"{spell_name}'s {field} is already active. Remove it first via "
                 f"update_player_list(key='active_effects', item='{spell_name}', action='remove') "
                 "before recasting."
             )
@@ -5020,6 +5466,98 @@ def _store_active_effect(cursor, spell_name, kind, field, value):
     return {"field": field, "type": kind, "value": value}
 
 
+def _consume_buff_charge(cursor, spell, field):
+    """Spend one charge of a one-shot active dice buff (Branding Smite's next hit)."""
+    if cursor is None or not spell:
+        return
+    raw = _db_val(cursor, "_active_buff_data", {}) or {}
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            return
+    entries = raw.get(spell)
+    if not isinstance(entries, list):
+        return
+    keep, changed = [], False
+    for entry in entries:
+        if not isinstance(entry, dict) or entry.get("field") != field:
+            keep.append(entry)
+            continue
+        if entry.get("charges") is not None:
+            entry["charges"] = int(entry["charges"]) - 1
+            if entry["charges"] <= 0:
+                changed = True
+                continue
+        elif isinstance(entry.get("value"), dict) and entry["value"].get("charges") is not None:
+            entry["value"]["charges"] = int(entry["value"]["charges"]) - 1
+            if entry["value"]["charges"] <= 0:
+                changed = True
+                continue
+        keep.append(entry)
+    if changed:
+        if keep:
+            raw[spell] = keep
+        else:
+            raw.pop(spell, None)
+        _db_set(cursor, "_active_buff_data", raw)
+        DB_CONNECTION.commit()
+
+
+def _scale_buff_dice(buffs, higher_levels, levels_above):
+    """Grow a `damage_rolls` buff by the upcast dice (Branding Smite +1d6 per level above 2nd)."""
+    parsed = _parse_higher_levels(higher_levels or "")
+    if not isinstance(buffs, dict) or not parsed or levels_above <= 0 or parsed[0] != "dice":
+        return
+    _, num, size, _flat = parsed
+    extra = f"{num * levels_above}d{size}"
+    for field, value in list(buffs.items()):
+        if field != "damage_rolls":
+            continue
+        if isinstance(value, dict) and isinstance(value.get("value"), str):
+            value["value"] = _combine_dice(value["value"].lstrip("+"), extra)
+        elif isinstance(value, str) and value.startswith("+"):
+            buffs[field] = _combine_dice(value.lstrip("+"), extra)
+
+
+def _apply_special_buff(cursor, spell_name, field, value):
+    """Turn a non-numeric `buffs` field into a typed active effect the consumers read.
+
+    Covers the fields the generic delta/dice/defense paths do not: scoped save advantage
+    (Haste, Beacon of Hope), one-shot save dice (Resistance), a flat skill bonus (Pass Without
+    Trace), psychic immunity (Mind Blank), Foresight's four advantages, and the non-`+` speed
+    forms (`doubled`, `fly 60`). Returns the `applied` dict, or None when the field is a plain
+    note for the GM.
+    """
+    def store(kind, fieldname, val):
+        return _store_active_effect(cursor, spell_name, kind, fieldname, val)
+
+    if field == "psychic_immunity" and value:
+        return store("immunity", "damage_immunity", "psychic")
+    if field in ("dexterity_saves", "wisdom_saves", "death_saves") \
+            and str(value).strip().lower() == "advantage":
+        scope = {"dexterity_saves": "dex", "wisdom_saves": "wis", "death_saves": "death"}[field]
+        return store("save_advantage", field, scope)
+    if field == "saving_throws_once":
+        return store("dice", "saving_throws", {"value": str(value), "charges": 1})
+    if field == "stealth_checks":
+        return store("skill_bonus", "stealth", str(value))
+    if field == "foresight":
+        for kind in ("save_advantage", "check_advantage", "attack_advantage",
+                     "attackers_disadvantage"):
+            store(kind, "foresight", "all")
+        return {"field": field, "type": "foresight", "value": value}
+    if field == "speed" and isinstance(value, str) and not value.startswith("+"):
+        low = value.strip().lower()
+        if low == "doubled":
+            current = int(_db_val(cursor, "speed", 30) or 30)
+            return _apply_active_buff(cursor, spell_name, "speed", current)
+        grant = re.match(r"^(fly|swim|climb)\s+(\d+)", low)
+        if grant:
+            return store("speed_grant", grant.group(1), int(grant.group(2)))
+    return None
+
+
 def _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc, is_npc_vs_npc=False):
     buffs_applied = {}
     active_names = None
@@ -5029,6 +5567,10 @@ def _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_re
         stats_dict = _effective_stats(cursor)
 
         for field, value in sp_buffs.items():
+            special = _apply_special_buff(cursor, result.get("spell_name", ""), field, value)
+            if special is not None:
+                buffs_applied[field] = special
+                continue
             applied = None
 
             if isinstance(value, str) and value.startswith("+"):
@@ -5153,6 +5695,8 @@ def _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_re
         applied, refused = [], []
         for tname in cond_targets:
             status, _reason = _apply_combat_condition(ccur, tname, cond)
+            if status in ("added", "present") and result.get("_condition_ends_on_damage"):
+                _mark_condition_ends_on_damage(tname, cond)
             if status == "added":
                 applied.append(tname)
             elif status in ("immune", "not_registered"):
@@ -5166,6 +5710,20 @@ def _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_re
                 f"update_combatant(name=..., conditions_remove=['{cond}']) when it ends.]")
         if refused:
             result["conditions_refused"] = refused
+
+    # A repeating-save effect is registered for every target that failed the initial save.
+    rep_block = result.get("_repeat_save")
+    if rep_block and isinstance(cond_targets, list) and cond_targets:
+        registered = []
+        for tname in cond_targets:
+            if _register_recurring(tname, result.get("spell_name", ""), rep_block,
+                                   result.get("_repeat_dc"), result.get("_repeat_caster")):
+                registered.append(tname)
+        if registered:
+            result["recurring_registered"] = registered
+
+    # The acting combatant's turn starts here: resolve any pending repeating saves.
+    _flush_recurring_into(result, narrative_parts)
 
     result["narrative_format"] = "\n".join(narrative_parts)
     result["registry_summary"] = _registry_summary_list()
@@ -5380,6 +5938,7 @@ def resolve_magic(
     slot_level: int | None = None,
     is_npc_attack: bool = False,
     is_scroll: bool = False,
+    maintain_spell: bool = False,
     attack_type: str | None = None,
     save_type: str | None = None,
     save_half: bool = True,
@@ -5388,6 +5947,9 @@ def resolve_magic(
     damage_type: str | None = None,
     cantrip_scaling: bool = False,
     higher_levels: str | None = None,
+    boost_damage_type: str | None = None,
+    delayed_rounds: int | None = None,
+    eyebite_effect: str | None = None,
     healing: bool = False,
     aoe: bool = False,
     ritual: bool = False,
@@ -5404,25 +5966,25 @@ def resolve_magic(
     FIELDS:
     - spell_name: from config/spells.yml; a custom spell also needs attack_type + damage_dice.
     - actor: the caster's name (player name, or an NPC name).
-    - attack_type: 'attack_roll' | 'saving_throw' | 'automatic'. save_type: the save ability. save_half: half damage on a successful save (default True).
-    - spell_attack_modifier / spell_save_dc: omit for a registered NPC caster -- the engine uses its declared `spellcasting` block.
-    - target_ac: required for attack_roll. target_name/target_current_hp/target_max_hp: registry lookup; pass HP for a wounded target (a healing ceiling comes from the registry or the sheet).
+    - attack_type: 'attack_roll' | 'saving_throw' | 'automatic'. save_type: the save ability. save_half: half damage on a successful save (default True). For a spell in the database the config wins; a contradicting field you pass is reported in `config_warning`.
+    - spell_attack_modifier / spell_save_dc: omit for a registered NPC caster (uses its `spellcasting` block).
+    - target_ac: omit for a registry target (uses its AC). target_name/target_current_hp/target_max_hp: registry lookup; pass HP for a wounded target (a healing ceiling comes from the registry or the sheet).
     - challenge_rating: CR for XP (auto-looked up if omitted). target_save_modifier: save bonus for a single-target save (omit for a registry target). player_situational_modifier: situational add-on to the player's save when is_npc_attack=True (never pass the base modifier).
-    - slot_level: upcast level (defaults to the spell's level). is_scroll: no slot consumed, above-level scrolls need a check. is_npc_attack: NPC->player, damage auto-applied, no slot. is_npc_vs_npc: NPC->NPC, no player HP, no auto XP. caster_level: for NPC-vs-NPC cantrip scaling.
-    - damage_dice/damage_modifier/damage_type: custom damage (needed for unknown spells). cantrip_scaling: auto-scale at 5/11/17. higher_levels: upcast string (e.g. '+1d6'). healing: heals instead. aoe: area. ritual: no slot. advantage/force_crit: attack_roll only. components: override (else config/components.yml; unknown = V,S,M).
-    - targets: multi-target list. Shapes by type -- HP pool {name, current_hp}; save {name, current_hp, save_modifier, challenge_rating} (add {is_player: True} to apply to the player); projectiles {name, darts} (darts must total the count; omit to send them all at one target).
+    - slot_level: upcast level (defaults to the spell's level). is_scroll: no slot consumed, above-level scrolls need a check. maintain_spell: True re-targets the player's own active concentration spell (Eyebite) -- no slot, and a creature that already saved against this casting is refused. is_npc_attack: NPC->player, damage auto-applied, no slot. is_npc_vs_npc: NPC->NPC, no player HP, no auto XP. caster_level: for NPC-vs-NPC cantrip scaling.
+    - damage_dice/damage_modifier/damage_type: custom damage (needed for unknown spells). cantrip_scaling: auto-scale at 5/11/17. higher_levels: upcast string (e.g. '+1d6'). healing: heals instead. aoe: area. ritual: no slot. advantage/force_crit: attack_roll only. components: override (else config/components.yml; unknown = V,S,M). boost_damage_type: which component of Flame Strike the upcast empowers. delayed_rounds: rounds a Delayed Blast Fireball waited. eyebite_effect: Eyebite's chosen effect — asleep, panicked, or sickened (sickened repeats its save).
+    - targets: multi-target list. Shapes by type -- HP pool {name, current_hp}; save {name} (HP/save/CR auto from the registry) or {name, current_hp, save_modifier, challenge_rating} (add {is_player: True} for the player); projectiles {name, darts} (darts must total the count; omit to send them all at one target); attack_roll = one attack per target.
 
     RULES:
     1. The slot is validated BEFORE dice; empty slots are returned. Cantrips, rituals, scrolls and NPC attacks consume none.
     2. Duplicate active buffs are rejected before slot use.
-    3. Multi-target AoE: damage rolled ONCE, an individual save each, one slot; HP via the registry; XP summed from all kills.
+    3. Multi-target AoE: damage rolled ONCE, an individual save each, one slot; HP from the registry; XP from all kills.
     4. HP-pool spells: targets ascending by HP, pool drained in order.
     5. Extra damage dice are NOT doubled on a crit.
     6. Player temp HP drains before real HP (is_npc_attack). Player resistance/immunity/vulnerability from worn items AND active spells is applied automatically -- pass the RESOLVED damage type.
     7. Multi-projectile: each resolves separately; automatic spells strike simultaneously, attack-roll spells roll per projectile.
     8. A player spell with somatic/material components is REFUSED with both hands full (success=false, error='both_hands_occupied', turn_lost=true; no slot). Components come from config/components.yml else components=; unknown = V,S,M.
     9. A player in armour they are not proficient with cannot cast ANY spell (refused, error='armor_not_proficient').
-    10. Healing is capped at the target's max; every healing result declares max_hp/remaining_hp (healing_total = rolled, healing_applied = landed). Temp HP is a separate pool that may exceed the max.
+    10. Healing is capped at the target's max; results declare max_hp/remaining_hp. Temp HP is a separate pool and may exceed it.
 
     EX:
     resolve_magic(spell_name='Fireball', actor='{player_name}', spell_save_dc=15, targets=[{"name":"Goblin","current_hp":7,"save_modifier":2,"challenge_rating":0.25}])
@@ -5525,8 +6087,15 @@ def resolve_magic(
         sp_condition_duration = spell.get("condition_duration", None)
         sp_requires_concentration = spell.get("requires_concentration", False)
         sp_duration = spell.get("duration", "Instantaneous")
-        sp_buffs = spell.get("buffs", None)
+        sp_buffs = json.loads(json.dumps(spell["buffs"])) if spell.get("buffs") else None
         sp_temp_hp = spell.get("temporary_hp", False)
+        sp_repeat = spell.get("repeat_save", None)
+        sp_condition_on_hit = bool(spell.get("apply_condition_on_hit", False))
+        sp_post_hit_save = spell.get("post_hit_save", None)
+        sp_variants = spell.get("eyebite_variants", None)
+        # A condition that ends when its holder takes damage (Sleep's Unconscious, Eyebite's
+        # Asleep). The per-cast variant below can also set this.
+        sp_condition_ends_on_damage = bool(spell.get("ends_on_damage", False))
     else:
         if attack_type is None or damage_dice is None:
             return {
@@ -5563,6 +6132,71 @@ def resolve_magic(
         sp_duration = "Instantaneous"
         sp_buffs = None
         sp_temp_hp = False
+        sp_repeat = None
+        sp_condition_on_hit = False
+        sp_post_hit_save = None
+        sp_variants = None
+        sp_condition_ends_on_damage = False
+
+    # ── CONFIG WINS + WARN ──
+    # A spell in config/spells.yml is authoritative. When the GM explicitly passes a
+    # resolution-critical field that contradicts the config, the config is used and the
+    # conflict is reported (never silently obeyed) so a wrong data row surfaces loudly.
+    config_conflicts = {}
+    if spell:
+        for field, provided, actual in (
+            ("attack_type", attack_type, sp_attack_type),
+            ("save_type", save_type, sp_save_type),
+            ("damage_dice", damage_dice, sp_damage_dice),
+            ("damage_type", damage_type, sp_damage_type),
+            ("higher_levels", higher_levels, sp_higher_levels),
+        ):
+            if provided is None:
+                continue
+            p = str(provided).strip().lower()
+            a = str(actual).strip().lower() if actual is not None else ""
+            if p and p != a:
+                config_conflicts[field] = {"provided": provided, "config": actual}
+        if damage_modifier and damage_modifier != sp_damage_modifier:
+            config_conflicts["damage_modifier"] = {"provided": damage_modifier,
+                                                   "config": sp_damage_modifier}
+
+    # ── PER-CAST VARIANT (Eyebite) ──
+    # A variant spell (Eyebite) chooses its effect at cast time; only the named variant's
+    # condition (and any repeating save) is applied. Omitted: the generic top-level condition.
+    if sp_variants and eyebite_effect:
+        variant = sp_variants.get(str(eyebite_effect).strip().lower())
+        if variant:
+            if variant.get("condition"):
+                sp_condition = variant["condition"]
+            if variant.get("condition_duration"):
+                sp_condition_duration = variant["condition_duration"]
+            if variant.get("repeat_save"):
+                sp_repeat = variant["repeat_save"]
+            if variant.get("ends_on_damage"):
+                sp_condition_ends_on_damage = True
+
+    # ── MAINTAINING AN ACTIVE SPELL (Eyebite's per-turn re-target) ──
+    # Re-targets the player's own active concentration spell: no slot, and a creature that
+    # already saved against this casting is refused.
+    if maintain_spell:
+        if not is_player_caster or cursor is None:
+            return {"success": False, "error": "maintain_requires_player_caster",
+                    "hint": "maintain_spell re-targets the player's own active concentration spell."}
+        active_spell = str((_get_concentration(cursor) or {}).get("spell") or "")
+        if active_spell.strip().lower() != spell_name.strip().lower():
+            return {"success": False, "error": "not_concentrating", "active": active_spell,
+                    "hint": f"Not concentrating on {spell_name}; cast it first."}
+        already = list(((_COMBAT_REGISTRY.get(actor) or {}).get("spell_saved_targets") or {})
+                       .get(spell_name) or [])
+        requested = [t.get("name") for t in (targets or [])
+                     if isinstance(t, dict) and t.get("name")]
+        if target_name:
+            requested.append(target_name)
+        blocked = [n for n in requested if n in already]
+        if blocked:
+            return {"success": False, "error": "already_saved_target", "targets": blocked,
+                    "hint": "This casting cannot target a creature that already saved against it."}
 
     # ── DUPLICATE ACTIVE EFFECT CHECK ──
     if sp_buffs and DB_CONNECTION is not None:
@@ -5603,7 +6237,7 @@ def resolve_magic(
     slot_narrative = None
     scroll_check_info = None
 
-    if not is_npc_attack and not is_npc_vs_npc and not is_cantrip and not ritual and not is_scroll and DB_CONNECTION is not None:
+    if not is_npc_attack and not is_npc_vs_npc and not is_cantrip and not ritual and not is_scroll and not maintain_spell and DB_CONNECTION is not None:
         if slot_level is not None:
             effective_slot = slot_level
         elif spell:
@@ -5664,14 +6298,27 @@ def resolve_magic(
                 )
 
     # ── PARAMETER VALIDATION (before consuming the slot) ──
-    if sp_attack_type == "attack_roll" and target_ac is None:
-        return {"success": False, "error": f"Spell '{spell_name}' requires an attack roll. You must provide target_ac."}
+    is_multi_projectile = bool(spell and (spell.get("projectiles") or spell.get("cantrip_projectile_scaling")))
+    has_targets = bool(targets and len(targets) > 0)
+    if sp_attack_type == "attack_roll" and target_ac is None and target_name:
+        target_ac = _registry_ac(target_name)
+    if sp_attack_type == "attack_roll" and target_ac is None and not has_targets:
+        return {"success": False, "error": f"Spell '{spell_name}' requires an attack roll. Provide target_ac (or a registered target_name)."}
     if sp_attack_type == "saving_throw" and spell_save_dc <= 0:
         return {"success": False, "error": f"Spell '{spell_name}' requires a saving throw. You must provide spell_save_dc."}
+    # A target list the engine cannot resolve must never be dropped silently.
+    if has_targets and not is_multi_projectile and not sp_hp_pool and not sp_healing \
+            and sp_attack_type not in ("saving_throw", "attack_roll"):
+        return {
+            "success": False, "spell_name": spell_name, "error": "targets_unsupported",
+            "hint": f"{spell_name} resolves as '{sp_attack_type}' with no per-target shape; "
+                    "call it without targets.",
+            "targets_ignored": [t.get("name") for t in targets if isinstance(t, dict)],
+        }
 
     # ── CONSUME SPELL SLOT ──
     slot_result_data = None
-    if not is_npc_attack and not is_npc_vs_npc and not is_cantrip and not ritual and not is_scroll and DB_CONNECTION is not None:
+    if not is_npc_attack and not is_npc_vs_npc and not is_cantrip and not ritual and not is_scroll and not maintain_spell and DB_CONNECTION is not None:
         slot_result_data = modify_player_numeric(key=slot_key, delta=-1)
         slot_level_used = effective_slot
         slot_consumed = True
@@ -5680,6 +6327,10 @@ def resolve_magic(
             slot_narrative = f"Slot Used: {_ordinal(effective_slot)}-level ({new_remaining} remaining)"
         else:
             slot_narrative = f"Slot Used: {_ordinal(effective_slot)}-level"
+
+    elif not is_npc_attack and not is_npc_vs_npc and maintain_spell:
+        slot_consumed = "maintain"
+        slot_narrative = f"{spell_name} maintained — no slot"
 
     elif not is_npc_attack and not is_npc_vs_npc and is_cantrip and not is_scroll:
         slot_consumed = "cantrip"
@@ -5733,8 +6384,24 @@ def resolve_magic(
         character_level = 1
 
     computed_slot = slot_level if slot_level is not None else (sp_level if not sp_cantrip_scaling else 0)
+    if sp_buffs and spell and sp_level and (computed_slot or 0) > sp_level:
+        _scale_buff_dice(sp_buffs, sp_higher_levels, (computed_slot or 0) - sp_level)
+    # F5: Flame Strike's upcast empowers ONE component (the caster's choice). With no choice,
+    # the primary scales; naming the extra damage type moves the dice to that component.
+    damage_spell = spell
+    if spell and spell.get("extra_damage_dice") \
+            and (spell.get("higher_levels") or spell.get("extra_higher_levels")):
+        damage_spell = dict(spell)
+        boost = str(boost_damage_type or "").strip().lower()
+        extra_type = str(spell.get("extra_damage_type") or "").strip().lower()
+        if boost and boost == extra_type:
+            damage_spell["higher_levels"] = None
+            damage_spell["extra_higher_levels"] = (spell.get("higher_levels")
+                                                   or spell.get("extra_higher_levels"))
+        else:
+            damage_spell["extra_higher_levels"] = None
     final_dice, final_mod, final_extra_dice = _compute_spell_damage(
-        spell if spell else {
+        damage_spell if damage_spell else {
             "damage_dice": sp_damage_dice,
             "damage_modifier": sp_damage_modifier,
             "level": sp_level,
@@ -5748,6 +6415,16 @@ def resolve_magic(
         character_level,
         computed_slot if not sp_cantrip_scaling else None,
     )
+    # F5: Delayed Blast Fireball accumulates one bonus die per round the bead waits (cap 10).
+    if spell and delayed_rounds and spell.get("delayed_bonus_dice"):
+        _m = re.match(r"(\d+)d(\d+)", str(spell["delayed_bonus_dice"]))
+        if _m:
+            _n = int(_m.group(1)) * min(int(delayed_rounds), 10)
+            final_dice = _combine_dice(final_dice, f"{_n}d{_m.group(2)}")
+    # F6: a damage spell can add the caster's spellcasting modifier (Spiritual Weapon).
+    if (spell and spell.get("add_spellcasting_mod") and not sp_healing and cursor is not None
+            and not is_npc_attack and not is_npc_vs_npc):
+        final_mod += _caster_spellcasting_mod(cursor)
 
 
 
@@ -5764,10 +6441,27 @@ def resolve_magic(
     }
     if slot_level_used is not None:
         result["slot_level_used"] = slot_level_used
+    if sp_repeat:
+        rep = dict(sp_repeat)
+        if rep.get("damage_dice") and rep.get("higher_levels"):
+            rep["damage_dice"] = _scale_repeat_dice(
+                rep["damage_dice"], rep["higher_levels"],
+                max(0, (computed_slot or sp_level) - sp_level))
+        result["_repeat_save"] = rep
+        result["_repeat_dc"] = spell_save_dc
+        result["_repeat_caster"] = actor
+    if sp_condition_ends_on_damage:
+        result["_condition_ends_on_damage"] = True
     if scroll_check_info:
         result["scroll_check"] = scroll_check_info
     if slot_result_data is not None:
         result["slot_result"] = slot_result_data
+    if config_conflicts:
+        result["config_warning"] = {
+            "spell": spell_name,
+            "note": "config/spells.yml was used; the provided fields differ",
+            "fields": config_conflicts,
+        }
 
     is_crit = False
 
@@ -5793,6 +6487,26 @@ def resolve_magic(
             result["disadvantage_sources"] = list(encumbrance_sources)
             if advantage:
                 result["advantage_cancelled"] = True
+        return _finalize_spell_result(proj, narrative_parts, sp_duration, sp_buffs,
+                                      sp_requires_concentration,
+                                      is_npc_attack or is_npc_vs_npc, is_npc_vs_npc)
+
+    # ── MULTI-TARGET ATTACK ROLLS (one attack per target; targets[] is never dropped) ──
+    if has_targets and sp_attack_type == "attack_roll" and not is_multi_projectile and not sp_healing:
+        entries = [{**t, "darts": 1} for t in targets if isinstance(t, dict)]
+        proj = _resolve_projectile_spell(
+            actor=actor, spell_name=spell_name, spell=spell, count=len(entries),
+            attack_type=sp_attack_type, damage_dice=sp_damage_dice,
+            damage_modifier=sp_damage_modifier, damage_type=sp_damage_type,
+            targets=entries, target_name=target_name, target_current_hp=target_current_hp,
+            target_ac=target_ac, challenge_rating=challenge_rating,
+            is_npc_attack=is_npc_attack, is_npc_vs_npc=is_npc_vs_npc, cursor=cursor,
+            spell_attack_modifier=spell_attack_modifier, advantage=advantage,
+            force_crit=force_crit, result=result, narrative_parts=narrative_parts,
+            disadvantage=enc_disadvantage,
+        )
+        if proj.get("success") is False:
+            return proj
         return _finalize_spell_result(proj, narrative_parts, sp_duration, sp_buffs,
                                       sp_requires_concentration,
                                       is_npc_attack or is_npc_vs_npc, is_npc_vs_npc)
@@ -5846,7 +6560,11 @@ def resolve_magic(
 
         if outcome in ("Failure", "Critical Failure"):
             if sp_damage_on_miss:
-                miss_die_size, miss_rolls, miss_sum = _parse_and_roll_dice(sp_damage_on_miss)
+                # SRD 5.1: Acid Arrow's damage "both initial and later" scales with the slot.
+                miss_dice = _scale_repeat_dice(
+                    sp_damage_on_miss, sp_higher_levels,
+                    max(0, (computed_slot or sp_level) - sp_level))
+                miss_die_size, miss_rolls, miss_sum = _parse_and_roll_dice(miss_dice)
                 if miss_die_size is not None:
                     miss_damage = miss_sum + final_mod
                     narrative_parts.append(
@@ -5857,6 +6575,46 @@ def resolve_magic(
             result["damage_total"] = result.get("miss_damage", 0)
             result["target_killed"] = None
             return _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_requires_concentration, is_npc_attack or is_npc_vs_npc, is_npc_vs_npc)
+
+        # An attack-roll spell whose effect lands on a hit (Contagion): apply its condition now.
+        if sp_condition_on_hit and sp_condition:
+            affected = _target_label(cursor, target_name, bool(is_npc_attack)) or target_name or actor
+            result["condition"] = sp_condition
+            if sp_condition_duration:
+                result["condition_duration"] = sp_condition_duration
+            if sp_requires_concentration:
+                result["requires_concentration"] = True
+            result["condition_targets"] = [affected]
+            narrative_parts.append(
+                f"{affected}: Affected — {sp_condition} ({sp_condition_duration})")
+
+        # A post-hit save (Ray of Enfeeblement): a hit forces a save, and the condition
+        # applies only on a failure.
+        if sp_post_hit_save and sp_condition:
+            affected = _target_label(cursor, target_name, bool(is_npc_attack)) or target_name or actor
+            ability = str(sp_post_hit_save.get("save_type") or sp_save_type or "con").lower()[:3]
+            if is_npc_attack and cursor is not None:
+                smod = _derived_save(cursor, ability, player_situational_modifier or 0,
+                                     against="spells")["modifier"]
+            else:
+                smod = _registry_save(target_name or affected, ability)
+                if smod is None:
+                    smod = target_save_modifier if target_save_modifier is not None else 0
+            sd20, _srolls, _smode, _scancel = _roll_d20()
+            stotal = sd20 + smod
+            saved = stotal >= spell_save_dc
+            narrative_parts.append(
+                f"{affected} {ability.upper()} Save ({spell_name}): {stotal} vs DC {spell_save_dc} "
+                f"({'Success' if saved else 'Failure'}) ({sd20} + {smod})")
+            if not saved:
+                result["condition"] = sp_condition
+                if sp_condition_duration:
+                    result["condition_duration"] = sp_condition_duration
+                if sp_requires_concentration:
+                    result["requires_concentration"] = True
+                result["condition_targets"] = [affected]
+                narrative_parts.append(
+                    f"{affected}: Affected — {sp_condition} ({sp_condition_duration})")
 
     # ── NO DAMAGE SPELLS ──
     if sp_no_damage:
@@ -6135,6 +6893,8 @@ def resolve_magic(
             save_total = save_d20 + tsave
             save_success = save_total >= spell_save_dc and not auto_fail
             save_outcome = "Success" if save_success else "Failure"
+            if save_success and maintain_spell:
+                _record_saved_target(actor, spell_name, tname)
 
             t_damage = total_damage
             if save_success:
@@ -6164,14 +6924,16 @@ def resolve_magic(
                 narrative_parts.append(
                     f"{tname} {save_name} Save: {save_total} vs DC {spell_save_dc} ({save_outcome}) ({save_d20} + {tsave})"
                 )
-                if sp_no_damage and sp_condition:
+                if sp_condition:
                     narrative_parts.append(f"{tname}: Affected — {sp_condition} ({sp_condition_duration})")
                     condition_targets.append(tname)
 
             # SRD resistances/immunities/vulnerabilities, after any save halving.
             if not sp_healing and not is_player and t_damage > 0:
-                t_damage, dmg_note = _apply_damage_modifiers(
-                    _COMBAT_REGISTRY.get(tname), t_damage, sp_damage_type)
+                t_damage, dmg_note = _apply_component_damage(
+                    _COMBAT_REGISTRY.get(tname), t_damage, primary_damage, extra_damage,
+                    sp_damage_type, sp_extra_damage_type,
+                    halved=bool(save_success and sp_save_half))
                 if dmg_note:
                     narrative_parts.append(f"{tname} damage adjusted: {dmg_note}")
             heal_entry = None
@@ -6294,6 +7056,8 @@ def resolve_magic(
             advantage=save_advantage, disadvantage=save_disadvantage)
         save_total = save_d20 + save_mod
         save_success = save_total >= spell_save_dc and not auto_fail
+        if save_success and maintain_spell:
+            _record_saved_target(actor, spell_name, saver_name)
         if auto_fail:
             save_outcome = "Failure"
 
@@ -6331,7 +7095,7 @@ def resolve_magic(
                     narrative_parts.append(f"{saver_name} saved — no healing.")
                 else:
                     narrative_parts.append(f"{saver_name} saved — no damage.")
-        elif sp_no_damage and sp_condition:
+        elif sp_condition:
             narrative_parts.append(f"{saver_name}: Affected — {sp_condition} ({sp_condition_duration})")
             result["condition"] = sp_condition
             if sp_condition_duration:
@@ -6344,8 +7108,10 @@ def resolve_magic(
 
         # SRD resistances/immunities/vulnerabilities of a registered NPC target (not the player).
         if not is_npc_attack and not sp_healing and total_damage > 0:
-            total_damage, dmg_note = _apply_damage_modifiers(
-                _COMBAT_REGISTRY.get(target_name), total_damage, sp_damage_type)
+            total_damage, dmg_note = _apply_component_damage(
+                _COMBAT_REGISTRY.get(target_name), total_damage, primary_damage, extra_damage,
+                sp_damage_type, sp_extra_damage_type,
+                halved=bool(save_success and sp_save_half))
             if dmg_note:
                 result["damage_modified"] = dmg_note
                 narrative_parts.append(f"Damage adjusted: {dmg_note} ({target_name})")

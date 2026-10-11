@@ -594,6 +594,48 @@ def _active_effect_entries_from_buffs(get) -> list[dict]:
     return out
 
 
+def active_advantage_for(get, kind: str, scope=None) -> tuple:
+    """(advantage?, sources) from active spell effects of `kind`.
+
+    Kinds: 'save_advantage', 'check_advantage', 'attack_advantage', 'attackers_disadvantage'.
+    An entry whose value is 'all' (or empty) matches any `scope`; otherwise it must equal it
+    (e.g. a `save_advantage` scoped to 'dex' matches a DEX save, 'death' a death save).
+    """
+    want = str(scope or "").strip().lower()
+    advantage = False
+    sources: list[str] = []
+    for entry in _active_effect_entries_from_buffs(get):
+        if str(entry.get("kind") or "").strip().lower() != kind:
+            continue
+        value = str(entry.get("value") or "all").strip().lower()
+        if value in ("", "all", "*") or (want and value == want):
+            advantage = True
+            sources.append(f"{entry.get('spell')}: {kind}")
+    return advantage, sources
+
+
+def active_check_bonus_for(get, check_name: str = "", ability=None) -> tuple:
+    """(flat bonus, sources) from active spell effects of kind 'skill_bonus'/'check_bonus'.
+
+    The entry's `field` names the skill (normalized) or ability it applies to, or 'all'.
+    """
+    needle = normalize(check_name)
+    want = str(ability or "").strip().lower()[:3]
+    total = 0
+    sources: list[str] = []
+    for entry in _active_effect_entries_from_buffs(get):
+        if str(entry.get("kind") or "").strip().lower() not in ("skill_bonus", "check_bonus"):
+            continue
+        field = str(entry.get("field") or "all").strip().lower()
+        if field not in ("", "all", "*") and field != needle and field != want:
+            continue
+        raw = str(entry.get("value") or "").strip()
+        if raw.startswith("+"):
+            total += _to_int(raw[1:])
+            sources.append(f"{entry.get('spell')}: {raw} {check_name}".strip())
+    return total, sources
+
+
 def defense_state(get) -> dict:
     """The player's damage / condition defenses from equipped items AND active spell effects.
 
@@ -682,6 +724,11 @@ def speed_state(get) -> dict:
                 mode = str(eff.get("mode") or "").strip().lower()
                 if mode:
                     modes[mode] = max(modes.get(mode, 0), _to_int(eff.get("value")))
+    for entry in _active_effect_entries_from_buffs(get):
+        if str(entry.get("kind") or "").strip().lower() == "speed_grant":
+            mode = str(entry.get("field") or "").strip().lower()
+            if mode:
+                modes[mode] = max(modes.get(mode, 0), _to_int(entry.get("value")))
     walk = base
     if minimum is not None:
         walk = max(walk, minimum)
@@ -729,12 +776,27 @@ def check_bonus_for(get, check_name: str = "", context=None) -> tuple:
 
 def active_dice(get, field: str) -> list[dict]:
     """Active spell dice bonuses for a field ('saving_throws', 'ability_checks', 'attack_rolls',
-    'damage_rolls') as `[{value, spell}]` (Bless +1d4, Bane -1d4, ...)."""
+    'damage_rolls') as `[{value, spell, damage_type?, charges?}]` (Bless +1d4, Branding Smite
+    +2d6 radiant one-shot, ...)."""
     out = []
     for entry in _active_effect_entries_from_buffs(get):
         if (str(entry.get("kind") or "").lower() == "dice"
                 and str(entry.get("field") or "") == field):
-            out.append({"value": str(entry.get("value") or ""), "spell": entry.get("spell")})
+            raw_value = entry.get("value")
+            item = {"value": "", "spell": entry.get("spell")}
+            if isinstance(raw_value, dict):
+                item["value"] = str(raw_value.get("value") or "")
+                if raw_value.get("damage_type"):
+                    item["damage_type"] = raw_value["damage_type"]
+                if raw_value.get("charges") is not None:
+                    item["charges"] = raw_value["charges"]
+            else:
+                item["value"] = str(raw_value or "")
+                if entry.get("damage_type"):
+                    item["damage_type"] = entry["damage_type"]
+                if entry.get("charges") is not None:
+                    item["charges"] = entry["charges"]
+            out.append(item)
     return out
 
 

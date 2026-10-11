@@ -14,6 +14,7 @@ import importlib.util
 import json
 import subprocess
 import sys
+import tempfile
 import unicodedata
 from pathlib import Path
 
@@ -137,6 +138,43 @@ def main() -> bool:
     class_spells_src = _text("forge/class_spells.py")
     rec("the class lists offer no non-SRD spell",
         not any(f'"{n}"' in class_spells_src for n in NON_SRD))
+
+    # ── the spell-stat gate ─────────────────────────────────────────────────────
+    spec = importlib.util.spec_from_file_location("spell_stats_gate",
+                                                  REPO / "tools" / "spell_stats_gate.py")
+    stats = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(stats)
+    stat_issues, checked = stats.run()
+    rec("the spell-stat gate is clean", not stat_issues, "; ".join(stat_issues[:3]))
+    rec("the spell-stat gate covers every shipped spell", checked == 319, str(checked))
+
+    # Negative controls for the upcast signature: a clean per-level die is read; a map the
+    # source left incomplete is never judged (so its gaps cannot read as drift).
+    bspec = importlib.util.spec_from_file_location(
+        "build_spell_stats", REPO / "tools" / "srd" / "build_spell_stats.py")
+    builder = importlib.util.module_from_spec(bspec)
+    bspec.loader.exec_module(builder)
+    rec("the upcast signature reads a clean per-level die",
+        builder._upcast_sig([{"slot": {"3": "8d6", "4": "9d6", "5": "10d6"}}], 3) == "+1d6")
+    rec("an incomplete source map is never judged",
+        builder._upcast_sig([{"slot": {"6": "14d6"}}], 6) == "unjudged")
+    rec("a flat bonus is never judged",
+        builder._upcast_sig([{"slot": {"6": "10d6 + 40", "7": "13d6 + 40"}}], 6) == "unjudged")
+    # A fabricated upcast (the SRD grants none) must be reported, not waved through by the
+    # `unjudged` bucket -- the bug this map exists to catch.
+    with tempfile.TemporaryDirectory() as td:
+        fake = Path(td) / "spells.yml"
+        fake.write_text(
+            "- name: Harm\n  level: 6\n  attack_type: saving_throw\n  save_type: con\n"
+            "  save_half: true\n  damage_dice: 14d6\n  damage_type: necrotic\n"
+            "  higher_levels: +1d6\n", encoding="utf-8")
+        real_spells, stats.SPELLS = stats.SPELLS, fake
+        try:
+            fabricated, _ = stats.run()
+        finally:
+            stats.SPELLS = real_spells
+    rec("the gate refuses a fabricated upcast",
+        any("Harm" in i and "higher_levels" in i for i in fabricated), str(fabricated))
 
     # ── the icon library ───────────────────────────────────────────────────────
     manifest = json.loads((REPO / "assets" / "gemini" / "manifest.json").read_text(encoding="utf-8"))

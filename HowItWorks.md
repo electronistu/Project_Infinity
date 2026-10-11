@@ -10,7 +10,7 @@ Most AI RPGs let the language model make up numbers. Project Infinity runs every
 - **Spell & Item Effects** — damage resistance, immunity and vulnerability and condition immunity from worn items **and** active spells are applied automatically when the player takes damage; typed active effects (resistances, spell dice, speed, HP-per-level) are tracked and revert cleanly when they end.
 - **NPCs With Stat Blocks** — the GM registers each combatant once with HP, AC, per-ability saves, declared attacks and resistances; the engine resolves their attacks, damage-type math and conditions.
 - **Multi-Target AoE** — Fireball, Sleep and area spells resolve every target in one call: per-target saves, HP-pool exhaustion, one slot consumed.
-- **Conditions** — blinded, prone, restrained, poisoned, frightened, invisible, paralyzed, petrified, stunned and unconscious drive advantage, forced criticals and failed saves. Exhaustion is tracked as a level 0–6 with its full SRD table (checks, speed, attacks/saves, halved HP maximum, death). A condition a spell applies is written onto the combatant automatically; the GM only removes it when it ends.
+- **Conditions** — blinded, grappled, incapacitated, prone, restrained, poisoned, frightened, invisible, paralyzed, petrified, stunned and unconscious drive advantage, forced criticals and failed saves. Exhaustion is tracked as a level 0–6 with its full SRD table (checks, speed, attacks/saves, halved HP maximum, death). A condition a spell applies is written onto the combatant automatically; the GM only removes it when it ends. Every `buffs` field an active spell declares is consumed by the engine — Haste's speed and AC, Foresight's advantages, Mind Blank's psychic immunity, Pass Without Trace's Stealth bonus, Beacon of Hope's saves, Resistance's one-shot die — not stored as a passive note.
 - **Refused Actions** — attacking with a weapon not in hand, casting with both hands busy, or casting in non-proficient armour is refused and the action is spent. No do-overs.
 - **Rest & Leveling** — short and long rests and XP thresholds auto-apply hit dice, slots, Arcane Recovery, HP, proficiency and progression per SRD 5.1.
 
@@ -118,11 +118,13 @@ venv\Scripts\python.exe -m pip install -r requirements-dev.txt   # tiktoken, onc
 venv\Scripts\python.exe tools\verify.py
 ```
 
-`tools/verify.py` is the whole gate in one command and exits non-zero on the first failure. Five steps, in order:
+`tools/verify.py` is the whole gate in one command and exits non-zero on the first failure. Seven steps, in order:
 
 | Step | What it asserts |
 | --- | --- |
 | `srd` | `tools/srd_gate.py` — every **name** this repository ships is an SRD 5.1 name |
+| `spellstats` | `tools/spell_stats_gate.py` — every spell's **numbers** (level, resolution, save, damage, upcast, school, concentration, ritual, healing) match the frozen SRD 5.1 table |
+| `spellcov` | `tools/spell_coverage_gate.py` — every spell, `condition` string and `buffs` field is **classified** (a real mechanic or a named GM-adjudicated tag) |
 | `budget` | `tools/token_budget.py --gate` — the static-prefix ceilings in `tools/budgets.yml` |
 | `dice` | The dice engine suite, `web/tests/dice/` |
 | `web` | Every web suite, `web/tests/test_*.py` (no network, no GPU) |
@@ -138,12 +140,30 @@ venv\Scripts\python.exe tools\verify.py
 
 ## SRD 5.1 conformance
 
-All embedded D&D 5e rules data in `config/` is derived from **SRD 5.1**, and the repository is checked so that it stays that way:
+All embedded D&D 5e rules data in `config/` is derived from **SRD 5.1**, and three gates plus an engine smoke suite keep it that way — **names, numbers, and vocabulary**.
 
-- **`tools/srd/srd-5.1.json`** is the whitelist: **names only**, with the provenance of every list recorded in it — which lists were fetched from the published SRD, which are the repository's own reviewed values, and which are an explicit decision to allow original content.
-- **`tools/srd_gate.py`** checks every name in `config/*.yml`, the Forge's own literals, and every committed icon's name against it. It runs first in the gate, so the claim cannot rot.
-- Where SRD 5.1 renames a spell to avoid a protected character name, the **SRD spelling is what ships**, and the alias is recorded rather than used.
+**Names — [`tools/srd_gate.py`](tools/srd_gate.py).** `tools/srd/srd-5.1.json` is the whitelist: **names only**, with the provenance of every list recorded in it — which lists were fetched from the published SRD, which are the repository's own reviewed values, and which are an explicit decision to allow original content. The gate checks every name in `config/*.yml`, the Forge's own literals, and every committed icon's name against it. It runs first in the gate, so the claim cannot rot. Where SRD 5.1 renames a spell to avoid a protected character name, the **SRD spelling is what ships**, and the alias is recorded rather than used.
 
-**What the gate cannot check:** the prose inside a description, and whatever the running Game Master invents from a general-purpose model's training. That last limitation is real and is disclosed in the README.
+**Numbers — [`tools/spell_stats_gate.py`](tools/spell_stats_gate.py).** `tools/srd/spell-stats.json` is a frozen, offline table of all **319** spells (built once by `tools/srd/build_spell_stats.py`), and the gate checks that `config/spells.yml` agrees on level, resolution (roll vs save), save ability and half-on-save, base damage and type, and per-slot scaling — plus school, concentration, ritual and healing. Reviewed `EXEMPT` maps record every deliberate deviation and the source data's own gaps, so the gate reports real drift, not noise.
 
-See [`tools/srd/README.md`](tools/srd/README.md) for what each list is and what to do when the gate fails.
+**Vocabulary and behaviour — [`tools/spell_coverage_gate.py`](tools/spell_coverage_gate.py) + [`web/tests/dice/test_spell_smoke.py`](web/tests/dice/test_spell_smoke.py).** The coverage gate fails when a spell, a `condition` string or a `buffs` field is not classified — a real engine mechanic, or a named GM-adjudicated tag. The smoke suite runs **every** shipped spell through the real engine once, so no spell is silently unresolvable. Together with the dice suite they prove all 319 spells run and that every declared mechanic is accounted for.
+
+**What the gates cannot check:** the prose inside a description, and whatever the running Game Master invents from a general-purpose model's training. That last limitation is real and is disclosed in the README. The line the engine *does* draw — which mechanics it resolves and which it leaves to the GM — is written down in the next section.
+
+See [`tools/srd/README.md`](tools/srd/README.md) for what each list is and what to do when the name gate fails.
+
+---
+
+## What the engine decides, what the Game Master decides
+
+The engine owns the **mechanical skeleton**: attack rolls, saves, damage, hit points, the thirteen conditions and their generic effects, resistance/immunity/vulnerability, concentration, death saves, exhaustion, upcast scaling, active buffs and recurring saves. Everything below is the Game Master's call by design — not an accident, and not a gap the code is hiding.
+
+- **Condition effects with no generic rule.** 27 condition tags across 31 spells apply a state the engine cannot resolve on its own, so the GM runs the effect and passes `advantage`/`disadvantage` or applies results. Control and removal (`Banished`, `Bound`, `Trapped`, `Possessed`, `Time Stopped`, `Magic Suppressed`, …), transformation (`Polymorphed`, `Gaseous`, `Levitating`), rider debuffs (`Weakened`, `Slowed`, `Outlined`, `Confused`, `Feebleminded`, `Cursed`, `Diseased`) and meta effects (`Spell Interrupted`, `Teleported`, `Altered Memories`, `Illusory Duplicates`, `Varies by symbol type`). A few of these already run a partial engine rule (Slow, Confusion and Contagion run their repeating save; Ray of Enfeeblement runs its post-hit save) — the GM owns only the condition's own effect.
+- **Effects with no engine consumer.** Mind Blank's divination immunity, Haste's extra action, Expeditious Retreat's bonus-action Dash, and Jump's tripled distance. Action economy is not tracked at all.
+- **Purely narrative spells.** 144 of the 319 resolve as automatic with no roll and no condition or buff — cantrips and utility from Detect Magic to Wish. The engine validates the slot and records the cast; the effect is the fiction.
+- **Timing.** There is no clock: spell durations (1 minute / 1 hour / 24 hours / until dispelled), the expiry of a concentration, and the action to shake or slap a sleeping creature awake are all the GM's to end with `update_combatant` / `update_player_list`.
+- **Action economy and reactions.** Bonus-action casts, reactions (Shield, Counterspell, Hellish Rebuke) and Haste's extra action. The engine resolves the spell, not whether the actor still had the action to spend.
+- **Combat and environment.** Cover (+2 / +5), disadvantage for ranged attacks in melee, the once-per-24-hours long rest, item charges and curses, underwater, mounted, surprise and hiding, and grapple/shove contests.
+- **Targeting and interaction.** A charmed or dominated creature's "cannot attack the charmer", illusion disbelief, invisibility against See Invisibility or Truesight, and polymorph or wild-shape stat blocks.
+
+This boundary is **maintained, not merely documented**: [`tools/spell_coverage_gate.py`](tools/spell_coverage_gate.py) fails the build when a new spell, condition string or buffs field is neither a real engine mechanic nor a reviewed, named entry — so the list above cannot silently grow.

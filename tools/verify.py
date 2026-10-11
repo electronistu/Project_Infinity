@@ -2,11 +2,13 @@
 
 Runs, in order:
 
-  1. the SRD 5.1 conformance gate (``tools/srd_gate.py``)
-  2. the token-budget gate   (``tools/token_budget.py --gate``)
-  3. the dice engine suite   (``web/tests/dice``)
-  4. every web suite         (``web/tests/test_*.py``)
-  5. ``node --check`` on the client  (skipped when node is absent)
+  1. the SRD 5.1 name gate      (``tools/srd_gate.py``)
+  2. the SRD spell-stat gate    (``tools/spell_stats_gate.py``)
+  3. the spell-coverage gate    (``tools/spell_coverage_gate.py``)
+  4. the token-budget gate      (``tools/token_budget.py --gate``)
+  5. the dice engine suite      (``web/tests/dice``)
+  6. every web suite            (``web/tests/test_*.py``)
+  7. ``node --check`` on the client  (skipped when node is absent)
 
 Exit code 0 only when every step passed. This is the project's CI: one command,
 one exit code.
@@ -30,7 +32,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 PY = sys.executable
 CLIENT_JS = "web/static/app.js"
-ALL_STEPS = ("srd", "budget", "dice", "web", "node")
+ALL_STEPS = ("srd", "spellstats", "spellcov", "budget", "dice", "web", "node")
 
 
 def _run(cmd: list[str]) -> subprocess.CompletedProcess:
@@ -45,6 +47,20 @@ def _last_line(text: str) -> str:
 
 def step_srd() -> tuple[bool, str, str]:
     proc = _run([PY, "tools/srd_gate.py"])
+    ok = proc.returncode == 0
+    detail = _last_line(proc.stdout) or _last_line(proc.stderr) or ("GREEN" if ok else "RED")
+    return ok, detail, proc.stdout + proc.stderr
+
+
+def step_spellstats() -> tuple[bool, str, str]:
+    proc = _run([PY, "tools/spell_stats_gate.py"])
+    ok = proc.returncode == 0
+    detail = _last_line(proc.stdout) or _last_line(proc.stderr) or ("GREEN" if ok else "RED")
+    return ok, detail, proc.stdout + proc.stderr
+
+
+def step_spellcov() -> tuple[bool, str, str]:
+    proc = _run([PY, "tools/spell_coverage_gate.py"])
     ok = proc.returncode == 0
     detail = _last_line(proc.stdout) or _last_line(proc.stderr) or ("GREEN" if ok else "RED")
     return ok, detail, proc.stdout + proc.stderr
@@ -88,8 +104,8 @@ def step_node() -> tuple[bool, str, str]:
     return ok, detail, proc.stdout + proc.stderr
 
 
-STEPS = {"srd": step_srd, "budget": step_budget, "dice": step_dice, "web": step_web,
-         "node": step_node}
+STEPS = {"srd": step_srd, "spellstats": step_spellstats, "spellcov": step_spellcov,
+         "budget": step_budget, "dice": step_dice, "web": step_web, "node": step_node}
 
 
 def main() -> int:

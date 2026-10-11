@@ -377,7 +377,9 @@
   duration: Concentration, up to 1 minute
   requires_concentration: true
   buffs:
-    damage_rolls: +1d4
+    damage_rolls:
+      value: '+1d4'
+      damage_type: radiant
   description: Your weapon attacks deal an extra 1d4 radiant damage on a hit.
 - name: Faerie Fire
   level: 1
@@ -608,6 +610,7 @@
   higher_levels: +2d8
   condition: Unconscious
   condition_duration: 1 minute
+  ends_on_damage: true
   description: 'Roll 5d8; the total is how many hit points this spell can affect. Creatures
 
     within 20 feet are affected in ascending order of current HP. Each affected
@@ -654,7 +657,7 @@
   damage_on_miss: 2d4
   duration: Instantaneous
   requires_concentration: false
-  higher_levels: +2d4
+  higher_levels: +1d4
   description: A shimmering green arrow streaks toward a target and bursts in a spray of acid. On a miss, the target still
     takes half damage from the splash.
 - name: Aid
@@ -950,9 +953,8 @@
   attack_type: automatic
   damage_dice: 0d0
   damage_modifier: 0
-  damage_type: healing
-  healing: true
-  flat_healing: true
+  damage_type: ''
+  no_damage: true
   duration: Instantaneous
   requires_concentration: false
   description: 'You touch a creature and end one disease or condition: blinded, deafened, paralyzed, or poisoned.'
@@ -1113,6 +1115,8 @@
   condition_duration: Concentration, up to 1 minute
   duration: Concentration, up to 1 minute
   requires_concentration: true
+  post_hit_save:
+    save_type: con
   description: A black beam of enervating energy springs toward a creature. On a hit, the target deals only half damage with
     Strength-based weapon attacks for the duration. It can repeat the save at the end of each of its turns.
 - name: Rope Trick
@@ -1209,6 +1213,8 @@
   duration: 1 minute
   requires_concentration: false
   higher_levels: +1d8
+  higher_levels_per: 2
+  add_spellcasting_mod: true
   description: You create a floating, spectral weapon that attacks at range. Make a melee spell attack for 1d8 + your spellcasting
     ability modifier force. As a bonus action on subsequent turns, you can move it 20 feet and attack again.
 - name: Suggestion
@@ -1410,7 +1416,7 @@
   attack_type: saving_throw
   save_type: dex
   save_half: true
-  damage_dice: 6d6
+  damage_dice: 8d6
   damage_modifier: 0
   damage_type: fire
   aoe: true
@@ -1526,7 +1532,7 @@
   attack_type: saving_throw
   save_type: dex
   save_half: true
-  damage_dice: 6d6
+  damage_dice: 8d6
   damage_modifier: 0
   damage_type: lightning
   aoe: true
@@ -1624,7 +1630,7 @@
     This spell does not remove a curse from a cursed shield, weapon, or armor, but it does break attunement.
 - name: Revivify
   level: 3
-  school: necromancy
+  school: conjuration
   attack_type: automatic
   damage_dice: 0d0
   damage_modifier: 0
@@ -1768,7 +1774,9 @@
 - name: Wind Wall
   level: 3
   school: evocation
-  attack_type: automatic
+  attack_type: saving_throw
+  save_type: str
+  save_half: true
   damage_dice: 3d8
   damage_modifier: 0
   damage_type: bludgeoning
@@ -1842,6 +1850,10 @@
   duration: Concentration, up to 1 minute
   requires_concentration: true
   higher_levels: +5-foot radius
+  repeat_save:
+    timing: end_of_turn
+    save_type: wis
+    ends_on_success: true
   description: 'Creatures in a 10-foot-radius sphere must make a Wisdom save. On failure, roll a d10 at the start of each
     of their turns: 1 = move random direction, 2-6 = no move/action, 7-8 = attack nearest, 9-10 = act normally. Repeat save
     at end of turn.'
@@ -2020,7 +2032,6 @@
   damage_dice: 20
   damage_modifier: 0
   damage_type: radiant
-  flat_healing: true
   aoe: true
   aoe_shape: sphere
   aoe_size: 10-foot radius
@@ -2062,7 +2073,6 @@
   duration: Instantaneous
   requires_concentration: false
   higher_levels: +1d8
-  extra_higher_levels: +1d6
   description: Hail of rock-hard ice pounds the ground. Creatures take bludgeoning and cold damage. The area becomes difficult
     terrain until the end of your next turn.
 - name: Secret Chest
@@ -2110,13 +2120,22 @@
   school: illusion
   attack_type: saving_throw
   save_type: wis
-  save_half: true
-  damage_dice: 4d10
+  save_half: false
+  damage_dice: 0d0
   damage_modifier: 0
   damage_type: psychic
+  no_damage: true
+  condition: Frightened
+  condition_duration: Concentration, up to 1 minute
   duration: Concentration, up to 1 minute
   requires_concentration: true
-  higher_levels: +1d10
+  repeat_save:
+    timing: start_of_turn
+    save_type: wis
+    damage_dice: 4d10
+    damage_type: psychic
+    ends_on_success: true
+    higher_levels: +1d10
   description: You tap into a creature's nightmares. It must make a Wisdom save. On failure, it takes 4d10 psychic and is
     frightened. It repeats the save at the end of each of its turns.
 - name: Polymorph
@@ -2222,11 +2241,14 @@
 - name: Contact Other Plane
   level: 5
   school: divination
-  attack_type: automatic
-  damage_dice: 0d0
+  attack_type: saving_throw
+  save_type: int
+  save_half: false
+  damage_dice: 6d6
   damage_modifier: 0
-  damage_type: ''
-  no_damage: true
+  damage_type: psychic
+  condition: Insane
+  condition_duration: Until a long rest ends it
   duration: 1 minute
   requires_concentration: false
   ritual: true
@@ -2303,7 +2325,7 @@
   damage_dice: 4d6
   damage_modifier: 0
   damage_type: fire
-  extra_damage_dice: 4d8
+  extra_damage_dice: 4d6
   extra_damage_type: radiant
   aoe: true
   aoe_shape: cylinder
@@ -2311,7 +2333,7 @@
   duration: Instantaneous
   requires_concentration: false
   higher_levels: +1d6
-  extra_higher_levels: +1d8
+  extra_higher_levels: +1d6
   description: A vertical column of divine fire roars down from above. Creatures in a 10-foot-radius, 40-foot-high cylinder
     make a Dexterity save.
 - name: Geas
@@ -2410,7 +2432,7 @@
 - name: Mass Cure Wounds
   add_spellcasting_mod: true
   level: 5
-  school: evocation
+  school: conjuration
   attack_type: automatic
   damage_dice: 3d8
   damage_modifier: 0
@@ -2568,24 +2590,26 @@
   aoe_size: 100-foot long, 20-foot high, 5-foot thick
   duration: Concentration, up to 10 minutes
   requires_concentration: true
-  higher_levels: +1d10
   description: A wall of whirling blades appears. Creatures in the area when it appears make a Dexterity save. Creatures passing
     through must also save. The wall provides three-quarters cover.
 - name: Chain Lightning
   level: 6
   school: evocation
-  attack_type: attack_roll
-  damage_dice: 10d6
+  attack_type: saving_throw
+  save_type: dex
+  save_half: true
+  damage_dice: 10d8
   damage_modifier: 0
   damage_type: lightning
   aoe: true
-  aoe_shape: line
+  aoe_shape: arc
   aoe_size: Arcs to up to 3 secondary targets within 30 feet
   duration: Instantaneous
   requires_concentration: false
-  higher_levels: +1d6
-  description: A bolt of lightning streaks toward a target. On a hit, it takes 10d6 lightning. The lightning then arcs to
-    up to three additional targets within 30 feet, each taking half the damage.
+  higher_levels: +1 target
+  description: A bolt of lightning arcs toward a target. A target must make a Dexterity save, taking 10d8 lightning on a
+    failure or half on a success. Three bolts then leap to as many as three other targets within 30 feet of the first;
+    each target saves separately.
 - name: Circle of Death
   level: 6
   school: necromancy
@@ -2644,6 +2668,18 @@
   condition_duration: Concentration, up to 1 minute
   duration: Concentration, up to 1 minute
   requires_concentration: true
+  eyebite_variants:
+    asleep:
+      condition: Unconscious
+      ends_on_damage: true
+    panicked:
+      condition: Frightened
+    sickened:
+      condition: Sickened
+      repeat_save:
+        timing: end_of_turn
+        save_type: wis
+        ends_on_success: true
   description: 'Your eyes become black voids. On each of your turns until the spell ends, you can target one creature you
     can see. Choose one effect: Asleep (unconscious, wakes on damage/shake), Panicked (frightened, must Dash away), or Sickened
     (disadvantage on attacks/checks).'
@@ -2669,10 +2705,16 @@
   damage_modifier: 0
   damage_type: ''
   no_damage: true
-  condition: Petrified
-  condition_duration: Permanent (after 3 failed saves)
+  condition: Restrained
+  condition_duration: Concentration, up to 1 minute
   duration: Concentration, up to 1 minute
   requires_concentration: true
+  repeat_save:
+    timing: end_of_turn
+    save_type: con
+    successes_to_end: 3
+    failures_to_effect: 3
+    condition_on_failure: Petrified
   description: A creature makes a Constitution save. On failure, it is restrained and must repeat the save at the end of each
     of its turns. After three failed saves, it is permanently petrified. After three successes, the spell ends.
 - name: Forbiddance
@@ -2728,13 +2770,12 @@
   school: necromancy
   attack_type: saving_throw
   save_type: con
-  save_half: false
+  save_half: true
   damage_dice: 14d6
   damage_modifier: 0
   damage_type: necrotic
   duration: Instantaneous
   requires_concentration: false
-  higher_levels: +1d6
   description: You unleash a virulent disease on a creature you can see. On a failed Constitution save, it takes 14d6 necrotic.
     The target's hit points cannot be reduced below 1 by this spell.
 - name: Heal
@@ -2841,7 +2882,6 @@
   condition_duration: 1 round
   duration: Concentration, up to 1 minute
   requires_concentration: true
-  higher_levels: +1d8
   description: A beam of brilliant light flashes out in a 60-foot line. Creatures in the line make a Constitution save, taking
     6d8 radiant and becoming blinded for 1 round. Undead and oozes have disadvantage. On each of your subsequent turns, you
     can use an action to create a new beam.
@@ -2872,7 +2912,7 @@
   aoe_size: Up to ten 10-foot-square panels
   duration: Concentration, up to 10 minutes
   requires_concentration: true
-  higher_levels: +1d6
+  higher_levels: +2d6
   description: A wall of ice appears. Creatures in the space when it appears make a Dexterity save, taking 10d6 cold damage
     on failure. The wall can be a flat barrier or a hemispherical dome. The ice has AC 12 and 30 HP per 10-foot section. When
     destroyed, it leaves a zone of frigid air dealing 5d6 cold.
@@ -2895,7 +2935,7 @@
   attack_type: saving_throw
   save_type: dex
   save_half: true
-  damage_dice: 7d6
+  damage_dice: 12d6
   damage_modifier: 0
   damage_type: fire
   aoe: true
@@ -2904,6 +2944,7 @@
   duration: Concentration, up to 1 minute
   requires_concentration: true
   higher_levels: +1d6
+  delayed_bonus_dice: 1d6
   description: A glowing bead of yellow light forms and can be detonated at any time. Damage increases by 1d6 for each round
     the bead remains, up to an additional 10d6 after 10 rounds. Creatures in the area make a Dexterity save.
 - name: Divine Word
@@ -2950,7 +2991,6 @@
   damage_type: necrotic
   duration: Instantaneous
   requires_concentration: false
-  higher_levels: +1d8
   description: You send negative energy through a creature you can see. On a failed Constitution save, it takes 7d8+30 necrotic.
     A humanoid killed rises as a zombie permanently under your control at the start of your next turn.
 - name: Fire Storm
@@ -2967,7 +3007,6 @@
   aoe_size: Ten 10-foot cubes (configurable)
   duration: Instantaneous
   requires_concentration: false
-  higher_levels: +1d10
   description: A storm of roaring flame fills up to ten 10-foot cubes you can see. Creatures in the area make a Dexterity
     save. The fire ignites flammable objects and damages plants/foliage.
 - name: Forcecage
@@ -3125,7 +3164,6 @@
   condition_duration: 10 minutes
   duration: Until dispelled or triggered
   requires_concentration: false
-  higher_levels: +1d10
   description: 'You inscribe a glyph that triggers when a creature passes over/touches/looks at it. Effects: Death (10d10
     necrotic on a Constitution save), Discord (argue and bicker, unable to take meaningful action for 1 min on a failed Wisdom
     save), Fear (frightened for 1 min), Hopelessness (disadvantage on attacks/checks/saves for 1 min on a failed Charisma
@@ -3375,7 +3413,6 @@
   condition_duration: 1 minute
   duration: Instantaneous
   requires_concentration: false
-  higher_levels: +2d6
   description: A sphere of brilliant sunlight explodes in a 60-foot radius. Creatures inside make a Constitution save, taking
     12d6 radiant and becoming blinded for 1 minute. Oozes and undead have disadvantage. The light dispels magical darkness
     of 8th level or lower.
@@ -3443,7 +3480,7 @@
     Dispel Magic can free it.'
 - name: Mass Heal
   level: 9
-  school: evocation
+  school: conjuration
   attack_type: automatic
   damage_dice: 700
   damage_modifier: 0
@@ -3536,10 +3573,11 @@
   school: illusion
   attack_type: saving_throw
   save_type: wis
-  save_half: true
-  damage_dice: 4d10
+  save_half: false
+  damage_dice: 0d0
   damage_modifier: 0
   damage_type: psychic
+  no_damage: true
   aoe: true
   aoe_shape: sphere
   aoe_size: 30-foot radius
@@ -3547,6 +3585,12 @@
   condition_duration: Concentration, up to 1 minute
   duration: Concentration, up to 1 minute
   requires_concentration: true
+  repeat_save:
+    timing: start_of_turn
+    save_type: wis
+    damage_dice: 4d10
+    damage_type: psychic
+    ends_on_success: true
   description: Creatures of your choice in a 30-foot radius must make a Wisdom save. On failure, they become frightened and
     take 4d10 psychic. At the end of each of their turns, they repeat the save; on failure they take another 4d10 psychic,
     on success the spell ends for them.
@@ -4086,6 +4130,11 @@
   higher_levels: +1d6
   duration: Concentration, up to 1 minute
   requires_concentration: true
+  buffs:
+    damage_rolls:
+      value: '+2d6'
+      damage_type: radiant
+      charges: 1
   description: The next time you hit a creature with a weapon attack, the attack deals an extra 2d6 radiant damage. The target
     sheds dim light in a 5-foot radius and cannot be invisible until the spell ends.
 - name: Detect Thoughts
@@ -4401,10 +4450,16 @@
   damage_modifier: 0
   damage_type: ''
   no_damage: true
+  apply_condition_on_hit: true
   condition: Diseased
   condition_duration: 7 days
   duration: 7 days
   requires_concentration: false
+  repeat_save:
+    timing: end_of_turn
+    save_type: con
+    successes_to_end: 3
+    failures_to_lock: 3
   description: 'You inflict a disease: Blinding Sickness (disadvantage on Wis checks/saves), Filth Fever (disadvantage on
     Str checks/saves), Flesh Rot (vulnerability to all damage), Mindfire (disadvantage on Int checks/saves), Seizure (disadvantage
     on Dex checks/saves), or Slimy Doom (stunned when damaged). 3 successful saves end it, 3 failures = lasts 7 days.'
@@ -4572,7 +4627,6 @@
   damage_dice: 3d10
   damage_modifier: 0
   damage_type: force
-  higher_levels: +1d10
   duration: Concentration, up to 1 minute
   requires_concentration: true
   description: You create a sword-shaped plane of force that hovers within range. You can make a melee spell attack against
@@ -4615,13 +4669,14 @@
   description: Your speech becomes fluent and more convincing. You have advantage on Charisma checks made to influence others.
     Truth-detecting magic registers any lie you tell as true. You can speak and understand any spoken or written language.
 - name: Telepathic Bond
-  level: 8
-  school: evocation
+  level: 5
+  school: divination
   attack_type: automatic
   damage_dice: 0d0
   damage_modifier: 0
   damage_type: ''
   no_damage: true
+  ritual: true
   duration: 24 hours
   requires_concentration: false
   description: You create a telepathic link between yourself and a willing creature you know. You can communicate telepathically

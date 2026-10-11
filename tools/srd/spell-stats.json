@@ -1,0 +1,7938 @@
+{
+ "_meta": {
+  "count": 319,
+  "document": "System Reference Document 5.1 (\"SRD 5.1\"), Wizards of the Coast LLC",
+  "license": "CC-BY-4.0",
+  "method": "Structured stats fetched from dnd5eapi (2014/SRD 5.1), normalised to level / school / attack_type / save_type / save_half / damage / heal / area / upcast / concentration / ritual / duration / higher_level / components / range / casting_time. Reviewed by tools/spell_stats_gate.py, which carries the EXEMPT map.",
+  "source": "https://www.dnd5eapi.co/api/2014/spells"
+ },
+ "spells": {
+  "acid arrow": {
+   "area": null,
+   "attack_type": "attack_roll",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "2": "4d4",
+      "3": "5d4",
+      "4": "6d4",
+      "5": "7d4",
+      "6": "8d4",
+      "7": "9d4",
+      "8": "10d4",
+      "9": "11d4"
+     },
+     "type": "acid"
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": true,
+   "level": 2,
+   "range": "90 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "evocation",
+   "upcast": "+1d4"
+  },
+  "acid splash": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {
+      "1": "1d6",
+      "11": "3d6",
+      "17": "4d6",
+      "5": "2d6"
+     },
+     "slot": {},
+     "type": "acid"
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 0,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "dex",
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "aid": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "8 hours",
+   "heal": {
+    "2": "5",
+    "3": "10",
+    "4": "15",
+    "5": "20",
+    "6": "25",
+    "7": "30",
+    "8": "35",
+    "9": "40"
+   },
+   "higher_level": true,
+   "level": 2,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "alarm": {
+   "area": {
+    "size": 20,
+    "type": "cube"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 minute",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "8 hours",
+   "heal": null,
+   "higher_level": false,
+   "level": 1,
+   "range": "30 feet",
+   "ritual": true,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "alter self": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "animal friendship": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "24 hours",
+   "heal": null,
+   "higher_level": false,
+   "level": 1,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "wis",
+   "school": "enchantment",
+   "upcast": "unjudged"
+  },
+  "animal messenger": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "24 hours",
+   "heal": null,
+   "higher_level": true,
+   "level": 2,
+   "range": "30 feet",
+   "ritual": true,
+   "save_half": false,
+   "save_type": null,
+   "school": "enchantment",
+   "upcast": "unjudged"
+  },
+  "animal shapes": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 24 hours",
+   "heal": null,
+   "higher_level": false,
+   "level": 8,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "animate dead": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 minute",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": true,
+   "level": 3,
+   "range": "10 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "necromancy",
+   "upcast": "unjudged"
+  },
+  "animate objects": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": true,
+   "level": 5,
+   "range": "120 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "antilife shell": {
+   "area": {
+    "size": 10,
+    "type": "sphere"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 5,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "antimagic field": {
+   "area": {
+    "size": 10,
+    "type": "sphere"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 8,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "antipathy/sympathy": {
+   "area": {
+    "size": 200,
+    "type": "cube"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 hour",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "10 days",
+   "heal": null,
+   "higher_level": false,
+   "level": 8,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "enchantment",
+   "upcast": "unjudged"
+  },
+  "arcane eye": {
+   "area": {
+    "size": 30,
+    "type": "sphere"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 4,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "divination",
+   "upcast": "unjudged"
+  },
+  "arcane hand": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": true,
+   "level": 5,
+   "range": "120 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "arcane lock": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Until dispelled",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "arcane sword": {
+   "area": null,
+   "attack_type": "attack_roll",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "7": "3d10"
+     },
+     "type": "force"
+    }
+   ],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 7,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "arcanist's magic aura": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "24 hours",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "illusion",
+   "upcast": "unjudged"
+  },
+  "astral projection": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 hour",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Special",
+   "heal": null,
+   "higher_level": false,
+   "level": 9,
+   "range": "10 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "necromancy",
+   "upcast": "unjudged"
+  },
+  "augury": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 minute",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "Self",
+   "ritual": true,
+   "save_half": false,
+   "save_type": null,
+   "school": "divination",
+   "upcast": "unjudged"
+  },
+  "awaken": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "8 hours",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 5,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "bane": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": true,
+   "level": 1,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "cha",
+   "school": "enchantment",
+   "upcast": "unjudged"
+  },
+  "banishment": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": true,
+   "level": 4,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "cha",
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "barkskin": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "beacon of hope": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 3,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "bestow curse": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": true,
+   "level": 3,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "wis",
+   "school": "necromancy",
+   "upcast": "unjudged"
+  },
+  "black tentacles": {
+   "area": {
+    "size": 20,
+    "type": "cube"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "4": "3d6"
+     },
+     "type": "bludgeoning"
+    }
+   ],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 4,
+   "range": "90 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "dex",
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "blade barrier": {
+   "area": {
+    "size": 100,
+    "type": "line"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "6": "6d10"
+     },
+     "type": "slashing"
+    }
+   ],
+   "duration": "Up to 10 minutes",
+   "heal": null,
+   "higher_level": false,
+   "level": 6,
+   "range": "90 feet",
+   "ritual": false,
+   "save_half": true,
+   "save_type": "dex",
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "bless": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": true,
+   "level": 1,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "enchantment",
+   "upcast": "unjudged"
+  },
+  "blight": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "4": "8d8",
+      "5": "9d8",
+      "6": "10d8",
+      "7": "11d8",
+      "8": "12d8",
+      "9": "13d8"
+     },
+     "type": "necrotic"
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": true,
+   "level": 4,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": true,
+   "save_type": "con",
+   "school": "necromancy",
+   "upcast": "+1d8"
+  },
+  "blindness/deafness": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 minute",
+   "heal": null,
+   "higher_level": true,
+   "level": 2,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "con",
+   "school": "necromancy",
+   "upcast": "unjudged"
+  },
+  "blink": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 3,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "blur": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "illusion",
+   "upcast": "unjudged"
+  },
+  "branding smite": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 bonus action",
+   "components": [
+    "V"
+   ],
+   "concentration": true,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "2": "2d6",
+      "3": "3d6",
+      "4": "4d6",
+      "5": "5d6",
+      "6": "6d6",
+      "7": "7d6",
+      "8": "8d6",
+      "9": "9d6"
+     },
+     "type": "radiant"
+    }
+   ],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": true,
+   "level": 2,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "evocation",
+   "upcast": "+1d6"
+  },
+  "burning hands": {
+   "area": {
+    "size": 15,
+    "type": "cone"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "1": "3d6",
+      "2": "4d6",
+      "3": "5d6",
+      "4": "6d6",
+      "5": "7d6",
+      "6": "8d6",
+      "7": "9d6",
+      "8": "10d6",
+      "9": "11d6"
+     },
+     "type": "fire"
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": true,
+   "level": 1,
+   "range": "Self",
+   "ritual": false,
+   "save_half": true,
+   "save_type": "dex",
+   "school": "evocation",
+   "upcast": "+1d6"
+  },
+  "call lightning": {
+   "area": {
+    "size": 5,
+    "type": "sphere"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "3": "3d10",
+      "4": "4d10",
+      "5": "5d10",
+      "6": "6d10",
+      "7": "7d10",
+      "8": "8d10",
+      "9": "9d10"
+     },
+     "type": "lightning"
+    }
+   ],
+   "duration": "Up to 10 minutes",
+   "heal": null,
+   "higher_level": true,
+   "level": 3,
+   "range": "120 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "+1d10"
+  },
+  "calm emotions": {
+   "area": {
+    "size": 20,
+    "type": "sphere"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "cha",
+   "school": "enchantment",
+   "upcast": "unjudged"
+  },
+  "chain lightning": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "6": "10d8"
+     },
+     "type": "lightning"
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": true,
+   "level": 6,
+   "range": "150 feet",
+   "ritual": false,
+   "save_half": true,
+   "save_type": "dex",
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "charm person": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 hour",
+   "heal": null,
+   "higher_level": true,
+   "level": 1,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "wis",
+   "school": "enchantment",
+   "upcast": "unjudged"
+  },
+  "chill touch": {
+   "area": null,
+   "attack_type": "attack_roll",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {
+      "1": "1d8",
+      "11": "3d8",
+      "17": "4d8",
+      "5": "2d8"
+     },
+     "slot": {},
+     "type": "necrotic"
+    }
+   ],
+   "duration": "1 round",
+   "heal": null,
+   "higher_level": false,
+   "level": 0,
+   "range": "120 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "necromancy",
+   "upcast": "unjudged"
+  },
+  "circle of death": {
+   "area": {
+    "size": 60,
+    "type": "sphere"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "6": "8d6",
+      "7": "10d6",
+      "8": "12d6",
+      "9": "14d6"
+     },
+     "type": "necrotic"
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": true,
+   "level": 6,
+   "range": "150 feet",
+   "ritual": false,
+   "save_half": true,
+   "save_type": "con",
+   "school": "necromancy",
+   "upcast": "+2d6"
+  },
+  "clairvoyance": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "10 minutes",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 10 minutes",
+   "heal": null,
+   "higher_level": false,
+   "level": 3,
+   "range": "1 mile",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "divination",
+   "upcast": "unjudged"
+  },
+  "clone": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 hour",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 8,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "necromancy",
+   "upcast": "unjudged"
+  },
+  "cloudkill": {
+   "area": {
+    "size": 20,
+    "type": "sphere"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "5": "5d8",
+      "6": "6d8",
+      "7": "7d8",
+      "8": "8d8",
+      "9": "9d8"
+     },
+     "type": "poison"
+    }
+   ],
+   "duration": "Up to 10 minutes",
+   "heal": null,
+   "higher_level": true,
+   "level": 5,
+   "range": "120 feet",
+   "ritual": false,
+   "save_half": true,
+   "save_type": "con",
+   "school": "conjuration",
+   "upcast": "+1d8"
+  },
+  "color spray": {
+   "area": {
+    "size": 15,
+    "type": "cone"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 round",
+   "heal": null,
+   "higher_level": true,
+   "level": 1,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "illusion",
+   "upcast": "unjudged"
+  },
+  "command": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 round",
+   "heal": null,
+   "higher_level": true,
+   "level": 1,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "wis",
+   "school": "enchantment",
+   "upcast": "unjudged"
+  },
+  "commune": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 minute",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 5,
+   "range": "Self",
+   "ritual": true,
+   "save_half": false,
+   "save_type": null,
+   "school": "divination",
+   "upcast": "unjudged"
+  },
+  "commune with nature": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 minute",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 5,
+   "range": "Self",
+   "ritual": true,
+   "save_half": false,
+   "save_type": null,
+   "school": "divination",
+   "upcast": "unjudged"
+  },
+  "comprehend languages": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 1,
+   "range": "Self",
+   "ritual": true,
+   "save_half": false,
+   "save_type": null,
+   "school": "divination",
+   "upcast": "unjudged"
+  },
+  "compulsion": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 4,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "wis",
+   "school": "enchantment",
+   "upcast": "unjudged"
+  },
+  "cone of cold": {
+   "area": {
+    "size": 60,
+    "type": "cone"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "5": "8d8",
+      "6": "9d8",
+      "7": "10d8",
+      "8": "11d8",
+      "9": "12d8"
+     },
+     "type": "cold"
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": true,
+   "level": 5,
+   "range": "Self",
+   "ritual": false,
+   "save_half": true,
+   "save_type": "con",
+   "school": "evocation",
+   "upcast": "+1d8"
+  },
+  "confusion": {
+   "area": {
+    "size": 10,
+    "type": "sphere"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": true,
+   "level": 4,
+   "range": "90 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "wis",
+   "school": "enchantment",
+   "upcast": "unjudged"
+  },
+  "conjure animals": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 hour",
+   "heal": null,
+   "higher_level": true,
+   "level": 3,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "conjure celestial": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 minute",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 hour",
+   "heal": null,
+   "higher_level": true,
+   "level": 7,
+   "range": "90 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "conjure elemental": {
+   "area": {
+    "size": 10,
+    "type": "cube"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 minute",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 hour",
+   "heal": null,
+   "higher_level": true,
+   "level": 5,
+   "range": "90 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "conjure fey": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 minute",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 hour",
+   "heal": null,
+   "higher_level": true,
+   "level": 6,
+   "range": "90 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "conjure minor elementals": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 minute",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 hour",
+   "heal": null,
+   "higher_level": true,
+   "level": 4,
+   "range": "90 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "conjure woodland beings": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 hour",
+   "heal": null,
+   "higher_level": true,
+   "level": 4,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "contact other plane": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 minute",
+   "components": [
+    "V"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 5,
+   "range": "Self",
+   "ritual": true,
+   "save_half": false,
+   "save_type": "int",
+   "school": "divination",
+   "upcast": "unjudged"
+  },
+  "contagion": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "7 days",
+   "heal": null,
+   "higher_level": false,
+   "level": 5,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "con",
+   "school": "necromancy",
+   "upcast": "unjudged"
+  },
+  "contingency": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "10 minutes",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "10 days",
+   "heal": null,
+   "higher_level": false,
+   "level": 6,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "continual flame": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Until dispelled",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "control water": {
+   "area": {
+    "size": 100,
+    "type": "cube"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "4": "2d8"
+     },
+     "type": "bludgeoning"
+    }
+   ],
+   "duration": "Up to 10 minutes",
+   "heal": null,
+   "higher_level": false,
+   "level": 4,
+   "range": "300 feet",
+   "ritual": false,
+   "save_half": true,
+   "save_type": "str",
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "control weather": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "10 minutes",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 8 hours",
+   "heal": null,
+   "higher_level": false,
+   "level": 8,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "counterspell": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 reaction",
+   "components": [
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": true,
+   "level": 3,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "create food and water": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 3,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "create or destroy water": {
+   "area": {
+    "size": 30,
+    "type": "cube"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": true,
+   "level": 1,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "create undead": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 minute",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": true,
+   "level": 6,
+   "range": "10 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "necromancy",
+   "upcast": "unjudged"
+  },
+  "creation": {
+   "area": {
+    "size": 5,
+    "type": "cube"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 minute",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Special",
+   "heal": null,
+   "higher_level": true,
+   "level": 5,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "illusion",
+   "upcast": "unjudged"
+  },
+  "cure wounds": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": {
+    "1": "1d8 + MOD",
+    "2": "2d8 + MOD",
+    "3": "3d8 + MOD",
+    "4": "4d8 + MOD",
+    "5": "5d8 + MOD",
+    "6": "6d8 + MOD",
+    "7": "7d8 + MOD",
+    "8": "8d8 + MOD",
+    "9": "9d8 + MOD"
+   },
+   "higher_level": true,
+   "level": 1,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "dancing lights": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 0,
+   "range": "120 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "darkness": {
+   "area": {
+    "size": 15,
+    "type": "sphere"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 10 minutes",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "darkvision": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "8 hours",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "daylight": {
+   "area": {
+    "size": 60,
+    "type": "sphere"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 3,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "death ward": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "8 hours",
+   "heal": null,
+   "higher_level": false,
+   "level": 4,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "delayed blast fireball": {
+   "area": {
+    "size": 20,
+    "type": "sphere"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "7": "12d6",
+      "8": "13d6",
+      "9": "14d6"
+     },
+     "type": "fire"
+    }
+   ],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": true,
+   "level": 7,
+   "range": "150 feet",
+   "ritual": false,
+   "save_half": true,
+   "save_type": "dex",
+   "school": "evocation",
+   "upcast": "+1d6"
+  },
+  "demiplane": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 8,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "detect evil and good": {
+   "area": {
+    "size": 30,
+    "type": "sphere"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 10 minutes",
+   "heal": null,
+   "higher_level": false,
+   "level": 1,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "divination",
+   "upcast": "unjudged"
+  },
+  "detect magic": {
+   "area": {
+    "size": 30,
+    "type": "sphere"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 10 minutes",
+   "heal": null,
+   "higher_level": false,
+   "level": 1,
+   "range": "Self",
+   "ritual": true,
+   "save_half": false,
+   "save_type": null,
+   "school": "divination",
+   "upcast": "unjudged"
+  },
+  "detect poison and disease": {
+   "area": {
+    "size": 30,
+    "type": "sphere"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 10 minutes",
+   "heal": null,
+   "higher_level": false,
+   "level": 1,
+   "range": "Self",
+   "ritual": true,
+   "save_half": false,
+   "save_type": null,
+   "school": "divination",
+   "upcast": "unjudged"
+  },
+  "detect thoughts": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "divination",
+   "upcast": "unjudged"
+  },
+  "dimension door": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "4": "4d6"
+     },
+     "type": "force"
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 4,
+   "range": "500 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "disguise self": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 1,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "illusion",
+   "upcast": "unjudged"
+  },
+  "disintegrate": {
+   "area": {
+    "size": 10,
+    "type": "cube"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "6": "10d6 + 40"
+     },
+     "type": "force"
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": true,
+   "level": 6,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "dex",
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "dispel evil and good": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 5,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "cha",
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "dispel magic": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": true,
+   "level": 3,
+   "range": "120 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "divination": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 4,
+   "range": "Self",
+   "ritual": true,
+   "save_half": false,
+   "save_type": null,
+   "school": "divination",
+   "upcast": "unjudged"
+  },
+  "divine favor": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 bonus action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "1": "1d4"
+     },
+     "type": "radiant"
+    }
+   ],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 1,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "divine word": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 bonus action",
+   "components": [
+    "V"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 7,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "cha",
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "dominate beast": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": true,
+   "level": 4,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "wis",
+   "school": "enchantment",
+   "upcast": "unjudged"
+  },
+  "dominate monster": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 hour",
+   "heal": null,
+   "higher_level": true,
+   "level": 8,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "wis",
+   "school": "enchantment",
+   "upcast": "unjudged"
+  },
+  "dominate person": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": true,
+   "level": 5,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "wis",
+   "school": "enchantment",
+   "upcast": "unjudged"
+  },
+  "dream": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 minute",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "5": "3d6"
+     },
+     "type": "psychic"
+    }
+   ],
+   "duration": "8 hours",
+   "heal": null,
+   "higher_level": false,
+   "level": 5,
+   "range": "Special",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "wis",
+   "school": "illusion",
+   "upcast": "unjudged"
+  },
+  "druidcraft": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 0,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "earthquake": {
+   "area": {
+    "size": 100,
+    "type": "sphere"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 8,
+   "range": "500 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "eldritch blast": {
+   "area": null,
+   "attack_type": "attack_roll",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {
+      "1": "1d10",
+      "11": "1d10",
+      "17": "1d10",
+      "5": "1d10"
+     },
+     "slot": {},
+     "type": "force"
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 0,
+   "range": "120 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "enhance ability": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 hour",
+   "heal": null,
+   "higher_level": true,
+   "level": 2,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "enlarge/reduce": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "con",
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "entangle": {
+   "area": {
+    "size": 20,
+    "type": "cube"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 1,
+   "range": "90 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "str",
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "enthrall": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "wis",
+   "school": "enchantment",
+   "upcast": "unjudged"
+  },
+  "etherealness": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "8 hours",
+   "heal": null,
+   "higher_level": true,
+   "level": 7,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "expeditious retreat": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 bonus action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 10 minutes",
+   "heal": null,
+   "higher_level": false,
+   "level": 1,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "eyebite": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 6,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "wis",
+   "school": "necromancy",
+   "upcast": "unjudged"
+  },
+  "fabricate": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "10 minutes",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 4,
+   "range": "120 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "faerie fire": {
+   "area": {
+    "size": 20,
+    "type": "cube"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 1,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "dex",
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "faithful hound": {
+   "area": null,
+   "attack_type": "attack_roll",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "4": "4d8"
+     },
+     "type": "piercing"
+    }
+   ],
+   "duration": "8 hours",
+   "heal": null,
+   "higher_level": false,
+   "level": 4,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "false life": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 hour",
+   "heal": {
+    "1": "1d4 + 4",
+    "2": "1d4 + 9",
+    "3": "1d4 + 14",
+    "4": "1d4 + 19",
+    "5": "1d4 + 24",
+    "6": "1d4 + 29",
+    "7": "1d4 + 34",
+    "8": "1d4 + 39",
+    "9": "1d4 + 44"
+   },
+   "higher_level": true,
+   "level": 1,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "necromancy",
+   "upcast": "unjudged"
+  },
+  "fear": {
+   "area": {
+    "size": 30,
+    "type": "cone"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 3,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "wis",
+   "school": "illusion",
+   "upcast": "unjudged"
+  },
+  "feather fall": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 reaction",
+   "components": [
+    "V",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 1,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "feeblemind": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "8": "4d6"
+     },
+     "type": "psychic"
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 8,
+   "range": "150 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "int",
+   "school": "enchantment",
+   "upcast": "unjudged"
+  },
+  "find familiar": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 hour",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 1,
+   "range": "10 feet",
+   "ritual": true,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "find steed": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "10 minutes",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "find the path": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 minute",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 24 hours",
+   "heal": null,
+   "higher_level": false,
+   "level": 6,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "divination",
+   "upcast": "unjudged"
+  },
+  "find traps": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "120 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "divination",
+   "upcast": "unjudged"
+  },
+  "finger of death": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "7": "7d8 + 30"
+     },
+     "type": "necrotic"
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 7,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": true,
+   "save_type": "con",
+   "school": "necromancy",
+   "upcast": "unjudged"
+  },
+  "fire bolt": {
+   "area": null,
+   "attack_type": "attack_roll",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {
+      "1": "1d10",
+      "11": "3d10",
+      "17": "4d10",
+      "5": "2d10"
+     },
+     "slot": {},
+     "type": "fire"
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 0,
+   "range": "120 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "fire shield": {
+   "area": {
+    "size": 5,
+    "type": "sphere"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "4": "2d8"
+     },
+     "type": "fire"
+    }
+   ],
+   "duration": "10 minutes",
+   "heal": null,
+   "higher_level": false,
+   "level": 4,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "fire storm": {
+   "area": {
+    "size": 100,
+    "type": "cube"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "7": "7d10"
+     },
+     "type": "fire"
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 7,
+   "range": "150 feet",
+   "ritual": false,
+   "save_half": true,
+   "save_type": "dex",
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "fireball": {
+   "area": {
+    "size": 20,
+    "type": "sphere"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "3": "8d6",
+      "4": "9d6",
+      "5": "10d6",
+      "6": "11d6",
+      "7": "12d6",
+      "8": "13d6",
+      "9": "14d6"
+     },
+     "type": "fire"
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": true,
+   "level": 3,
+   "range": "150 feet",
+   "ritual": false,
+   "save_half": true,
+   "save_type": "dex",
+   "school": "evocation",
+   "upcast": "+1d6"
+  },
+  "flame blade": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 bonus action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "2": "3d6",
+      "4": "4d6",
+      "6": "5d6",
+      "8": "6d6"
+     },
+     "type": "fire"
+    }
+   ],
+   "duration": "Up to 10 minutes",
+   "heal": null,
+   "higher_level": true,
+   "level": 2,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "evocation",
+   "upcast": "+1d6"
+  },
+  "flame strike": {
+   "area": {
+    "size": 40,
+    "type": "cylinder"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "5": "4d6",
+      "6": "4d6 OR 5d6",
+      "7": "4d6 OR 6d6",
+      "8": "4d6 OR 7d6",
+      "9": "4d6 OR 8d6"
+     },
+     "type": "fire"
+    },
+    {
+     "char": {},
+     "slot": {
+      "5": "4d6",
+      "6": "4d6 OR 5d6",
+      "7": "4d6 OR 6d6",
+      "8": "4d6 OR 7d6",
+      "9": "4d6 OR 8d6"
+     },
+     "type": "radiant"
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": true,
+   "level": 5,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": true,
+   "save_type": "dex",
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "flaming sphere": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "2": "2d6",
+      "3": "3d6",
+      "4": "4d6",
+      "5": "5d6",
+      "6": "6d6",
+      "7": "7d6",
+      "8": "8d6",
+      "9": "9d6"
+     },
+     "type": "fire"
+    }
+   ],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": true,
+   "level": 2,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "+1d6"
+  },
+  "flesh to stone": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 6,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "con",
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "floating disk": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 1,
+   "range": "30 feet",
+   "ritual": true,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "fly": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 10 minutes",
+   "heal": null,
+   "higher_level": true,
+   "level": 3,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "fog cloud": {
+   "area": {
+    "size": 20,
+    "type": "sphere"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 hour",
+   "heal": null,
+   "higher_level": true,
+   "level": 1,
+   "range": "120 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "forbiddance": {
+   "area": {
+    "size": 40000,
+    "type": "cube"
+   },
+   "attack_type": "automatic",
+   "casting_time": "10 minutes",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "24 hours",
+   "heal": null,
+   "higher_level": false,
+   "level": 6,
+   "range": "Touch",
+   "ritual": true,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "forcecage": {
+   "area": {
+    "size": 20,
+    "type": "cube"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 7,
+   "range": "100 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "foresight": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 minute",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "8 hours",
+   "heal": null,
+   "higher_level": false,
+   "level": 9,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "divination",
+   "upcast": "unjudged"
+  },
+  "freedom of movement": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 4,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "freezing sphere": {
+   "area": {
+    "size": 60,
+    "type": "sphere"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "6": "10d6"
+     },
+     "type": "cold"
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": true,
+   "level": 6,
+   "range": "300 feet",
+   "ritual": false,
+   "save_half": true,
+   "save_type": "con",
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "gaseous form": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 3,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "gate": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 9,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "geas": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 minute",
+   "components": [
+    "V"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "30 days",
+   "heal": null,
+   "higher_level": true,
+   "level": 5,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "wis",
+   "school": "enchantment",
+   "upcast": "unjudged"
+  },
+  "gentle repose": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "10 days",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "Touch",
+   "ritual": true,
+   "save_half": false,
+   "save_type": null,
+   "school": "necromancy",
+   "upcast": "unjudged"
+  },
+  "giant insect": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 10 minutes",
+   "heal": null,
+   "higher_level": false,
+   "level": 4,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "glibness": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 8,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "globe of invulnerability": {
+   "area": {
+    "size": 10,
+    "type": "sphere"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": true,
+   "level": 6,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "glyph of warding": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 hour",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Until dispelled",
+   "heal": null,
+   "higher_level": true,
+   "level": 3,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "goodberry": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 1,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "grease": {
+   "area": {
+    "size": 10,
+    "type": "cube"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 1,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "dex",
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "greater invisibility": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 4,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "illusion",
+   "upcast": "unjudged"
+  },
+  "greater restoration": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 5,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "guardian of faith": {
+   "area": {
+    "size": 10,
+    "type": "cylinder"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "4": "20"
+     },
+     "type": "radiant"
+    }
+   ],
+   "duration": "8 hours",
+   "heal": null,
+   "higher_level": false,
+   "level": 4,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": true,
+   "save_type": "dex",
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "guards and wards": {
+   "area": {
+    "size": 2500,
+    "type": "cube"
+   },
+   "attack_type": "automatic",
+   "casting_time": "10 minutes",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "24 hours",
+   "heal": null,
+   "higher_level": false,
+   "level": 6,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "guidance": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 0,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "divination",
+   "upcast": "unjudged"
+  },
+  "guiding bolt": {
+   "area": null,
+   "attack_type": "attack_roll",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "1": "4d6",
+      "2": "5d6",
+      "3": "6d6",
+      "4": "7d6",
+      "5": "8d6",
+      "6": "9d6",
+      "7": "10d6",
+      "8": "11d6",
+      "9": "12d6"
+     },
+     "type": "radiant"
+    }
+   ],
+   "duration": "1 round",
+   "heal": null,
+   "higher_level": true,
+   "level": 1,
+   "range": "120 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "evocation",
+   "upcast": "+1d6"
+  },
+  "gust of wind": {
+   "area": {
+    "size": 60,
+    "type": "line"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "str",
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "hallow": {
+   "area": {
+    "size": 60,
+    "type": "sphere"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "24 hours",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Until dispelled",
+   "heal": null,
+   "higher_level": false,
+   "level": 5,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "cha",
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "hallucinatory terrain": {
+   "area": {
+    "size": 150,
+    "type": "cube"
+   },
+   "attack_type": "automatic",
+   "casting_time": "10 minutes",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "24 hours",
+   "heal": null,
+   "higher_level": false,
+   "level": 4,
+   "range": "300 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "illusion",
+   "upcast": "unjudged"
+  },
+  "harm": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "6": "14d6"
+     },
+     "type": "necrotic"
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 6,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": true,
+   "save_type": "con",
+   "school": "necromancy",
+   "upcast": "unjudged"
+  },
+  "haste": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 3,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "heal": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": {
+    "6": "70",
+    "7": "80",
+    "8": "90",
+    "9": "100"
+   },
+   "higher_level": true,
+   "level": 6,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "healing word": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 bonus action",
+   "components": [
+    "V"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": {
+    "1": "1d4 + MOD",
+    "2": "2d4 + MOD",
+    "3": "3d4 + MOD",
+    "4": "4d4 + MOD",
+    "5": "5d4 + MOD",
+    "6": "6d4 + MOD",
+    "7": "7d4 + MOD",
+    "8": "8d4 + MOD",
+    "9": "9d4 + MOD"
+   },
+   "higher_level": true,
+   "level": 1,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "heat metal": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "2": "2d8",
+      "3": "3d8",
+      "4": "4d8",
+      "5": "5d8",
+      "6": "6d8",
+      "7": "7d8",
+      "8": "8d8",
+      "9": "9d8"
+     },
+     "type": "fire"
+    }
+   ],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": true,
+   "level": 2,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "con",
+   "school": "transmutation",
+   "upcast": "+1d8"
+  },
+  "hellish rebuke": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 reaction",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "1": "2d10",
+      "2": "3d10",
+      "3": "4d10",
+      "4": "5d10",
+      "5": "6d10",
+      "6": "7d10",
+      "7": "8d10",
+      "8": "9d10",
+      "9": "10d10"
+     },
+     "type": "fire"
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": true,
+   "level": 1,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": true,
+   "save_type": "dex",
+   "school": "evocation",
+   "upcast": "+1d10"
+  },
+  "heroes' feast": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "10 minutes",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 6,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "heroism": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 1,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "enchantment",
+   "upcast": "unjudged"
+  },
+  "hideous laughter": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 1,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "wis",
+   "school": "enchantment",
+   "upcast": "unjudged"
+  },
+  "hold monster": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": true,
+   "level": 5,
+   "range": "90 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "wis",
+   "school": "enchantment",
+   "upcast": "unjudged"
+  },
+  "hold person": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": true,
+   "level": 2,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "wis",
+   "school": "enchantment",
+   "upcast": "unjudged"
+  },
+  "holy aura": {
+   "area": {
+    "size": 30,
+    "type": "sphere"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 8,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "hunter's mark": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 bonus action",
+   "components": [
+    "V"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 hour",
+   "heal": null,
+   "higher_level": true,
+   "level": 1,
+   "range": "90 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "divination",
+   "upcast": "unjudged"
+  },
+  "hypnotic pattern": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 3,
+   "range": "120 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "wis",
+   "school": "illusion",
+   "upcast": "unjudged"
+  },
+  "ice storm": {
+   "area": {
+    "size": 20,
+    "type": "cylinder"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "4": "2d8",
+      "5": "3d8",
+      "6": "4d8",
+      "7": "5d8",
+      "8": "6d8",
+      "9": "7d8"
+     },
+     "type": "bludgeoning"
+    },
+    {
+     "char": {},
+     "slot": {
+      "4": "4d6",
+      "5": "4d6",
+      "6": "4d6",
+      "7": "4d6",
+      "8": "4d6",
+      "9": "4d6"
+     },
+     "type": "cold"
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": true,
+   "level": 4,
+   "range": "300 feet",
+   "ritual": false,
+   "save_half": true,
+   "save_type": "dex",
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "identify": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 minute",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 1,
+   "range": "Touch",
+   "ritual": true,
+   "save_half": false,
+   "save_type": null,
+   "school": "divination",
+   "upcast": "unjudged"
+  },
+  "illusory script": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 minute",
+   "components": [
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "10 days",
+   "heal": null,
+   "higher_level": false,
+   "level": 1,
+   "range": "Touch",
+   "ritual": true,
+   "save_half": false,
+   "save_type": null,
+   "school": "illusion",
+   "upcast": "unjudged"
+  },
+  "imprisonment": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 minute",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Until dispelled",
+   "heal": null,
+   "higher_level": false,
+   "level": 9,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "wis",
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "incendiary cloud": {
+   "area": {
+    "size": 20,
+    "type": "sphere"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "8": "10d8"
+     },
+     "type": "fire"
+    }
+   ],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 8,
+   "range": "150 feet",
+   "ritual": false,
+   "save_half": true,
+   "save_type": "dex",
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "inflict wounds": {
+   "area": null,
+   "attack_type": "attack_roll",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "1": "3d10",
+      "2": "4d10",
+      "3": "5d10",
+      "4": "6d10",
+      "5": "7d10",
+      "6": "8d10",
+      "7": "9d10",
+      "8": "10d10",
+      "9": "11d10"
+     },
+     "type": "necrotic"
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": true,
+   "level": 1,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "necromancy",
+   "upcast": "+1d10"
+  },
+  "insect plague": {
+   "area": {
+    "size": 20,
+    "type": "sphere"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "5": "4d10",
+      "6": "5d10",
+      "7": "6d10",
+      "8": "7d10",
+      "9": "8d10"
+     },
+     "type": "piercing"
+    }
+   ],
+   "duration": "Up to 10 minutes",
+   "heal": null,
+   "higher_level": true,
+   "level": 5,
+   "range": "300 feet",
+   "ritual": false,
+   "save_half": true,
+   "save_type": "con",
+   "school": "conjuration",
+   "upcast": "+1d10"
+  },
+  "instant summons": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 minute",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Until dispelled",
+   "heal": null,
+   "higher_level": false,
+   "level": 6,
+   "range": "Touch",
+   "ritual": true,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "invisibility": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 hour",
+   "heal": null,
+   "higher_level": true,
+   "level": 2,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "illusion",
+   "upcast": "unjudged"
+  },
+  "irresistible dance": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 6,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "enchantment",
+   "upcast": "unjudged"
+  },
+  "jump": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 1,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "knock": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "legend lore": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "10 minutes",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 5,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "divination",
+   "upcast": "unjudged"
+  },
+  "lesser restoration": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "levitate": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 10 minutes",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "light": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 0,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "dex",
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "lightning bolt": {
+   "area": {
+    "size": 100,
+    "type": "line"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "3": "8d6",
+      "4": "9d6",
+      "5": "10d6",
+      "6": "11d6",
+      "7": "12d6",
+      "8": "13d6",
+      "9": "14d6"
+     },
+     "type": "lightning"
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": true,
+   "level": 3,
+   "range": "Self",
+   "ritual": false,
+   "save_half": true,
+   "save_type": "dex",
+   "school": "evocation",
+   "upcast": "+1d6"
+  },
+  "locate animals or plants": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "Self",
+   "ritual": true,
+   "save_half": false,
+   "save_type": null,
+   "school": "divination",
+   "upcast": "unjudged"
+  },
+  "locate creature": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 4,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "divination",
+   "upcast": "unjudged"
+  },
+  "locate object": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 10 minutes",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "divination",
+   "upcast": "unjudged"
+  },
+  "longstrider": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 hour",
+   "heal": null,
+   "higher_level": true,
+   "level": 1,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "mage armor": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "8 hours",
+   "heal": null,
+   "higher_level": false,
+   "level": 1,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "mage hand": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 0,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "magic circle": {
+   "area": {
+    "size": 10,
+    "type": "cylinder"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 minute",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 hour",
+   "heal": null,
+   "higher_level": true,
+   "level": 3,
+   "range": "10 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "cha",
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "magic jar": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 minute",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Until dispelled",
+   "heal": null,
+   "higher_level": false,
+   "level": 6,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "cha",
+   "school": "necromancy",
+   "upcast": "unjudged"
+  },
+  "magic missile": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "1": "3d4 + 3",
+      "2": "4d4 + 4",
+      "3": "5d4 + 5",
+      "4": "6d4 + 6",
+      "5": "7d4 + 7",
+      "6": "8d4 + 8",
+      "7": "9d4 + 9",
+      "8": "10d4 + 10",
+      "9": "11d4 + 11"
+     },
+     "type": "force"
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": true,
+   "level": 1,
+   "range": "120 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "magic mouth": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 minute",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Until dispelled",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "30 feet",
+   "ritual": true,
+   "save_half": false,
+   "save_type": null,
+   "school": "illusion",
+   "upcast": "unjudged"
+  },
+  "magic weapon": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 bonus action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 hour",
+   "heal": null,
+   "higher_level": true,
+   "level": 2,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "magnificent mansion": {
+   "area": {
+    "size": 5,
+    "type": "cube"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 minute",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "24 hours",
+   "heal": null,
+   "higher_level": false,
+   "level": 7,
+   "range": "300 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "major image": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 10 minutes",
+   "heal": null,
+   "higher_level": true,
+   "level": 3,
+   "range": "120 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "illusion",
+   "upcast": "unjudged"
+  },
+  "mass cure wounds": {
+   "area": {
+    "size": 30,
+    "type": "sphere"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": {
+    "5": "3d8 + MOD",
+    "6": "4d8 + MOD",
+    "7": "5d8 + MOD",
+    "8": "6d8 + MOD",
+    "9": "7d8 + MOD"
+   },
+   "higher_level": true,
+   "level": 5,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "mass heal": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": {
+    "9": "700"
+   },
+   "higher_level": false,
+   "level": 9,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "mass healing word": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 bonus action",
+   "components": [
+    "V"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": {
+    "3": "1d4 + MOD",
+    "4": "2d4 + MOD",
+    "5": "3d4 + MOD",
+    "6": "4d4 + MOD",
+    "7": "5d4 + MOD",
+    "8": "6d4 + MOD",
+    "9": "7d4 + MOD"
+   },
+   "higher_level": true,
+   "level": 3,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "mass suggestion": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "24 hours",
+   "heal": null,
+   "higher_level": true,
+   "level": 6,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "wis",
+   "school": "enchantment",
+   "upcast": "unjudged"
+  },
+  "maze": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 10 minutes",
+   "heal": null,
+   "higher_level": false,
+   "level": 8,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "meld into stone": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "8 hours",
+   "heal": null,
+   "higher_level": false,
+   "level": 3,
+   "range": "Touch",
+   "ritual": true,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "mending": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 minute",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 0,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "message": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 round",
+   "heal": null,
+   "higher_level": false,
+   "level": 0,
+   "range": "120 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "meteor swarm": {
+   "area": {
+    "size": 40,
+    "type": "sphere"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "9": "20d6"
+     },
+     "type": "fire"
+    },
+    {
+     "char": {},
+     "slot": {
+      "9": "20d6"
+     },
+     "type": "bludgeoning"
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 9,
+   "range": "1 mile",
+   "ritual": false,
+   "save_half": true,
+   "save_type": "dex",
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "mind blank": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "24 hours",
+   "heal": null,
+   "higher_level": false,
+   "level": 8,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "minor illusion": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 0,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "illusion",
+   "upcast": "unjudged"
+  },
+  "mirage arcane": {
+   "area": {
+    "size": 5280,
+    "type": "cube"
+   },
+   "attack_type": "automatic",
+   "casting_time": "10 minutes",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "10 days",
+   "heal": null,
+   "higher_level": false,
+   "level": 7,
+   "range": "Sight",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "illusion",
+   "upcast": "unjudged"
+  },
+  "mirror image": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "illusion",
+   "upcast": "unjudged"
+  },
+  "mislead": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 5,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "illusion",
+   "upcast": "unjudged"
+  },
+  "misty step": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 bonus action",
+   "components": [
+    "V"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "modify memory": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": true,
+   "level": 5,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "wis",
+   "school": "enchantment",
+   "upcast": "unjudged"
+  },
+  "moonbeam": {
+   "area": {
+    "size": 5,
+    "type": "cylinder"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "2": "2d10",
+      "3": "3d10",
+      "4": "4d10",
+      "5": "5d10",
+      "6": "6d10",
+      "7": "7d10",
+      "8": "8d10",
+      "9": "9d10"
+     },
+     "type": "radiant"
+    }
+   ],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": true,
+   "level": 2,
+   "range": "120 feet",
+   "ritual": false,
+   "save_half": true,
+   "save_type": "con",
+   "school": "evocation",
+   "upcast": "+1d10"
+  },
+  "move earth": {
+   "area": {
+    "size": 40,
+    "type": "cone"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 2 hours",
+   "heal": null,
+   "higher_level": false,
+   "level": 6,
+   "range": "120 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "nondetection": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "8 hours",
+   "heal": null,
+   "higher_level": false,
+   "level": 3,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "pass without trace": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "passwall": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 5,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "phantasmal killer": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "4": "4d10"
+     },
+     "type": "psychic"
+    }
+   ],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": true,
+   "level": 4,
+   "range": "120 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "wis",
+   "school": "illusion",
+   "upcast": "unjudged"
+  },
+  "phantom steed": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 minute",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 3,
+   "range": "30 feet",
+   "ritual": true,
+   "save_half": false,
+   "save_type": null,
+   "school": "illusion",
+   "upcast": "unjudged"
+  },
+  "planar ally": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "10 minutes",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 6,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "planar binding": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 hour",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "24 hours",
+   "heal": null,
+   "higher_level": true,
+   "level": 5,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "cha",
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "plane shift": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 7,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "cha",
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "plant growth": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 3,
+   "range": "150 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "poison spray": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {
+      "1": "1d12",
+      "11": "3d12",
+      "17": "4d12",
+      "5": "2d12"
+     },
+     "slot": {},
+     "type": "poison"
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 0,
+   "range": "10 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "con",
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "polymorph": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 4,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "wis",
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "power word kill": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 9,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "enchantment",
+   "upcast": "unjudged"
+  },
+  "power word stun": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 8,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "enchantment",
+   "upcast": "unjudged"
+  },
+  "prayer of healing": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "10 minutes",
+   "components": [
+    "V"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": {
+    "2": "2d8 + MOD",
+    "3": "3d8 + MOD",
+    "4": "4d8 + MOD",
+    "5": "5d8 + MOD",
+    "6": "6d8 + MOD",
+    "7": "7d8 + MOD",
+    "8": "8d8 + MOD",
+    "9": "9d8 + MOD"
+   },
+   "higher_level": true,
+   "level": 2,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "prestidigitation": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 0,
+   "range": "10 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "prismatic spray": {
+   "area": {
+    "size": 60,
+    "type": "cone"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "7": "10d6"
+     },
+     "type": null
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 7,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "dex",
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "prismatic wall": {
+   "area": {
+    "size": 90,
+    "type": "line"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "10 minutes",
+   "heal": null,
+   "higher_level": false,
+   "level": 9,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "private sanctum": {
+   "area": {
+    "size": 100,
+    "type": "cube"
+   },
+   "attack_type": "automatic",
+   "casting_time": "10 minutes",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "24 hours",
+   "heal": null,
+   "higher_level": true,
+   "level": 4,
+   "range": "120 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "produce flame": {
+   "area": null,
+   "attack_type": "attack_roll",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {
+      "1": "1d8",
+      "11": "3d8",
+      "17": "4d8",
+      "5": "2d8"
+     },
+     "slot": {},
+     "type": "fire"
+    }
+   ],
+   "duration": "10 minutes",
+   "heal": null,
+   "higher_level": false,
+   "level": 0,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "programmed illusion": {
+   "area": {
+    "size": 30,
+    "type": "cube"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Until dispelled",
+   "heal": null,
+   "higher_level": false,
+   "level": 6,
+   "range": "120 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "illusion",
+   "upcast": "unjudged"
+  },
+  "project image": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 24 hours",
+   "heal": null,
+   "higher_level": false,
+   "level": 7,
+   "range": "500 miles",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "illusion",
+   "upcast": "unjudged"
+  },
+  "protection from energy": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 3,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "protection from evil and good": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 10 minutes",
+   "heal": null,
+   "higher_level": false,
+   "level": 1,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "protection from poison": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "purify food and drink": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 1,
+   "range": "10 feet",
+   "ritual": true,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "raise dead": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 hour",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 5,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "necromancy",
+   "upcast": "unjudged"
+  },
+  "ray of enfeeblement": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "con",
+   "school": "necromancy",
+   "upcast": "unjudged"
+  },
+  "ray of frost": {
+   "area": null,
+   "attack_type": "attack_roll",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {
+      "1": "1d8",
+      "11": "3d8",
+      "17": "4d8",
+      "5": "2d8"
+     },
+     "slot": {},
+     "type": "cold"
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 0,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "regenerate": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 minute",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 hour",
+   "heal": {
+    "7": "4d8 + 15"
+   },
+   "higher_level": false,
+   "level": 7,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "reincarnate": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 hour",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 5,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "remove curse": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 3,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "resilient sphere": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 4,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "dex",
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "resistance": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 0,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "resurrection": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 hour",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 7,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "necromancy",
+   "upcast": "unjudged"
+  },
+  "reverse gravity": {
+   "area": {
+    "size": 50,
+    "type": "cylinder"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 7,
+   "range": "100 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "dex",
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "revivify": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 3,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "rope trick": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "sacred flame": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {
+      "1": "1d8",
+      "11": "3d8",
+      "17": "4d8",
+      "5": "2d8"
+     },
+     "slot": {},
+     "type": "radiant"
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 0,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "dex",
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "sanctuary": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 bonus action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 1,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "scorching ray": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "2": "2d6"
+     },
+     "type": "fire"
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": true,
+   "level": 2,
+   "range": "120 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "scrying": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "10 minutes",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 10 minutes",
+   "heal": null,
+   "higher_level": false,
+   "level": 5,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "wis",
+   "school": "divination",
+   "upcast": "unjudged"
+  },
+  "secret chest": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 4,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "see invisibility": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "divination",
+   "upcast": "unjudged"
+  },
+  "seeming": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "8 hours",
+   "heal": null,
+   "higher_level": false,
+   "level": 5,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "illusion",
+   "upcast": "unjudged"
+  },
+  "sending": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 round",
+   "heal": null,
+   "higher_level": false,
+   "level": 3,
+   "range": "Unlimited",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "sequester": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Until dispelled",
+   "heal": null,
+   "higher_level": false,
+   "level": 7,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "shapechange": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 9,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "shatter": {
+   "area": {
+    "size": 10,
+    "type": "sphere"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "2": "3d8",
+      "3": "4d8",
+      "4": "5d8",
+      "5": "6d8",
+      "6": "7d8",
+      "7": "8d8",
+      "8": "9d8",
+      "9": "10d8"
+     },
+     "type": "thunder"
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": true,
+   "level": 2,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": true,
+   "save_type": "con",
+   "school": "evocation",
+   "upcast": "+1d8"
+  },
+  "shield": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 reaction",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 round",
+   "heal": null,
+   "higher_level": false,
+   "level": 1,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "shield of faith": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 bonus action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 10 minutes",
+   "heal": null,
+   "higher_level": false,
+   "level": 1,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "shillelagh": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 bonus action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 0,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "shocking grasp": {
+   "area": null,
+   "attack_type": "attack_roll",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {
+      "1": "1d8",
+      "11": "3d8",
+      "17": "4d8",
+      "5": "2d8"
+     },
+     "slot": {},
+     "type": "lightning"
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 0,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "silence": {
+   "area": {
+    "size": 20,
+    "type": "sphere"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 10 minutes",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "120 feet",
+   "ritual": true,
+   "save_half": false,
+   "save_type": null,
+   "school": "illusion",
+   "upcast": "unjudged"
+  },
+  "silent image": {
+   "area": {
+    "size": 15,
+    "type": "cube"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 10 minutes",
+   "heal": null,
+   "higher_level": false,
+   "level": 1,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "illusion",
+   "upcast": "unjudged"
+  },
+  "simulacrum": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "12 hours",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Until dispelled",
+   "heal": null,
+   "higher_level": false,
+   "level": 7,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "illusion",
+   "upcast": "unjudged"
+  },
+  "sleep": {
+   "area": {
+    "size": 20,
+    "type": "sphere"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "1": "5d8"
+     },
+     "type": null
+    }
+   ],
+   "duration": "1 minute",
+   "heal": null,
+   "higher_level": true,
+   "level": 1,
+   "range": "90 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "enchantment",
+   "upcast": "unjudged"
+  },
+  "sleet storm": {
+   "area": {
+    "size": 40,
+    "type": "cylinder"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 3,
+   "range": "150 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "slow": {
+   "area": {
+    "size": 40,
+    "type": "cube"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 3,
+   "range": "120 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "wis",
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "spare the dying": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 0,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "necromancy",
+   "upcast": "unjudged"
+  },
+  "speak with animals": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "10 minutes",
+   "heal": null,
+   "higher_level": false,
+   "level": 1,
+   "range": "Self",
+   "ritual": true,
+   "save_half": false,
+   "save_type": null,
+   "school": "divination",
+   "upcast": "unjudged"
+  },
+  "speak with dead": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "10 minutes",
+   "heal": null,
+   "higher_level": false,
+   "level": 3,
+   "range": "10 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "necromancy",
+   "upcast": "unjudged"
+  },
+  "speak with plants": {
+   "area": {
+    "size": 30,
+    "type": "sphere"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "10 minutes",
+   "heal": null,
+   "higher_level": false,
+   "level": 3,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "spider climb": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "spike growth": {
+   "area": {
+    "size": 20,
+    "type": "cylinder"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 10 minutes",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "150 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "spirit guardians": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 10 minutes",
+   "heal": null,
+   "higher_level": true,
+   "level": 3,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "spiritual weapon": {
+   "area": null,
+   "attack_type": "attack_roll",
+   "casting_time": "1 bonus action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "2": "1d8 + MOD",
+      "3": "1d8 + MOD",
+      "4": "2d8 + MOD",
+      "5": "2d8 + MOD",
+      "6": "3d8 + MOD",
+      "7": "3d8 + MOD",
+      "8": "4d8 + MOD",
+      "9": "4d8 + MOD"
+     },
+     "type": "force"
+    }
+   ],
+   "duration": "1 minute",
+   "heal": null,
+   "higher_level": true,
+   "level": 2,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "stinking cloud": {
+   "area": {
+    "size": 20,
+    "type": "sphere"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 3,
+   "range": "90 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "con",
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "stone shape": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 4,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "stoneskin": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 4,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "storm of vengeance": {
+   "area": {
+    "size": 360,
+    "type": "sphere"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "9": "2d6"
+     },
+     "type": "thunder"
+    }
+   ],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 9,
+   "range": "Sight",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "con",
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "suggestion": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 8 hours",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "wis",
+   "school": "enchantment",
+   "upcast": "unjudged"
+  },
+  "sunbeam": {
+   "area": {
+    "size": 60,
+    "type": "line"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "6": "6d8"
+     },
+     "type": "radiant"
+    }
+   ],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 6,
+   "range": "Self",
+   "ritual": false,
+   "save_half": true,
+   "save_type": "con",
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "sunburst": {
+   "area": {
+    "size": 60,
+    "type": "cylinder"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "8": "12d6"
+     },
+     "type": "radiant"
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 8,
+   "range": "150 feet",
+   "ritual": false,
+   "save_half": true,
+   "save_type": "con",
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "symbol": {
+   "area": {
+    "size": 10,
+    "type": "cube"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 minute",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Until dispelled",
+   "heal": null,
+   "higher_level": false,
+   "level": 7,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "telekinesis": {
+   "area": {
+    "size": 30,
+    "type": "sphere"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 10 minutes",
+   "heal": null,
+   "higher_level": false,
+   "level": 5,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "telepathic bond": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 5,
+   "range": "30 feet",
+   "ritual": true,
+   "save_half": false,
+   "save_type": null,
+   "school": "divination",
+   "upcast": "unjudged"
+  },
+  "teleport": {
+   "area": {
+    "size": 10,
+    "type": "cube"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 7,
+   "range": "10 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "teleportation circle": {
+   "area": {
+    "size": 10,
+    "type": "sphere"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 minute",
+   "components": [
+    "V",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 round",
+   "heal": null,
+   "higher_level": false,
+   "level": 5,
+   "range": "10 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "thaumaturgy": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 0,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "thunderwave": {
+   "area": {
+    "size": 15,
+    "type": "cube"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "1": "2d8",
+      "2": "3d8",
+      "3": "4d8",
+      "4": "5d8",
+      "5": "6d8",
+      "6": "7d8",
+      "7": "8d8",
+      "8": "9d8",
+      "9": "10d8"
+     },
+     "type": "thunder"
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": true,
+   "level": 1,
+   "range": "Self",
+   "ritual": false,
+   "save_half": true,
+   "save_type": "con",
+   "school": "evocation",
+   "upcast": "+1d8"
+  },
+  "time stop": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 9,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "tiny hut": {
+   "area": {
+    "size": 10,
+    "type": "sphere"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 minute",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "8 hours",
+   "heal": null,
+   "higher_level": false,
+   "level": 3,
+   "range": "Self",
+   "ritual": true,
+   "save_half": false,
+   "save_type": null,
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "tongues": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 3,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "divination",
+   "upcast": "unjudged"
+  },
+  "transport via plants": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 round",
+   "heal": null,
+   "higher_level": false,
+   "level": 6,
+   "range": "10 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "tree stride": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 5,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "true polymorph": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 9,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "true resurrection": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 hour",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 9,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "necromancy",
+   "upcast": "unjudged"
+  },
+  "true seeing": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 6,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "divination",
+   "upcast": "unjudged"
+  },
+  "true strike": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 round",
+   "heal": null,
+   "higher_level": false,
+   "level": 0,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "divination",
+   "upcast": "unjudged"
+  },
+  "unseen servant": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 1,
+   "range": "60 feet",
+   "ritual": true,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "vampiric touch": {
+   "area": null,
+   "attack_type": "attack_roll",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "3": "3d6",
+      "4": "4d6",
+      "5": "5d6",
+      "6": "6d6",
+      "7": "7d6",
+      "8": "8d6",
+      "9": "9d6"
+     },
+     "type": "necrotic"
+    }
+   ],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": true,
+   "level": 3,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "necromancy",
+   "upcast": "+1d6"
+  },
+  "vicious mockery": {
+   "area": null,
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V"
+   ],
+   "concentration": false,
+   "damage": [
+    {
+     "char": {
+      "1": "1d4",
+      "11": "3d4",
+      "17": "4d4",
+      "5": "2d4"
+     },
+     "slot": {},
+     "type": "psychic"
+    }
+   ],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 0,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "wis",
+   "school": "enchantment",
+   "upcast": "unjudged"
+  },
+  "wall of fire": {
+   "area": {
+    "size": 60,
+    "type": "line"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "4": "5d8"
+     },
+     "type": "fire"
+    }
+   ],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": true,
+   "level": 4,
+   "range": "120 feet",
+   "ritual": false,
+   "save_half": true,
+   "save_type": "dex",
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "wall of force": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 10 minutes",
+   "heal": null,
+   "higher_level": false,
+   "level": 5,
+   "range": "120 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "wall of ice": {
+   "area": {
+    "size": 10,
+    "type": "sphere"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "6": "10d6",
+      "7": "12d6",
+      "8": "14d6",
+      "9": "16d6"
+     },
+     "type": "cold"
+    }
+   ],
+   "duration": "Up to 10 minutes",
+   "heal": null,
+   "higher_level": true,
+   "level": 6,
+   "range": "120 feet",
+   "ritual": false,
+   "save_half": true,
+   "save_type": "dex",
+   "school": "evocation",
+   "upcast": "+2d6"
+  },
+  "wall of stone": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 10 minutes",
+   "heal": null,
+   "higher_level": false,
+   "level": 5,
+   "range": "120 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "wall of thorns": {
+   "area": {
+    "size": 60,
+    "type": "line"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "6": "7d8",
+      "7": "8d8",
+      "8": "9d8",
+      "9": "10d8"
+     },
+     "type": "piercing"
+    }
+   ],
+   "duration": "Up to 10 minutes",
+   "heal": null,
+   "higher_level": true,
+   "level": 6,
+   "range": "120 feet",
+   "ritual": false,
+   "save_half": true,
+   "save_type": "dex",
+   "school": "conjuration",
+   "upcast": "+1d8"
+  },
+  "warding bond": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "Touch",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "abjuration",
+   "upcast": "unjudged"
+  },
+  "water breathing": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "24 hours",
+   "heal": null,
+   "higher_level": false,
+   "level": 3,
+   "range": "30 feet",
+   "ritual": true,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "water walk": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 3,
+   "range": "30 feet",
+   "ritual": true,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "web": {
+   "area": {
+    "size": 20,
+    "type": "cube"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 hour",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "weird": {
+   "area": {
+    "size": 30,
+    "type": "sphere"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": true,
+   "damage": [],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 9,
+   "range": "120 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": "wis",
+   "school": "illusion",
+   "upcast": "unjudged"
+  },
+  "wind walk": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 minute",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "8 hours",
+   "heal": null,
+   "higher_level": false,
+   "level": 6,
+   "range": "30 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "transmutation",
+   "upcast": "unjudged"
+  },
+  "wind wall": {
+   "area": {
+    "size": 50,
+    "type": "line"
+   },
+   "attack_type": "saving_throw",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S",
+    "M"
+   ],
+   "concentration": true,
+   "damage": [
+    {
+     "char": {},
+     "slot": {
+      "3": "3d8"
+     },
+     "type": "bludgeoning"
+    }
+   ],
+   "duration": "Up to 1 minute",
+   "heal": null,
+   "higher_level": false,
+   "level": 3,
+   "range": "120 feet",
+   "ritual": false,
+   "save_half": true,
+   "save_type": "str",
+   "school": "evocation",
+   "upcast": "unjudged"
+  },
+  "wish": {
+   "area": null,
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 9,
+   "range": "Self",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "word of recall": {
+   "area": {
+    "size": 5,
+    "type": "sphere"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "Instantaneous",
+   "heal": null,
+   "higher_level": false,
+   "level": 6,
+   "range": "5 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "conjuration",
+   "upcast": "unjudged"
+  },
+  "zone of truth": {
+   "area": {
+    "size": 15,
+    "type": "sphere"
+   },
+   "attack_type": "automatic",
+   "casting_time": "1 action",
+   "components": [
+    "V",
+    "S"
+   ],
+   "concentration": false,
+   "damage": [],
+   "duration": "10 minutes",
+   "heal": null,
+   "higher_level": false,
+   "level": 2,
+   "range": "60 feet",
+   "ritual": false,
+   "save_half": false,
+   "save_type": null,
+   "school": "enchantment",
+   "upcast": "unjudged"
+  }
+ }
+}

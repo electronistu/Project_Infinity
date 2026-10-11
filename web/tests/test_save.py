@@ -89,6 +89,22 @@ async def functional() -> bool:
     got_timeline = got_saved = saved_before_manual = False
     session = GameSession(base_dir=REPO, model=MODEL, context_window=1_048_576, temperature=1.0)
     ok = False
+
+    # The timeline entry's text is a model call in production, so its wording (and whether it
+    # carries '**Key Events**') is nondeterministic -- the source of this suite's one-off flake.
+    # Stub it with the real method's contract: a deterministic entry, `last_timeline_turn`
+    # advanced, and the `timeline` event emitted.
+    async def _fake_summary(target_turn):
+        if target_turn <= session.last_timeline_turn:
+            return None
+        start = session.last_timeline_turn + 1
+        entry = (f"## Turns {start}-{target_turn} | Old Town | Day 1\n"
+                 f"**Key Events**:\n- The test drove turns {start}-{target_turn}.\n")
+        session.last_timeline_turn = target_turn
+        await session._emit({"type": "timeline", "entry": entry})
+        return entry
+
+    session._summarize_timeline = _fake_summary
     try:
         await session.start(player)
         turn_done = False
