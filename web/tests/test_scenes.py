@@ -118,8 +118,10 @@ async def main() -> bool:
                       "characters": {"the smith": "hammering at the anvil"},
                       "establishing": "a hot forge",
                       "main_npcs": [{"name": "Gorson", "role": "the smith",
+                                     "race": "dwarf", "class": "fighter",
                                      "description": "a soot-stained man"}],
-                      "npcs": [{"name": "Maera", "description": "a one-eared barkeep"}]},
+                      "npcs": [{"name": "Maera", "race": "human", "class": "rogue",
+                                "description": "a one-eared barkeep"}]},
     }})
     scene = [e for e in drain(gs._evt_q) if e.get("type") == "scene_request"]
     rec("scene_request emitted for the GM tool",
@@ -132,15 +134,18 @@ async def main() -> bool:
         and scene[0].get("establishing") == "a hot forge"
         and scene[0].get("time_of_day") == "dusk" and scene[0].get("weather") == "light rain"
         and scene[0].get("main_npcs") == [{"name": "Gorson", "role": "the smith",
+                                          "race": "dwarf", "class": "fighter",
                                           "description": "a soot-stained man"}]
         and scene[0].get("characters") == {"the smith": "hammering at the anvil"}
-        and scene[0].get("npcs") == [{"name": "Maera", "description": "a one-eared barkeep"}])
+        and scene[0].get("npcs") == [{"name": "Maera", "race": "human", "class": "rogue",
+                                      "description": "a one-eared barkeep"}])
     rec("legacy caption dropped from the scene event",
         bool(scene) and "caption" not in scene[0], str(scene))
 
     # A declared NPC's ROLE rides the scene result -- it is never primed in the tree.
-    rec("the seed's main NPC role is remembered (not primed)",
-        gs._npc_roles.get("gorson") == ("Gorson", "the smith"), str(gs._npc_roles))
+    rec("the seed's main NPC identity is remembered (not primed)",
+        gs._npc_people.get("gorson") == ("Gorson", "the smith", "dwarf", "fighter"),
+        str(gs._npc_people))
     gs._scene_requested_turn = False
     await gs._execute_tool({"function": {
         "name": "request_scene_image",
@@ -150,8 +155,8 @@ async def main() -> bool:
     }})
     results = [e for e in drain(gs._evt_q) if e.get("type") == "tool_result"]
     note = (results[-1].get("gm_text") or "") if results else ""
-    rec("the scene result echoes `on stage: Name (role)` for a declared NPC",
-        "on stage: Gorson (the smith)" in note, note[-160:])
+    rec("the scene result echoes `on stage: Name (race class, role)` for a declared NPC",
+        "on stage: Gorson (dwarf fighter, the smith)" in note, note[-160:])
     rec("an undeclared one-off gets no role echoed (it has none)",
         "three dockhands (" not in note, note[-160:])
 
@@ -217,7 +222,8 @@ async def main() -> bool:
     gs_note.session = _FakeMCP()
     gs_note._scene_requested_turn = False
     await gs_note._execute_tool({"function": {"name": "register_npcs", "arguments": {
-        "npcs": [{"name": "Maera", "description": "a one-eared barkeep"}]}}})
+        "npcs": [{"name": "Maera", "race": "human", "class": "rogue",
+                  "description": "a one-eared barkeep"}]}}})
     rec("register_npcs is buffered for the next scene call",
         [p["name"] for p in gs_note._pending_npcs] == ["Maera"], str(gs_note._pending_npcs))
     await gs_note._execute_tool({"function": {"name": "request_scene_image", "arguments": {
@@ -226,8 +232,19 @@ async def main() -> bool:
     note = [e for e in drain(gs_note._evt_q)
             if e.get("type") == "tool_result" and "NOTE:" in str(e.get("text") or "")]
     rec("an undeclared name gets a soft note (a declared one does not)",
-        len(note) == 1 and "the harbourmaster" in note[0]["text"]
-        and "Maera" not in note[0]["text"], str(note))
+        len(note) == 1 and 'NOTE: "the harbourmaster"' in note[0]["text"]
+        and 'NOTE: "Maera"' not in note[0]["text"], str(note))
+
+    # A declaration missing race/class is nudged on its own result -- no prefix cost.
+    gs_id = GameSession(base_dir=REPO, model="test", scene_images=True)
+    gs_id.session = _FakeMCP()
+    await gs_id._execute_tool({"function": {"name": "register_npcs", "arguments": {
+        "npcs": [{"name": "Corvin", "description": "a thin man"}]}}})
+    idnote = [e for e in drain(gs_id._evt_q)
+              if e.get("type") == "tool_result" and "NOTE:" in str(e.get("text") or "")]
+    rec("a declared NPC without race/class is nudged",
+        len(idnote) == 1 and "Corvin" in idnote[0]["text"]
+        and "race and a class" in idnote[0]["text"], str(idnote))
 
     # New-place seed gate: a scene call with no establishing view is rejected with
     # a warning and no scene_request, then accepted once `establishing` is supplied.

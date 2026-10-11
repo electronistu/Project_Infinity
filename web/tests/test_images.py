@@ -439,6 +439,7 @@ def main() -> bool:
                               place=["Hask's Smithy", "the forge"],
                               establishing="a hot forge",
                               main_npcs=[{"name": "Gorson", "role": "the smith",
+                                          "race": "human", "class": "fighter",
                                           "description": "a burly smith"}],
                               time_of_day="dusk", weather="light rain",
                               characters={"Gorson": "hammering at the anvil",
@@ -450,8 +451,8 @@ def main() -> bool:
             "Time of day: dusk." in captured[1][0] and "Weather: light rain." in captured[1][0])
         rec("ensure_scene feeds the character cast into the action prompt",
             "Characters present" in captured[1][0] and "- three dockhands: drinking" in captured[1][0])
-        rec("the place main NPC's description is injected from the seed",
-            "- Gorson — a burly smith: hammering at the anvil" in captured[1][0], captured[1][0][:300])
+        rec("the place main NPC's race + description are injected from the seed",
+            "- Gorson (human fighter) — a burly smith: hammering at the anvil" in captured[1][0], captured[1][0][:300])
         rec("an undeclared name is drawn from its own key text",
             "- three dockhands: drinking" in captured[1][0])
         rec("the first action references seed + portrait",
@@ -520,6 +521,7 @@ def main() -> bool:
                 and p["place"] == ["Hask's Smithy", "the forge"]
                 and p["description"] == "a hot forge"
                 and p["main_npcs"] == [{"name": "Gorson", "role": "the smith",
+                                        "race": "human", "class": "fighter",
                                         "description": "a burly smith"}]
                 for p in places), str(places))
         rec("seed_change preserved the main NPC",
@@ -658,7 +660,7 @@ def main() -> bool:
             and migrated["cast"] == {} and migrated["current"].get("place") == ["Old Place"]
             and migrated_entry.get("main_npcs") == [{"name": "",
                                                       "description": "Gorson — a burly smith",
-                                                      "role": ""}]
+                                                      "role": "", "race": "", "class": ""}]
             and "main_npc" not in migrated_entry
             and "last_cast" not in migrated_entry, str(migrated))
         rec("migrating deletes the abandoned action files", not legacy.exists())

@@ -509,6 +509,8 @@ async def generate_scene(body: SceneBody):
                 main_npcs.append({
                     "name": name,
                     "role": " ".join(str(entry.get("role") or "").split())[:120],
+                    "race": " ".join(str(entry.get("race") or "").split())[:40],
+                    "class": " ".join(str(entry.get("class") or "").split())[:40],
                     "description": " ".join(str(entry.get("description") or "").split())[:400],
                 })
     npcs: list[dict[str, str]] = []
@@ -519,6 +521,8 @@ async def generate_scene(body: SceneBody):
             name = " ".join(str(entry.get("name") or "").split())[:80]
             if name:
                 npcs.append({"name": name,
+                             "race": " ".join(str(entry.get("race") or "").split())[:40],
+                             "class": " ".join(str(entry.get("class") or "").split())[:40],
                              "description": " ".join(str(entry.get("description") or "").split())[:400]})
     seed_change = " ".join(str(body.seed_change or "").split())[:400]
     model = _image_model_or_400(body.model)
@@ -679,7 +683,8 @@ async def ws_endpoint(websocket: WebSocket, sid: str):
                 await session.submit_save()
             elif mtype == "device":
                 await session.submit_device(msg.get("action", ""), msg.get("era", ""),
-                                            msg.get("direction", ""), msg.get("delta"))
+                                            msg.get("direction", ""), msg.get("place", ""),
+                                            msg.get("value"), msg.get("delta"))
             elif mtype == "dev":
                 await session.submit_dev(msg)
             elif mtype == "stats":

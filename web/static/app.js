@@ -1382,8 +1382,8 @@ function updateDevice(c) {
   if (!el || !c) return;
   const left = c.turns_until;
   if (left === null || left === undefined) {
-    // A manual Device (all four parts) still shows that it is the player's call.
-    if (c.manual) { el.hidden = false; el.textContent = "device — your call"; el.classList.remove("device-warn"); return; }
+    // A held Device (the Mainspring) still shows that it waits for the release.
+    if (c.holding) { el.hidden = false; el.textContent = "device \u2014 held"; el.classList.remove("device-warn"); return; }
     el.hidden = true;
     return;
   }
@@ -1397,7 +1397,7 @@ function updateDevice(c) {
 function deviceSummary(dev, ctrl) {
   const c = ctrl || {};
   const parts = `${dev.recovered} of ${dev.total} parts recovered`;
-  if (c.manual) return `complete \u00b7 ${parts} \u00b7 you decide where and when`;
+  if (c.holding) return `held \u00b7 ${parts} \u00b7 release it to choose when`;
   const left = c.turns_until;
   if (left === null || left === undefined) return parts;
   return `${parts} \u00b7 fires in ${left} ordinary ${left === 1 ? "turn" : "turns"}`;
@@ -1427,6 +1427,51 @@ function devicePartRow(part) {
   return d;
 }
 
+function devicePlaceSelect(ctrl, era, selected, locked) {
+  // The Vernier's whole menu: the places this save has already stood in, in that age.
+  const places = ((ctrl || {}).places || {})[era] || [];
+  if (!places.length) return null;
+  const sel = document.createElement("select");
+  sel.className = "device-place";
+  places.forEach((p) => {
+    const o = document.createElement("option");
+    o.value = p;
+    o.textContent = p;
+    sel.appendChild(o);
+  });
+  if (selected && places.indexOf(selected) >= 0) sel.value = selected;
+  sel.disabled = locked;
+  return sel;
+}
+
+function deviceAnyPlaceSelect(ctrl, selected, locked) {
+  // The Vernier on its own: any place this save has stood in, grouped by the age it is in --
+  // the place carries its age. The map is {era id: [place phrase]}.
+  const places = (ctrl || {}).places || {};
+  const names = (ctrl || {}).era_names || {};
+  const eras = Object.keys(places).filter((e) => (places[e] || []).length);
+  if (!eras.length) return null;
+  const sel = document.createElement("select");
+  sel.className = "device-place";
+  eras.forEach((era) => {
+    const group = document.createElement("optgroup");
+    group.label = names[era] || era;
+    (places[era] || []).forEach((p) => {
+      const o = document.createElement("option");
+      o.value = p;
+      o.dataset.era = era;
+      o.textContent = p;
+      group.appendChild(o);
+    });
+    sel.appendChild(group);
+  });
+  if (selected) {
+    Array.from(sel.options).forEach((o) => { if (o.value === selected) sel.value = selected; });
+  }
+  sel.disabled = locked;
+  return sel;
+}
+
 function deviceActionRow(dev, ctrl) {
   const c = ctrl || {};
   const ab = c.abilities || {};
@@ -1442,18 +1487,19 @@ function deviceActionRow(dev, ctrl) {
     b.addEventListener("click", onClick);
     return b;
   };
-  if (ab.adjust) {
-    const a = c.adjust || {};
-    const step = a.turns || 2;
-    wrap.appendChild(btn(a.used ? `wait +${step} (used)` : `wait +${step}`,
-      () => sendDevice({ type: "device", action: "adjust", delta: step }), a.can_wait));
-    wrap.appendChild(btn(a.used ? `hasten \u2212${step} (used)` : `hasten \u2212${step}`,
-      () => sendDevice({ type: "device", action: "adjust", delta: -step }), a.can_hasten));
+  const steer = c.steer || "";
+  const placeEra = () => (placeSel && placeSel.selectedIndex >= 0)
+    ? (placeSel.options[placeSel.selectedIndex].dataset.era || "") : "";
+
+  // The Mainspring: the charge holds the Device (no forced jumps); it can be let go again.
+  if (ab.charge) {
+    wrap.appendChild(btn(c.holding ? "let it run" : "hold the Device",
+      () => sendDevice({ type: "device", action: "hold", value: !c.holding }), true));
   }
+
+  // The Compass Rose: a coarse direction for the next jump (the drift).
   if (ab.direction) {
-    // 2-3 parts: steer the NEXT automatic jump (no travel on click).
     const prev = c.previous_era;
-    const steer = c.steer || "";
     const hasForward = ((c.forward_eras || []).length > 0);
     wrap.appendChild(btn(prev ? `\u2190 previous: ${c.previous_era_name || prev}` : "\u2190 previous",
       () => sendDevice({ type: "device", action: "steer", direction: "previous" }),
@@ -1461,37 +1507,61 @@ function deviceActionRow(dev, ctrl) {
     wrap.appendChild(btn("random forward \u2192",
       () => sendDevice({ type: "device", action: "steer", direction: "forward" }),
       hasForward, steer === "forward"));
-    const hint = document.createElement("div");
-    hint.className = "field-note";
-    if (steer === "previous") hint.textContent = "the next jump will go back";
-    else if (steer === "forward") hint.textContent = "the next jump will go forward, at random";
-    else hint.textContent = "steer the next jump \u2014 or let it drift";
-    wrap.appendChild(hint);
   }
-  if (ab.choose_forward || ab.full) {
-    const options = (ab.full ? c.all_eras : c.forward_eras) || [];
-    if (options.length) {
-      const sel = document.createElement("select");
-      sel.className = "device-era";
-      options.forEach((e) => {
-        const o = document.createElement("option");
-        o.value = e.id;
-        o.textContent = e.name;
-        sel.appendChild(o);
+
+  // The Regulator names any age; the Vernier names the place. Neither fires.
+  let eraSel = null;
+  let placeSel = null;
+  if (ab.era) {
+    const options = c.era_options || [];
+    eraSel = document.createElement("select");
+    eraSel.className = "device-era";
+    options.forEach((e) => {
+      const o = document.createElement("option");
+      o.value = e.id;
+      o.textContent = e.name;
+      eraSel.appendChild(o);
+    });
+    if (steer && steer !== "previous" && steer !== "forward") eraSel.value = steer;
+    eraSel.disabled = locked || !options.length;
+    wrap.appendChild(eraSel);
+    if (ab.place) {
+      placeSel = devicePlaceSelect(c, eraSel.value, c.aim_place, locked);
+      if (placeSel) wrap.appendChild(placeSel);
+      eraSel.addEventListener("change", () => {
+        if (!placeSel) return;
+        const next = devicePlaceSelect(c, eraSel.value, "", locked);
+        placeSel.innerHTML = "";
+        if (next) Array.from(next.childNodes).forEach((n) => placeSel.appendChild(n));
       });
-      sel.disabled = locked;
-      wrap.appendChild(sel);
-      // A deliberate jump is refused mid-fight (the engine refuses too).
-      wrap.appendChild(btn(ab.full ? "travel now" : "travel",
-        () => sendDevice({ type: "device", action: "travel", era: sel.value }), !state.inCombat));
+    }
+    wrap.appendChild(btn("aim", () => sendDevice({
+      type: "device", action: "aim", era: eraSel.value,
+      place: placeSel ? placeSel.value : "" }), options.length > 0));
+  } else if (ab.place) {
+    // The Vernier alone: a place the save has stood in names its own age.
+    placeSel = deviceAnyPlaceSelect(c, c.aim_place, locked);
+    if (placeSel) {
+      wrap.appendChild(placeSel);
+      wrap.appendChild(btn("aim", () => sendDevice({
+        type: "device", action: "aim", era: placeEra(), place: placeSel.value }), true));
     } else {
       const note = document.createElement("div");
       note.className = "field-note";
-      note.textContent = "No age ahead \u2014 use the direction to head back.";
+      note.textContent = "The Vernier can only aim where you have already stood.";
       wrap.appendChild(note);
     }
   }
-  if (!ab.adjust && !ab.direction && !ab.choose_forward && !ab.full) {
+
+  // The Mainspring winds it and holds it; the Escapement lets it go.
+  if (ab.release) {
+    wrap.appendChild(btn("release the Device", () => sendDevice({
+      type: "device", action: "release",
+      era: eraSel ? eraSel.value : placeEra(),
+      place: placeSel ? placeSel.value : "" }), !state.inCombat));
+  }
+
+  if (!ab.charge && !ab.direction && !ab.era && !ab.release && !ab.place) {
     const note = document.createElement("div");
     note.className = "field-note";
     note.textContent = "The Device obeys no one \u2014 it cannot be steered yet.";
@@ -1511,7 +1581,7 @@ function buildDeviceCard(dev, ctrl) {
   return card("The Device", kids);
 }
 
-/* Rebuild just the Device card in place (adjust/travel re-render fast). */
+/* Rebuild just the Device card in place (aim/release re-render fast). */
 function renderDeviceCard() {
   const box = $("device-card");
   if (!box || !state.lastStats || !state.lastStats.device) return;
@@ -1580,10 +1650,10 @@ function send(msg) {
   if (state.ws && state.ws.readyState === WebSocket.OPEN) state.ws.send(JSON.stringify(msg));
 }
 
-/* A Device control: a travel IS a turn (the era changes), so the sheet must refresh
-   afterwards; adjust (+/-2) is only a nudge and consumes no turn. */
+/* A Device control: a release IS a turn (the era changes), so the sheet must refresh
+   afterwards; aim and steer are only nudges and consume no turn. */
 function sendDevice(msg) {
-  if (msg && msg.action === "travel") state.lastCommandType = "action";
+  if (msg && msg.action === "release") state.lastCommandType = "action";
   send(msg);
 }
 

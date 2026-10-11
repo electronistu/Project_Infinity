@@ -2854,8 +2854,8 @@ def request_scene_image(description: str, kingdom: str = "", area: str = "",
     - time_of_day/weather: fed straight to the generator (e.g. 'dusk', 'heavy rain'); keep them out of `description`.
     - characters: dict of EVERY on-stage NPC -> their action toward the protagonist. Key = the declared NAME; never repeat a look; exact counts ('three dockhands'), never 'a few'; exclude the protagonist. A one-off extra needs no declaration (a short look in the key is used for that image only).
     - establishing: an empty, people-free, weather-free, timeless description of a NEW place (only when its seed does not exist yet).
-    - main_npcs: the place's main NPCs, only when creating the seed, [{name, role, description}] -- one person per entry; role = their function; description = the stable physical look only.
-    - npcs: recurring NPCs declared in this same call, [{name, description}]; afterwards refer to them by NAME ONLY.
+    - main_npcs: the place's main NPCs, only when creating the seed, [{name, role, race, class, description}] -- one person per entry; role = their function; race + class = their people and calling (the twelve SRD classes, or a plain word when none fits); description = the stable physical look only.
+    - npcs: recurring NPCs declared in this same call, [{name, race, class, description}]; afterwards refer to them by NAME ONLY.
     - seed_change: a PERMANENT change to the place regenerates its seed immediately.
     - mood: a short mood word for the light/atmosphere.
 
@@ -2884,7 +2884,7 @@ def register_npcs(npcs: list[dict]) -> dict:
 
     WHEN: a recurring character first appears.
     FIELDS:
-    - npcs: list of {name, description}. name = the exact name you will keep using (a person's name or a stable handle like 'the harbourmaster'). description = the stable PHYSICAL look only (gender, build, distinguishing features, clothing/role-defining gear) -- never a pose, a position or a current action, and never a second person.
+    - npcs: list of {name, race, class, description}. name = the exact name you will keep using (a person's name or a stable handle like 'the harbourmaster'). race + class = their people and calling -- give BOTH for every declared character; the twelve SRD classes are the vocabulary, or a plain word when none fits. description = the stable PHYSICAL look only (gender, build, distinguishing features, clothing/role-defining gear) -- never a pose, a position or a current action, and never a second person.
 
     RULES:
     - Declare each recurring character ONCE; afterwards refer by NAME ONLY and never repeat the description.
@@ -2918,11 +2918,11 @@ def note_place(kingdom: str, area: str, place: list[str],
     FIELDS:
     - place: ordered path BELOW the settlement, deepest last, at least 2 entries -- [district/neighbourhood, the exact building/room, (any room inside it, ...)]. Reuse the exact path once used.
     - kingdom = realm; area = settlement (city/town).
-    - main_npcs: the place's OWN regulars, [{name, role}] -- one person per entry.
-    - cast: recurring people NOT tied to one place (a villain, a companion), [{name, role}].
+    - main_npcs: the place's OWN regulars, [{name, role, race, class}] -- one person per entry; give race and class for each.
+    - cast: recurring people NOT tied to one place (a villain, a companion), [{name, role, race, class}].
 
     RULES:
-    - Names + roles only: never a look, a pose or a second person's details.
+    - Names + roles + races + classes only: never a look, a pose or a second person's details.
     - Re-declaring a name updates it; reuse names and paths exactly.
     - Does not change game state; the engine remembers the place.
     """
@@ -2936,7 +2936,9 @@ def note_place(kingdom: str, area: str, place: list[str],
             name = " ".join(str(entry.get("name") or "").split())
             if name:
                 out.append({"name": name,
-                            "role": " ".join(str(entry.get("role") or "").split())})
+                            "role": " ".join(str(entry.get("role") or "").split()),
+                            "race": " ".join(str(entry.get("race") or "").split()),
+                            "class": " ".join(str(entry.get("class") or "").split())})
         return out
 
     return {

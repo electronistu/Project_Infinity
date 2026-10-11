@@ -1,20 +1,55 @@
-# E0 -- the frame. Not a destination: the Traveler's origin, and the broken Device.
+# E5 -- New York, the far future (c. 2400). The Traveller's home, and the one age that is
+# not history: everything here is invented. Playable like the rest, but never rolled at
+# creation (`origin: true`) -- the Traveller comes from it.
 #
-# Every era file has a `meta:` header (the only part that reaches the GM before
-# the era is entered) and a `body:` (the scaffold, fetched once per era).
-# Budget: one file <= 5 KB, one scaffold <= 450 tokens, the index <= 150 tokens.
+# Budget: file <= 5 KB, scaffold <= 450 tokens. The scaffold is fetched once per era
+# (the `lookup` tool); only the meta feeds the always-on ERA INDEX.
 
 meta:
   id: future
-  order: 0
-  name: The Future
-  when: the future
-  character: the Traveler's origin; the broken Device
-  playable: false
-  part: null
+  order: 5
+  name: New York
+  when: c. 2400
+  character: New York rebuilt above the drowned grid — the Traveller's home
+  arrivals:
+    - the Horologers' hall
+    - the seawall promenade
+    - a raised street above the old grid
+    - the drowned financial district, seen from the wall
+    - the public library, rebuilt
+    - the harbor market
+    - the Brooklyn anchorage
+    - the roof-gardens of Queens
+    - the old subway, still running
+    - the Hall of Records
+    - the workshop where the Horologe broke
+    - a pier on the East River
+  playable: true
+  origin: true
+  part: the Vernier
 
 body:
   history:
-    - The Traveler came from a city that has not been built yet. The Horologe was already hollow when it reached them.
-    - It fires when it likes. Every jump is a symptom, not a journey.
-  polities: []
+    - The water came first. New York was raised on its own old grid, a city of stilts and seawalls above the drowned streets, and rebuilt again after the fires.
+    - "The Horologers kept the city's time — and, in time, its memory of the ages. The Horologe was their masterwork: a thing that could stand in one year and walk to another."
+    - "It was broken from the inside. Four of its five parts were scattered down the centuries, one to an age; the Vernier, the part that aims, never left the city. The one who did it is still here, or was."
+  polities:
+    - name: New York
+      ruler: the Council of the Wards
+      capital: the raised grid
+      relations:
+        the drowned coast: "reclaimed, a street at a time"
+        the upstate: "water, food and timber"
+        the sea lanes: "the harbor, and what still sails"
+      factions:
+        - {name: the Horologers, key: horologers}
+        - {name: the harbor guilds, key: harbor}
+        - {name: the wardens, key: wardens}
+        - {name: the archivists, key: archivists}
+        - {name: the borough councils, key: boroughs}
+        - {name: the saboteurs, key: saboteurs}
+  visual_hooks:
+    - the raised grid, stilts above drowned streets
+    - the seawall, and the water beyond it
+    - the Horologers' hall of brass and glass
+    - the harbor, ringed with towers

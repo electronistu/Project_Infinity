@@ -64,11 +64,15 @@ def main():
     rec("era ids are unique", len(set(ids)) == len(ids), str(ids))
     rec("era orders are unique and ascending", orders == sorted(orders) and len(set(orders)) == len(orders),
         str(orders))
-    rec("the ladder is future..victorian", ids == ["future", "egypt", "tang", "wallachia", "victorian"],
-        str(ids))
-    rec("all four final eras are playable",
-        eras.playable_eras() == ["egypt", "tang", "wallachia", "victorian"],
+    rec("the ladder is egypt..future (the far future is the last age)",
+        ids == ["egypt", "tang", "wallachia", "victorian", "future"], str(ids))
+    rec("every age is playable",
+        eras.playable_eras() == ["egypt", "tang", "wallachia", "victorian", "future"],
         str(eras.playable_eras()))
+    rec("New York is the origin: playable, but never a start roll",
+        eras.origin_eras() == ["future"]
+        and eras.start_eras() == ["egypt", "tang", "wallachia", "victorian"],
+        str(eras.start_eras()))
     rec("list_era_meta returns no bodies",
         all(not ({"history", "polities", "visual_hooks"} & set(m)) for m in metas))
 
@@ -101,13 +105,14 @@ def main():
         bool(picks) and picks <= set(eras.era_arrivals("egypt")), str(sorted(picks)))
     rec("pick_arrival is deterministic under a seeded rng",
         eras.pick_arrival("egypt", random.Random(1)) == eras.pick_arrival("egypt", random.Random(1)))
-    rec("the frame has nowhere to arrive", eras.era_arrivals("future") == [])
+    rec("the origin age is a place like any other (12 arrivals)",
+        len(eras.era_arrivals("future")) == 12, str(len(eras.era_arrivals("future"))))
 
     # -- the first era is rolled, like every later one --------------------------
     starts = {eras.pick_start_era(random.Random(n)) for n in range(30)}
     rec("pick_start_era draws only playable eras",
         bool(starts) and starts <= set(eras.playable_eras()), str(sorted(starts)))
-    rec("pick_start_era never draws the frame", "future" not in starts)
+    rec("pick_start_era never draws the origin (New York)", "future" not in starts)
     rec("pick_start_era is not stuck on one era", len(starts) > 1, str(len(starts)))
     rec("pick_start_era is deterministic under a seeded rng",
         eras.pick_start_era(random.Random(1)) == eras.pick_start_era(random.Random(1)))
@@ -156,6 +161,8 @@ def main():
         not _leaks("tang", ["Memphis", "Targoviste", "the Thames", "Ireland"]))
     rec("E4 scaffold leaks no other era",
         not _leaks("victorian", ["Memphis", "Targoviste", "Chang'an", "the boyars"]))
+    rec("E5 scaffold leaks no other era",
+        not _leaks("future", ["Memphis", "Targoviste", "Chang'an", "the Thames"]))
 
     # -- the reputation hooks ----------------------------------------------------------
     kingdoms = eras.era_kingdoms("wallachia")
@@ -192,6 +199,18 @@ def main():
         any("Home Rule" in v for v in (_polity("victorian", "Ireland").get("relations") or {}).values())
         and "land_league" in eras.era_faction_keys("victorian").get("Ireland", []),
         str(eras.era_faction_keys("victorian").get("Ireland")))
+
+    # -- E5 content (New York, the far future) ---------------------------
+    ny = eras.load_era("future")
+    ny_meta = ny["meta"]
+    ny_pol = _polity("future", "New York")
+    rec("E5: the origin is New York, above the drowned grid",
+        ny_meta.get("when") == "c. 2400" and "raised" in str(ny_pol.get("capital", "")),
+        f'{ny_meta.get("when")} / {ny_pol.get("capital")}')
+    rec("E5: the sabotaged Horologe scattered its parts down the ages",
+        any("scattered" in h for h in ny["body"].get("history") or []))
+    rec("E5: the Vernier is the part of the future, and future is the origin",
+        ny_meta.get("part") == "the Vernier" and ny_meta.get("origin") is True)
 
     # -- the reputation seed ----------------------------------------------
     seed = eras.era_reputation_seed("egypt")

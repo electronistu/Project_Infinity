@@ -352,11 +352,11 @@ def main() -> bool:
     })
     rec("a Device in the pack yields a device block", bool(dev.get("device")))
     db_ = dev["device"]
-    rec("the block counts n of 4, the Device separate",
-        db_["recovered"] == 1 and db_["total"] == 4 and db_["present"])
+    rec("the block counts n of 5, the Device separate",
+        db_["recovered"] == 1 and db_["total"] == 5 and db_["present"])
     names = [p["name"] for p in db_["parts"]]
-    rec("the four parts are listed in the canonical order",
-        names == ["Escapement", "Compass Rose", "Regulator", "Mainspring"], str(names))
+    rec("the five parts are listed in the canonical order",
+        names == ["Escapement", "Compass Rose", "Regulator", "Mainspring", "Vernier"], str(names))
     esc = next(p for p in db_["parts"] if p["name"] == "Escapement")
     rec("a recovered part carries the age it came from",
         esc["recovered"] and esc["found_in"] == "egypt" and esc["found_in_name"] == "Egypt")

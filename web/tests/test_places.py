@@ -70,7 +70,8 @@ def jpeg(w, h):
 
 ERA = "victorian"
 PLACE = ["Ropehaven Wharf", "Warehouse Nine", "the counting office"]
-MAIN = [{"name": "Maera", "role": "the harbourmaster"}]
+MAIN = [{"name": "Maera", "role": "the harbourmaster",
+         "race": "dwarf", "class": "rogue"}]
 CAST = [{"name": "Corvin Hale", "role": "the bounty hunter"}]
 
 
@@ -89,9 +90,10 @@ async def main() -> bool:
         rec("known_scene_places reads the text-only entry",
             len(places) == 1 and places[0]["place"] == PLACE
             and places[0]["kingdom"] == "London" and places[0]["area"] == "Wapping", str(places))
-        rec("the place carries its regulars by name + role",
+        rec("the place carries its regulars by name + role + race + class",
             places[0]["main_npcs"] == [{"name": "Maera", "description": "",
-                                        "role": "the harbourmaster"}], str(places))
+                                        "role": "the harbourmaster",
+                                        "race": "dwarf", "class": "rogue"}], str(places))
         cur = current_scene_place(out, "save")
         rec("current_scene_place reports the last declared place",
             bool(cur) and cur["area"] == "Wapping" and cur["place"] == PLACE, str(cur))
@@ -158,7 +160,8 @@ async def main() -> bool:
         gs.era = ERA
         await gs._execute_tool({"function": {"name": "note_place", "arguments": {
             "kingdom": "London", "area": "Wapping", "place": PLACE,
-            "main_npcs": [{"name": "Bess", "role": "the lamp-lighter"}],
+            "main_npcs": [{"name": "Bess", "role": "the lamp-lighter",
+                           "race": "halfling", "class": "rogue"}],
             "cast": CAST,
         }}})
         evts = drain(gs._evt_q)
@@ -175,8 +178,9 @@ async def main() -> bool:
         rec("note_place updates the live place map",
             gs._scene_places.get(tuple(s.lower().replace(" ", "-") for s in PLACE))
             == ("London", "Wapping"), str(gs._scene_places))
-        rec("note_place adds the regular's role to the on-stage echo",
-            gs._npc_roles.get("bess") == ("Bess", "the lamp-lighter"), str(gs._npc_roles))
+        rec("note_place adds the regular's race/class/role to the on-stage echo",
+            gs._npc_people.get("bess") == ("Bess", "the lamp-lighter", "halfling", "rogue"),
+            str(gs._npc_people))
         rec("note_place remembers the cast name",
             "corvin hale" in gs._cast_names, str(gs._cast_names))
         rec("the GM view is trimmed to the acknowledgement",

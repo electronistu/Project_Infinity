@@ -1258,16 +1258,20 @@ def _slug(text) -> str:
 
 
 def _npc_fields(value) -> dict:
-    """Normalize a declared NPC to {name, description, role}. A legacy plain string is a description."""
+    """Normalize a declared NPC to {name, description, role, race, class}. A legacy plain
+    string is a description. `race`/`class` are required of the GM but default to ''."""
     if isinstance(value, dict):
         return {"name": re.sub(r"\s+", " ", str(value.get("name") or "")).strip(),
                 "description": re.sub(r"\s+", " ", str(value.get("description") or "")).strip(),
-                "role": re.sub(r"\s+", " ", str(value.get("role") or "")).strip()}
-    return {"name": "", "description": re.sub(r"\s+", " ", str(value or "")).strip(), "role": ""}
+                "role": re.sub(r"\s+", " ", str(value.get("role") or "")).strip(),
+                "race": re.sub(r"\s+", " ", str(value.get("race") or "")).strip(),
+                "class": re.sub(r"\s+", " ", str(value.get("class") or "")).strip()}
+    return {"name": "", "description": re.sub(r"\s+", " ", str(value or "")).strip(),
+            "role": "", "race": "", "class": ""}
 
 
 def _npc_list(value) -> list[dict]:
-    """Normalize a place's main NPCs to a list of {name, description, role}.
+    """Normalize a place's main NPCs to a list of {name, description, role, race, class}.
 
     A list is the canonical shape (v6); a legacy single dict/string becomes a one-item
     list. Entries with neither a name nor a description are dropped."""
@@ -2066,8 +2070,16 @@ class SceneService(ImageBackendHolder):
             if not name:
                 continue
             fields = known.get(name.lower())
-            label = (f"{fields['name']} — {fields['description']}"
-                     if fields and fields["description"] else name)
+            if fields:
+                ident = " ".join(p for p in (fields.get("race"), fields.get("class")) if p)
+                look = fields.get("description") or fields.get("role") or ""
+                label = fields["name"]
+                if ident:
+                    label += f" ({ident})"
+                if look:
+                    label += f" — {look}"
+            else:
+                label = name
             resolved[label] = " ".join(str(value or "").split())
         return resolved
 

@@ -221,8 +221,10 @@ async def main() -> int:
                                "three dockhands": "drinking and looking up"},
                 "establishing": "a hot forge",
                 "main_npcs": [{"name": "Gorson", "role": "the smith",
+                              "race": "dwarf", "class": "fighter",
                               "description": "a burly smith"}],
-                "npcs": [{"name": "Maera", "description": "a broad, one-eared woman"}],
+                "npcs": [{"name": "Maera", "race": "human", "class": "rogue",
+                          "description": "a broad, one-eared woman"}],
             })
             body = r.json()
             scenes_path = OUTPUT_DIR / "images" / "_scenetest" / "scenes"
@@ -234,9 +236,10 @@ async def main() -> int:
             rec("fresh place action references the seed + portrait",
                 body.get("used_seed") is True and body.get("used_portrait_reference") is True, str(body))
             seeded = known_scene_places(OUTPUT_DIR, "_scenetest")
-            rec("POST scene stores the main NPCs (name + role + description) on the seed",
+            rec("POST scene stores the main NPCs (name + role + race + class + description) on the seed",
                 any(p["place"] == ["Hask's Smithy", "the forge"]
                     and p["main_npcs"] == [{"name": "Gorson", "role": "the smith",
+                                            "race": "dwarf", "class": "fighter",
                                             "description": "a burly smith"}]
                     for p in seeded), str(seeded))
             rec("POST scene reports the NPCs it added to the cast",
@@ -252,8 +255,8 @@ async def main() -> int:
                 str(styles_seen[-1:]))
             rec("POST scene injects the stored descriptions for declared names",
                 bool(scene_refs) and scene_refs[-1][5] == {
-                    "Gorson — a burly smith": "hammering at the anvil",
-                    "Maera — a broad, one-eared woman": "drawing ale",
+                    "Gorson (dwarf fighter) — a burly smith": "hammering at the anvil",
+                    "Maera (human rogue) — a broad, one-eared woman": "drawing ale",
                     "three dockhands": "drinking and looking up"},
                 str(scene_refs[-1:]))
             rec("POST scene uses the config story model by default",

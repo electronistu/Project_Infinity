@@ -1,4 +1,4 @@
-"""The Device and its four parts: the closed, engine-owned inventory vocabulary.
+"""The Device and its five parts: the closed, engine-owned inventory vocabulary.
 
 Covers the guards (the Device cannot be invented or edited; a part only by its exact
 name, engine-described and stamped with the age it was recovered in) and the verbs that
@@ -21,6 +21,17 @@ class DeviceAddTest(H.EngineCase):
         self.assertTrue(entry["device"])
         self.assertTrue(entry["description"])
         self.assertEqual(entry["weight"], 0)
+
+    def test_the_five_parts_and_their_powers(self):
+        # One part = one power, and the fifth part (the Vernier) owns the place.
+        self.assertEqual(H.ds.device.part_total(), 5)
+        self.assertEqual(H.ds.device.part_names()[-1], "Vernier")
+        self.assertEqual(H.ds.device.canonical_part("the vernier"), "Vernier")
+        self.assertEqual(len(H.ds.device.POWERS), 5)
+        self.assertEqual(len(set(H.ds.device.POWERS.values())), 5)
+        self.assertEqual(H.ds.device.POWERS["Vernier"], H.ds.device.PLACE)
+        self.assertEqual(H.ds.device.POWERS["Mainspring"], H.ds.device.CHARGE)
+        self.assertEqual(H.ds.device.POWERS["Escapement"], H.ds.device.RELEASE)
 
     def test_the_observed_gm_call_is_refused(self):
         # The exact call seen in play: the GM inventing the Device with its own flavour.

@@ -91,14 +91,30 @@ def playable_eras() -> list[str]:
     return [str(m.get("id") or "") for m in list_era_meta() if m.get("playable")]
 
 
-def pick_start_era(rng=None) -> str:
-    """The era the Device throws a brand-new Traveler into: any playable era, at random.
+def origin_eras() -> list[str]:
+    """The playable eras a new game may NOT open in -- the Traveller's own age.
 
-    The first age used to be fixed at Egypt. It is drawn like every later one now -- the
-    Compass Rose was missing from the start -- so no era is a scripted tutorial and a new
-    character can open anywhere on the ladder. `rng` is injectable so tests are deterministic.
+    New York is where the Traveller comes from, so the Device never throws them home to
+    begin with; it is a normal destination afterwards.
     """
-    options = playable_eras()
+    return [str(m.get("id") or "") for m in list_era_meta()
+            if m.get("playable") and m.get("origin")]
+
+
+def start_eras() -> list[str]:
+    """The eras a new game may be rolled into: every playable era but the origin."""
+    origins = set(origin_eras())
+    return [e for e in playable_eras() if e not in origins]
+
+
+def pick_start_era(rng=None) -> str:
+    """The era the Device throws a brand-new Traveler into: a non-origin playable era at random.
+
+    The first age used to be fixed at Egypt. Every age is drawn now -- the Compass Rose was
+    missing from the start -- so no era is a scripted tutorial. The origin (New York) is
+    excluded: the Traveller comes from there. `rng` is injectable so tests are deterministic.
+    """
+    options = start_eras()
     return (rng or random).choice(options) if options else START_ERA
 
 
@@ -274,6 +290,8 @@ def validate_era(era: dict, stem: Optional[str] = None) -> list[str]:
         problems.append("meta.order must be an integer")
     if not isinstance(meta.get("playable"), bool):
         problems.append("meta.playable must be a boolean")
+    if "origin" in meta and not isinstance(meta.get("origin"), bool):
+        problems.append("meta.origin must be a boolean when present")
     arrivals = meta.get("arrivals") or []
     if not isinstance(arrivals, list) or not all(isinstance(a, str) and a.strip() for a in arrivals):
         problems.append("meta.arrivals must be a list of non-empty strings")
