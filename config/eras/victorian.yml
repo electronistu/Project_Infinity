@@ -1,4 +1,4 @@
-# E4 -- Victorian United Kingdom (1837-1901). Written at full depth. It replaces the present day,
+# E4 -- Victorian United Kingdom (1858). Written at full depth. It replaces the present day,
 # which retires the live-politics risk. The fences apply: context, never content; no glorification of an empire; narrate
 # people and interests, never peoples.
 
@@ -6,7 +6,7 @@ meta:
   id: victorian
   order: 4
   name: Victorian Britain
-  when: 1837-1901
+  when: "1858"
   character: the United Kingdom of Great Britain and Ireland
   arrivals:
     - a fogbound London street

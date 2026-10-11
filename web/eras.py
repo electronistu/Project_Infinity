@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import random
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -119,14 +120,18 @@ def pick_start_era(rng=None) -> str:
 
 
 def render_era_index(current: Optional[str] = None) -> str:
-    """The always-on ERA INDEX: id and a one-line character. Nothing else.
+    """The always-on ERA INDEX: id, the year, and a one-line character.
 
-    The arrival point is deliberately absent: it is rolled at random (the Device
-    has no Compass Rose), so it is a property of the save, not of the era.
+    The year is what the GM dates every scene by (`meta.when` is an exact year, never a
+    period); it used to be dead metadata. The arrival point is deliberately absent: it is
+    rolled at random (the Device has no Compass Rose), so it is a property of the save, not
+    of the era.
     """
     lines = [f"ERAS{' (current: ' + current + ')' if current else ''}:"]
     for m in list_era_meta():
-        lines.append(f"- {m.get('id')} -- {m.get('character', '')}")
+        when = str(m.get("when") or "").strip()
+        stamp = f" ({when})" if when else ""
+        lines.append(f"- {m.get('id')}{stamp} -- {m.get('character', '')}")
     return "\n".join(lines)
 
 
@@ -286,6 +291,11 @@ def validate_era(era: dict, stem: Optional[str] = None) -> list[str]:
     for key in REQUIRED_META:
         if not (isinstance(meta.get(key), str) and meta[key].strip()):
             problems.append(f"meta.{key} must be a non-empty string")
+    # `when` is one exact year -- the date every scene in the age is anchored to. A period
+    # (a reign, a century) lets the GM drift and lets the state page invent its own year.
+    when = str(meta.get("when") or "").strip()
+    if when and not re.fullmatch(r"\d{1,4}( BC)?", when):
+        problems.append(f"meta.when must be a single year ('1460' or '2560 BC'), got {when!r}")
     if not isinstance(meta.get("order"), int) or isinstance(meta.get("order"), bool):
         problems.append("meta.order must be an integer")
     if not isinstance(meta.get("playable"), bool):

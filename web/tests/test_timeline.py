@@ -9,6 +9,7 @@ Run from the repo root:
 
 import asyncio
 import os
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -18,8 +19,9 @@ sys.path.insert(0, str(REPO))
 
 from web import engine  # noqa: E402
 from web.engine import (  # noqa: E402
-    GameSession, _clamp_block, _entry_turn_range, _extract_state, _split_timeline_entries,
-    load_chronicle, load_state, load_timeline,
+    TRAVELLER_SCOPE, GameSession, _clean_state_page, _clamp_block, _entry_turn_range,
+    _extract_state, _extract_states, _split_timeline_entries, _state_has_fields,
+    load_chronicle, load_state, load_states, load_timeline,
 )
 
 RESULTS = []
@@ -97,6 +99,7 @@ def compaction_tests() -> bool:
     ok = True
     try:
         gs = _session()
+        gs.classic = True
         gs._state = "**Goal**: survive.\n**Hooks**: the hunter."
         for i in range(1, 8):
             _save(gs, i)
@@ -187,12 +190,215 @@ def compaction_tests() -> bool:
     return ok
 
 
+def per_era_tests() -> bool:
+    """STATE is scoped in the era game: a traveller page + one page per age, and only the
+    current age's page is ever injected."""
+    print("  -- per-era STATE pages --")
+    from web.eras import playable_eras
+    rec("the traveller key is reserved, never an era id", TRAVELLER_SCOPE not in playable_eras())
+    gs = _session()
+    gs.classic = False
+    gs.era = "wallachia"
+    gs._traveller = "**Goal**: master the Device.\n**Secrets**: he is the Traveller."
+    gs._era_states = {"wallachia": "**Goal**: take Curtea de Arge\u0219.",
+                      "egypt": "**Goal**: cross the desert."}
+    gs._write_timeline()
+    with open(gs.timeline_path, encoding="utf-8") as f:
+        raw = f.read()
+    rec("each page gets its own keyed block", raw.count("<!-- state:") == 3, str(raw.count("<!-- state:")))
+    rec("era mode writes no legacy unkeyed block", "<!-- state -->" not in raw)
+    pages = load_states(gs.timeline_path)
+    rec("load_states reads every page",
+        set(pages) == {TRAVELLER_SCOPE, "wallachia", "egypt"}, str(sorted(pages)))
+    rec("load_state(key) reads one page",
+        load_state(gs.timeline_path, "egypt").startswith("**Goal**: cross"))
+    rec("load_state() (unkeyed) is empty in era mode", load_state(gs.timeline_path) == "")
+    rec("load_timeline strips every keyed page", "state:" not in load_timeline(gs.timeline_path))
+
+    # Saving in a second age must not touch the first age's page.
+    wallachia = load_state(gs.timeline_path, "wallachia")
+    gs.era = "egypt"
+    gs._era_states["egypt"] = "**Goal**: leave the oasis."
+    gs._write_timeline()
+    rec("saving in one age leaves another age's page untouched",
+        load_state(gs.timeline_path, "wallachia") == wallachia)
+
+    body = gs._timeline_body()
+    rec("injection carries the traveller page", "THE TRAVELLER" in body)
+    rec("injection carries only the current age",
+        "leave the oasis" in body and "take Curtea" not in body)
+    rec("the jump can inject the age it lands in", "take Curtea" in gs._state_body("wallachia"))
+
+    # The departure ask: a page written into a narrative turn is captured, never shown.
+    reply = ("The world folds shut.\n"
+             "<!-- state:traveller -->\n**Goal**: master the Device.\n<!-- /state:traveller -->\n"
+             "<!-- state:egypt -->\n**Goal**: leave the oasis.\n<!-- /state:egypt -->\n"
+             "{{_REMEMBERS: the age forgets him.}}")
+    gs.era = "egypt"
+    cleaned = gs._capture_state_pages(reply)
+    rec("a departure page never reaches the narrative", "<!-- state:" not in cleaned, cleaned[:40])
+    rec("... and is parked for the jump", gs._pending_era_state is not None
+        and gs._pending_era_state[0] == "egypt")
+    gs._era_states.pop("egypt", None)
+    gs._commit_departure_state("egypt")
+    rec("the departure page lands on the age being left",
+        gs._era_states.get("egypt", "").startswith("**Goal**: leave"))
+    rec("the parked page is consumed", gs._pending_era_state is None)
+
+    # Best-effort: a closing turn that wrote nothing keeps the page already held.
+    gs._era_states["egypt"] = "old page"
+    gs._pending_era_state = None
+    gs._commit_departure_state("egypt")
+    rec("a missed departure keeps the page already held", gs._era_states["egypt"] == "old page")
+
+    # _extract_states strips every keyed block, not only the keys asked for.
+    pages, cleaned = _extract_states(reply, ["egypt"])
+    rec("_extract_states pulls only the keys asked for", set(pages) == {"egypt"})
+    rec("_extract_states strips every keyed block", "<!-- state:" not in cleaned)
+
+    # A save made before the pages were scoped has one unkeyed block: it is the age the
+    # Traveller is in, and not a classic notebook.
+    legacy = _session()
+    legacy.classic = False
+    legacy.era = "tang"
+    with open(legacy.timeline_path, "w", encoding="utf-8") as f:
+        f.write("# Session Timeline\n\n<!-- state -->\n**Goal**: old truth.\n<!-- /state -->\n")
+    legacy._load_state_pages()
+    rec("a legacy unkeyed block seeds the age the Traveller is in",
+        legacy._era_states.get("tang", "").startswith("**Goal**: old truth."))
+    rec("... and is not left as the classic notebook", legacy._state == "")
+
+    # A keyed page wins over a stale legacy block left in the same file.
+    keyed = _session()
+    keyed.classic = False
+    keyed.era = "tang"
+    with open(keyed.timeline_path, "w", encoding="utf-8") as f:
+        f.write("# Session Timeline\n\n<!-- state:tang -->\n**Goal**: keyed.\n<!-- /state:tang -->\n\n"
+                "<!-- state -->\n**Goal**: stale legacy.\n<!-- /state -->\n")
+    keyed._load_state_pages()
+    rec("keyed pages win over a stale legacy block",
+        keyed._era_states.get("tang") == "**Goal**: keyed.")
+
+    # Classic keeps its single unkeyed notebook.
+    cl = _session()
+    cl.classic = True
+    cl._state = "**Goal**: survive."
+    cl._write_timeline()
+    with open(cl.timeline_path, encoding="utf-8") as f:
+        craw = f.read()
+    rec("classic writes the single unkeyed notebook", "<!-- state -->" in craw and "state:" not in craw)
+    rec("classic injection leads with STATE", cl._state_body().startswith("STATE"))
+
+    # The jump: compaction drops the events but must re-inject the state pages.
+    jump = _session()
+    jump.classic = False
+    jump.era = "egypt"
+    jump.messages = [{"role": "system", "content": "the protocol"}]
+    jump._legends = {"wallachia": "Wallachia remembers a conqueror."}
+    jump._traveller = "**Goal**: master the Device."
+    jump._era_states = {"egypt": "**Goal**: leave the oasis."}
+    jump._chronicle = (1, 5, "The story so far: he fled the capital.")
+    jump._timeline_kept = "## Turns 6-6 | place | day\n**Key Events**:\n- six."
+    jump._compact("wallachia")
+    joined = "\n".join(m.get("content", "") for m in jump.messages if isinstance(m, dict))
+    rec("the jump re-injects the traveller page and the new age's page",
+        "THE TRAVELLER" in joined and "leave the oasis" in joined)
+    rec("the jump still drops the events",
+        "The story so far" not in joined and "Turns 6-6" not in joined)
+    return True
+
+
+def guard_tests() -> bool:
+    """The STATE guard and the core repair: engine-owned keys dropped, synonyms renamed,
+    scope enforced, and a core-less page kept or repaired (never silently absent)."""
+    print("  -- STATE page guard --")
+    wild = (
+        "era: victorian\n"
+        "year: 1858\n"
+        "location: England / Liverpool / the dock road\n"
+        "regulars: Michael Quill — pier master (Human, Fighter)\n"
+        "cast: none\n"
+        "reputation: england — nothing owed him\n"
+        "device: whole — all five parts in hand\n"
+        "threads: Preda still sealed and then freed in Wallachia\n"
+        "**Goal**: take the city\n"
+        "**Hooks**: the watch is coming\n"
+        "**Debts**: his oath to the captain\n"
+        "**Secrets**: he is the Traveller\n"
+        "**Canon**: he came without a gate\n"
+    )
+    era = _clean_state_page(wild, "era")
+    clean_keys = ("era:", "year:", "location:", "cast:", "reputation:", "device:")
+    rec("engine-owned keys are dropped", not any(k in era for k in clean_keys), era[:60])
+    rec("`regulars` is renamed to Standing", "**Standing**: Michael Quill" in era
+        and "regulars" not in era)
+    rec("`threads` becomes Hooks on an age page", "**Hooks**: Preda still sealed" in era)
+    rec("an age page drops Debts and the Secrets field",
+        "**Debts**" not in era and "**Secrets**" not in era)
+    rec("the canonical order survives (Goal first)", era.startswith("**Goal**:"))
+
+    trav = _clean_state_page(wild, "traveller")
+    rec("`threads` becomes Echoes on the traveller page", "**Echoes**: Preda" in trav)
+    rec("the traveller page drops the age-only fields",
+        "**Hooks**" not in trav and "**Canon**" not in trav and "**Standing**" not in trav)
+
+    rec("the core check reads the fields", _state_has_fields(trav, ("Goal", "Secrets"))
+        and not _state_has_fields(trav, ("Goal", "Bogus")))
+
+    # A page on disk written before the vocabulary was enforced is cleaned on read.
+    gs = _session()
+    with open(gs.timeline_path, "w", encoding="utf-8") as f:
+        f.write("# Session Timeline\n\n<!-- state:victorian -->\n" + wild
+                + "<!-- /state:victorian -->\n")
+    loaded = load_states(gs.timeline_path).get("victorian", "")
+    rec("a wild page on disk is cleaned on read",
+        "year:" not in loaded and "**Standing**:" in loaded and loaded.startswith("**Goal**"))
+
+    # The repair path: core present -> stored; core missing + held -> kept, silently;
+    # core missing + nothing held -> ONE tool-free re-ask.
+    async def run(gs_obj, scope, page, reply):
+        await gs_obj._apply_state_page(scope, page, reply, "Goal")
+
+    calls: list[str] = []
+
+    async def fake_plain(messages, label="summary"):
+        calls.append(label)
+        key = re.search(r"state:([a-z0-9_-]+)", messages[0]["content"]).group(1)
+        body = ("**Goal**: go home.\n**Secrets**: the Device." if key == TRAVELLER_SCOPE
+                else "**Goal**: hold the court.")
+        return f"<!-- state:{key} -->\n{body}\n<!-- /state:{key} -->"
+
+    gs._plain_call = fake_plain
+    gs._traveller = ""
+    asyncio.run(run(gs, TRAVELLER_SCOPE, "**Goal**: go home.\n**Secrets**: the Device.", "raw"))
+    rec("a page carrying its core is stored", gs._traveller.startswith("**Goal**") and not calls)
+
+    gs._traveller = "**Goal**: the old goal.\n**Secrets**: the old secret."
+    asyncio.run(run(gs, TRAVELLER_SCOPE, "**Echoes**: only echoes, no goal", "raw"))
+    rec("a page missing its core keeps the one held, silently",
+        gs._traveller.startswith("**Goal**: the old goal") and not calls)
+
+    gs._traveller = ""
+    asyncio.run(run(gs, TRAVELLER_SCOPE, "**Echoes**: only echoes, no goal", "the malformed reply"))
+    rec("with nothing held, one tool-free re-ask runs", calls == ["state-fix"] and gs._traveller,
+        str(calls))
+
+    calls.clear()
+    gs._era_states = {}
+    asyncio.run(run(gs, "wallachia", "**Hooks**: a fight tonight", "raw"))
+    rec("an era page with no core is repaired too",
+        gs._era_states.get("wallachia", "").startswith("**Goal**") and calls == ["state-fix"])
+    return True
+
+
 def main() -> int:
     print("=" * 72)
     print("TIMELINE (STATE notebook + event entries + compaction)")
     print("=" * 72)
     unit_tests()
     compaction_tests()
+    per_era_tests()
+    guard_tests()
     ok = all(RESULTS)
     print(f"\n  RESULT: {'PASS' if ok else 'FAIL'} ({sum(RESULTS)}/{len(RESULTS)})")
     return 0 if ok else 1

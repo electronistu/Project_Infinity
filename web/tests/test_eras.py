@@ -13,6 +13,7 @@ No LLM / no network. Run from the repo root:
 
 import importlib.util
 import random
+import re
 import sys
 from pathlib import Path
 
@@ -75,6 +76,18 @@ def main():
         str(eras.start_eras()))
     rec("list_era_meta returns no bodies",
         all(not ({"history", "polities", "visual_hooks"} & set(m)) for m in metas))
+
+    # -- `when` is one exact year, and the index shows it ------------------
+    rec("every era's `when` is a single year, never a period",
+        all(re.fullmatch(r"\d{1,4}( BC)?", str(m.get("when") or "").strip()) for m in metas),
+        str([m.get("when") for m in metas]))
+    bad = eras.validate_era({"meta": {"id": "x", "name": "X", "when": "1456-1462",
+                                      "character": "c", "order": 1, "playable": False},
+                             "body": {}}, stem="x")
+    rec("a period `when` fails validation", any("meta.when" in p for p in bad), str(bad))
+    index = eras.render_era_index()
+    rec("the ERA INDEX carries each year",
+        all(str(m.get("when")) in index for m in metas))
 
     # -- budgets (skipped when the counter is inexact; tools/verify.py refuses anyway) ----
     label, count, exact = tb._counter()
@@ -205,7 +218,7 @@ def main():
     ny_meta = ny["meta"]
     ny_pol = _polity("future", "New York")
     rec("E5: the origin is New York, above the drowned grid",
-        ny_meta.get("when") == "c. 2400" and "raised" in str(ny_pol.get("capital", "")),
+        ny_meta.get("when") == "2400" and "raised" in str(ny_pol.get("capital", "")),
         f'{ny_meta.get("when")} / {ny_pol.get("capital")}')
     rec("E5: the sabotaged Horologe scattered its parts down the ages",
         any("scattered" in h for h in ny["body"].get("history") or []))

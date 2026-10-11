@@ -161,11 +161,28 @@ _TIMELINE_SAMPLE = (
 )
 
 
+# The `state:traveller` page and the current age's page header, injected alongside each other
+# in the era game. They sit at the FRONT of the injected body, so the tokenizer sees them
+# before anything the cap truncates, and the page is written to its cap (MAX_TRAVELLER_CHARS
+# = 500) to make this the worst case.
+_TRAVELLER_SAMPLE = (
+    "THE TRAVELLER — true in every age; honour it.\n"
+    "**Goal**: repair the Horologe, gather its five parts and go home to New York.\n"
+    "**Echoes**: Wallachia — Căpitan Preda was freed and swore to see him again; five dead "
+    "left unanswered. Egypt — a caravan broke and three of them know his face. Tang — the "
+    "quay-master saw him vanish, and the berth stays empty.\n"
+    "**Debts**: his oath to Căpitan Preda that he would return; the Horologer's name.\n"
+    "**Secrets**: he is the Traveller, thrown here by the Device; no age knows the Device.\n\n"
+    "THIS AGE — current truth; honour it.\n"
+)
+
+
 def timeline_block(count):
-    """The injected SESSION_TIMELINE body at its cap (MAX_TIMELINE_CHARS): STATE notebook
-    + chronicle + kept entries. This is the block compaction bounds."""
+    """The injected SESSION_TIMELINE body at its cap (MAX_TIMELINE_CHARS): the traveller page
+    + the current age's STATE page + the chronicle + kept entries. This is the block
+    compaction bounds."""
     from web.engine import MAX_TIMELINE_CHARS
-    text = ""
+    text = _TRAVELLER_SAMPLE
     while len(text) < MAX_TIMELINE_CHARS:
         text += _TIMELINE_SAMPLE
     text = text[:MAX_TIMELINE_CHARS]

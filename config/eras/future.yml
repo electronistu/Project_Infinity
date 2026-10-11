@@ -1,4 +1,4 @@
-# E5 -- New York, the far future (c. 2400). The Traveller's home, and the one age that is
+# E5 -- New York, the far future (2400). The Traveller's home, and the one age that is
 # not history: everything here is invented. Playable like the rest, but never rolled at
 # creation (`origin: true`) -- the Traveller comes from it.
 #
@@ -9,7 +9,7 @@ meta:
   id: future
   order: 5
   name: New York
-  when: c. 2400
+  when: "2400"
   character: New York rebuilt above the drowned grid — the Traveller's home
   arrivals:
     - the Horologers' hall

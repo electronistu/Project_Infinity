@@ -60,15 +60,51 @@ OUTPUT_DIR = "output"
 
 # ── the save's timeline ─────────────────────────────────────────────
 # One file holds blocks with different lifetimes, each marked so it can be parsed back:
-#   `<!-- legend:era -->`    what an age remembers (diegetic, per-era)
-#   `<!-- state -->`         what is TRUE NOW -- the GM's notebook, rewritten every Save
+#   `<!-- legend:era -->`   what an age remembers (diegetic, per-era)
+#   `<!-- state:key -->`     what is TRUE NOW, scoped: one page per age, plus one
+#                           `traveller` page true in every age. A classic save keeps the
+#                           single unkeyed `<!-- state -->`. Rewritten every Save.
 #   `<!-- chronicle:A-B -->` old events collapsed into prose, at compaction
 #   `## Turns X-Y ...`       recent events, kept verbatim
 _TIMELINE_HEADER = "# Session Timeline"
+# The one page that is not an age: the Traveller's own book, valid wherever he stands.
+TRAVELLER_SCOPE = "traveller"
 _LEGEND_RE = re.compile(r"(?m)^<!-- legend:([a-z0-9_-]+) -->[ \t]*(.*?)[ \t]*$")
 _CHRONICLE_RE = re.compile(
     r"(?ms)^<!-- chronicle:(?P<a>\d+)-(?P<b>\d+) -->[ \t]*\n(?P<body>.*?)^<!-- /chronicle -->[ \t]*$")
-_STATE_RE = re.compile(r"(?ms)^<!-- state -->[ \t]*\n(?P<body>.*?)^<!-- /state -->[ \t]*$")
+_STATE_KEYED_RE = re.compile(
+    r"(?ms)^<!-- state:(?P<key>[a-z0-9_-]+) -->[ \t]*\n(?P<body>.*?)^<!-- /state:(?P=key) -->[ \t]*$")
+_STATE_LEGACY_RE = re.compile(
+    r"(?ms)^<!-- state -->[ \t]*\n(?P<body>.*?)^<!-- /state -->[ \t]*$")
+# The STATE page vocabulary. A page is the GM's own prose; the engine enforces the FIELD
+# NAMES and their SCOPE, never the content. `traveller` is one page true in every age;
+# `era` is each age's page; `classic` is the classic game's single notebook (no ages).
+_STATE_FIELDS = {
+    TRAVELLER_SCOPE: ("Goal", "Echoes", "Debts", "Secrets"),
+    "era": ("Goal", "Hooks", "Standing", "Clocks", "Canon", "Unpaid"),
+    "classic": ("Goal", "Hooks", "Standing", "Clocks", "Debts", "Secrets", "Canon", "Unpaid"),
+}
+# A label the GM reached for that means a canonical field (case-insensitive).
+_STATE_SYNONYMS = {
+    "goal": "Goal", "goals": "Goal", "objectives": "Goal",
+    "echoes": "Echoes", "threads": "Echoes", "left behind": "Echoes",
+    "debts": "Debts", "oaths": "Debts", "promises": "Debts",
+    "secrets": "Secrets",
+    "hooks": "Hooks", "unresolved": "Hooks",
+    "standing": "Standing", "regulars": "Standing", "attitudes": "Standing",
+    "clocks": "Clocks", "pressures": "Clocks",
+    "canon": "Canon", "truths": "Canon",
+    "unpaid": "Unpaid", "foreshadowing": "Unpaid",
+}
+# Labels that only restate a store the engine already feeds: the whole block is dropped.
+_STATE_ENGINE_KEYS = {
+    "era", "age", "when", "year", "date", "time", "location", "place", "places",
+    "arrival", "journey", "reputation", "device", "inventory", "equipment", "gold",
+    "xp", "level", "hp", "hit points", "conditions", "spells", "slots",
+    "cast", "characters", "people", "npcs",
+}
+_STATE_FIELD_RE = re.compile(
+    r"(?m)^\s*(?:\*\*)?([A-Za-z][A-Za-z _-]{0,24}?)(?:\*\*)?\s*:\s*(.*)$")
 # The `## Turns …` / legacy `## Rounds …` entry boundary.
 _ENTRY_SPLIT_RE = re.compile(r"(?m)^(?=##\s+(?:Rounds?|Turns?)\s+\d)")
 
@@ -84,20 +120,99 @@ def _read_timeline_file(timeline_path) -> str:
 
 
 def load_timeline(timeline_path):
-    """The kept (recent) session entries: the header, the legends, the STATE block and the
+    """The kept (recent) session entries: the header, the legends, the STATE pages and the
     chronicle are stripped. This is what `_write_timeline` rebuilds from, and what turn
     numbering reads."""
     text = _LEGEND_RE.sub("", _read_timeline_file(timeline_path))
-    text = _STATE_RE.sub("", text)
+    text = _STATE_KEYED_RE.sub("", text)
+    text = _STATE_LEGACY_RE.sub("", text)
     text = _CHRONICLE_RE.sub("", text)
     text = re.sub(r"(?m)^# Session Timeline[ \t]*\n?", "", text, count=1)
     return text.strip()
 
 
-def load_state(timeline_path) -> str:
-    """What is true now -- the GM's notebook, rewritten on every Save."""
-    match = _STATE_RE.search(_read_timeline_file(timeline_path))
-    return match.group("body").strip() if match else ""
+def _state_scope_for(key: str) -> str:
+    """The field contract a state key is written under: the traveller page, or an age's."""
+    return TRAVELLER_SCOPE if str(key or "").strip().lower() == TRAVELLER_SCOPE else "era"
+
+
+def _clean_state_page(body: str, scope: str) -> str:
+    """Enforce a STATE page's field names, scope and order.
+
+    The engine-owned labels (`era`, `year`, `location`, `reputation`, `device`, `cast`, …)
+    copy a store that is injected anyway, so their blocks are dropped; a synonym
+    (`regulars` -> `Standing`, `threads` -> `Echoes`/`Hooks`) is renamed and kept; a block
+    whose field belongs to the other scope is dropped -- oaths live on the traveller page,
+    and an age page never lists another age's threads. Blocks are emitted in the contract's
+    order, so `_clamp_block` (which keeps the earliest lines) can never drop `Goal` first.
+    Content is never rewritten."""
+    order = _STATE_FIELDS.get(scope, _STATE_FIELDS["era"])
+    allowed = {f.lower() for f in order}
+    blocks: dict = {}
+    current = None
+    for line in (body or "").splitlines():
+        match = _STATE_FIELD_RE.match(line)
+        label = " ".join(match.group(1).split()).lower() if match else ""
+        if match and (label in _STATE_SYNONYMS or label in _STATE_ENGINE_KEYS):
+            if label in _STATE_ENGINE_KEYS:
+                current = None
+                continue
+            target = _STATE_SYNONYMS[label]
+            if label in ("threads", "left behind") and scope != TRAVELLER_SCOPE:
+                target = "Hooks"
+            if target.lower() not in allowed:
+                current = None
+                continue
+            value = match.group(2).rstrip()
+            blocks.setdefault(target, []).append(
+                f"**{target}**:" + (" " + value if value else ""))
+            current = target
+        elif current and line.strip():
+            blocks[current].append(line.rstrip())
+    out: list[str] = []
+    for name in order:
+        out.extend(blocks.get(name, []))
+    return "\n".join(out).strip()
+
+
+def _state_has_fields(page: str, fields) -> bool:
+    """True when a page carries every named field -- the page's core."""
+    labels = {m.group(1).strip().lower() for m in _STATE_FIELD_RE.finditer(page or "")}
+    return all(str(f).strip().lower() in labels for f in fields)
+
+
+def load_states(timeline_path) -> dict:
+    """Every scoped STATE page in the save: `{key: body}` (an era id, or `traveller`).
+
+    Only the traveller page and the age the Traveller stands in are ever put in the prompt,
+    so the ages he is not in cost nothing. Each page is cleaned on read, so a page written
+    before the vocabulary was enforced is injected correctly and self-heals on the next
+    Save."""
+    out: dict = {}
+    for match in _STATE_KEYED_RE.finditer(_read_timeline_file(timeline_path)):
+        key = match.group("key").strip().lower()
+        body = _clean_state_page(match.group("body").strip(), _state_scope_for(key))
+        if key and body:
+            out.setdefault(key, body)
+    return out
+
+
+def load_state(timeline_path, key: str = "") -> str:
+    """What is true now -- the GM's notebook, rewritten on every Save.
+
+    A `key` reads one scoped page (an era id, or `traveller`); without one, the classic
+    save's single unkeyed block. A save made before the pages were scoped has only the
+    unkeyed block: the caller seeds it into the age the Traveller is in, and the next Save
+    rewrites it keyed."""
+    text = _read_timeline_file(timeline_path)
+    want = str(key or "").strip().lower()
+    if not want:
+        match = _STATE_LEGACY_RE.search(text)
+        return _clean_state_page(match.group("body").strip(), "classic") if match else ""
+    for match in _STATE_KEYED_RE.finditer(text):
+        if match.group("key").strip().lower() == want:
+            return _clean_state_page(match.group("body").strip(), _state_scope_for(want))
+    return ""
 
 
 def load_chronicle(timeline_path) -> tuple[int, int, str] | None:
@@ -108,20 +223,49 @@ def load_chronicle(timeline_path) -> tuple[int, int, str] | None:
     return int(match.group("a")), int(match.group("b")), match.group("body").strip()
 
 
-def _extract_state(text: str) -> tuple[str, str]:
-    """Pull a `<!-- state --> … <!-- /state -->` block out of a model reply.
+def _extract_states(text: str, keys) -> tuple[dict, str]:
+    """Pull one or more scoped STATE pages out of a model reply.
 
-    Returns ``(state_body, cleaned_text)``. A state that merely echoes the placeholder is
-    rejected -- the state already held is better than a broken one."""
+    Returns ``(pages, cleaned_text)``; `pages` holds only the wanted keys that were found and
+    valid. A page that merely echoes the placeholder is rejected -- the page already held is
+    better than a broken one. EVERY matched block is stripped from the text (wanted or not),
+    so a departure page never reaches the client as prose."""
     raw = text or ""
-    match = _STATE_RE.search(raw)
+    wanted = {str(k or "").strip().lower() for k in keys}
+    wanted.discard("")
+    out: dict = {}
+    for match in _STATE_KEYED_RE.finditer(raw):
+        key = match.group("key").strip().lower()
+        if key not in wanted:
+            continue
+        body = match.group("body").strip()
+        if body and "<" not in body:
+            page = _clean_state_page(body, _state_scope_for(key))
+            if page:
+                out.setdefault(key, page)
+    cleaned = _STATE_KEYED_RE.sub("", raw)
+    cleaned = _STATE_LEGACY_RE.sub("", cleaned).strip()
+    return out, cleaned
+
+
+def _extract_state(text: str, key: str = "") -> tuple[str, str]:
+    """Pull ONE STATE notebook out of a model reply.
+
+    `key` reads a scoped page (`<!-- state:key -->`); without one, the classic save's single
+    unkeyed block. Returns ``(state_body, cleaned_text)``. A state that merely echoes the
+    placeholder is rejected -- the state already held is better than a broken one."""
+    if key:
+        pages, cleaned = _extract_states(text, [key])
+        return pages.get(str(key).strip().lower(), ""), cleaned
+    raw = text or ""
+    match = _STATE_LEGACY_RE.search(raw)
     if not match:
         return "", raw
     body = match.group("body").strip()
-    cleaned = _STATE_RE.sub("", raw).strip()
+    cleaned = _STATE_LEGACY_RE.sub("", raw).strip()
     if not body or "<" in body:
         return "", cleaned
-    return body, cleaned
+    return _clean_state_page(body, "classic"), cleaned
 
 
 def _split_timeline_entries(text: str) -> list[str]:
@@ -225,8 +369,8 @@ AWAKENING_RESUME = (
 )
 
 # Web-local timeline prompt: the database is authoritative, so mechanical changes are NOT
-# summarised (the terminal CLI's prompt is gone). The response carries TWO blocks -- the
-# event entry AND the STATE notebook (what is true now, rewritten in place every Save).
+# summarised (the terminal CLI's prompt is gone). The response carries the event entry AND
+# the STATE notebook (what is true now, rewritten in place every Save).
 TIMELINE_PROMPT = """SYSTEM INSTRUCTION: The player is saving the game. Output TWO blocks covering the turns listed below, in this EXACT order and format. Replace bracketed text with actual content. Keep it concise. Output ONLY these blocks — no extra narration, no tool calls.
 
 ## Turns X-Y | [current location] | [in-game time]
@@ -236,13 +380,49 @@ TIMELINE_PROMPT = """SYSTEM INSTRUCTION: The player is saving the game. Output T
 <!-- state -->
 **Goal**: [what the Traveller is trying to do now, one line]
 **Hooks**: [every unresolved thread, one per line; drop resolved ones]
-**Standing**: [Name (role) — how they stand toward the Traveller, one per line]
+**Standing**: [Name — how they stand toward the Traveller, one per line; a bare name, never a race, class or role]
 **Clocks**: [what advances if the Traveller does nothing]
 **Debts**: [promises, oaths and bargains owed or held]
 **Secrets**: [what the Traveller knows that others do not]
 **Canon**: [details that must stay true — keep it short]
 **Unpaid**: [foreshadowing planted but not yet paid off]
-<!-- /state -->"""
+<!-- /state -->
+
+RULES:
+- Write current truth only — no "then", no "now freed", no "later".
+- Do not restate what the engine already tells you: the date or time, the place, the place tree and its regulars, reputation, HP, inventory."""
+
+# The era game's timeline prompt: state is scoped, because an age is a perspective and the
+# Traveller is one continuous person. The `state:traveller` page holds what is true in EVERY
+# age -- his own book, and the only home for an oath. The `state:<era>` page holds this
+# age's fields alone. `{era}` is replaced with the age the Traveller stands in. Only these
+# two pages are ever injected, so the ages he is not in cost nothing.
+TIMELINE_PROMPT_ERA = """SYSTEM INSTRUCTION: The player is saving the game. Output THREE blocks covering the turns listed below, in this EXACT order and format. Replace bracketed text with actual content. Keep it concise. Output ONLY these blocks — no extra narration, no tool calls.
+
+## Turns X-Y | [current location] | [in-game time]
+**Key Events**:
+- [event in one sentence]
+
+<!-- state:traveller -->
+**Goal**: [what the Traveller wants across all the ages — the Device, the way home; one line]
+**Echoes**: [one line per age he has left something in, written "[Age] — what remains there"; only ages with something outstanding, most important first; an age with nothing left is dropped]
+**Debts**: [promises, oaths and bargains he carries from one age into another — the ONLY place an oath is written]
+**Secrets**: [what is true of him in every age — who he is, what the Device is]
+<!-- /state:traveller -->
+
+<!-- state:{era} -->
+**Goal**: [what the Traveller is trying to do in THIS age, one line]
+**Hooks**: [every unresolved thread in this age, one per line; drop resolved ones]
+**Standing**: [Name — how they stand toward the Traveller, one per line; a bare name, never a race, class or role]
+**Clocks**: [what advances in this age if the Traveller does nothing]
+**Canon**: [details of this age that must stay true — keep it short]
+**Unpaid**: [foreshadowing planted here but not yet paid off]
+<!-- /state:{era} -->
+
+RULES:
+- Write current truth only — no "then", no "now freed", no "later".
+- Do not restate what the engine already tells you: the era, the year or time, the place, the place tree and its regulars, reputation, the Device and its parts, HP, inventory.
+- An age page never mentions another age; a cross-age thread goes on the traveller page."""
 
 # The compaction output: the older entries, rewritten as one short in-voice chronicle. The
 # STATE block is already current, so it is not folded here -- only events are.
@@ -250,21 +430,26 @@ CHRONICLE_PROMPT = """SYSTEM INSTRUCTION: These are earlier session timeline ent
 
 {old}"""
 
-# The injected session memory: STATE (current truth) + EVENTS (chronicle + kept entries).
+# The injected session memory: the STATE page(s) (current truth) + the EVENTS (chronicle +
+# kept entries). A classic save has one notebook; the era game has a traveller page and one
+# page per age, and only the current age's is injected.
 SESSION_TIMELINE_HEADER = (
     "SESSION_TIMELINE — earlier in this story. Refer to past events when the player asks; "
-    "do not replay or re-describe them. The STATE block is what is TRUE NOW — honour it.\n\n"
+    "do not replay or re-describe them. The STATE block(s) below are what is TRUE NOW — "
+    "honour them.\n\n"
 )
 
 # The timeline is bounded by COMPACTION, not by dropping history: once the injected body
 # passes the cap (or the entry-count floor), the older entries are rewritten as one
-# GM-authored chronicle and the raw entries are discarded. Events decay; the STATE block
-# is rewritten in place and does not grow.
-MAX_TIMELINE_CHARS = 4500   # the injected body: STATE + chronicle + kept entries
+# GM-authored chronicle and the raw entries are discarded. Events decay; the STATE pages
+# are rewritten in place and do not grow. Only the traveller page and the current age's are
+# ever injected, so the other ages cost disk, not tokens.
+MAX_TIMELINE_CHARS = 4500   # the injected body: STATE pages + chronicle + kept entries
 TIMELINE_KEEP_ENTRIES = 2   # newest entries kept verbatim at a compaction
 TIMELINE_MAX_ENTRIES = 6    # always compact past this many entries
 MAX_CHRONICLE_CHARS = 1200  # the event chronicle
-MAX_STATE_CHARS = 1200      # the STATE block
+MAX_STATE_CHARS = 1200      # one age's STATE page
+MAX_TRAVELLER_CHARS = 500   # the `state:traveller` page (four fields: Goal/Echoes/Debts/Secrets)
 
 HELP_TEXT = (
     "/help  - show this help\n"
@@ -671,6 +856,28 @@ LEGEND_RECOVERY_NUDGE = (
     "{{_REMEMBERS: <" + _MEMORY_SCOPE + ">}} -- no prose, no tool calls, nothing else."
 )
 
+# Asked on the same closing turn, and it must come BEFORE the memory marker (which stays
+# last): the age's own STATE page. Once the age is left no Save can ever happen there again,
+# so departure is the only moment a visit's final truth can be captured. Best-effort -- a
+# miss leaves the page already held, and the next Save in that age rewrites it anyway.
+ERA_STATE_ASK = (
+    "Before that, write this age's STATE page exactly as in a save reply -- a "
+    "<!-- state:{era} --> … <!-- /state:{era} --> block with this age's fields, scoped to "
+    "THIS age. It comes BEFORE the {{{{_REMEMBERS}}}} marker, which stays last."
+)
+
+# Asked ONCE, tool-free, when a Save produced a state page with no core AND there is no page
+# on disk to keep -- the one case where silence would mean the notebook is silently absent.
+# Unlike the legend's quiet round (which runs at a jump, just before the history is thrown
+# away), this call never touches `self.messages`, so a Save cannot leave the nudge in the
+# live conversation.
+STATE_RECOVERY_NUDGE = (
+    "SYSTEM: this save's STATE page for `{scope}` is missing its required field(s): {fields}. "
+    "Rewrite ONLY that page, from the material below, in the usual field format and wrapped "
+    "in <!-- state:{scope} --> … <!-- /state:{scope} -->. Output nothing else -- no prose, "
+    "no tool calls.\n\n{reply}"
+)
+
 DEVICE_FIRES = (
     "The Device fires. You are thrown out of {old} and into {new}.\n\n"
     "You arrive at {arrival}.\n\n"
@@ -1002,9 +1209,14 @@ class GameSession:
         # One or two lines per era, read from the save's timeline and injected lazily: the
         # eras the Traveller is not in cost nothing.
         self._legends: dict[str, str] = {}
-        # The current-truth notebook and the collapsed event chronicle: both live in memory
-        # until Save, like the legends, so an unsaved session never touches the file.
+        # The current-truth notebook(s) and the collapsed event chronicle: all live in memory
+        # until Save, like the legends, so an unsaved session never touches the file. A classic
+        # save has one `_state`; the era game keeps a page per age plus the traveller's page,
+        # and a page captured on the closing turn waits in `_pending_era_state` until the jump.
         self._state: str = ""
+        self._era_states: dict[str, str] = {}
+        self._traveller: str = ""
+        self._pending_era_state: tuple[str, str] | None = None
         self._chronicle: tuple[int, int, str] | None = None
         # The kept entries a compaction produced, consumed once by `_write_timeline` so the
         # folded raw entries are not re-read from disk and written back.
@@ -1167,7 +1379,9 @@ class GameSession:
                         key_content = f"{self._era_opening()}\n\n{render_era_text(self.era)}"
                     kept = load_timeline(self.timeline_path)
                     self._chronicle = load_chronicle(self.timeline_path)
-                    self._state = load_state(self.timeline_path)
+                    # The STATE pages: one per age plus the traveller's, or a classic save's
+                    # single unkeyed notebook.
+                    self._load_state_pages()
                     # Continue turn numbering where the timeline left off: the kept entries,
                     # or the chronicle's covered range when it reaches further back.
                     self.turn_counter = self.last_timeline_turn = _max_timeline_turn(kept)
@@ -2026,6 +2240,7 @@ class GameSession:
             # any memory line already written, because the age is still going.
             self._warned = False
             self._pending_legend = ""
+            self._pending_era_state = None
         remaining = self._jump_at_turn - self.turn_counter
         if remaining > 0:
             if remaining == WARNING_TURNS and not self._warned:
@@ -2033,12 +2248,15 @@ class GameSession:
                 # The GM hears it BEFORE the jump turn, so the age can be closed properly. A
                 # re-warning REPLACES the earlier one: that text claimed this was the last turn
                 # and the fight since made it false, so history holds exactly one claim. The
-                # memory ask rides the same turn.
+                # memory ask and the STATE ask ride the same turn.
+                state_ask = ERA_STATE_ASK.format(era=self.era)
                 self.messages = [m for m in self.messages
                                  if not (isinstance(m, dict)
-                                         and m.get("content") in (DEVICE_WARNING, LEGEND_ASK))]
+                                         and m.get("content") in (DEVICE_WARNING, LEGEND_ASK,
+                                                                 state_ask))]
                 self.messages.append({"role": "system", "content": DEVICE_WARNING})
                 self.messages.append({"role": "system", "content": LEGEND_ASK})
+                self.messages.append({"role": "system", "content": state_ask})
                 await self._emit({"type": "notice", "title": "The Device", "text": DEVICE_WARNING})
             return
         if battle:
@@ -2065,9 +2283,11 @@ class GameSession:
         return ("WHAT THE AGES REMEMBER\n" + "\n".join(lines)) if lines else ""
 
     def _compact(self, just_left: str) -> None:
-        """The era switch IS the compaction: prefix + what the ages remember, and nothing
-        behind it. This is what stops the context growing ~104 tokens per turn at the test
-        cadence -- and the thing that saves the tokens is the legend, not a prose summary."""
+        """The era switch IS the compaction: prefix + what the ages remember + what is true
+        now, and nothing behind it. This is what stops the context growing ~104 tokens per turn
+        at the test cadence -- and the thing that saves the tokens is the legend, not a prose
+        summary. The STATE pages are re-injected here: a return to an age must be handed what
+        the Traveller was doing there, and compaction used to drop the notebook entirely."""
         head = [self.messages[0], {"role": "system", "content": render_era_index(self.era)}]
         self._era_index_at = 1
         self._places_at = None
@@ -2076,6 +2296,9 @@ class GameSession:
         memory = self._memory_message(just_left)
         if memory:
             head.append({"role": "system", "content": memory})
+        state = self._state_body()
+        if state:
+            head.append({"role": "system", "content": state})
         self.messages = head
 
     async def _ensure_legend(self) -> None:
@@ -2093,9 +2316,12 @@ class GameSession:
 
         An automatic jump is warned ahead and the memory line rides its last turn; a jump the
         Traveller triggers has no such turn, so the engine manufactures one. `arrival` is the
-        place the Vernier aimed ("" for the usual draw).
+        place the Vernier aimed ("" for the usual draw). The STATE ask comes first, because the
+        memory marker must stay the last thing in the turn.
         """
-        await self._run_turn(DEVICE_CLOSES.format(name=device.era_label(era)), "closing")
+        ask = (ERA_STATE_ASK.format(era=self.era) + "\n\n"
+               + DEVICE_CLOSES.format(name=device.era_label(era)))
+        await self._run_turn(ask, "closing")
         await self._jump(to_era=era, arrival=arrival)
 
     async def _jump(self, to_era: str | None = None, arrival: str = "") -> None:
@@ -2117,6 +2343,10 @@ class GameSession:
         if legend:
             self._legends[old] = legend
         memory = self._legends.get(old, "")
+        # The age's own STATE page, written on the closing turn beside the memory line: once
+        # the age is left no Save can ever happen there again, so this is the only moment its
+        # final truth can be captured. Best-effort: a miss keeps the page already held.
+        self._commit_departure_state(old)
         # Freeze this visit's deaths before the age is thrown away: a return cannot undo them.
         self._freeze_dead()
         chosen = str(to_era or "").strip().lower()
@@ -2288,26 +2518,37 @@ class GameSession:
 
     async def _plain_summary(self, prompt: str) -> str:
         """The timeline summary rides the whole session history, so the GM can see the
-        previous STATE block it is rewriting."""
+        STATE page(s) it is rewriting."""
         return await self._plain_call(self.messages + [{"role": "user", "content": prompt}],
                                       "summary")
 
     async def _summarize_timeline(self, target_turn: int):
-        """Produce the save's event entry AND the current STATE block.
+        """Produce the save's event entry AND the current STATE page(s).
 
-        Returned, never written: the caller writes the whole timeline in one go on Save.
-        The STATE is kept even when the entry's shape drifts -- a malformed entry must not
-        cost the notebook."""
+        Returned, never written: the caller writes the whole timeline in one go on Save. A
+        page is kept even when the entry's shape drifts -- a malformed entry must not cost
+        the notebook. A page the reply did not carry leaves the page already held."""
         if target_turn <= self.last_timeline_turn:
             return None
         start = self.last_timeline_turn + 1
         await self._emit({"type": "notice", "title": "Timeline",
                           "text": f"Summarising turns {start}-{target_turn} for the save..."})
-        prompt = TIMELINE_PROMPT.replace("X-Y", f"{start}-{target_turn}")
+        if self.classic:
+            prompt = TIMELINE_PROMPT.replace("X-Y", f"{start}-{target_turn}")
+        else:
+            prompt = (TIMELINE_PROMPT_ERA.replace("X-Y", f"{start}-{target_turn}")
+                      .replace("{era}", self.era))
         text = _clean_pause_tokens(await self._plain_summary(prompt) or "")
-        state, text = _extract_state(text)
-        if state:
-            self._state = _clamp_block(state, MAX_STATE_CHARS)
+        reply = text
+        if self.classic:
+            state, text = _extract_state(reply)
+            if state:
+                self._state = _clamp_block(state, MAX_STATE_CHARS)
+        else:
+            pages, text = _extract_states(reply, [TRAVELLER_SCOPE, self.era])
+            await self._apply_state_page(self.era, pages.get(self.era, ""), reply, "Goal")
+            await self._apply_state_page(TRAVELLER_SCOPE, pages.get(TRAVELLER_SCOPE, ""),
+                                         reply, "Goal")
         entry = text.strip()
         if entry and "**Key Events**" in entry:
             self.last_timeline_turn = target_turn
@@ -2315,15 +2556,113 @@ class GameSession:
             return entry
         return None
 
-    def _timeline_body(self) -> str:
-        """The injected session memory: STATE, then the EVENTS (chronicle + kept entries)."""
-        state = (self._state or "").strip()
+    async def _apply_state_page(self, scope: str, page: str, reply: str, *required: str) -> None:
+        """Store the state page a Save produced, or keep/repair it.
+
+        A page carrying its core (`Goal`) is cleaned and stored. A page without it keeps the
+        one already held -- nothing is lost, and the next Save rewrites it. Only when there
+        is nothing to keep (the first save in that age) is the GM asked once, tool-free, for
+        the page; if that fails too, nothing is stored for this page.
+
+        The other fields are wanted, not required: a page that omits one is still far better
+        than the page it would replace, and discarding it would stall the ledger over a
+        single missing line."""
+        traveller = scope == TRAVELLER_SCOPE
+        cap = MAX_TRAVELLER_CHARS if traveller else MAX_STATE_CHARS
+        held = (self._traveller if traveller else self._era_states.get(scope, "")) or ""
+        stored = _clamp_block(page, cap) if page else ""
+        if not (stored and _state_has_fields(stored, required)):
+            if held:
+                return  # keep what we have; silence is cheaper than a correction
+            repaired = await self._repair_state_page(scope, reply)
+            stored = _clamp_block(repaired, cap) if repaired else ""
+            if not (stored and _state_has_fields(stored, required)):
+                return
+        if traveller:
+            self._traveller = stored
+        else:
+            self._era_states[scope] = stored
+
+    async def _repair_state_page(self, scope: str, reply: str) -> str:
+        """One tool-free call to repair a page with no core. The malformed reply is the only
+        context it gets -- cheap, and the session history is never touched. It asks for the
+        scope's full field set, so one round fixes the shape, not just the missing line."""
+        fields = " / ".join(_STATE_FIELDS[_state_scope_for(scope)])
+        prompt = STATE_RECOVERY_NUDGE.format(
+            scope=scope, fields=fields, reply=(reply or "")[:4000])
+        text = _clean_pause_tokens(await self._plain_call(
+            [{"role": "user", "content": prompt}], "state-fix") or "")
+        pages, _ = _extract_states(text, [scope])
+        return pages.get(scope, "")
+
+    def _load_state_pages(self) -> None:
+        """Read the save's STATE pages into memory: a classic save's single notebook, or the
+        era game's traveller page plus one page per age.
+
+        A save made before the pages were scoped has only the unkeyed block -- it belongs to
+        the age the Traveller is standing in, and the next Save rewrites it keyed."""
+        pages = load_states(self.timeline_path)
+        self._traveller = pages.pop(TRAVELLER_SCOPE, "")
+        self._state = load_state(self.timeline_path)
+        if self.classic:
+            self._era_states = {}
+            return
+        self._era_states = pages
+        if not pages and self._state:
+            self._era_states[self.era] = self._state
+            self._state = ""
+
+    def _capture_state_pages(self, text: str) -> str:
+        """Capture a STATE page the GM wrote into a narrative turn and strip it, so it can
+        never reach the client. Only the departure ask writes one there: the age being left,
+        plus the traveller's own page (true in every age)."""
+        if self.classic:
+            return text
+        pages, cleaned = _extract_states(text, [self.era, TRAVELLER_SCOPE])
+        if pages.get(TRAVELLER_SCOPE):
+            self._traveller = _clamp_block(pages[TRAVELLER_SCOPE], MAX_TRAVELLER_CHARS)
+        if pages.get(self.era):
+            self._pending_era_state = (self.era,
+                                       _clamp_block(pages[self.era], MAX_STATE_CHARS))
+        return cleaned
+
+    def _commit_departure_state(self, old: str) -> None:
+        """Store the page captured on the closing turn for the age being left. A miss keeps
+        the page already held (the next Save in that age would rewrite it anyway)."""
+        if self._pending_era_state and self._pending_era_state[0] == old:
+            page = (self._pending_era_state[1] or "").strip()
+            if page:
+                self._era_states[old] = _clamp_block(page, MAX_STATE_CHARS)
+        self._pending_era_state = None
+
+    def _state_body(self, era: str | None = None) -> str:
+        """The STATE pages to inject: what is true now, and nothing else.
+
+        A classic save has one notebook. The era game injects the traveller's page plus this
+        age's page -- the ages the Traveller is not in are on disk and cost nothing. `era`
+        overrides the current age, so a jump can inject the one it just landed in."""
+        if self.classic:
+            state = (self._state or "").strip()
+            return "STATE — current truth; honour it.\n" + state if state else ""
+        parts: list[str] = []
+        if (self._traveller or "").strip():
+            parts.append("THE TRAVELLER — true in every age; honour it.\n" + self._traveller.strip())
+        page = (self._era_states.get(era or self.era, "") or "").strip()
+        if page:
+            parts.append("THIS AGE — current truth; honour it.\n" + page)
+        return "\n\n".join(parts)
+
+    def _timeline_body(self, era: str | None = None) -> str:
+        """The injected session memory: the STATE page(s), then the EVENTS (chronicle +
+        kept entries). Compaction measures this whole body; the jump re-injects the pages
+        alone, so the events still decay."""
+        state = self._state_body(era)
         chronicle = self._chronicle[2].strip() if self._chronicle else ""
         kept = (self._timeline_kept if self._timeline_kept is not None
                 else load_timeline(self.timeline_path))
         parts: list[str] = []
         if state:
-            parts.append("STATE — current truth; honour it.\n" + state)
+            parts.append(state)
         if chronicle:
             parts.append("EVENTS\n" + chronicle)
         if kept:
@@ -2379,24 +2718,37 @@ class GameSession:
 
     def _write_timeline(self, entry=None) -> None:
         """Rewrite the save's timeline atomically: header, the ages' legends, the STATE
-        notebook, the chronicle, the kept entries, and the new entry.
+        pages, the chronicle, the kept entries, and the new entry.
 
-        Called on Save only. Legends, the STATE and the chronicle live in memory until here,
-        so an unsaved session never touches the file; rebuilding each block keeps a save
-        idempotent (no duplicates)."""
+        Called on Save only. Legends, the STATE pages and the chronicle live in memory until
+        here, so an unsaved session never touches the file; rebuilding each block keeps a
+        save idempotent (no duplicates)."""
         if not self.timeline_path:
             return
         source = self._timeline_kept
         self._timeline_kept = None
         session_text = source if source is not None else load_timeline(self.timeline_path)
-        if not (session_text or entry or self._legends or self._state or self._chronicle):
+        if not (session_text or entry or self._legends or self._state
+                or self._era_states or self._traveller or self._chronicle):
             return  # nothing to record yet: do not create an empty timeline
         blocks = [_TIMELINE_HEADER]
         if self._legends:
             blocks.append("\n".join(f"<!-- legend:{era} --> {text}"
                                     for era, text in self._legends.items()))
+        # The STATE pages: a classic save's single unkeyed notebook, or the era game's
+        # traveller page (true in every age) then one page per age. Sorted, so a rewrite is
+        # byte-stable and two saves of the same state produce the same file.
         if self._state:
             blocks.append(f"<!-- state -->\n{self._state.strip()}\n<!-- /state -->")
+        if (self._traveller or "").strip():
+            blocks.append(f"<!-- state:{TRAVELLER_SCOPE} -->\n{self._traveller.strip()}\n"
+                          f"<!-- /state:{TRAVELLER_SCOPE} -->")
+        for era in sorted(self._era_states):
+            if era == TRAVELLER_SCOPE:
+                continue  # written above, never from the ages dict
+            page = (self._era_states.get(era) or "").strip()
+            if page:
+                blocks.append(f"<!-- state:{era} -->\n{page}\n<!-- /state:{era} -->")
         if self._chronicle:
             a, b, body = self._chronicle
             blocks.append(f"<!-- chronicle:{a}-{b} -->\n{body.strip()}\n<!-- /chronicle -->")
@@ -2507,6 +2859,9 @@ class GameSession:
         legend, content = _extract_legend(content)
         if legend:
             self._pending_legend = legend
+        # A departure STATE page rides the closing turn the same way, and is stripped here
+        # rather than at the jump so it can never reach the client.
+        content = self._capture_state_pages(content)
         if not quiet and _clean_pause_tokens(content):
             # A narrative has reached the player this turn; never ask for it again. This must
             # test the CLEANED text: the pause token is emitted as *content*, so a bare

@@ -1,4 +1,4 @@
-# E3 -- Wallachia, the Impaler (1456-1462). A playable era.
+# E3 -- Wallachia, the Impaler (1460). A playable era.
 #
 # Use the man, not the brand: the historical Vlad III Tepes, never a film
 # vampire. The Vampire guild (the one invented faction) lives here.
@@ -7,7 +7,7 @@ meta:
   id: wallachia
   order: 3
   name: Wallachia
-  when: 1456-1462
+  when: "1460"
   character: Vlad III holds Wallachia between Hungary and the Ottomans
   arrivals:
     - the princely court at Târgoviște

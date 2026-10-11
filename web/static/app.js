@@ -66,7 +66,11 @@ function stripTokens(s) {
     .replace(/\{\{_CONTINUE_EXECUTION\}\}/g, "")
     // The GM's era memory line (hidden while streaming and in the final render).
     .replace(/\{\{_REMEMBERS:[\s\S]*?\}\}/g, "")
-    .replace(/\{\{_REMEMBERS:[\s\S]*$/g, "");
+    .replace(/\{\{_REMEMBERS:[\s\S]*$/g, "")
+    // A departure STATE page rides the closing turn as a hidden HTML comment; the engine
+    // strips it from the stored text, and this keeps it out of the streaming preview too.
+    .replace(/<!-- state:[\s\S]*?-->/g, "")
+    .replace(/<!-- state:[\s\S]*$/g, "");
 }
 
 function fmtNum(n) { return Number(n || 0).toLocaleString(); }

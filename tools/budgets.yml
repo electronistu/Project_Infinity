@@ -41,7 +41,7 @@ budgets:
     unit: tokens
     status: enforced
     measure: era_index
-    note: "The always-on ERA INDEX: nothing about an era but its name. It lives in the static prefix."
+    note: "The always-on ERA INDEX: id, the exact year (`meta.when`) and a one-line character. 96 tok today, up from 76 when the year was added (the year is what the GM dates every scene by, and it is why a state page carries no `year:`). It lives in the static prefix."
 
   - name: lookup_schema
     ceiling: 90
@@ -101,4 +101,4 @@ budgets:
     unit: tokens
     status: enforced
     measure: injected_timeline
-    note: "The injected SESSION_TIMELINE body at its cap (web/engine.py MAX_TIMELINE_CHARS = 4500): STATE notebook + chronicle + kept entries. 1,169 today. Compaction (web/engine.py _compact_timeline) keeps it bounded; the ceiling fails the gate if the cap is raised."
+    note: "The injected SESSION_TIMELINE body at its cap (web/engine.py MAX_TIMELINE_CHARS = 4500): the traveller page (Goal/Echoes/Debts/Secrets) + the current age's STATE page + chronicle + kept entries. 1,173 today. Compaction (web/engine.py _compact_timeline) keeps it bounded; the ceiling fails the gate if the cap is raised."
