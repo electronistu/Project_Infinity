@@ -129,12 +129,15 @@ class CompanionTest(H.EngineCase):
         self.assertEqual(r["error"], "invalid_action")
 
     def test_the_description_is_world_neutral_not_era_only(self):
-        # Classic has no ages, so the tool text must read correctly there too: the unit is
-        # the world (one in classic, one per age in the era game).
+        # Classic has no ages, so the tool's always-on text must read correctly there too.
+        # The unit is the world (one in classic, one per age in the era game) and the cap is
+        # stated by the RETURN -- `limit` + the refusal -- not restated every turn.
         doc = (H.ds.register_companion.__doc__ or "").lower()
-        self.assertIn("world", doc)
-        for phrase in ("time travel", "cannot travel", "in an age"):
+        for phrase in ("time travel", "cannot travel", "in an age", "per age", "each age"):
             self.assertNotIn(phrase, doc)
+        self.assertNotIn("at most 3", doc)
+        r = H.ds.register_companion("Maera", MAERA)
+        self.assertEqual(r["limit"], 3)
 
     # ── registering the companion in a fight ──────────────────────────────────
 

@@ -2024,9 +2024,7 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
     - weight: pounds, only for items the SRD weight catalog does not know (magic items, loot, homebrew).
     - ac_bonus/attack_bonus/damage_bonus: magic bonuses, declared explicitly (never parsed from a '+1' name); they apply only while attuned (and, for a pair, only while both halves are worn).
     - save_bonus/check_bonus: a flat bonus to ALL saves / ALL checks -- the engine applies it; never add it yourself.
-    - set_*: set an ability score as a floor. *_bonus (with *_bonus_max): raise an ability, optionally capped.
-    - proficiency_bonus / spell_attack_bonus / spell_dc_bonus: item bonuses to those.
-    - effects: typed list for anything the flat fields cannot express, {type, ..., when}. Types: ability_set, ability_bonus (+max), save_bonus, save_advantage, check_bonus, skill_bonus, initiative, ac_bonus, ac_set ({base, plus_dex}), damage_resistance, damage_immunity, condition_immunity, attack_bonus/damage_bonus (+scope), spell_attack_bonus, spell_dc_bonus, weapon_property, hp_per_level, hit_die_healing_multiplier, regeneration, speed, speed_grant, grant_proficiency. when: no_armor, no_shield, no_armor_or_shield, while_holding, requires_items (items=[...]), vs_spells, vs_damage:<type>, vs_condition:<name>. Anything the engine cannot apply is echoed as 'unmodelled_effects'.
+    - effects: typed list for anything the flat fields cannot express; the full type + `when` vocabulary: lookup('ref:update_player_list'). Ability scores: ability_set {ability, value} (a floor) or ability_bonus {ability, value, max}.
     - attunement: True when the item's magic needs attunement; attunement_by names a prerequisite (class, spellcaster, creature type, alignment). Bonuses declared WITHOUT attunement apply immediately.
     - kind: the worn slot -- armor, cloak, boots, gloves, gauntlets, bracers, headwear, ring, amulet, belt, other. Required for a worn magic item so it is donned, not held.
     - pair: True when this entry is ONE HALF of a paired item. Add both halves sharing the same `base`; a single half grants no bonus.
@@ -2040,7 +2038,6 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
     - Consumables: NEVER here -- use modify_player_numeric(key='consumables.ITEM', delta=N).
     - Reputation: lowercase, no apostrophes; a missing faction under a known polity is created; a bare 'reputation.POLITY' writes to 'others'; unknown polities are rejected.
     - Removing a worn/wielded inventory item auto-unequips it; a replacement is NOT auto-equipped.
-    - Every inventory change returns a 'carrying' block; an unknown item added without weight counts 0 lb and returns 'unweighed_item'.
 
     EX:
     update_player_list(key='inventory', item='Dagger: a rusty blade', action='add', base='Dagger', damage_dice='1d4', damage_type='piercing', properties=['Finesse','Light','Thrown (range 20/60)'])
@@ -2382,9 +2379,7 @@ def equip_item(item: str, action: str = "equip", slot: str | None = None,
 
     RULES:
     - 5e has NO equipment slots -- only two hands and one suit of armour. A shield is held in a hand; a two-handed weapon needs BOTH hands (equip it only with the other hand free, or replace=True).
-    - Equipping recomputes AC from the equipped set and returns before->after + time_cost. Only one suit of armour and one shield benefit a creature.
-    - Unequipping never drops the item.
-    - The result carries the derived 'equipment' block (hands, hands_free, base_ac, ac_breakdown, warnings).
+    - Equipping recomputes AC; only one suit of armour and one shield benefit a creature. Unequipping never drops the item.
     - The in-combat refusal checks the registry: hostiles all dead = no longer in combat.
 
     EX:
@@ -2584,11 +2579,6 @@ def attune_item(item: str, action: str = "attune", instant: bool = False) -> dic
     - action: 'attune' (default) | 'unattune'.
     - instant: allow it in combat (otherwise refused -- attuning normally takes a short rest).
 
-    RULES:
-    - At most THREE attuned magic items, at most one copy of each. Fails if the item's declared `attunement_by` prerequisite (class, spellcaster, creature type, alignment) is unmet.
-    - Only items declared attunement=True can be attuned; their ac_bonus/attack_bonus/damage_bonus apply only while attuned (before that the 'equipment' block warns 'not_attuned').
-    - The item must be in the inventory first.
-
     EX:
     attune_item(item='Voidmail')
     """
@@ -2702,17 +2692,26 @@ def attune_item(item: str, action: str = "attune", instant: bool = False) -> dic
 
 @mcp.tool()
 def lookup(query: str) -> str:
-    """Era lore on demand (read-only).
+    """Reference on demand (read-only).
 
-    WHEN: you need the era again, one polity's factions, or another era from the ERA INDEX.
-    - query: 'here' = the era you are in; an era id = that era; a polity name = just that polity.
+    WHEN: you need era lore again, or a tool's full reference (its description points here).
+    - query: 'here' = this era; an era id = that era; a polity name = its factions; 'ref:TOOL' = that tool's reference.
     """
     try:
+        from web import refs as web_refs
+        if web_refs.is_tool_ref(query):
+            return web_refs.render_tool_ref(str(query).split(":", 1)[1])
         from web.eras import lookup as _lookup
 
         current = ""
         if DB_CONNECTION is not None:
             current = str(_db_val(DB_CONNECTION.cursor(), "era", "") or "")
+            if not current:
+                # No era on the save = the classic game. It has no eras to fetch, and
+                # `web.eras.lookup` would otherwise fall back to the first age and leak the
+                # wrong world into a classic prompt. `lookup` here serves references only.
+                return ("This game has no eras. `lookup` here serves a tool's field "
+                        "reference: 'ref:TOOL'.")
         return _lookup(query, current)
     except Exception as e:  # noqa: BLE001
         return f"lookup failed: {type(e).__name__}: {e}"
@@ -3481,8 +3480,6 @@ def perform_check(modifier: int | None = None, dc: int = 0, check_name: str = "C
     - grapple: True for a GRAPPLE attempt; refused, action spent, when both hands are full. Do NOT set it to escape a grapple.
 
     RULES:
-    - Player checks/saves are engine-derived: effective ability + proficiency (doubled for Expertise, halved for Jack of All Trades) + item bonuses. Never compute them yourself.
-    - A declared companion's check/save is derived from HER sheet the same way (ability + proficiency / Expertise); never pass a modifier for her.
     - Heavily encumbered or unproficient armour: STR/DEX/CON checks roll with disadvantage; the result carries 'disadvantage_sources' and both dice.
     - Grapple with no free hand is refused with turn_lost=true (no roll).
 
@@ -4849,12 +4846,9 @@ def register_companion(name: str, sheet: dict | None = None, action: str = "decl
     """Declare a companion's character sheet once, or forget it.
 
     WHEN: a companion joins (declare in FULL, once), changes lastingly (re-declare the same name), or leaves or dies (forget).
-    A companion belongs to the world it was found in; each world keeps its own, at most 3. In a fight, register it BY NAME ALONE -- the engine fills the block, at full HP unless `hp` is given.
     - name: the exact name you keep using.
-    - sheet: the companion's static COMBAT sheet. REQUIRED: `stats` (all six ability scores -- her checks and saves are derived from them), `ac`, `max_hp`. Optional: `attacks`, `advantages` (combat-only special rules, e.g. 'Sneak Attack 2d6'), `skills` (the skills she is proficient in), `expertise`, `proficiency_bonus` (+2 default), `speed`, `saves`, `spellcasting`, damage/condition resistances and immunities. `race`, `class` and `description` (the stable physical look the illustrator keeps) are identity, not combat. There is NO current-HP field.
+    - sheet: the companion's static COMBAT sheet. REQUIRED: `stats` (all six ability scores), `ac`, `max_hp`. Optional: `attacks`, `advantages` (combat-only special rules, e.g. 'Sneak Attack 2d6'), `skills` (the skills she is proficient in), `expertise`, `proficiency_bonus` (+2 default), `speed`, `saves`, `spellcasting`, damage/condition resistances and immunities. `race`, `class` and `description` (the stable physical look the illustrator keeps) are identity, not combat. There is NO current-HP field.
     - action: 'declare' (add or update) | 'forget' (remove).
-
-    RULES: at 3 companions a new one is refused -- ask the player which companion leaves; re-declaring a name updates it; never restate the sheet again.
     """
     global DB_CONNECTION
     if DB_CONNECTION is None:
@@ -6352,17 +6346,7 @@ def resolve_magic(
     - damage_dice/damage_modifier/damage_type: custom damage (needed for unknown spells). cantrip_scaling: auto-scale at 5/11/17. higher_levels: upcast string (e.g. '+1d6'). healing: heals instead. aoe: area. ritual: no slot. advantage/force_crit: attack_roll only. components: override (else config/components.yml; unknown = V,S,M). boost_damage_type: which component of Flame Strike the upcast empowers. delayed_rounds: rounds a Delayed Blast Fireball waited. eyebite_effect: Eyebite's chosen effect — asleep, panicked, or sickened (sickened repeats its save).
     - targets: multi-target list. Shapes by type -- HP pool {name, current_hp}; save {name} (HP/save/CR auto from the registry) or {name, current_hp, save_modifier, challenge_rating} (add {is_player: True} for the player); projectiles {name, darts} (darts must total the count; omit to send them all at one target); attack_roll = one attack per target; automatic = names only (the spell has no per-target roll, so the list only names whom it touched).
 
-    RULES:
-    1. The slot is validated BEFORE dice; empty slots are returned. Cantrips, rituals, scrolls and NPC attacks consume none.
-    2. Duplicate active buffs are rejected before slot use.
-    3. Multi-target AoE: damage rolled ONCE, an individual save each, one slot; HP from the registry; XP from all kills.
-    4. HP-pool spells: targets ascending by HP, pool drained in order.
-    5. Extra damage dice are NOT doubled on a crit.
-    6. Player temp HP drains before real HP (is_npc_attack). Player resistance/immunity/vulnerability from worn items AND active spells is applied automatically -- pass the RESOLVED damage type.
-    7. Multi-projectile: each resolves separately; automatic spells strike simultaneously, attack-roll spells roll per projectile.
-    8. A player spell with somatic/material components is REFUSED with both hands full (success=false, error='both_hands_occupied', turn_lost=true; no slot). Components come from config/components.yml else components=; unknown = V,S,M.
-    9. A player in armour they are not proficient with cannot cast ANY spell (refused, error='armor_not_proficient').
-    10. Healing is capped at the target's max; results declare max_hp/remaining_hp. Temp HP is a separate pool and may exceed it.
+    RULES: how it resolves -- slot consumption, AoE / HP-pool / multi-projectile order, resistance and temp-HP order, components, and the healing cap: lookup('ref:resolve_magic').
 
     EX:
     resolve_magic(spell_name='Fireball', actor='{player_name}', spell_save_dc=15, targets=[{"name":"Goblin","current_hp":7,"save_modifier":2,"challenge_rating":0.25}])

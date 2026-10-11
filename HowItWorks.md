@@ -77,9 +77,9 @@ The mode is chosen at creation, stored on the save, and hidden from the GM.
 | Where you start | The one world | **Rolled** from the playable ages — but never New York, the Traveller's own — as is every later jump |
 | Reputation | Flat, per kingdom | Per age, then per polity and faction |
 | The Device | Never armed | Counts **ordinary** turns only — a turn where any combat was resolved is not one of them, so a fight holds the counter, and a jump can never interrupt one. Its five parts are real inventory items; each owns a power (the Mainspring holds the Device, the Escapement releases it, the Compass Rose and the Regulator aim the age, the Vernier the place), and the Mainspring's charge stops the countdown entirely. Control depends on **which** parts are held, not how many |
-| `lookup` tool | Not offered | Offered — fetches any era's scaffold and factions |
+| `lookup` tool | Offered — a tool's on-demand field reference (`ref:TOOL`) | Offered — any era's scaffold and factions, plus the same `ref:TOOL` references |
 
-The mode costs nothing when it is not in play: the protocol is marker-gated and rendered per session, the era index is its own system message, and the `lookup` tool is filtered out of a classic session entirely.
+The mode costs nothing when it is not in play: the protocol is marker-gated and rendered per session, and the era index is its own system message. `lookup` is the one generic read-only tool and is offered in **both** games — in classic its era branches simply have no other era to reach.
 
 ---
 
@@ -139,6 +139,10 @@ venv\Scripts\python.exe tools\verify.py
 `--only srd,budget,dice` runs a subset; `--json` gives a machine-readable summary.
 
 **The token budget.** Every turn sends the GM a fixed **static prefix** — the tool schemas plus `GameMaster_MCP.md` — which is the game's largest recurring cost, so each ceiling is a written decision in `tools/budgets.yml` and a breach fails the build. `tools/token_budget.py --gate` runs the budget check alone, and **refuses to run** without `tiktoken` rather than gate on an estimate. `tools/gm_snapshot.py` captures and diffs what the GM is actually sent (`input` / `behavior` / `compare`).
+
+Three levers keep the prefix down. **A declaration the engine already returns is not repeated in an always-on description** — the return teaches it at the moment it matters (a cap is stated by `limit` and by the refusal), so the duplicate would be paid every turn forever for nothing. The long **explanations** — `update_player_list`'s `effects` vocabulary, `resolve_magic`'s resolution rules — live in [`config/tool_refs.yml`](config/tool_refs.yml) and are fetched with `lookup('ref:TOOL')`, paid only on the turns they are actually used; the always-on price is the one-line pointer in the tool description. And the **compacted schema may omit a parameter that is only a duplicate spelling** — `update_player_list`'s flat ability aliases (`set_*` / `*_bonus`) are dropped from the prompt (a curated list in `web/tool_schema.py`) because the visible `effects` field reaches the same capability and the engine normalizes both into one entry; the MCP server still accepts them, so a call that uses the alias still works.
+
+The fourth lever is what the GM gets **back** from a tool. Every GM-offered tool has an explicit projection decision in `web/engine.py` — keep only these keys, drop everything but these, or send it whole with a stated reason — and an unclassified tool fails closed rather than dumping its payload. A coverage test boots the tool list and fails the build for a tool with no decision, and the always-drop keys (the mechanics disclosure, the state snapshots) are stripped at any depth, because a mechanics tool embeds other tools' results. `tool_results_gm_view` is enforced, so this half is measured too.
 
 **Layout.** `dice_server.py` is the engine and the MCP tools; `web/` is the server, the session, the client and the tests; `forge/` is the character creation and the world generation; `config/` is all rules data; `assets/` is the icon library; `tools/` is the gate.
 

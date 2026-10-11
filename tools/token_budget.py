@@ -107,7 +107,7 @@ def _tool_rows(count):
         if name in ENGINE_ONLY_TOOLS:
             continue
         raw_text = json.dumps(schema, ensure_ascii=True, sort_keys=True)
-        schema_text = json.dumps(compact_schema(schema), ensure_ascii=True, sort_keys=True)
+        schema_text = json.dumps(compact_schema(schema, name), ensure_ascii=True, sort_keys=True)
         rows.append({
             "name": name,
             "params": len((schema or {}).get("properties", {}) or {}),
@@ -257,6 +257,72 @@ def _metric_lookup_schema(rows):
     return None
 
 
+def _metric_tool_refs(count):
+    """``{tool name: reference tokens}`` for the on-demand ``lookup('ref:TOOL')`` bodies.
+
+    These are NOT always-on -- they are paid only when fetched -- so the rows are `target`s,
+    reported to keep growth visible rather than to bound the per-turn prefix."""
+    try:
+        from web.refs import render_tool_ref, tool_ref_ids
+
+        return {name: count(render_tool_ref(name)) for name in tool_ref_ids()}
+    except Exception:
+        return {}
+
+
+# A representative per-turn set of tool results, as the GM sees them: the two heaviest
+# mechanics tools -- a multi-projectile spell and an attack that kills, awards XP and writes
+# HP. Synthetic on purpose: the gate is offline and these are the shapes that drifted while
+# `tool_results_gm_view` was an uninstrumented `target`.
+_TOOL_VIEW_FIXTURES = (
+    ("resolve_magic", {
+        "success": True, "actor": "Power", "spell_name": "Magic Missile", "target_name": "",
+        "attack_type": "automatic", "slot_consumed": True, "slot_level_used": 8,
+        "slot_result": {"success": True, "key": "spellcasting.slots.8", "old_value": 1,
+                        "new_value": 0, "delta": -1,
+                        "remaining_slots": {"lv1": 4, "lv8": 0, "lv9": 1},
+                        "narrative_format": "spellcasting.slots.8: 1 -> 0 (-1)"},
+        "xp_awarded": 200,
+        "xp_result": {"success": True, "key": "xp", "old_value": 355700,
+                      "new_value": 355900, "delta": 200,
+                      "narrative_format": "xp: 355700 -> 355900 (+200)"},
+        "projectiles": 10,
+        "per_projectile": [{"target": "the knife-man", "hit": True, "crit": False,
+                            "rolls": [3], "damage": d} for d in (4, 4, 3, 5, 2, 5, 4, 4, 3, 4)],
+        "damage_total": 38, "damage_type": "force",
+        "targets": [{"name": "the knife-man", "damage": 38,
+                     "darts": [4, 4, 3, 5, 2, 5, 4, 4, 3, 4], "remaining_hp": 0,
+                     "killed": True, "xp_awarded": 200}],
+        "killed_count": 1,
+    }),
+    ("resolve_attack", {
+        "success": True, "actor": "Power", "attack": "Longsword", "outcome": "Hit",
+        "damage_total": 12, "damage_type": "slashing", "target_name": "the knife-man",
+        "target_remaining_hp": 0, "target_killed": True, "challenge_rating": 2,
+        "xp_awarded": 450,
+        "hp_change": {"success": True, "key": "current_hit_points", "old_value": 12,
+                      "new_value": 0, "delta": -12, "hp_status": "0/18",
+                      "narrative_format": "the knife-man HP: 0/18"},
+        "xp_result": {"success": True, "key": "xp", "old_value": 355900,
+                      "new_value": 356350, "delta": 450,
+                      "narrative_format": "xp: 355900 -> 356350 (+450)"},
+    }),
+)
+
+
+def _metric_tool_results_gm_view(count):
+    """The projected size of a representative per-turn tool-result set, or None if unavailable.
+
+    The row was declared as a runtime metric and never built; this offline proxy is what lets
+    it be enforced instead of drifting unseen."""
+    try:
+        from web.engine import _gm_tool_view
+    except Exception:
+        return None
+    return sum(count(_gm_tool_view(name, json.dumps(payload, ensure_ascii=True)))
+               for name, payload in _TOOL_VIEW_FIXTURES)
+
+
 def _offered_tool_tokens(rows, scene_images: bool, mode: str):
     """Tool tokens the GM is actually offered in a configuration.
 
@@ -283,7 +349,7 @@ def _metrics(prefix_on, prefix_off, era_index_tokens, count, rows=None,
     always_on = None
     if scaffold is not None and era_index_tokens:
         always_on = prefix_on + scaffold + (tree or 0)
-    return {
+    metrics = {
         "static_prefix_scenes_on": prefix_on,
         "static_prefix_scenes_off": prefix_off,
         # The other game's prefix, measured separately: its protocol omits the era rules
@@ -300,6 +366,11 @@ def _metrics(prefix_on, prefix_off, era_index_tokens, count, rows=None,
         # Not built yet: named so a manifest row resolves; value unknown.
         "tool_results_gm_view": None,
     }
+    refs = _metric_tool_refs(count)
+    metrics["tool_ref_max"] = max(refs.values()) if refs else None
+    metrics.update({f"tool_ref_{name}": tokens for name, tokens in refs.items()})
+    metrics["tool_results_gm_view"] = _metric_tool_results_gm_view(count)
+    return metrics
 
 
 def load_budgets(path: Path = BUDGETS) -> list[dict]:

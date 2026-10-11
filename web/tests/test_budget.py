@@ -96,7 +96,7 @@ def main():
         f"{metrics.get('always_on_total')} tok")
     lookup_row = tb._metric_lookup_schema(tb._tool_rows(count))
     rec("lookup tool row is measured and inside its ceiling",
-        isinstance(lookup_row, int) and lookup_row <= 90, f"{lookup_row} tok")
+        isinstance(lookup_row, int) and lookup_row <= 100, f"{lookup_row} tok")
     era_scaffold_tokens = tb._metric_era_scaffold(count)
     rec("era_scaffold is measured and within its ceiling",
         isinstance(era_scaffold_tokens, int) and era_scaffold_tokens <= 450, f"{era_scaffold_tokens} tok")
@@ -106,9 +106,10 @@ def main():
     proto_text = tb.PROTOCOL.read_text(encoding="utf-8")
     tt_on = count(tb._render_protocol(proto_text, True))
     classic_on = count(tb._render_protocol(proto_text, True, "classic"))
-    lookup_tok = tb._metric_lookup_schema(rows) or 0
     tool_tok = sum(r["desc_tokens"] + r["schema_tokens"] for r in rows)
-    classic_prefix = tool_tok - lookup_tok + classic_on
+    # `lookup` is offered in classic too (the generic reference tool), so its row is paid by
+    # both games -- the classic prefix is the whole tool list plus the classic protocol.
+    classic_prefix = tool_tok + classic_on
     tt_prefix = tool_tok + tt_on + era_index_tokens
     two = tb._metrics(tt_prefix, tt_prefix, era_index_tokens, count, rows, classic_prefix)
     rec("the classic prefix is measured separately",

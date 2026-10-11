@@ -86,7 +86,7 @@ def cmd_input(args) -> int:
                 "protocol": {}, "tools": {}}
     tool_tokens = 0
     for name, desc, schema in tb.tool_listing():
-        schema = compact_schema(schema)   # the GM is sent the compacted schema
+        schema = compact_schema(schema, name)   # the GM is sent the compacted schema
         schema_text = json.dumps(schema, ensure_ascii=True, sort_keys=True)
         tools_doc.append({"name": name, "description": desc, "inputSchema": schema})
         dt, st = count(desc), count(schema_text)

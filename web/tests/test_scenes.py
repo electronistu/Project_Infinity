@@ -458,7 +458,7 @@ async def main() -> bool:
     rec("with prose, the turn is left exactly as the model wrote it",
         out_t2 == "You wake in the dark." and not prose_calls)
 
-    # At awakening the resume re-anchors the step a bare token leaves implicit.
+    # At session start the resume re-anchors the step a bare token leaves implicit.
     resume_labels: list[str] = []
 
     async def _pause_then_prose(label, quiet=False, gm=None):
@@ -471,9 +471,9 @@ async def main() -> bool:
     out_a = await gs_a._run_role("ERA_FILE", "awakening")
     nudges = [m.get("content") for m in gs_a.messages
               if "CONTINUE_EXECUTION" in str(m.get("content"))]
-    rec("the awakening resume re-anchors step 3, narrative and image together",
+    rec("the session-start resume re-anchors step 3, narrative and image together",
         out_a == "You wake in the dark." and bool(nudges)
-        and "AWAKENING step 3" in nudges[-1] and "request_scene_image" in nudges[-1],
+        and "SESSION START step 3" in nudges[-1] and "request_scene_image" in nudges[-1],
         str(nudges[-1:]))
 
     resume_labels.clear()
@@ -787,6 +787,36 @@ async def main() -> bool:
         == json.dumps({"name": "X", "_equipment": {}}))
     rec("a non-dict tool result passes through untouched",
         _gm_tool_view("equip_item", "Tool error: boom") == "Tool error: boom")
+
+    # Declarations deleted from the tool docstrings now live ONLY in these returns. If the
+    # projection ever stops carrying them, the GM loses the fact entirely -- so guard the
+    # keys. `register_companion` carries the cap + the by-name note; both refusals carry the
+    # reason and the gm_instruction that replaces the deleted "RULES" prose.
+    companion_view = json.loads(_gm_tool_view("register_companion", json.dumps({
+        "success": True, "status": "declared", "name": "Su Lian", "era": "tang",
+        "count": 1, "limit": 3,
+        "note": "Register this companion by name alone from now on; the engine fills "
+                "the sheet."})))
+    rec("register_companion's cap + by-name note survive the GM view",
+        companion_view.get("limit") == 3
+        and "by name alone" in companion_view.get("note", ""), str(companion_view))
+    companion_refusal = json.loads(_gm_tool_view("register_companion", json.dumps({
+        "success": False, "error": "companion_limit",
+        "reason": "This world already keeps 3 companions.",
+        "companions": ["Su Lian"],
+        "gm_instruction": "Ask the player which companion leaves."})))
+    rec("register_companion's refusal carries reason + gm_instruction to the GM",
+        bool(companion_refusal.get("reason")) and bool(companion_refusal.get("gm_instruction")),
+        str(companion_refusal))
+    attune_refusal = json.loads(_gm_tool_view("attune_item", json.dumps({
+        "success": False, "error": "attunement_full", "item": "Voidmail",
+        "reason": "Already attuned to three magic items -- break one attunement first.",
+        "attuned": ["a", "b", "c"], "attunement_slots_free": 0,
+        "gm_instruction": "Break one attunement first."})))
+    rec("attune_item's cap refusal carries reason + slots + gm_instruction to the GM",
+        attune_refusal.get("attunement_slots_free") == 0
+        and bool(attune_refusal.get("reason")) and bool(attune_refusal.get("gm_instruction")),
+        str(attune_refusal))
 
     class _RichMCP:
         async def call_tool(self, name, arguments=None):

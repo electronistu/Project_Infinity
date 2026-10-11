@@ -49,6 +49,17 @@ class EffectNormalizationTest(unittest.TestCase):
         self.assertIn("belt", ds.WORN_KINDS)
         self.assertTrue(ds._is_worn_slot("Belt of Giant Strength", {"kind": "belt"}))
 
+    def test_flat_ability_sugar_and_explicit_effects_normalize_identically(self):
+        # The flat set_*/_bonus/_bonus_max fields are hidden from the PROMPT schema
+        # (web/tool_schema.py) but must stay exact aliases of the effects entries they
+        # normalize into -- this is what makes hiding them safe.
+        flat = {"set_str": 19, "str_bonus": 2, "str_bonus_max": 20}
+        explicit = {"effects": [
+            {"type": "ability_set", "ability": "str", "value": 19},
+            {"type": "ability_bonus", "ability": "str", "value": 2, "max": 20},
+        ]}
+        self.assertEqual(equipment.item_effects(flat), equipment.item_effects(explicit))
+
 
 class AbilityScoreItemTest(unittest.TestCase):
     def test_set_score_and_capped_bonus(self):
@@ -93,6 +104,18 @@ class AbilityScoreItemTest(unittest.TestCase):
                           attuned=["Belt of Hill Giant Strength"])
         with H.load(p):
             self.assertEqual(H.ds._carry_block(H.ds.DB_CONNECTION.cursor())["capacity"], 315.0)
+
+    def test_a_prompt_hidden_flat_field_is_still_accepted(self):
+        # `set_str` is hidden from the PROMPT schema, but the MCP server must still accept it
+        # (compaction never touches dice_server.py) and normalize it to the same effect.
+        with H.load(H.make_player()):
+            r = H.ds.update_player_list(key="inventory", item="Belt of Hill Giant Strength",
+                                        action="add", base="Belt of Giant Strength", kind="belt",
+                                        set_str=21, attunement=True)
+            self.assertTrue(r["success"], r)
+            entry = next(e for e in H.raw_dbv("inventory") if isinstance(e, dict))
+            self.assertIn({"type": "ability_set", "ability": "str", "value": 21},
+                          equipment.item_effects(entry))
 
 
 class DerivedSaveTest(unittest.TestCase):

@@ -4,7 +4,9 @@ Locks the mode contract:
   - a save's mode is explicit if it says so, otherwise an `era` means Time Traveler and
     anything older is Classic -- so nothing has to be migrated;
   - `render_protocol` keeps exactly one game's rules and never leaves a marker behind;
-  - a classic session is never offered `lookup`, and never pays for the ERA INDEX;
+  - `lookup` is the one generic read-only tool and is offered in BOTH games (era lore in the
+    time-travel game, a tool's `ref:TOOL` reference in either); classic never pays for the
+    ERA INDEX;
   - the era machinery (the cadence, the legends, the era-scoped place tree) is off.
 
 No LLM / no network. Run from the repo root:
@@ -90,6 +92,9 @@ def main() -> bool:
     rec("the shared rules survive in both",
         "## INVARIANTS" in classic and "## INVARIANTS" in tt
         and "## FAILURE MODES" in classic and "## FAILURE MODES" in tt)
+    rec("the session-start section is named for what it is (not AWAKENING)",
+        "## SESSION START" in tt and "## SESSION START" in classic
+        and "AWAKENING" not in tt and "AWAKENING" not in classic)
     rec("the difficulty gate still works alongside the mode",
         "Scale the ADVENTURE" not in render_protocol(proto, True, "hard", MODE_CLASSIC)
         and "Scale the ADVENTURE" in render_protocol(proto, True, "easy", MODE_CLASSIC)
@@ -98,9 +103,21 @@ def main() -> bool:
         "request_scene_image" not in render_protocol(proto, False, "hard", MODE_TIME_TRAVELER)
         and "request_scene_image" in render_protocol(proto, True, "hard", MODE_TIME_TRAVELER))
 
+    print("\n-- the session-start framing (new game vs resumed)")
+    gs_frame = GameSession(base_dir=REPO, model="test", scene_images=True)
+    gs_frame.arrival = "the Grand Canal, at Luoyang"
+    fresh, resumed = gs_frame._era_opening(False), gs_frame._era_opening(True)
+    rec("a new game opens with the arrival line",
+        "You arrive at the Grand Canal, at Luoyang." in fresh
+        and "SESSION RESUMED" not in fresh, fresh[:80])
+    rec("a resumed session is not framed as a new landing",
+        "SESSION RESUMED" in resumed and "You arrive at" not in resumed
+        and "the Grand Canal" in resumed, resumed[:80])
+
     print("\n-- what the GM is offered")
-    rec("Classic is never offered lookup", "lookup" not in _names(filter_tools(TOOLS, True, MODE_CLASSIC)))
-    rec("Time Traveler is", "lookup" in _names(filter_tools(TOOLS, True, MODE_TIME_TRAVELER)))
+    rec("lookup is offered in both games (the generic reference tool)",
+        "lookup" in _names(filter_tools(TOOLS, True, MODE_CLASSIC))
+        and "lookup" in _names(filter_tools(TOOLS, True, MODE_TIME_TRAVELER)))
     rec("the bookkeeping tools are hidden in both",
         all(engine_only not in _names(filter_tools(TOOLS, True, MODE_CLASSIC))
             and engine_only not in _names(filter_tools(TOOLS, True, MODE_TIME_TRAVELER))

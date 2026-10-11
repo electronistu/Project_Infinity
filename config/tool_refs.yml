@@ -1,0 +1,48 @@
+# On-demand references for the Game Master.
+#
+# A tool's always-on description carries only the CALL CONTRACT: WHEN to call it, the fields,
+# and the shape of the arguments. The long *explanations* -- a vocabulary, a rules list --
+# live here and are fetched with `lookup('ref:TOOL')`. The only always-on price is the one-line
+# pointer in the tool description; the body is paid on the turns it is actually fetched.
+#
+# Keep every entry a REFERENCE, never a call contract: if the GM must know it to build the
+# call, it belongs in the tool description, not here.
+#
+# Budget: not always-on, so no `enforced` ceiling -- `tools/budgets.yml` carries a `target`
+# row per entry so growth stays visible.
+
+update_player_list: |
+  update_player_list -- effects, ability floors and bonuses
+
+  `effects` is the escape hatch for anything the flat fields cannot express: a list of
+  {type, ..., when}. Types: ability_set, ability_bonus (+max), save_bonus, save_advantage,
+  check_bonus, skill_bonus, initiative, ac_bonus, ac_set ({base, plus_dex}), damage_resistance,
+  damage_immunity, condition_immunity, attack_bonus/damage_bonus (+scope),
+  spell_attack_bonus, spell_dc_bonus, weapon_property, hp_per_level,
+  hit_die_healing_multiplier, regeneration, speed, speed_grant, grant_proficiency.
+  `when`: no_armor, no_shield, no_armor_or_shield, while_holding, requires_items (items=[...]),
+  vs_spells, vs_damage:<type>, vs_condition:<name>.
+  Anything the engine cannot apply is echoed back as 'unmodelled_effects'.
+
+  Ability scores: `{"type": "ability_set", "ability": "str", "value": 19}` sets a FLOOR
+  (never lowers a higher score); `{"type": "ability_bonus", "ability": "str", "value": 2,
+  "max": 20}` raises it, optionally capped. The flat `set_*` / `*_bonus` / `*_bonus_max`
+  sugar is still accepted but is NOT shown in the schema -- prefer the `effects` form.
+  `proficiency_bonus` / `spell_attack_bonus` / `spell_dc_bonus` add item bonuses to those.
+
+resolve_magic: |
+  resolve_magic -- how a spell resolves
+
+  - Cantrips, rituals, scrolls and NPC attacks consume no slot.
+  - Multi-target AoE: damage rolled ONCE, an individual save each, one slot; HP from the
+    registry; XP from all kills.
+  - HP-pool spells: targets ascending by HP, pool drained in order.
+  - Extra damage dice are NOT doubled on a crit.
+  - Player temp HP drains before real HP (is_npc_attack). Player resistance/immunity/
+    vulnerability from worn items AND active spells is applied automatically -- pass the
+    RESOLVED damage type.
+  - Multi-projectile: each resolves separately; automatic spells strike simultaneously,
+    attack-roll spells roll per projectile.
+  - Components come from config/components.yml, else `components=` (unknown = V,S,M); a
+    somatic/material component needs a free hand.
+  - Healing is capped at the target's max; temp HP is a separate pool and may exceed it.

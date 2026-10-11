@@ -359,13 +359,14 @@ RESUME_GUARD_NUDGE = (
     "SYSTEM: You have already paused; the engine resumed. Write the turn's narrative now."
 )
 MAX_RESUME_ROUNDS = 3
-# The awakening's resume re-anchors the one step a bare `{{_CONTINUE_EXECUTION}}` leaves
-# implicit: after the pause the next beat IS the opening narrative, and it carries the
-# illustration. An empty turn there otherwise reads as valid. A runtime message, so it
-# costs no prefix tokens.
+# The session start's resume re-anchors the one step a bare `{{_CONTINUE_EXECUTION}}` leaves
+# implicit: after the pause the next beat IS the narrative (the opening scene for a new game,
+# the continuation for a resumed one), and it carries the illustration. An empty turn there
+# otherwise reads as valid. A runtime message, so it costs no prefix tokens.
 AWAKENING_RESUME = (
-    "{{_CONTINUE_EXECUTION}} — resume at AWAKENING step 3: the opening NARRATIVE, in the "
-    "same response as exactly ONE `request_scene_image`."
+    "{{_CONTINUE_EXECUTION}} — resume at SESSION START step 3: the NARRATIVE — the opening "
+    "scene for a new game, the continuation for a resumed one — in the same response as "
+    "exactly ONE `request_scene_image`."
 )
 
 # Web-local timeline prompt: the database is authoritative, so mechanical changes are NOT
@@ -472,7 +473,7 @@ def _tool_schema(tool) -> dict:
         "function": {
             "name": tool.name,
             "description": tool.description,
-            "parameters": compact_schema(params),
+            "parameters": compact_schema(params, tool.name),
         },
     }
 
@@ -900,8 +901,9 @@ CARRY_NOTE = (
 )
 
 
-# `lookup` fetches another era's scaffold. There are no other eras in a classic game,
-# so the tool is never offered one -- and its schema is never paid for either.
+# `lookup` is the one generic read-only reference tool: era lore in the time-travel game, and
+# a tool's on-demand field reference (``ref:TOOL``) in BOTH games -- so it is offered in classic
+# too, where its era branches simply have no other era to reach.
 LOOKUP_TOOL = "lookup"
 
 
@@ -915,8 +917,6 @@ def _hidden_tools(scene_images: bool, mode: str = MODE_TIME_TRAVELER) -> set[str
         hidden |= {SCENE_TOOL, NPC_TOOL}
     else:
         hidden.add(PLACE_TOOL)
-    if str(mode or "").strip().lower() == MODE_CLASSIC:
-        hidden.add(LOOKUP_TOOL)
     return hidden
 
 
@@ -931,12 +931,15 @@ def filter_tools(tools: list[dict], scene_images: bool,
 
 # ── What the GM is shown of a tool result ─────────────────────────────────
 #
-# Tool results carry only what the GM does not already hold: the event/delta, the
-# exact mechanics, and errors that explain what happened. The base sheet is already
-# in context (dump_player_db), so state snapshots (`equipment`, the carrying
-# breakdown, a full inventory list) are not re-sent. The FULL result still goes to the
-# client (the tool_result event) for debugging; only the copy appended to the GM
-# conversation is trimmed. Tools not listed here pass through untouched.
+# Tool results carry only what the GM does not already hold: the event/delta, the exact
+# mechanics, and errors that explain what happened. The base sheet is already in context
+# (dump_player_db), so state snapshots (`equipment`, the carrying breakdown, a full inventory
+# list) are never re-sent. The FULL result still goes to the client (the tool_result event) for
+# debugging; only the copy appended to the GM conversation is trimmed.
+#
+# Every GM-offered tool has an EXPLICIT decision -- KEEP, DROP or FULL below. There is no
+# fail-open default: a tool in none of the three is a bug, and a coverage test fails the build
+# for it (web/tests/test_tool_projection.py).
 _GM_VIEW_KEEP: dict[str, tuple[str, ...]] = {
     "modify_player_numeric": (
         "success", "key", "old_value", "new_value", "delta", "clamped",
@@ -971,19 +974,55 @@ _GM_VIEW_ERROR_EXTRA = (
     "error", "reason", "gm_instruction", "turn_lost", "action_consumed",
     "current_items", "held", "occupied", "worn", "slot", "available_keys",
     "attuned", "attunement_slots_free", "conflicting_item", "prerequisite")
+
+# Deny-lists: keep everything EXCEPT these. For a broad mechanics result, naming what to drop
+# is safer than naming what to keep.
+_GM_VIEW_DROP: dict[str, tuple[str, ...]] = {
+    # A mechanics tool embeds the FULL result of the calls it made -- `slot_result` and
+    # `xp_result` (whole `modify_player_numeric` results) and `hp_change` (a whole HP-change
+    # result). The scalars the GM needs already ride the top level (`slot_consumed`,
+    # `slot_level_used`, `xp_awarded`, `damage_total`, `targets[].remaining_hp`).
+    "resolve_magic": ("slot_result", "xp_result", "hp_change"),
+    "resolve_attack": ("slot_result", "xp_result", "hp_change"),
+}
+
+# Intentional FULL pass-throughs, each with its reason. Naming them is what makes coverage
+# testable; none of these is a default.
+_GM_VIEW_FULL: dict[str, str] = {
+    "dump_player_db": "the character sheet -- the GM needs it whole (session start)",
+    "lookup": "plain text (era lore / a tool reference); there is no JSON to project",
+    "perform_check": "one small mechanics result; nothing stateful to strip",
+    "roll_dice": "one small magnitude roll",
+}
+
+# Always dropped, at ANY depth: the engine's own mechanics disclosure, and the state the GM
+# already holds. Recursive because a tool can embed another tool's result.
+_GM_VIEW_ALWAYS_DROP = ("narrative_format", "equipment", "current_list", "registry_summary",
+                        "sheets", "difficulty", "era", "arrival")
 # `carrying` is reduced to the one-line state that drives disadvantage.
 _GM_VIEW_CARRYING = ("status", "speed_penalty", "carried", "capacity")
+
+
+def _gm_strip(value):
+    """Recursively drop the always-drop keys, at any depth.
+
+    A mechanics tool embeds other tools' results (`slot_result`, `hp_change`), so a
+    top-level-only pop used to leak a nested `narrative_format` -- the engine's own mechanics
+    disclosure -- straight to the GM."""
+    if isinstance(value, dict):
+        return {k: _gm_strip(v) for k, v in value.items() if k not in _GM_VIEW_ALWAYS_DROP}
+    if isinstance(value, list):
+        return [_gm_strip(v) for v in value]
+    return value
 
 
 def _gm_tool_view(name: str, text: str) -> str:
     """The trimmed result the GM sees, as JSON (falls back to `text` when not a dict).
 
-    Listed tools keep only their new-info keys; every other tool passes its mechanics
-    through, but the heavy state snapshots (`equipment`, `current_list`, the full
-    `carrying` breakdown) are always dropped — the GM already holds the sheet. The
-    creation-time `difficulty`, `era` and `arrival` are dropped too: the GM learns
-    the mode only from the EASY protocol block, the era only from the ERA INDEX, and
-    the arrival only from the line the engine prepends to the ERA_FILE."""
+    Every GM-offered tool is classified: KEEP (only these keys), DROP (everything but these) or
+    FULL (whole, with a stated reason). A name in none of them is a bug, not a free pass -- the
+    payload is still stripped of the always-drop keys rather than dumped raw, and the coverage
+    test (web/tests/test_tool_projection.py) fails the build for a new tool."""
     try:
         payload = json.loads(text)
     except (json.JSONDecodeError, TypeError):
@@ -995,18 +1034,17 @@ def _gm_tool_view(name: str, text: str) -> str:
         if payload.get("success", True) is False:
             keys += list(_GM_VIEW_ERROR_EXTRA)
         view = {k: payload[k] for k in dict.fromkeys(keys) if k in payload}
-    else:
+    elif name in _GM_VIEW_DROP:
+        drop = set(_GM_VIEW_DROP[name])
+        if str(payload.get("attack_type") or "").strip().lower() == "automatic":
+            # An automatic multi-projectile spell needs no per-dart list: `targets[].darts`
+            # already carries every dart's damage. An attack-roll one keeps it -- the rolls and
+            # AC are the only record of those attacks.
+            drop.add("per_projectile")
+        view = {k: v for k, v in payload.items() if k not in drop}
+    else:  # _GM_VIEW_FULL, or (a bug) unclassified: fail closed, never dump the raw payload
         view = dict(payload)
-    # Always drop the state the GM already holds, and the mechanics disclosure itself (the
-    # engine composes that block from narrative_format — the GM never transcribes it).
-    view.pop("equipment", None)
-    view.pop("current_list", None)
-    view.pop("registry_summary", None)
-    view.pop("sheets", None)
-    view.pop("narrative_format", None)
-    view.pop("difficulty", None)
-    view.pop("era", None)
-    view.pop("arrival", None)
+    view = _gm_strip(view)
     carry = payload.get("carrying")
     if isinstance(carry, dict):
         slim = {k: carry[k] for k in _GM_VIEW_CARRYING if k in carry}
@@ -1377,11 +1415,6 @@ class GameSession:
 
                     with open(self.base_dir / LOCK_FILE, "r", encoding="utf-8") as f:
                         lock_content = f.read()
-                    if self.classic:
-                        # The classic game hands the GM the world it was built on.
-                        key_content = render_world_text()
-                    else:
-                        key_content = f"{self._era_opening()}\n\n{render_era_text(self.era)}"
                     kept = load_timeline(self.timeline_path)
                     self._chronicle = load_chronicle(self.timeline_path)
                     # The STATE pages: one per age plus the traveller's, or a classic save's
@@ -1392,6 +1425,16 @@ class GameSession:
                     self.turn_counter = self.last_timeline_turn = _max_timeline_turn(kept)
                     if self._chronicle and self._chronicle[1] > self.last_timeline_turn:
                         self.turn_counter = self.last_timeline_turn = self._chronicle[1]
+                    # A save with a timeline has been played: this session RESUMES the story
+                    # rather than opening a new game, so the opening line must not say
+                    # "You arrive" -- the era file is framed before the GM reads it.
+                    resumed = bool(kept) or bool(self._chronicle)
+                    if self.classic:
+                        # The classic game hands the GM the world it was built on.
+                        key_content = render_world_text()
+                    else:
+                        key_content = (f"{self._era_opening(resumed)}\n\n"
+                                       f"{render_era_text(self.era)}")
 
                     self.messages = [{"role": "system", "content": render_protocol(
                         lock_content, self.scene_images, self.difficulty, self.mode)}]
@@ -1449,9 +1492,10 @@ class GameSession:
                     # The scene caption the client shows as the GM header (era + place).
                     await self._emit_caption()
 
-                    # ── Awakening: ERA_FILE -> tools -> pause token -> resume -> opening scene ──
-                    # (The opening illustration is requested by the GM itself, in
-                    # the awakening tool batch — see GameMaster_MCP.md.)
+                    # ── Session start: ERA_FILE -> tools -> pause token -> resume -> narrative ──
+                    # (A new game opens the scene; a resumed save continues it -- the era file
+                    # carries the framing. The opening illustration is requested by the GM
+                    # itself, in the session-start tool batch -- see GameMaster_MCP.md.)
                     await self._emit({"type": "busy", "value": True})
                     self._mechanics_lines = []
                     self._narrative_emitted_turn = False
@@ -2278,12 +2322,17 @@ class GameSession:
             return  # belt and braces: a jump may never fire on a battle turn
         await self._jump()
 
-    def _era_opening(self) -> str:
+    def _era_opening(self, resumed: bool = False) -> str:
         """The lines the GM is handed with an era: where the Traveller is in it, and that
-        the kit is their own -- literal in every age. Written once, never
-        always-on: it rides the ERA_FILE at awakening and the jump message after that."""
+        the kit is their own -- literal in every age. Written once, never always-on: it rides
+        the ERA_FILE at session start and the jump message after that. A RESUMED session must
+        not read as a new landing, or the GM skips the session-start sheet."""
         parts = []
-        if self.arrival:
+        if resumed:
+            at = f" You are already at {self.arrival}." if self.arrival else ""
+            parts.append("SESSION RESUMED — the story continues from where it left off; this "
+                         "is not a new landing and you do not open a new scene." + at)
+        elif self.arrival:
             parts.append(f"You arrive at {self.arrival}.")
         parts.append(CARRY_NOTE)
         return "\n\n".join(parts)
@@ -2817,7 +2866,7 @@ class GameSession:
                 if resumes > MAX_RESUME_ROUNDS * 3:
                     return ""  # give up; the caller's narrative recovery takes over
                 # A model that echoes the pause token instead of narrating must not spin:
-                # after a few resumes, tell it plainly to write the narrative. At awakening
+                # after a few resumes, tell it plainly to write the narrative. At session start
                 # the first resume re-anchors the step it must resume at.
                 if resumes > MAX_RESUME_ROUNDS:
                     nudge = RESUME_GUARD_NUDGE
