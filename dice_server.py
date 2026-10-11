@@ -850,8 +850,13 @@ def _derive_weapon_attack(cursor, weapon: str, inventory: list, hands_free: int 
         if str(grant.get("category") or "") in ("weapon", "weapons"):
             proficiencies.add(str(grant.get("value") or "").lower())
     category = str(wpn.get("category") or "").lower()
+    # Proficiency is a fact about the weapon's KIND, not its display name: a magic or
+    # reflavoured weapon ("Dagger +1", "Storm's Edge" base Longsword) still matches its
+    # base (or category) proficiency.
+    base_name = str(base or weapon).strip().lower()
     proficient = (not proficiencies
                   or f"{category} weapons" in proficiencies
+                  or base_name in proficiencies
                   or weapon.strip().lower() in proficiencies)
     prof_bonus = _effective_prof_bonus(cursor)
 

@@ -1294,6 +1294,22 @@ def _seed_main_npcs(entry) -> list[dict]:
     return _npc_list(raw)
 
 
+def _dead_names(entry) -> list[str]:
+    """A seed entry's dead main-NPC names, lowercased.
+
+    The flag lives OUTSIDE the NPC dicts (`entry["dead"]`): `_npc_fields` rebuilds each NPC
+    to exactly name/description/role/race/class and would drop a `dead` key."""
+    raw = (entry or {}).get("dead")
+    return [str(n).strip().lower() for n in (raw if isinstance(raw, list) else [])
+            if str(n or "").strip()]
+
+
+def _prune_dead(entry: dict) -> None:
+    """Keep `entry["dead"]` to names still declared as main NPCs of the place."""
+    declared = {str(n.get("name") or "").strip().lower() for n in _seed_main_npcs(entry)}
+    entry["dead"] = sorted(n for n in _dead_names(entry) if n in declared)
+
+
 def _place_path(place) -> list[str]:
     """Normalize a place path: trimmed, non-empty string segments (deepest last)."""
     if isinstance(place, str):
@@ -1553,6 +1569,7 @@ def known_scene_places(output_dir, stem: str, era: str | None = None) -> list[di
         out.append({"era": entry_era, "kingdom": kingdom, "area": area, "place": place,
                     "description": str(entry.get("description") or "").strip(),
                     "main_npcs": _seed_main_npcs(entry),
+                    "dead": _dead_names(entry),
                     "used": int(entry.get("used") or entry.get("created") or 0)})
     return sorted(out, key=lambda p: (p["era"].lower(), p["kingdom"].lower(), p["area"].lower(),
                                       [s.lower() for s in p["place"]]))
@@ -1573,6 +1590,28 @@ def known_npc_names(output_dir, stem: str) -> set[str]:
             if name:
                 names.add(name.lower())
     return names
+
+
+def mark_place_dead(output_dir, stem: str, era: str, kingdom: str, area: str, place,
+                    names) -> list[str]:
+    """Permanently mark main NPCs of one place as dead (era- and place-scoped).
+
+    `names` are matched case-insensitively. The flag is the seed entry's `dead` list,
+    OUTSIDE the NPC dicts so `_npc_fields` never strips it. Mutates the live manifest;
+    nothing reaches disk until `commit_scene_manifest`. Returns the names newly added."""
+    wanted = {str(n).strip().lower() for n in (names or []) if str(n or "").strip()}
+    if not wanted:
+        return []
+    data = live_scene_manifest(output_dir, stem, era)
+    key = _scene_key(kingdom, area, place, era)
+    entry = (data.get("seeds") or {}).get(key)
+    if not isinstance(entry, dict):
+        return []
+    dead = set(_dead_names(entry))
+    added = sorted(wanted - dead)
+    if added:
+        entry["dead"] = sorted(dead | wanted)
+    return added
 
 
 def known_scene_locations(output_dir, stem: str) -> list[str]:
@@ -2041,9 +2080,11 @@ class SceneService(ImageBackendHolder):
             "kingdom": str(kingdom or ""), "area": str(area or ""),
             "place": path,
             "description": str(description or ""), "main_npcs": _npc_list(main_npcs),
+            "dead": _dead_names(existing),
             "style": (style or self.style),
             "mime": mime, "created": now, "used": now,
         }
+        _prune_dead(entry)
         manifest.setdefault("seeds", {})[self._key(kingdom, area, path, era)] = entry
         return entry
 
@@ -2224,6 +2265,7 @@ class SceneService(ImageBackendHolder):
             entry = {"file": None, "slug": None, "era": era,
                      "kingdom": kingdom, "area": area, "place": path,
                      "description": str(description or ""), "main_npcs": main,
+                     "dead": [],
                      "created": now, "used": now}
             seeds[key] = entry
         else:
@@ -2237,6 +2279,7 @@ class SceneService(ImageBackendHolder):
             if main:
                 entry["main_npcs"] = main
             entry["used"] = now
+        _prune_dead(entry)
         cast_map = manifest.setdefault("cast", {})
         added: list[str] = []
         for npc in declared:

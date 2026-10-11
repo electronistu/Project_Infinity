@@ -54,11 +54,21 @@ def auto_answer(step, counters, name, prefer=""):
         # Spend exactly 27: three 15s (9 each) + three 8s (0 each).
         return {a["key"]: (15 if i < 3 else 8) for i, a in enumerate(step["abilities"])}
     if kind == "single":
-        if prefer:
-            for opt in step["options"]:
-                if prefer.lower() in str(opt.get("label", "")).lower():
+        prefers = prefer if isinstance(prefer, (list, tuple)) else [prefer]
+        opts = step["options"]
+        for p in prefers:  # an exact label first, so "Elf" does not steal "High Elf"
+            if p and any(str(o.get("label", "")).strip().lower() == str(p).strip().lower()
+                         for o in opts):
+                for o in opts:
+                    if str(o.get("label", "")).strip().lower() == str(p).strip().lower():
+                        return o["id"]
+        for p in prefers:
+            if not p:
+                continue
+            for opt in opts:
+                if str(p).lower() in str(opt.get("label", "")).lower():
                     return opt["id"]
-        return step["options"][0]["id"]
+        return opts[0]["id"]
     if kind == "multi":
         count = step.get("min_choices") or 1
         return [opt["id"] for opt in step["options"][:count]]
@@ -249,6 +259,19 @@ def main() -> int:
         ok &= len(hdata.get("skills") or []) >= 6  # background + class + the two racial
         print(f"  [races] half-elf built: {hdata.get('race')} total {total} "
               f"cha {stats.get('cha')} skills {len(hdata.get('skills') or [])}")
+
+    # A High Elf Wizard carries its racial cantrip: 3 from the class + 1 from the race.
+    preclean("High Elf Wizard")
+    terminal_e, _ = run_bridge_creation("High Elf Wizard", prefer=["Elf", "High Elf", "Wizard"])
+    ok &= bool(terminal_e) and terminal_e.get("type") == "done"
+    if terminal_e and terminal_e.get("type") == "done":
+        ep = OUTPUT / terminal_e["player"]
+        created += [ep]
+        edata = json.loads(ep.read_text(encoding="utf-8"))
+        cantrips = ((edata.get("spellcasting") or {}).get("cantrips") or [])
+        ok &= edata.get("race") == "High Elf" and edata.get("character_class") == "Wizard"
+        ok &= len(cantrips) == 4  # 3 class + the racial choice
+        print(f"  [races] high-elf wizard cantrips: {len(cantrips)} {cantrips}")
 
     # The other game, chosen at creation: the era ladder, an arrival rolled from that era's
     # own list, and the era's own reputation seed -- proof that the question decides.

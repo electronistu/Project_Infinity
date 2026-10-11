@@ -87,6 +87,38 @@ class ArmorProficiencyTest(unittest.TestCase):
             self.assertEqual(H.dbv("spellcasting")["slots"], {"1": 2})  # nothing spent
 
 
+class MagicWeaponProficiencyTest(unittest.TestCase):
+    """A renamed / magic weapon keeps the proficiency of its base kind (SRD)."""
+
+    def test_magic_weapon_uses_base_proficiency(self):
+        payload = fighter(
+            inventory=[{"name": "Dagger +1", "base": "Dagger",
+                        "attack_bonus": 1, "damage_bonus": 1}],
+            weapon_proficiencies=["Dagger", "Light Crossbow", "Quarterstaff"],
+            equipped={"armor": None, "hands": ["Dagger +1", None]},
+        )
+        with H.load(payload):
+            info = H.ds._derive_weapon_attack(H.ds.DB_CONNECTION.cursor(), "Dagger +1",
+                                              H.dbv("inventory"))
+            self.assertTrue(info["proficient"], "the +1 name must not lose proficiency")
+            # Finesse takes the better of STR 16 (+3) / DEX 14 (+2) = +3, prof +2, +1 magic.
+            self.assertEqual(info["attack_modifier"], 3 + 2 + 1)
+            self.assertEqual(info["item_bonus"]["attack"], 1)
+
+    def test_category_proficiency_covers_a_reflavoured_weapon(self):
+        payload = fighter(
+            inventory=[{"name": "Storm's Edge", "base": "Longsword",
+                        "attack_bonus": 1, "damage_bonus": 1}],
+            weapon_proficiencies=["Simple weapons", "Martial weapons"],
+            equipped={"armor": None, "hands": ["Storm's Edge", None]},
+        )
+        with H.load(payload):
+            info = H.ds._derive_weapon_attack(H.ds.DB_CONNECTION.cursor(), "Storm's Edge",
+                                              H.dbv("inventory"))
+            self.assertTrue(info["proficient"])
+            self.assertEqual(info["attack_modifier"], 3 + 2 + 1)
+
+
 class VersatileTest(unittest.TestCase):
     def test_two_handed_grip_uses_the_larger_die(self):
         payload = fighter(equipped={"armor": "Chain Mail", "hands": ["Longsword", None]})

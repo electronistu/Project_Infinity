@@ -269,13 +269,45 @@ async def main() -> bool:
     rec("a place seeded this session needs no establishing again",
         any(e.get("type") == "scene_request" for e in drain(gs7._evt_q)))
 
+    # The schema filter only hides a tool from the OFFER; the MCP server still registers
+    # it, so the engine must refuse a hallucinated call instead of running it.
+    class _SpyMCP:
+        def __init__(self):
+            self.calls = []
+
+        async def call_tool(self, name, arguments=None):
+            self.calls.append(name)
+            return _Result('{"status":"requested"}')
+
     gs_off = GameSession(base_dir=REPO, model="test", scene_images=False)
-    gs_off.session = _FakeMCP()
+    gs_off.session = _SpyMCP()
     await gs_off._execute_tool({"function": {
         "name": "request_scene_image", "arguments": {"description": "off"},
     }})
+    off_evts = drain(gs_off._evt_q)
+    off_err = [e for e in off_evts if e.get("type") == "tool_result" and e.get("is_error")]
     rec("scenes disabled -> no scene_request even if the tool is called",
-        not any(e.get("type") == "scene_request" for e in drain(gs_off._evt_q)))
+        not any(e.get("type") == "scene_request" for e in off_evts))
+    rec("a hidden scene tool is refused without calling the server",
+        gs_off.session.calls == [] and len(off_err) == 1
+        and "note_place" in str(off_err[0].get("gm_text") or ""), str(off_err))
+    rec("the refusal is appended to the GM conversation as a tool error",
+        bool(gs_off.messages) and gs_off.messages[-1].get("name") == "request_scene_image"
+        and "tool_not_available" in str(gs_off.messages[-1].get("content") or ""),
+        str(gs_off.messages[-1] if gs_off.messages else None))
+
+    gs_on = GameSession(base_dir=REPO, model="test", scene_images=True)
+    gs_on.session = _SpyMCP()
+    await gs_on._execute_tool({"function": {"name": "note_place",
+                                            "arguments": {"place": ["a", "b"]}}})
+    rec("images on refuses note_place without calling the server",
+        gs_on.session.calls == [], str(gs_on.session.calls))
+
+    gs_eng = GameSession(base_dir=REPO, model="test", scene_images=False)
+    gs_eng.session = _SpyMCP()
+    await gs_eng._execute_tool({"function": {"name": "set_player_field",
+                                             "arguments": {"key": "level", "value": "1"}}})
+    rec("an engine-only tool is refused", gs_eng.session.calls == [], str(gs_eng.session.calls))
 
     # Enforcement: a missing turn call is nudged, then the engine falls back.
     async def _noop_role(role_content, label, quiet=False):

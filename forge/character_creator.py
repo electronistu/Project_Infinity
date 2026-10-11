@@ -846,6 +846,27 @@ def create_character(config: Config) -> PlayerCharacter:
             elif cls in ("Bard", "Sorcerer", "Wizard", "Cleric", "Druid"):
                 spell_slots = {str(k): v for k, v in FULL_CASTER_SPELL_SLOTS[1].items()}
 
+    # Racial cantrips (SRD 5.1) are independent of the class, so the class spell selection
+    # above never records them: a High Elf chooses one wizard cantrip, a Forest Gnome knows
+    # Minor Illusion, a Tiefling knows Thaumaturgy. Without this a High Elf is a cantrip
+    # short (a High Elf Wizard gets 3 from the class, not 4), and a non-caster gets none.
+    racial_traits = [getattr(t, "name", "") for t in
+                     ((chosen_subrace.traits if chosen_subrace else []) or [])]
+    racial_traits += [getattr(t, "name", "") for t in (chosen_race.traits or [])]
+    if "Cantrip" in racial_traits:
+        wizard_cantrips = [c for c in get_available_cantrips("Wizard", spell_names)
+                           if c not in cantrips_known]
+        if wizard_cantrips:
+            picked = select_multiple(
+                "Choose 1 cantrip from the wizard list (High Elf Cantrip)",
+                wizard_cantrips, count=1)
+            cantrips_known = list(cantrips_known) + [c for c in picked
+                                                     if c not in cantrips_known]
+    for trait_name, spell in (("Natural Illusionist", "Minor Illusion"),
+                              ("Infernal Legacy", "Thaumaturgy")):
+        if trait_name in racial_traits and spell in spell_names and spell not in cantrips_known:
+            cantrips_known = list(cantrips_known) + [spell]
+
     if spellcasting_ability:
         spell_save_dc = 8 + calculate_modifier(player_stats.dict()[spellcasting_ability]) + proficiency_bonus
         spell_attack_modifier = calculate_modifier(player_stats.dict()[spellcasting_ability]) + proficiency_bonus

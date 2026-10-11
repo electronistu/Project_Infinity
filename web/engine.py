@@ -40,7 +40,7 @@ from ollama import AsyncClient  # noqa: E402
 
 from .images import (  # noqa: E402
     commit_scene_manifest, current_scene_place, discard_scene_manifest, known_npc_names,
-    known_scene_places,
+    known_scene_places, mark_place_dead,
 )
 from .tool_schema import compact_schema  # noqa: E402
 from forge.world import render_world_text  # noqa: E402
@@ -332,10 +332,12 @@ def format_known_places(places: list[dict], cap: int = NPC_NAMES_PER_PLACE) -> s
             lines.append("    " * (2 + i) + f"- {path[i]}")
         last_path = list(path)
         npc_labels: list[str] = []
+        dead = {str(n).strip().lower() for n in (p.get("dead") or []) if str(n or "").strip()}
         names = [str(npc.get("name") or "").strip() for npc in (p.get("main_npcs") or [])
                  if isinstance(npc, dict)]
         names = [n for n in names if n]
-        npc_labels.extend(names[:cap])
+        labels = [f"{n} (dead)" if n.lower() in dead else n for n in names]
+        npc_labels.extend(labels[:cap])
         if len(names) > cap:
             npc_labels.append(f"+{len(names) - cap}")
         if npc_labels:
@@ -589,17 +591,26 @@ CARRY_NOTE = (
 LOOKUP_TOOL = "lookup"
 
 
-def filter_tools(tools: list[dict], scene_images: bool,
-                 mode: str = MODE_TIME_TRAVELER) -> list[dict]:
-    """What the GM is offered: hide the tools this game cannot use, and always hide the
-    session's own bookkeeping tools."""
+def _hidden_tools(scene_images: bool, mode: str = MODE_TIME_TRAVELER) -> set[str]:
+    """The tools this session must neither offer nor execute.
+
+    One source, two callers: `filter_tools` (the offer) and `_execute_tool` (the guard), so
+    a hallucinated call to a tool the GM was never offered cannot run."""
     hidden = set(ENGINE_ONLY_TOOLS)
     if not scene_images:
         hidden |= {SCENE_TOOL, NPC_TOOL}
     else:
         hidden.add(PLACE_TOOL)
     if str(mode or "").strip().lower() == MODE_CLASSIC:
-        hidden |= {LOOKUP_TOOL}
+        hidden.add(LOOKUP_TOOL)
+    return hidden
+
+
+def filter_tools(tools: list[dict], scene_images: bool,
+                 mode: str = MODE_TIME_TRAVELER) -> list[dict]:
+    """What the GM is offered: hide the tools this game cannot use, and always hide the
+    session's own bookkeeping tools."""
+    hidden = _hidden_tools(scene_images, mode)
     return [t for t in tools
             if (t.get("function") or {}).get("name") not in hidden]
 
@@ -873,6 +884,11 @@ class GameSession:
         # (canonical name, role, race, class). Echoed with the character that appears,
         # never primed: needed on the turn an NPC walks on stage, not on every turn.
         self._npc_people: dict[str, tuple[str, str, str, str]] = {}
+        # Main NPC liveness for the era game. `_dead_perm` mirrors the manifest's permanent
+        # `dead`; `_dead_provisional` holds deaths detected THIS visit, which a heal can
+        # undo until they are frozen at Save / era-turn.
+        self._dead_perm: dict[tuple, set] = {}
+        self._dead_provisional: dict[tuple, set] = {}
 
     # ── public API ────────────────────────────────────────────────────────
 
@@ -1726,6 +1742,10 @@ class GameSession:
         except Exception:  # noqa: BLE001 - never fail a session over the place tree
             places = []
         self._primed = places
+        self._dead_perm = {}
+        for p in places:
+            self._dead_perm[(str(p.get("era") or ""), _scene_key(p.get("place")))] = {
+                str(n).strip().lower() for n in (p.get("dead") or []) if str(n or "").strip()}
         self._scene_places = {_scene_key(p["place"]): (p["kingdom"], p["area"]) for p in places}
         try:
             self._current_place = current_scene_place(
@@ -1741,6 +1761,73 @@ class GameSession:
         self._npc_people = {}
         for p in places:
             self._remember_people(p.get("main_npcs"))
+        self._sync_dead_display()
+
+    def _sync_dead_display(self) -> None:
+        """Merge the manifest's permanent dead names with this visit's provisional ones
+        into each primed place, for `format_known_places`."""
+        for p in self._primed:
+            key = (str(p.get("era") or ""), _scene_key(p.get("place")))
+            dead = set(self._dead_perm.get(key, set())) | self._dead_provisional.get(key, set())
+            p["dead"] = sorted(dead)
+
+    def _track_main_npc_deaths(self, summary) -> None:
+        """Mirror the combat registry's `killed` state onto the current place's main NPCs.
+
+        A main_npc of `_current_place` that reaches 0 HP is added to this visit's provisional
+        dead set; a provisional name that comes back alive is cleared. The manifest's
+        permanent `dead` is never cleared here -- it is frozen at Save / era-turn."""
+        place = self._current_place
+        if not isinstance(place, dict) or not isinstance(summary, list):
+            return
+        era = "" if self.classic else str(self.era or "")
+        key = (era, _scene_key(place.get("place")))
+        declared: set[str] = set()
+        for p in self._primed:
+            if str(p.get("era") or "") == era and _scene_key(p.get("place")) == key[1]:
+                declared = {str(npc.get("name") or "").strip().lower()
+                            for npc in (p.get("main_npcs") or []) if isinstance(npc, dict)}
+                break
+        if not declared:
+            return
+        provisional = self._dead_provisional.setdefault(key, set())
+        for entry in summary:
+            if not isinstance(entry, dict) or entry.get("is_player"):
+                continue
+            name = str(entry.get("name") or "").strip().lower()
+            if not name or name not in declared:
+                continue
+            if entry.get("killed"):
+                provisional.add(name)
+            else:
+                provisional.discard(name)
+        self._sync_dead_display()
+
+    def _freeze_dead(self) -> None:
+        """Fold this visit's provisional deaths into the permanent manifest `dead`.
+
+        Called at Save and at era-turn: from then on a heal cannot clear them. The live
+        manifest is mutated now; `commit_scene_manifest` writes it on Save."""
+        if not self._dead_provisional:
+            return
+        by_key: dict[tuple, dict] = {}
+        for p in self._primed:
+            by_key[(str(p.get("era") or ""), _scene_key(p.get("place")))] = p
+        for key, names in list(self._dead_provisional.items()):
+            if not names:
+                continue
+            self._dead_perm.setdefault(key, set()).update(names)
+            p = by_key.get(key)
+            if not p:
+                continue
+            try:
+                mark_place_dead(self.base_dir / OUTPUT_DIR, self.active_name or "", key[0],
+                                p.get("kingdom", ""), p.get("area", ""), p.get("place") or [],
+                                list(names))
+            except Exception:  # noqa: BLE001 - never fail a Save/era-turn over liveness
+                pass
+        self._dead_provisional = {}
+        self._sync_dead_display()
 
     def _caption_text(self) -> str:
         """The scene caption from what the engine knows: the age (era game only) and the
@@ -1896,6 +1983,8 @@ class GameSession:
         if legend:
             self._legends[old] = legend
         memory = self._legends.get(old, "")
+        # Freeze this visit's deaths before the age is thrown away: a return cannot undo them.
+        self._freeze_dead()
         chosen = str(to_era or "").strip().lower()
         self.era = chosen if chosen in self._all_other_eras() else self._steered_era()
         self.arrival = self._chosen_arrival(self.era, arrival)
@@ -2012,6 +2101,11 @@ class GameSession:
         # The places/NPC registry is memory-only until now: commit it with the save (and
         # prune scene images the registry no longer lists). A failure here must not sink
         # the character save.
+        # A Save also freezes this visit's deaths: they are permanent from now on.
+        try:
+            self._freeze_dead()
+        except Exception:  # noqa: BLE001 - never sink a save over liveness
+            pass
         try:
             commit_scene_manifest(os.path.dirname(self.player_path), self.active_name)
         except Exception:  # noqa: BLE001 - never sink a save over places
@@ -2380,6 +2474,29 @@ class GameSession:
         path = self._match_known_place(narrative)[2]
         return path[-1] if path else ""
 
+    async def _refuse_unoffered_tool(self, name: str, call_id=None) -> None:
+        """Refuse a tool this session never offered, without calling the MCP server.
+
+        The schema filter only hides a tool from the offer; the server still registers it,
+        so a hallucinated `request_scene_image` (images off) would otherwise run and return
+        a false 'requested' promising an illustration that never comes."""
+        if name == SCENE_TOOL:
+            reason = ("Storyline images are OFF for this session; request_scene_image is "
+                      "not available.")
+            instruction = ("Do not request an illustration. Narrate the scene in prose, and "
+                           "declare a new place once with note_place.")
+        else:
+            reason = f"'{name}' is not available for this session."
+            instruction = "Use only the tools offered to you."
+        text = json.dumps({"success": False, "error": "tool_not_available",
+                           "reason": reason, "gm_instruction": instruction})
+        gm_text = _gm_tool_view(name, text)
+        await self._emit({"type": "tool_result", "name": name, "text": text,
+                          "gm_text": gm_text, "is_error": True})
+        self.messages.append({"role": "tool", "content": gm_text, "name": name})
+        if self.provider == "gemini" and call_id:
+            self.messages[-1]["id"] = str(call_id)
+
     async def _execute_tool(self, tool_call: dict) -> None:
         fn = tool_call.get("function", {})
         name = fn.get("name", "")
@@ -2394,6 +2511,9 @@ class GameSession:
             # `caption` was dropped from the tool; tolerate a stale model that still sends it.
             args.pop("caption", None)
         await self._emit({"type": "tool_call", "name": name, "arguments": args})
+        if name in _hidden_tools(self.scene_images, self.mode):
+            await self._refuse_unoffered_tool(name, fn.get("id"))
+            return
         warning = self._scene_seed_warning(args) if name == SCENE_TOOL else None
         if warning is not None:
             text, is_error = warning, True
@@ -2539,6 +2659,8 @@ class GameSession:
                         self._combat_sheets[str(sheet["name"])] = [str(x) for x in lines]
         summary = payload.get("registry_summary")
         if isinstance(summary, list):
+            # Main NPCs of the current place: a name at 0 HP is marked dead for this visit.
+            self._track_main_npc_deaths(summary)
             # One hostile, living, active non-player keeps combat on. Derived here so the save
             # gate and the Device cadence share the server's truth (`_in_active_combat`).
             self._in_combat = any(
@@ -2648,12 +2770,17 @@ class GameSession:
         if live is None:
             self._primed.append({"era": era, "kingdom": kingdom, "area": area,
                                  "place": place, "description": "",
-                                 "main_npcs": people, "used": 0})
+                                 "main_npcs": people, "dead": [], "used": 0})
         else:
             live["kingdom"] = kingdom or live.get("kingdom", "")
             live["area"] = area or live.get("area", "")
             if people:
                 live["main_npcs"] = people
+                # A re-declaration must not wipe liveness: keep the dead names still declared.
+                declared = {str(npc.get("name") or "").strip().lower() for npc in people}
+                live["dead"] = [n for n in (live.get("dead") or []) if str(n).lower() in declared]
+                self._dead_perm[(era, key)] = {n for n in self._dead_perm.get((era, key), set())
+                                               if n in declared}
         # The scene caption's place is the one just declared.
         self._current_place = {"era": era, "kingdom": kingdom, "area": area, "place": place}
 
