@@ -2512,6 +2512,7 @@ class GameSession:
         return db_data
 
     def _write_player_atomic(self, db_data: dict, player_path: str) -> None:
+        os.makedirs(os.path.dirname(player_path) or ".", exist_ok=True)
         tmp = f"{player_path}.tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(db_data, f, indent=2)

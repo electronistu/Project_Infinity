@@ -345,6 +345,9 @@ def _generate_world(config, player_character, output_dir):
         # world's own kingdoms and guilds so the GM's writes have somewhere to land.
         payload = get_player_json(player_character, build_reputation(build_kingdoms()),
                                   "", "", mode="classic")
+    # A fresh install has no `output/` (its contents are gitignored, and nothing else
+    # creates it), so the Forge must make the directory before its final write.
+    Path(player_path).parent.mkdir(parents=True, exist_ok=True)
     Path(player_path).write_text(payload, encoding="utf-8")
     return {
         "name": player_character.name,

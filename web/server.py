@@ -97,6 +97,9 @@ _ICON_NAME_MAX = 120
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # A fresh install has no `output/` (its contents are gitignored); create it so the
+    # Forge and the sessions' saves have somewhere to write.
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     await manager.start()
     try:
         yield

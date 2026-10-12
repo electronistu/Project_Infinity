@@ -12,6 +12,7 @@ Run from the repo root:
 import asyncio
 import json
 import sys
+import tempfile
 import threading
 from pathlib import Path
 
@@ -34,10 +35,11 @@ def slug_prefix(name):
     return name.lower().replace(" ", "_")
 
 
-def preclean(name):
+def preclean(name, output_dir=None):
     prefix = slug_prefix(name)
+    out = Path(output_dir) if output_dir else OUTPUT
     for pattern in (f"{prefix}*.player",):
-        for path in OUTPUT.glob(pattern):
+        for path in out.glob(pattern):
             path.unlink()
 
 
@@ -77,8 +79,8 @@ def auto_answer(step, counters, name, prefer=""):
 
 # ── direct bridge ─────────────────────────────────────────────────────────
 
-def run_bridge_creation(name, prefer=""):
-    bridge = CreationBridge(load_config(), OUTPUT)
+def run_bridge_creation(name, prefer="", output_dir=None):
+    bridge = CreationBridge(load_config(), output_dir or OUTPUT)
     thread = threading.Thread(target=_run_creation, args=(bridge,), daemon=True)
     thread.start()
     counters = {"text": 0, "number": 0}
@@ -290,6 +292,21 @@ def main() -> int:
         ok &= list(tdata.get("reputation") or {}) == [tdata.get("era")]
         print(f"  [modes] time traveler built: mode {tdata.get('mode')} era {tdata.get('era')} "
               f"arrival {tdata.get('arrival')!r}")
+
+    # A fresh install has no `output/` (its contents are gitignored): the Forge must
+    # create it before its final write, or creation dies at the very last step.
+    with tempfile.TemporaryDirectory() as tmp:
+        fresh_dir = Path(tmp) / "Project_Infinity" / "output"  # deliberately absent
+        ok &= not fresh_dir.exists()
+        terminal_f, _ = run_bridge_creation("Fresh Install", output_dir=fresh_dir)
+        ok &= bool(terminal_f) and terminal_f.get("type") == "done"
+        if terminal_f and terminal_f.get("type") == "done":
+            fp = fresh_dir / terminal_f["player"]
+            ok &= fresh_dir.is_dir() and fp.exists()
+            print(f"  [fresh] created output/ for a brand-new save: {fp.name}")
+        else:
+            ok = False
+            print(f"  [fresh] FAIL: {terminal_f and terminal_f.get('message')}")
 
     for path in created:
         try:

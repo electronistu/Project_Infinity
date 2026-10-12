@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -36,8 +37,12 @@ ALL_STEPS = ("srd", "spellstats", "spellcov", "budget", "dice", "web", "node")
 
 
 def _run(cmd: list[str]) -> subprocess.CompletedProcess:
+    # Force UTF-8 in the child too: on Windows its stdout would otherwise default to
+    # cp1252 and a test printing a non-Latin-1 character (e.g. "Târgoviște") would die
+    # with UnicodeEncodeError, turning the gate RED for a console setting, not a defect.
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
     return subprocess.run(cmd, cwd=str(REPO), capture_output=True, text=True,
-                          encoding="utf-8", errors="replace")
+                          encoding="utf-8", errors="replace", env=env)
 
 
 def _last_line(text: str) -> str:
