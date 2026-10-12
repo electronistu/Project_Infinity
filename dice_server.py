@@ -2066,7 +2066,7 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
 
     WHEN: gear/items/spells/reputation/effects change.
     FIELDS (only the non-obvious; declare a weapon's/armour's stats WITH the add):
-    - key: dotted list path, one of: inventory, equipped, conditions, active_effects, consumables, spellcasting, reputation, stats, skills, saves, expertise, features (a deeper path nests under it, e.g. 'spellcasting.spells_known', 'reputation.KINGDOM.FACTION').
+    - key: the dotted list path to edit; its list fields are the player fields `read_player_field` lists (e.g. 'inventory', 'spellcasting.spells_known', 'reputation.KINGDOM.FACTION').
     - item: add -> 'Name' or 'Name: Description'; remove -> name only.
     - action: 'add' | 'remove' | 'update'.
     - description: the item's flavour/state text -- on add AND update; preferred over the inline 'Name: Description' form. The NAME is identity; transient state (sealed/opened, lit, half-full, emptied, broken) belongs here.
@@ -2889,51 +2889,85 @@ def dump_player_save_state() -> dict:
     return result
 
 
+def _player_gm_view(cursor) -> dict:
+    """The Game Master's view of the player row map: every stored row, the derived
+    `_carrying`/`_equipment`/`_passive` blocks, and `reputation` reduced to the era the save is
+    in. `dump_player_db` returns it whole; `read_player_field` slices it per field. The SAVE is
+    never built from this view (see `dump_player_save_state`)."""
+    cursor.execute("SELECT * FROM player")
+    rows = cursor.fetchall()
+    if not rows:
+        return {}
+    result = {}
+    for key, value in rows:
+        try:
+            result[key] = json.loads(value)
+        except (json.JSONDecodeError, TypeError):
+            result[key] = value
+    result["_carrying"] = _carry_block(cursor)
+    result["_equipment"] = _equipment_block(cursor)
+    result["_passive"] = _passive_scores(cursor)
+    # Reputation is stored era-scoped; the GM is only ever offered the era it is in.
+    # The saved map keeps every era, so nothing is lost by leaving -- which is why the
+    # SAVE must never be built from this view (see `dump_player_save_state`).
+    rep = result.get("reputation")
+    era = str(_db_val(cursor, "era", "") or "")
+    if isinstance(rep, dict) and era:
+        scoped = rep.get(era)
+        # Never another age's standing -- but never nothing at all either: an era whose
+        # scope has not been written to yet still shows its real polities, so the GM has
+        # a shape to write against instead of inventing one.
+        result["reputation"] = (scoped if isinstance(scoped, dict)
+                                else _era_reputation_scope(era))
+    return result
+
+
 @mcp.tool()
 def dump_player_db() -> dict:
     """Full dump of the in-memory player database.
 
-    WHEN: a state refresh is needed (e.g. at awakening).
+    WHEN: the engine's own state reads (the session CHARACTER SHEET, /stats, the Device, scene hints). The Game Master reads the fields it needs with `read_player_field`.
     NOTE: the derived `_carrying` (capacity/encumbrance/speed), `_equipment` (worn armour, hands, AC breakdown) and `_passive` (passive Perception/Investigation/Insight = 10 + modifier) blocks are computed, never saved.
     """
     global DB_CONNECTION
     if DB_CONNECTION is None:
         return {"error": "Database not initialized."}
-
     try:
-        cursor = DB_CONNECTION.cursor()
-        cursor.execute("SELECT * FROM player")
-        rows = cursor.fetchall()
-
-        if not rows:
-            return {}
-
-        result = {}
-        for key, value in rows:
-            try:
-                result[key] = json.loads(value)
-            except (json.JSONDecodeError, TypeError):
-                result[key] = value
-
-        result["_carrying"] = _carry_block(cursor)
-        result["_equipment"] = _equipment_block(cursor)
-        result["_passive"] = _passive_scores(cursor)
-        # Reputation is stored era-scoped; the GM is only ever offered the era it is in.
-        # The saved map keeps every era, so nothing is lost by leaving -- which is why the
-        # SAVE must never be built from this view (see `dump_player_save_state`).
-        rep = result.get("reputation")
-        era = str(_db_val(cursor, "era", "") or "")
-        if isinstance(rep, dict) and era:
-            scoped = rep.get(era)
-            # Never another age's standing -- but never nothing at all either: an era whose
-            # scope has not been written to yet still shows its real polities, so the GM has
-            # a shape to write against instead of inventing one.
-            result["reputation"] = (scoped if isinstance(scoped, dict)
-                                    else _era_reputation_scope(era))
-
-        return result
+        return _player_gm_view(DB_CONNECTION.cursor())
     except Exception as e:
         return {"error": f"Error dumping database: {str(e)}"}
+
+
+@mcp.tool()
+def read_player_field(fields: list[str]) -> dict:
+    """Read specific fields of the player database.
+
+    WHEN: you need a value the CHARACTER SHEET does not carry -- above all the ability scores, or a companion's whole sheet. Never use it to refresh the sheet.
+    FIELDS (the sheet already carries identity, HP, gold, conditions, features, inventory, equipped, consumables, languages, speed and the era's reputation): stats, saves, skills, expertise, proficiency_bonus, armor_class, _passive, xp, armor_proficiencies, weapon_proficiencies, tool_proficiencies, hit_dice_count, hit_dice_size, spellcasting, _carrying, _equipment, companions. `companions` is THIS age's declared sheets, keyed by name. Every other stored field (name, gold, ...) is readable too.
+    RETURNS {"fields": {<field>: <value>}, "missing": [<names not found>]}.
+    """
+    global DB_CONNECTION
+    if DB_CONNECTION is None:
+        return {"success": False, "error": "Database not initialized."}
+    wanted = [str(f).strip() for f in (fields or []) if str(f or "").strip()]
+    if not wanted:
+        return {"success": False, "error": "fields_required",
+                "reason": "Name at least one field to read.",
+                "gm_instruction": "Pass the fields you need, e.g. fields=['stats']."}
+    try:
+        cursor = DB_CONNECTION.cursor()
+        view = _player_gm_view(cursor)
+        if "companions" in wanted:
+            # The current world's declared sheets only, keyed by display name -- a companion
+            # belongs to the age she was found in and never travels (see `register_companion`).
+            era = str(_db_val(cursor, "era", "") or "").strip().lower()
+            bucket = _companions_all(cursor).get(era, {})
+            view["companions"] = {str(sheet.get("name") or key): sheet
+                                  for key, sheet in bucket.items()}
+        return {"fields": {k: view[k] for k in wanted if k in view},
+                "missing": [k for k in wanted if k not in view]}
+    except Exception as e:
+        return {"success": False, "error": f"Error reading the player database: {str(e)}"}
 
 
 @mcp.tool()

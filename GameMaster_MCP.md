@@ -34,7 +34,7 @@ The Device and its five parts (Escapement, Compass Rose, Regulator, Mainspring, 
 <!-- TT:END -->
 
 ## SESSION START
-The CHARACTER SHEET is already in your context — the engine injects it, so you never call `dump_player_db` (it is not offered). No tool batch, no pause token.
+The CHARACTER SHEET is already in your context. No tool batch, no pause token.
 <!-- TT:ON -->
 On receiving the ERA_FILE (the era you are in — the ERA INDEX above lists the rest; `lookup` fetches any era or polity you need), build your era model from it; invent NPCs as the story needs.
 <!-- TT:END -->

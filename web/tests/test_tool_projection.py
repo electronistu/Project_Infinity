@@ -119,6 +119,18 @@ def main():
         and sw["target_remaining_hp"] == 0 and sw["xp_awarded"] == 450)
     rec("no narrative_format anywhere", "narrative_format" not in json.dumps(sw))
 
+    print("\n-- read_player_field: the requested fields survive; engine keys do not")
+    rf = _project("read_player_field", {"fields": {"stats": {"str": 18},
+                                                 "spellcasting": {"dc": 19}},
+                                         "missing": []})
+    rec("the requested fields pass through (wrapped)",
+        rf["fields"]["stats"]["str"] == 18 and rf["fields"]["spellcasting"]["dc"] == 19)
+    rf_meta = _project("read_player_field", {"fields": {"era": "tang", "difficulty": "hard",
+                                                         "stats": {"str": 18}}, "missing": []})
+    rec("an engine-metadata field is still stripped from the wrapper",
+        "era" not in rf_meta["fields"] and "difficulty" not in rf_meta["fields"]
+        and rf_meta["fields"]["stats"]["str"] == 18)
+
     print("\n-- fail closed: an unclassified tool is stripped, never dumped")
     unknown = {"keep_me": 1, "equipment": {"heavy": True}, "narrative_format": "x"}
     v = _project("a_tool_added_tomorrow", unknown)

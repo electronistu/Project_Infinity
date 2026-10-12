@@ -1049,6 +1049,8 @@ _GM_VIEW_FULL: dict[str, str] = {
     "lookup": "plain text (era lore / a tool reference); there is no JSON to project",
     "perform_check": "one small mechanics result; nothing stateful to strip",
     "roll_dice": "one small magnitude roll",
+    "read_player_field": "the requested fields only, already sliced server-side; the "
+                         "always-drop strip is the final guard",
 }
 
 # Always dropped, at ANY depth: the engine's own mechanics disclosure, and the state the GM

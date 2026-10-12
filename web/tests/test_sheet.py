@@ -98,6 +98,8 @@ def main() -> int:
 
     print("\n-- what the GM is offered")
     rec("dump_player_db is engine-only (never offered)", "dump_player_db" in ENGINE_ONLY_TOOLS)
+    rec("read_player_field is the GM's per-field read (offered)",
+        "read_player_field" not in ENGINE_ONLY_TOOLS)
 
     print("\n-- injection")
     gs = GameSession(base_dir=REPO, model="test")
