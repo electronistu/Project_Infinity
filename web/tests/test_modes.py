@@ -136,12 +136,11 @@ def main() -> bool:
     gs.classic = True
     gs.mode = MODE_CLASSIC
     gs.era = ""
-    rec("the Device is off", gs._cadence_span() is None)
-    rec("the counter reads nothing", gs._cadence_state()["turns_until"] is None)
+    rec("the Device is off", gs._device_state()["present"] is False)
     gs.classic = False
     gs.era = "egypt"
     gs.has_device = True
-    rec("... and on in the era game", gs._cadence_span() is not None)
+    rec("... and on in the era game", gs._device_state()["present"] is True)
 
     print("\n-- what a new character is seeded with, in each game")
     import tempfile as _tempfile

@@ -22,16 +22,15 @@ class DeviceAddTest(H.EngineCase):
         self.assertTrue(entry["description"])
         self.assertEqual(entry["weight"], 0)
 
-    def test_the_five_parts_and_their_powers(self):
-        # One part = one power, and the fifth part (the Vernier) owns the place.
-        self.assertEqual(H.ds.device.part_total(), 5)
-        self.assertEqual(H.ds.device.part_names()[-1], "Vernier")
-        self.assertEqual(H.ds.device.canonical_part("the vernier"), "Vernier")
-        self.assertEqual(len(H.ds.device.POWERS), 5)
-        self.assertEqual(len(set(H.ds.device.POWERS.values())), 5)
-        self.assertEqual(H.ds.device.POWERS["Vernier"], H.ds.device.PLACE)
-        self.assertEqual(H.ds.device.POWERS["Mainspring"], H.ds.device.CHARGE)
-        self.assertEqual(H.ds.device.POWERS["Escapement"], H.ds.device.RELEASE)
+    def test_the_four_parts_are_the_future_key(self):
+        # The Device is player-controlled from the start; the four parts are the key to the
+        # future (no per-part power, and no fifth part).
+        self.assertEqual(H.ds.device.part_total(), 4)
+        self.assertEqual(H.ds.device.part_names(),
+                         ["Escapement", "Compass Rose", "Regulator", "Mainspring"])
+        self.assertEqual(H.ds.device.canonical_part("the mainspring"), "Mainspring")
+        self.assertFalse(hasattr(H.ds.device, "POWERS"))
+        self.assertFalse(hasattr(H.ds.device, "powers"))
 
     def test_the_observed_gm_call_is_refused(self):
         # The exact call seen in play: the GM inventing the Device with its own flavour.

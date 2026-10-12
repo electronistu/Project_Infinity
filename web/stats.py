@@ -545,7 +545,7 @@ def _inventory_entries(items, equip=None):
 
 
 def _device_block(entries) -> dict | None:
-    """The Device panel's data: the five slots, what is recovered, and the engine text."""
+    """The Device panel's data: the four slots, what is recovered, and the engine text."""
     present = any(e.get("device") for e in entries)
     parts = []
     for pname in devicecfg.part_names():

@@ -70,7 +70,7 @@ class PlayerFieldTest(H.EngineCase):
         out = H.ds.read_player_field(["reputation"])
         self.assertEqual(out["fields"]["reputation"], H.ds.dump_player_db()["reputation"])
 
-    def test_companions_are_the_current_age_sheets_keyed_by_name(self):
+    def test_companions_are_the_party_keyed_by_name(self):
         r = H.ds.register_companion("Maera", MAERA)
         self.assertTrue(r["success"], r)
         out = H.ds.read_player_field(["companions"])
@@ -83,13 +83,12 @@ class PlayerFieldTest(H.EngineCase):
         self.assertNotIn("current_hp", sheet)   # a fight's business, never stored
         self.assertNotIn("hp", sheet)           # only `max_hp`
 
-    def test_a_companion_of_another_age_is_not_returned(self):
+    def test_companions_travel_and_are_read_flat(self):
         H.ds.register_companion("Maera", MAERA)
-        self._set_era("tang")
+        self._set_era("tang")                             # the Device carried her
         out = H.ds.read_player_field(["companions"])
-        self.assertEqual(out["fields"]["companions"], {})
-        self._set_era("egypt")
-        self.assertIn("Maera", H.ds.read_player_field(["companions"])["fields"]["companions"])
+        self.assertIn("Maera", out["fields"]["companions"])
+        self.assertEqual(out["fields"]["companions"]["Maera"]["max_hp"], 38)
 
     # ── the engine's full read is not the GM's ────────────────────────────────────
 

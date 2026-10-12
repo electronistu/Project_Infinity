@@ -47,8 +47,8 @@ DUMP = {
                      "always_prepared": ["Bless"], "spellbook": ["Shield"],
                      "slots": {"1": 4}},
     "reputation": {"tang": {"the tang empire": {"ruler": [], "market_guilds": []}}},
-    "companions": {"tang": {"xiaoyu": {"name": "Xiaoyu", "race": "human", "class": "rogue",
-                                       "description": "ink-stained fingers and a stolen name"}}},
+    "companions": {"xiaoyu": {"name": "Xiaoyu", "race": "human", "class": "rogue",
+                              "description": "ink-stained fingers and a stolen name"}},
     # combat math / engine metadata that must NOT appear
     "stats": {"str": 8, "dex": 20}, "saves": {"dex": 5}, "skills": ["Arcana"],
     "expertise": ["Arcana"], "proficiency_bonus": 6, "armor_proficiencies": ["light"],
@@ -114,43 +114,25 @@ def main() -> int:
         raise RuntimeError("no db")
 
     gs._call_tool_text = fake_dump  # type: ignore[assignment]
-    gs._companions = {}
     block = asyncio.run(gs._fetch_sheet())
     rec("_fetch_sheet builds the lean block", block.startswith("CHARACTER SHEET — Power"))
-    rec("... with no companions line when there are none", "companions:" not in block)
-
-    # The companions live in the sheet (era-scoped), identity + look, never combat data.
-    gs._companions = {"tang": [{"name": "Xiaoyu", "race": "human", "class": "rogue",
-                                "description": "ink-stained fingers and a stolen name"},
-                               {"name": "Pei", "race": "human", "class": "fighter",
-                                "description": ""}],
-                      "egypt": [{"name": "Setka", "race": "human", "class": "priest",
-                                 "description": "the oasis"}]}
-    block = asyncio.run(gs._fetch_sheet())
-    rec("the sheet carries the companions with identity and the look",
+    rec("the sheet carries the party with identity and the look",
         "companions:" in block and "Xiaoyu (human rogue)" in block
-        and "ink-stained fingers" in block and "Pei (human fighter)" in block)
-    rec("only the current world's companions are listed", "Setka" not in block)
+        and "ink-stained fingers" in block)
+
+    # No companions -> no block.
+    no_people = {**DUMP, "companions": {}}
+
+    async def fake_empty(name, args):
+        return json.dumps(no_people)
+
+    gs._call_tool_text = fake_empty  # type: ignore[assignment]
+    rec("... with no companions line when there are none",
+        "companions:" not in asyncio.run(gs._fetch_sheet()))
 
     gs._call_tool_text = fake_boom  # type: ignore[assignment]
     rec("_fetch_sheet is silent on failure (never sinks a session)",
         asyncio.run(gs._fetch_sheet()) == "")
-
-    # A declare brings race/class/description from the args; a refusal does not.
-    gs._companions = {"tang": []}
-    gs._track_companion({"sheet": {"race": "human", "class": "monk", "description": "a free woman"}},
-                        json.dumps({"success": True, "status": "declared", "era": "tang",
-                                    "name": "Su Lian"}))
-    rec("a declared companion joins with identity + look",
-        gs._companions["tang"][0]["class"] == "monk"
-        and gs._companions["tang"][0]["description"] == "a free woman")
-    gs._track_companion({}, json.dumps({"success": True, "status": "forgotten", "era": "tang",
-                                        "name": "Su Lian"}))
-    rec("a forgotten companion leaves it", gs._companions["tang"] == [])
-    gs._track_companion({"sheet": {"race": "human", "class": "monk"}},
-                        json.dumps({"success": False, "error": "companion_limit", "era": "tang",
-                                    "name": "A Fourth"}))
-    rec("a refused declaration is not listed", gs._companions["tang"] == [])
 
     # The jump rebuilds the sheet and `_compact` re-injects it while dropping the history.
     gs.messages = [{"role": "system", "content": "the protocol"},

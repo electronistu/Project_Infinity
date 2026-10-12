@@ -322,62 +322,27 @@ def per_era_tests() -> bool:
 
 
 def companions_tests() -> bool:
-    """The companions are engine-derived (never GM-written), era-scoped, and live in the
-    CHARACTER SHEET (name + identity + the stable look), not in the state page."""
+    """The party is engine-derived (never GM-written) and lives in the CHARACTER SHEET
+    (name + identity + the stable look), not in the state page."""
     print("  -- engine-listed companions --")
     gs = _session()
     gs.classic = False
     gs.era = "tang"
     gs._era_states = {"tang": "**Goal**: hold the quay."}
-    gs._companions = {"tang": [{"name": "Su Lian", "race": "human", "class": "monk",
-                                "description": "a free woman"},
-                               {"name": "Pei", "race": "human", "class": "fighter",
-                                "description": ""}],
-                      "egypt": [{"name": "Setka", "race": "human", "class": "priest",
-                                 "description": "the oasis"}]}
-    block = gs._companions_block("tang")
+    store = {"su lian": {"name": "Su Lian", "race": "human", "class": "monk",
+                         "description": "a free woman"},
+             "pei": {"name": "Pei", "race": "human", "class": "fighter",
+                     "description": ""},
+             "setka": {"name": "Setka", "race": "human", "class": "priest",
+                       "description": "the oasis"}}
+    block = gs._companions_block(store)
     rec("the companions block carries name, identity and the look",
         "Su Lian (human monk)" in block and "— a free woman" in block
         and "Pei (human fighter)" in block, block.replace("\n", " | ")[:80])
-    rec("an age with no companions carries no block", gs._companions_block("wallachia") == "")
-    rec("only the current age's companions are listed", "Setka" not in block)
+    rec("one party -- every companion is listed, whatever the age", "Setka" in block)
+    rec("a store with no companions carries no block", gs._companions_block({}) == "")
     rec("the state page itself never stores a companions field",
         "companions" not in gs._state_body().lower())
-
-    # A save's own store is the source: `.player` -> `{era: [{name, race, class, description}]}`.
-    d = tempfile.mkdtemp()
-    p = os.path.join(d, "x.player")
-    with open(p, "w", encoding="utf-8") as f:
-        json.dump({"companions": {
-            "tang": {"su lian": {"name": "Su Lian", "race": "human", "class": "monk",
-                                    "description": "a free woman"}},
-            "": {"bramble": {"name": "Bramble"}}}}, f)
-    read = engine._player_companions(p)
-    rec("_player_companions reads name + identity + look",
-        read.get("tang") == [{"name": "Su Lian", "race": "human", "class": "monk",
-                               "description": "a free woman"}], str(read))
-    rec("... and a classic save's empty era", read.get("")[0]["name"] == "Bramble", str(read))
-    rec("a missing store is empty", engine._player_companions(os.path.join(d, "none.player")) == {})
-
-    # Live declares update the list (identity from the args); a refusal does not.
-    gs._companions = {"tang": [{"name": "Su Lian", "race": "", "class": "",
-                                "description": ""}]}
-    gs._track_companion({"sheet": {"race": "human", "class": "fighter",
-                                    "description": "grey at the temples"}},
-                        json.dumps({"success": True, "status": "declared", "era": "tang",
-                                    "name": "Captain Pei"}))
-    rec("a declared companion joins with identity + look",
-        gs._companions["tang"][-1] == {"name": "Captain Pei", "race": "human",
-                                       "class": "fighter", "description": "grey at the temples"})
-    gs._track_companion({}, json.dumps({"success": True, "status": "forgotten", "era": "tang",
-                                        "name": "Captain Pei"}))
-    rec("a forgotten companion leaves it",
-        [p["name"] for p in gs._companions["tang"]] == ["Su Lian"])
-    gs._track_companion({"sheet": {"race": "human"}},
-                        json.dumps({"success": False, "error": "companion_limit",
-                                    "era": "tang", "name": "A Fourth"}))
-    rec("a refused declaration is not listed",
-        [p["name"] for p in gs._companions["tang"]] == ["Su Lian"])
     return True
 
 

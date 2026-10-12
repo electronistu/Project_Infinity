@@ -189,7 +189,6 @@ def main():
         {"kind": "set", "key": "gold", "value": 999},
         {"kind": "set", "key": "current_hit_points", "value": 4},
         {"kind": "device", "present": True, "parts": ["Escapement", "Mainspring"]},
-        {"kind": "cadence", "turns": 3, "steer": "forward"},
     ]}))
     calls = {n: a for n, a in edit.session.calls}
     rec("apply writes a scalar through debug_set_field as JSON",
@@ -201,9 +200,6 @@ def main():
         any(n == "debug_device" and a.get("parts") == ["Escapement", "Mainspring"]
             for n, a in edit.session.calls),
         str([a for n, a in edit.session.calls if n == "debug_device"]))
-    rec("apply sets the cadence without a tool call",
-        edit._jump_at_turn == edit.turn_counter + 3 and edit._steer == "forward",
-        f"jump_at={edit._jump_at_turn} steer={edit._steer}")
     evts = _drain(edit)
     rec("apply refreshes the sheet and the Device panel",
         any(e.get("type") == "stats" for e in evts)

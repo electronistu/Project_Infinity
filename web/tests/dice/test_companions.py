@@ -1,8 +1,9 @@
-"""Declared companions: a durable, era-bound sheet the engine fills in by name.
+"""Declared companions: one durable party sheet the engine fills in by name.
 
-A companion is a person of the age it was found in and cannot travel in time, so its sheet is
-stored per era, at most three per era. Current HP is never stored -- registering the companion
-by name alone fills the stat block, at full HP unless the call states one.
+The Device carries the companions with the Traveller, so there is ONE store, `{name: sheet}`,
+at most three in the party in any age; a load migrates a legacy `{era: {...}}` map. Current HP
+is never stored -- registering the companion by name alone fills the stat block, at full HP
+unless the call states one.
 
 Run from the repo root:
     venv\\Scripts\\python.exe -m unittest web.tests.dice.test_companions
@@ -46,12 +47,14 @@ class CompanionTest(H.EngineCase):
 
     # ── declaring ─────────────────────────────────────────────────────────────
 
-    def test_declare_stores_a_static_sheet_scoped_to_the_era(self):
+    def test_declare_stores_a_static_sheet_in_the_one_party(self):
         r = H.ds.register_companion("Maera", MAERA)
         self.assertTrue(r["success"])
         self.assertEqual(r["status"], "declared")
-        self.assertEqual((r["era"], r["count"]), ("egypt", 1))
-        stored = H.raw_dbv("companions")["egypt"]["maera"]
+        self.assertEqual(r["count"], 1)
+        self.assertNotIn("era", r)                 # the store is not per-era any more
+        stored = H.raw_dbv("companions")["maera"]
+        self.assertNotIn("era", stored)
         self.assertEqual(stored["ac"], 15)
         self.assertEqual(stored["max_hp"], 38)
         self.assertEqual(stored["role"], "ally")
@@ -81,8 +84,8 @@ class CompanionTest(H.EngineCase):
     def test_a_sheet_stored_before_the_rename_still_registers(self):
         # A sheet written when the field was called `traits` keeps them as advantages.
         cur = H.ds.DB_CONNECTION.cursor()
-        H.ds._save_companions(cur, {"egypt": {"maera": {
-            "name": "Maera", "ac": 15, "max_hp": 38, "traits": ["Sneak Attack 2d6."]}}})
+        H.ds._save_companions(cur, {"maera": {
+            "name": "Maera", "ac": 15, "max_hp": 38, "traits": ["Sneak Attack 2d6."]}})
         with H.fixed_rolls([10, 6]):
             r = H.ds.register_combatants([{"name": "Maera"}])
         self.assertEqual(H.ds._COMBAT_REGISTRY["Maera"]["traits"], ["Sneak Attack 2d6."])
@@ -91,11 +94,11 @@ class CompanionTest(H.EngineCase):
     def test_re_declaring_a_name_updates_it(self):
         H.ds.register_companion("Maera", MAERA)
         H.ds.register_companion("Maera", {**MAERA, "ac": 16})
-        stored = H.raw_dbv("companions")["egypt"]["maera"]
+        stored = H.raw_dbv("companions")["maera"]
         self.assertEqual(stored["ac"], 16)
         self.assertEqual(H.ds.register_companion("Maera", MAERA)["count"], 1)
 
-    def test_the_cap_is_three_per_era(self):
+    def test_the_cap_is_three_in_the_party(self):
         for n in ("Ana", "Bram", "Cora"):
             self.assertTrue(H.ds.register_companion(n, MAERA)["success"])
         r = H.ds.register_companion("Dain", MAERA)
@@ -108,12 +111,14 @@ class CompanionTest(H.EngineCase):
         self.assertTrue(H.ds.register_companion("Bram", action="forget")["success"])
         self.assertTrue(H.ds.register_companion("Dain", MAERA)["success"])
 
-    def test_the_cap_is_per_era_not_global(self):
+    def test_the_cap_is_global_not_per_era(self):
         for n in ("Ana", "Bram", "Cora"):
             H.ds.register_companion(n, MAERA)
         self._set_era("wallachia")
-        self.assertTrue(H.ds.register_companion("Maera", MAERA)["success"])
-        self.assertEqual(sorted(H.raw_dbv("companions")), ["egypt", "wallachia"])
+        r = H.ds.register_companion("Maera", MAERA)
+        self.assertFalse(r["success"])
+        self.assertEqual(r["error"], "companion_limit")
+        self.assertEqual(sorted(H.raw_dbv("companions")), ["ana", "bram", "cora"])
 
     def test_forget_removes_the_sheet(self):
         H.ds.register_companion("Maera", MAERA)
@@ -129,9 +134,8 @@ class CompanionTest(H.EngineCase):
         self.assertEqual(r["error"], "invalid_action")
 
     def test_the_description_is_world_neutral_not_era_only(self):
-        # Classic has no ages, so the tool's always-on text must read correctly there too.
-        # The unit is the world (one in classic, one per age in the era game) and the cap is
-        # stated by the RETURN -- `limit` + the refusal -- not restated every turn.
+        # One party in both games; the cap is stated by the RETURN -- `limit` + the refusal --
+        # not restated every turn.
         doc = (H.ds.register_companion.__doc__ or "").lower()
         for phrase in ("time travel", "cannot travel", "in an age", "per age", "each age"):
             self.assertNotIn(phrase, doc)
@@ -175,13 +179,12 @@ class CompanionTest(H.EngineCase):
         self.assertEqual(r["error"], "not_declared")
         self.assertIn("register_companion", r["gm_instruction"])
 
-    def test_a_companion_of_another_age_cannot_be_registered(self):
-        H.ds.register_companion("Maera", MAERA)          # found in egypt
-        self._set_era("wallachia")
+    def test_a_companion_travels_to_the_next_age(self):
+        H.ds.register_companion("Maera", MAERA)          # declared in egypt
+        self._set_era("wallachia")                       # the Device carried her
         r = self._register([{"name": "Maera"}])
-        self.assertFalse(r["success"])
-        self.assertEqual(r["error"], "companion_not_here")
-        self.assertIn("Egypt", r["reason"])
+        self.assertTrue(r["success"])
+        self.assertEqual(H.ds._COMBAT_REGISTRY["Maera"]["max_hp"], 38)
 
     def test_a_companion_can_join_an_existing_fight(self):
         H.ds.register_companion("Maera", MAERA)
@@ -205,9 +208,18 @@ class CompanionTest(H.EngineCase):
         self.assertIn("companions", rows)
         with H.load(rows):
             cursor = H.ds.DB_CONNECTION.cursor()
-            store = H.ds._companions_all(cursor)
-            self.assertEqual(store["egypt"]["maera"]["max_hp"], 38)
-            self.assertEqual(store["egypt"]["maera"]["description"], MAERA["description"])
+            store = H.ds._companions_store(cursor)
+            self.assertEqual(store["maera"]["max_hp"], 38)
+            self.assertEqual(store["maera"]["description"], MAERA["description"])
+
+    def test_a_legacy_per_era_store_migrates_flat(self):
+        legacy = {"era": "egypt", "companions": {
+            "egypt": {"maera": {"name": "Maera", "ac": 15, "max_hp": 38}},
+            "tang": {"su lian": {"name": "Su Lian", "ac": 13, "max_hp": 22}}}}
+        with H.load(legacy):
+            store = H.ds._companions_store(H.ds.DB_CONNECTION.cursor())
+            self.assertEqual(sorted(store), ["maera", "su lian"])
+            self.assertEqual(store["maera"]["max_hp"], 38)
 
 
 if __name__ == "__main__":
@@ -272,23 +284,21 @@ class CompanionCheckTest(H.EngineCase):
 
     def test_no_stats_falls_back_to_the_given_modifier(self):
         cur = H.ds.DB_CONNECTION.cursor()
-        H.ds._save_companions(cur, {"egypt": {"maera": {
-            "name": "Maera", "ac": 15, "max_hp": 38}}})
+        H.ds._save_companions(cur, {"maera": {
+            "name": "Maera", "ac": 15, "max_hp": 38}})
         with H.fixed_rolls([10]):
             r = H.ds.perform_check(actor="Maera", dc=15, check_name="Stealth", modifier=4)
         self.assertEqual(r["modifier"], 4)
         self.assertEqual(r["total"], 14)
 
-    def test_a_companion_of_another_world_is_refused(self):
+    def test_her_check_works_in_any_age(self):
         cur = H.ds.DB_CONNECTION.cursor()
         cur.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)",
                     ("era", "wallachia"))
         H.ds.DB_CONNECTION.commit()
         with H.fixed_rolls([10]):
             r = H.ds.perform_check(actor="Maera", dc=15, check_name="Stealth")
-        self.assertFalse(r["success"])
-        self.assertEqual(r["error"], "companion_not_here")
-        self.assertIn("Egypt", r["narrative_format"])
+        self.assertEqual(r["modifier"], 6)          # DEX +3, proficient +3
 
     def test_an_unknown_npc_still_uses_the_passed_modifier(self):
         with H.fixed_rolls([10]):

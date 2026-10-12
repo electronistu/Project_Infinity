@@ -45,9 +45,9 @@ from .images import (  # noqa: E402
 )
 from .tool_schema import compact_schema  # noqa: E402
 from forge.world import render_world_text  # noqa: E402
-import device  # noqa: E402  # the Device (Text Time Traveler): vocabulary, cadence, control
+import device  # noqa: E402  # the Device (Text Time Traveler): vocabulary and control
 from web.eras import (  # noqa: E402
-    START_ERA, era_arrivals, era_ids, pick_arrival, playable_eras,
+    START_ERA, era_arrivals, era_ids, origin_eras, pick_arrival, playable_eras,
     render_era_index, render_era_text,
 )
 from .ollama_stream import stream_chat  # noqa: E402
@@ -467,7 +467,7 @@ SCENE_TOOL = "request_scene_image"
 # Declares recurring NPCs (name + description). The engine buffers them and the
 # server persists them; the GM then refers to those NPCs by name alone.
 NPC_TOOL = "register_npcs"
-# Declares a companion's durable character sheet (engine-owned, era-scoped). The look in it
+# Declares a companion's durable character sheet (engine-owned, one party). The look in it
 # rides the same image pipeline as a recurring NPC; its stats are filled in when the GM later
 # registers the companion by name alone.
 COMPANION_TOOL = "register_companion"
@@ -699,39 +699,6 @@ def _player_era(player_path: str) -> str:
     return value if value in era_ids() else START_ERA
 
 
-def _player_companions(player_path: str) -> dict[str, list[dict]]:
-    """The companions each world of a save declares: `{era: [{name, race, class, description}]}`.
-
-    The engine injects this in the sheet (never the GM), so the store is the source of truth. A
-    sheet's `name` is the display spelling; the lowercased key is the fallback. The description
-    (the stable look) rides along so the GM keeps the same person across saves and ages."""
-    try:
-        with open(player_path, "r", encoding="utf-8") as f:
-            stored = (json.load(f) or {}).get("companions")
-    except (OSError, ValueError, TypeError):
-        return {}
-    out: dict[str, list[dict]] = {}
-    if not isinstance(stored, dict):
-        return out
-    for era, bucket in stored.items():
-        if not isinstance(bucket, dict):
-            continue
-        people = []
-        for key, sheet in bucket.items():
-            sheet = sheet if isinstance(sheet, dict) else {}
-            name = " ".join(str(sheet.get("name") or key or "").split())
-            if name:
-                people.append({
-                    "name": name,
-                    "race": " ".join(str(sheet.get("race") or "").split()),
-                    "class": " ".join(str(sheet.get("class") or "").split()),
-                    "description": " ".join(str(sheet.get("description") or "").split()),
-                })
-        if people:
-            out[str(era).strip().lower()] = people
-    return out
-
-
 def _sheet_body(db: dict) -> str:
     """The lean CHARACTER SHEET block the engine injects (never the GM's `dump_player_db`).
 
@@ -866,20 +833,10 @@ DEV_NOTE_HEADER = (
 # reported so the panel can say the history is partial.
 GM_JOURNAL_MAX_BYTES = 20_000_000
 
-# The Device's cadence, keyed by how many of its five parts are back: more parts, a longer
-# wait. It only matters while the Device fires on its own -- the Mainspring's charge stops
-# the forced jumps entirely (`_cadence_span`). A four-part Device WITHOUT the Mainspring is
-# possible (the Vernier and three originals), so band 4 is a real interval.
-CADENCE_BANDS = {0: (5, 5), 1: (7, 7), 2: (11, 11), 3: (13, 13), 4: (17, 17)}
-# How many turns before the jump the Device starts ticking: the turn it fires on is the one
-# after this many turns, so 1 means the warning lands on the LAST turn of the age and the GM
-# has that turn to close the age out -- no earlier.
-WARNING_TURNS = 1
-
-DEVICE_WARNING = (
-    "The Device is ticking. This is the last turn of this age: bring it to a close now, "
-    "because the jump comes next. Nobody else can hear it."
-)
+# The Device is player-controlled from the first turn: it never fires on its own, so there
+# is no cadence, no countdown and no warning. The four parts are the key to the future age.
+# The place menu offers each era's authored arrivals plus this many recently visited places.
+PLACE_MENU_RECENT = 12
 
 # The scope of an age's memory. The legend is what the era actually knows -- the Traveller
 # may arrive unseen, so a look, a name or a piece of kit is only remembered when a witness
@@ -945,6 +902,9 @@ DEVICE_FIRES = (
     "You arrive at {arrival}.\n\n"
     "You still have everything you carried, exactly as it is: nothing is translated, "
     "nothing is left behind. This age has never seen its like, and people will notice.\n\n"
+    "Your companions come with you -- the Device carries everyone travelling with you, exactly "
+    "as they were. Whether each already knows what you are and what the Device can do, or is "
+    "finding out now, is yours to play: recognition, terror, a debt called in. Improvise.\n\n"
     "Narrate the arrival -- the disorientation, what the place smells and sounds like at "
     "this hour, and whether anyone notices a stranger appear."
 )
@@ -1023,7 +983,7 @@ _GM_VIEW_KEEP: dict[str, tuple[str, ...]] = {
     # Acknowledgements: the GM just made the call, so only the outcome is new.
     "request_scene_image": ("status", "note"),
     "register_npcs": ("status", "count", "note"),
-    "register_companion": ("success", "status", "name", "era", "count", "limit", "note"),
+    "register_companion": ("success", "status", "name", "count", "limit", "note"),
     "note_place": ("status", "kingdom", "area", "place", "main_npcs", "cast", "note"),
 }
 # Added on failure so the GM can explain and act on a refused/wrong call.
@@ -1270,34 +1230,26 @@ class GameSession:
         # narrative_format, in call order, sent to the client as the `mechanics` event.
         self._mechanics_lines: list[str] = []
         self._pending_npcs: list[dict] = []
-        # ── the Device's cadence ──────────────────────────────
-        # The Device and its parts are real inventory items (engine-seeded at creation). The
-        # count sets the cadence; the recovered SET decides each part's own power (one part =
-        # one power -- see device.POWERS). `has_device` False means the Device itself is gone
-        # and the cadence is off.
+        # ── the Device ──────────────────────────────
+        # The Device and its parts are real inventory items (engine-seeded at creation). It is
+        # player-controlled from the first turn; the recovered parts are the key to the future.
+        # `has_device` False means the Device itself is gone and there are no controls.
         self.has_device = False
         self.parts_recovered = 0
-        # {ability id: held}, e.g. {"charge": True, "release": False, ...}.
-        self.device_powers: dict[str, bool] = {}
-        # Whether the Mainspring's charge is engaged (the Device holds; no forced jumps). The
-        # player may let it run, so a partially repaired Device can never be stranded.
-        self._hold: bool = True
         # The eras the Traveller has stood in, oldest first: "previous" means the one before
         # the current, which the timeline legends cannot give (a return does not rewrite one).
         self.journey: list[str] = []
-        # The pending aim for the next jump: "" (drift), "previous", "forward", or an era id
-        # the Regulator named. Set without firing; consumed and cleared by the next jump.
+        # The pending aimed era for the next jump, or "". Set without firing; consumed and
+        # cleared by the jump.
         self._steer: str = ""
-        # The pending place for the next jump (the Vernier), or ""; honoured only when the
-        # landing era has it among the places this save has visited.
+        # The pending aimed place for the next jump, or ""; honoured when the landing era
+        # offers it (an authored arrival or a place already visited).
         self._aim_place: str = ""
         # The GM's memory line for the age it is leaving, captured from `{{_REMEMBERS: ...}}`
         # on the closing turn; `_jump` prefers it over the config template and clears it.
         self._pending_legend: str = ""
-        # Injected in tests so the "random" era and band are reproducible.
+        # Injected in tests so the "random" era is reproducible.
         self._rng = random.Random()
-        self._jump_at_turn: int | None = None
-        self._warned = False
         # Where the always-on era messages live, so a jump can rewrite them in place
         # instead of appending one index (and one tree) per age ever visited.
         self._era_index_at: int | None = None
@@ -1319,9 +1271,6 @@ class GameSession:
         # The engine-injected lean CHARACTER SHEET block (see `_sheet_body`), rebuilt at session
         # build and at every jump. The GM never fetches it (`dump_player_db` is engine-only).
         self._sheet_block: str = ""
-        # The companions the engine lists itself (derived, never GM-written): `{era: [name]}`,
-        # read from the save at start and updated as `register_companion` runs.
-        self._companions: dict[str, list[str]] = {}
         self._pending_era_state: tuple[str, str] | None = None
         self._chronicle: tuple[int, int, str] | None = None
         # The kept entries a compaction produced, consumed once by `_write_timeline` so the
@@ -1359,9 +1308,6 @@ class GameSession:
         self.classic = self.mode == MODE_CLASSIC
         self.era = "" if self.classic else _player_era(self.player_path)
         self.arrival = "" if self.classic else _player_arrival(self.player_path, self.era)
-        # The companions the engine lists itself: the save's own store, plus any declared
-        # this session. Never the GM's to write (see `_companions_line`).
-        self._companions = _player_companions(self.player_path)
         # The places/NPC registry is memory-only for a session: start it from the last Save,
         # never from a working copy a previous unsaved session left behind.
         discard_scene_manifest(os.path.dirname(self.player_path), self.active_name)
@@ -1383,11 +1329,9 @@ class GameSession:
     async def submit_save(self) -> None:
         await self._cmd_q.put({"type": "save"})
 
-    async def submit_device(self, action: str, era: str = "", direction: str = "",
-                            place: str = "", value=None, delta=None) -> None:
+    async def submit_device(self, action: str, era: str = "", place: str = "") -> None:
         await self._cmd_q.put({"type": "device", "action": action,
-                               "era": era, "direction": direction, "place": place,
-                               "value": value, "delta": delta})
+                               "era": era, "place": place})
 
     async def submit_dev(self, cmd: dict) -> None:
         """A developer-mode command (state edit, Device control, GM-inspector watch).
@@ -1540,13 +1484,8 @@ class GameSession:
                     self._era_started_turn = self.turn_counter
 
                     # The Device: how many parts are in the pack, and the eras visited, from
-                    # the live DB. Nothing is armed until this has been read.
+                    # the live DB.
                     await self._refresh_device()
-
-                    # Arm the Device for this session.
-                    span = self._cadence_span()
-                    self._jump_at_turn = None if span is None else self.turn_counter + span
-                    self._warned = False
 
                     await self._emit({
                         "type": "ready",
@@ -1645,8 +1584,7 @@ class GameSession:
 
     async def _handle_action(self, text: str) -> None:
         await self._run_turn(text, "turn")
-        await self._check_cadence()
-        # After the Device has had its say: one cadence event per turn, carrying the truth.
+        # The Device never fires on its own; the panel state is refreshed for the turn.
         await self._emit({"type": "cadence", **self._device_state()})
 
     async def _handle_device_command(self, cmd: dict) -> None:
@@ -1658,158 +1596,88 @@ class GameSession:
             return
         if action == "aim":
             await self._device_aim(cmd)
-        elif action == "steer":
-            await self._device_steer(cmd.get("direction"))
         elif action == "release":
             await self._device_release(cmd)
-        elif action == "hold":
-            await self._device_hold(cmd.get("value"))
         else:
             await self._emit({"type": "error", "message": f"unknown Device action: {action}"})
 
-    def _aim_allowed(self, era: str, place: str = "") -> bool:
-        """Whether the aim may name this age.
+    def _future_era(self) -> str:
+        """The origin age -- the future (New York) -- or '' when the config has none."""
+        origins = origin_eras()
+        return origins[0] if origins else ""
 
-        The Regulator names ANY other playable age -- ahead or behind; there is no dead end at
-        the last age. Without it, the Vernier can still name an age through a place the save has
-        already stood in (the place carries its age)."""
+    def _future_unlocked(self) -> bool:
+        """The future is reachable only while every part of the Device is held."""
+        return self.parts_recovered >= device.part_total()
+
+    def _aim_allowed(self, era: str) -> bool:
+        """Whether the Device may name this age.
+
+        Any other playable age -- ahead or behind; there is no dead end at the last age. The
+        future is the one exception: it is unreachable until every part is held.
+        """
         era = str(era or "").strip().lower()
         if not era or era == str(self.era or "").strip().lower():
             return False
         if era not in playable_eras():
             return False
-        if self.device_powers.get(device.ERA):
-            return True
-        wanted = " ".join(str(place or "").split())
-        return bool(self.device_powers.get(device.PLACE) and wanted
-                    and wanted in self._visited_pool(era))
+        if era == self._future_era() and not self._future_unlocked():
+            return False
+        return True
+
+    def _place_allowed(self, era: str, place: str) -> bool:
+        """Whether an age offers this place: one of its authored arrivals, or one visited."""
+        wanted = " ".join(str(place or "").split()).lower()
+        if not wanted:
+            return False
+        pool = {p.lower() for p in era_arrivals(era)}
+        pool |= {p.lower() for p in self._visited_pool(era)}
+        return wanted in pool
 
     async def _device_aim(self, cmd: dict) -> None:
-        """Aim the NEXT jump without firing it (the Regulator; the place rides the Vernier).
+        """Aim the next jump without firing it: the era, and a place inside it.
 
-        The Regulator names any other age. With only the Vernier, a place the save has already
-        stood in names its age. Sending the active aim again clears it, so the Device drifts."""
-        if not (self.device_powers.get(device.ERA) or self.device_powers.get(device.PLACE)):
-            await self._emit({"type": "notice", "title": "The Device",
-                              "text": "The Device cannot be aimed yet."})
-            return
+        The Device names any other reachable age; the place is one the age offers (its
+        authored arrivals or a place already visited). Firing uses the same aim."""
         era = str(cmd.get("era") or "").strip().lower()
         place = self._clean_aim_place(cmd.get("place"))
-        if not era:
-            await self._emit({"type": "error", "message": "no era to aim at"})
-            return
-        if not self._aim_allowed(era, place):
+        if not self._aim_allowed(era) or (place and not self._place_allowed(era, place)):
             await self._device_refuse()
             return
-        self._steer = "" if era == self._steer else era
+        self._steer = era
         self._aim_place = place
-        if self._steer:
-            text = f"The Device is aimed at {device.era_label(era)}"
-            text += f", {self._aim_place}." if self._aim_place else "."
-        else:
-            text = "The Device drifts again — the next jump goes where it likes."
+        text = f"The Device is aimed at {device.era_label(era)}"
+        text += f", {place}." if place else "."
         await self._emit({"type": "notice", "title": "The Device", "text": text})
         await self._emit({"type": "cadence", **self._device_state()})
 
     def _clean_aim_place(self, place) -> str:
-        """The aimed place (the Vernier), or '' without it. Validated at jump time, because a
-        drift or a 'random forward' jump does not know its era until it lands."""
-        if not self.device_powers.get(device.PLACE):
-            return ""
+        """The aimed place, whitespace-collapsed."""
         return " ".join(str(place or "").split())
 
     async def _device_release(self, cmd: dict) -> None:
-        """Release the held Device: fire the jump now (the Escapement on the wound Mainspring).
+        """Fire the Device: jump now, to the chosen age and place.
 
-        The Mainspring winds the Device and holds it; the Escapement lets the charge out --
-        both are needed. A deliberate jump is refused in combat. The aim (Regulator, Compass
-        Rose) chooses the age and the Vernier the place; with nothing aimed, the Device drifts.
+        A deliberate jump is refused in combat. Both must be chosen: the age any other
+        reachable one, the place one the age offers (its authored arrivals or a place already
+        visited). Nothing is left to chance.
         """
-        if not (self.device_powers.get(device.CHARGE)
-                and self.device_powers.get(device.RELEASE)):
-            await self._emit({"type": "notice", "title": "The Device",
-                              "text": "The Device is not wound for release yet."})
-            return
         if self._in_combat:
             await self._emit({"type": "notice", "title": "The Device",
                               "text": COMBAT_HOLD_MESSAGE})
             return
-        era = str(cmd.get("era") or "").strip().lower()
-        place = self._clean_aim_place(cmd.get("place"))
-        if era in ("previous", "forward"):
-            if self.device_powers.get(device.DIRECTION):
-                self._steer = era
-        elif era:
-            if not self._aim_allowed(era, place):
-                await self._device_refuse()
-                return
-            self._steer = era
-        if "place" in cmd:
-            self._aim_place = place
-        await self._close_and_jump(self._steered_era())
-
-    async def _device_hold(self, value) -> None:
-        """Hold the wound Device (stop its forced jumps), or let it run again.
-
-        The Mainspring's charge holds it. Letting it go re-arms the countdown from the current
-        turn, so a partially repaired Device is never stranded."""
-        if not self.device_powers.get(device.CHARGE):
+        era = str(cmd.get("era") or self._steer or "").strip().lower()
+        place = self._clean_aim_place(cmd.get("place") or self._aim_place)
+        if not self._aim_allowed(era):
+            await self._device_refuse()
+            return
+        if not place or not self._place_allowed(era, place):
             await self._emit({"type": "notice", "title": "The Device",
-                              "text": "The Device cannot be held yet."})
+                              "text": "Choose a place in that age first."})
             return
-        want = True if value is None else bool(value)
-        self._hold = want
-        if want:
-            self._jump_at_turn = None
-            self._warned = False
-            self.messages = [m for m in self.messages
-                             if not (isinstance(m, dict)
-                                     and m.get("content") in (DEVICE_WARNING, LEGEND_ASK))]
-            text = "The Device is held — it will not fire until you release it."
-        else:
-            span = self._cadence_span()
-            self._jump_at_turn = None if span is None else self.turn_counter + span
-            self._warned = False
-            text = "The Device is let go — it will fire when it likes again."
-        await self._emit({"type": "notice", "title": "The Device", "text": text})
-        await self._emit({"type": "cadence", **self._device_state()})
-
-    async def _device_steer(self, direction) -> None:
-        """The Compass Rose's coarse aim: "" (drift), "previous" or "forward" (a random age).
-
-        Not a jump, so it is allowed in combat -- the jump it aims will not fire until the
-        fight is over. Sending the active direction toggles it off.
-        """
-        if not self.device_powers.get(device.DIRECTION):
-            await self._emit({"type": "notice", "title": "The Device",
-                              "text": "The Device cannot be steered yet."})
-            return
-        want = str(direction or "").strip().lower()
-        if want not in ("", "previous", "forward"):
-            await self._emit({"type": "error",
-                              "message": f"invalid Device steering: {direction}"})
-            return
-        if want == self._steer:
-            want = ""  # toggle the active direction off
-        if want == "previous" and not self._previous_era():
-            await self._emit({"type": "notice", "title": "The Device",
-                              "text": "There is no earlier age to point back to yet."})
-            return
-        if want == "forward" and not self._forward_era_ids():
-            await self._emit({"type": "notice", "title": "The Device",
-                              "text": "There is no age ahead to point to."})
-            return
-        self._steer = want
-        self._aim_place = ""
-        if want == "previous":
-            text = (f"The Device leans back toward "
-                    f"{device.era_label(self._previous_era())}.")
-        elif want == "forward":
-            text = "The Device leans forward — where it lands is still chance."
-        else:
-            text = "The Device drifts again — the next jump goes where it likes."
-        await self._emit({"type": "notice", "title": "The Device", "text": text})
-        await self._emit({"type": "cadence", **self._device_state()})
+        self._steer = era
+        self._aim_place = place
+        await self._close_and_jump(era)
 
     async def _device_refuse(self) -> None:
         await self._emit({"type": "notice", "title": "The Device",
@@ -1845,8 +1713,7 @@ class GameSession:
         results: list[dict] = []
         notes: list[str] = []
         db_touched = False
-        device_touched = False  # a Device / inventory edit must re-derive the countdown
-        cadence_staged = False  # an explicit countdown is the more specific instruction
+        device_touched = False  # an inventory edit may change the Device's recovered parts
         new_era = None
         for raw in (ops if isinstance(ops, list) else []):
             if not isinstance(raw, dict):
@@ -1877,13 +1744,6 @@ class GameSession:
                     notes.append("Device parts recovered: " + ", ".join(parts))
                 db_touched = True
                 device_touched = True
-            elif kind == "cadence":
-                self._dev_set_cadence(raw.get("turns"), raw.get("steer"))
-                results.append({"kind": "cadence", "turns": raw.get("turns"),
-                                "steer": self._steer})
-                remaining = self._cadence_state().get("turns_until")
-                notes.append(f"Device countdown set to {remaining} turns")
-                cadence_staged = True
             elif kind == "jump":
                 era = str(raw.get("era") or "").strip().lower()
                 notes.append(f"Device jumped to {device.era_label(era) if era else 'a new age'}")
@@ -1893,10 +1753,6 @@ class GameSession:
                 results.append({"kind": kind, "error": "unknown dev op"})
         if db_touched:
             await self._refresh_device()
-        # A Device edit must re-derive the countdown, or a Device completed in the panel keeps
-        # firing on the band it was armed with. An explicit cadence op wins.
-        if device_touched and not cadence_staged:
-            self._rearm_cadence()
         # A raw `era` edit must move the engine too, or the place tree and the jump go stale.
         if isinstance(new_era, str) and new_era in era_ids():
             self.era = new_era
@@ -1917,27 +1773,18 @@ class GameSession:
         # so the field browser re-reads them.
         await self._emit_dev_raw()
 
-    def _dev_set_cadence(self, turns, steer=None) -> None:
-        """Set the Device countdown (absolute turns from now) and the pending steering."""
-        if turns is None or (isinstance(turns, str) and not turns.strip()):
-            self._jump_at_turn = None
-        else:
-            try:
-                self._jump_at_turn = self.turn_counter + max(0, int(turns))
-            except (TypeError, ValueError):
-                self._jump_at_turn = None
-        if steer is not None:
-            want = str(steer or "").strip().lower()
-            self._steer = want if want in ("previous", "forward") else ""
-        self._warned = False
-
     async def _dev_force_jump(self, era: str) -> None:
-        """The developer's jump: any other age, now, even in combat."""
+        """The developer's jump: a named age, now, even in combat."""
         if self.classic:
             await self._emit({"type": "notice", "title": "The Device",
                               "text": "There is no Device in a classic game."})
             return
-        await self._jump(to_era=era or None)
+        era = str(era or "").strip().lower()
+        if not era or era == self.era:
+            await self._emit({"type": "notice", "title": "The Device",
+                              "text": "Name another age to jump to."})
+            return
+        await self._jump(to_era=era)
 
     async def _emit_stats(self) -> None:
         """Emit the live sheet (the same payload `/stats` sends)."""
@@ -2038,111 +1885,58 @@ class GameSession:
 
     # ── the Device: the cadence, and the jump itself ─────────────
 
-    def _cadence_span(self) -> int | None:
-        """Turns until the next jump, or None when the Device does not fire by itself.
+    def _reachable_eras(self) -> list[str]:
+        """Every playable era but this one that the Device may actually reach.
 
-        A classic game has no Device, and a Traveller whose Device has been taken has none
-        either. The Mainspring's charge stops the forced jumps entirely: while it is held the
-        Device waits for the Escapement's release, so there is no countdown.
-        """
-        if self.classic or not self.has_device:
-            return None
-        if self.device_powers.get(device.CHARGE) and self._hold:
-            return None
-        band = CADENCE_BANDS.get(self.parts_recovered)
-        return None if band is None else self._rng.randint(band[0], band[1])
-
-    def _cadence_state(self) -> dict:
-        """What the counter shows the player and what warns the GM."""
-        if self._jump_at_turn is None:
-            return {"parts": self.parts_recovered, "turns_until": None, "warning": False}
-        remaining = max(0, self._jump_at_turn - self.turn_counter)
-        return {"parts": self.parts_recovered, "turns_until": remaining,
-                "warning": remaining <= WARNING_TURNS}
+        The future is the one exception: while it is locked (not every part is held) it is not
+        a legal destination anywhere -- not the aim."""
+        future = self._future_era()
+        return [e for e in playable_eras()
+                if e != self.era and not (e == future and not self._future_unlocked())]
 
     def _all_other_eras(self) -> list[str]:
-        """Every playable era but the one the Traveller is standing in."""
+        """Every playable era but the one the Traveller is standing in (the aim menu).
+
+        Includes the future even while locked, so the panel can show it disabled."""
         return [e for e in playable_eras() if e != self.era]
 
-    def _forward_era_ids(self) -> list[str]:
-        """The eras strictly ahead of the current one in the ladder (no wrapping).
-
-        The ages are a linear historical run, so the last age has nothing ahead of it --
-        the Traveller goes back with "previous", not by wrapping to the first age.
-        """
-        order = playable_eras()
-        if not order or self.era not in order:
-            return [e for e in order if e != self.era]
-        index = order.index(self.era)
-        return order[index + 1:]
-
-    def _previous_era(self) -> str | None:
-        """The last era the Traveller visited -- the one before the current in the journey."""
-        if len(self.journey) >= 2:
-            return self.journey[-2]
-        return None
-
     def _steered_era(self) -> str:
-        """Where the next jump lands, honouring the pending aim.
-
-        "" is the Device's own drift (any age but this one); "previous" the last age visited;
-        "forward" a random age strictly ahead; any other value is a specific era id the
-        Regulator named. An aim with no valid target falls back to the drift, so a jump
-        never fails.
-        """
+        """The pending aimed era, or '' when none is set."""
         steer = str(self._steer or "").strip().lower()
-        if steer == "previous":
-            prev = self._previous_era()
-            if prev and prev != self.era:
-                return prev
-        elif steer == "forward":
-            options = self._forward_era_ids()
-            if options:
-                return self._rng.choice(options)
-        elif steer and steer in playable_eras() and steer != self.era:
-            return steer
-        return self._pick_era()
+        return steer if steer in self._reachable_eras() else ""
 
     def _era_options(self, eras: list[str]) -> list[dict]:
-        return [{"id": e, "name": device.era_label(e)} for e in eras]
+        future = self._future_era()
+        locked = bool(future) and not self._future_unlocked()
+        return [{"id": e, "name": device.era_label(e),
+                 "locked": e == future and locked} for e in eras]
 
     def _device_state(self) -> dict:
-        """The cadence plus everything the Device panel needs to draw its controls."""
+        """Everything the Device panel needs to draw its controls."""
         total = device.part_total()
         live = (not self.classic) and self.has_device
-        pw = self.device_powers if live else {}
-        has_charge = live and bool(pw.get(device.CHARGE))
-        # A fully-assembled Device has no cadence band, so it never forces a jump: the
-        # Mainspring's hold toggle would change nothing and is not offered (`manual`); its
-        # charge is still held (the Escapement needs it).
-        manual = live and CADENCE_BANDS.get(self.parts_recovered) is None
-        holding = has_charge and self._hold
-        can_release = has_charge and bool(pw.get(device.RELEASE))
+        future = self._future_era()
         abilities = {
-            "charge": has_charge,                       # the Device can be held / let go
-            "release": can_release,                     # fire the held jump now
-            "direction": live and bool(pw.get(device.DIRECTION)),
-            "era": live and bool(pw.get(device.ERA)),
-            "place": live and bool(pw.get(device.PLACE)),
+            "release": live,                            # fire the jump now
+            "era": live,                                # name any age
+            "place": live,                              # name an offered place
         }
-        state = self._cadence_state()
-        state.update({
+        return {
+            "parts": self.parts_recovered,
             "total": total,
-            "manual": manual,
-            "holding": holding,
+            "present": live,
             "in_combat": self._in_combat,
             "steer": self._steer,
             "aim_place": self._aim_place,
             "abilities": abilities,
-            "previous_era": self._previous_era(),
-            "previous_era_name": device.era_label(self._previous_era()) if self._previous_era() else "",
-            "forward_eras": self._era_options(self._forward_era_ids()),
+            "future_era": future,
+            "future_name": device.era_label(future) if future else "",
+            "future_locked": bool(future) and not self._future_unlocked(),
             "era_options": self._era_options(self._all_other_eras()),
             "era_names": {e: device.era_label(e) for e in playable_eras()},
             "all_eras": self._era_options(self._all_other_eras()),
-            "places": self._place_options() if abilities["place"] else {},
-        })
-        return state
+            "places": self._place_options() if live else {},
+        }
 
     async def _refresh_device(self) -> None:
         """Read the recovered parts and the visit history from the live player DB."""
@@ -2156,7 +1950,6 @@ class GameSession:
         inventory = player.get("inventory") if isinstance(player.get("inventory"), list) else []
         self.has_device = device.has_device(inventory)
         self.parts_recovered = len(device.recovered_parts(inventory))
-        self.device_powers = device.powers(inventory)
         journey = _split_journey(player.get("journey"))
         if self.era and (not journey or journey[-1] != self.era):
             # The save is the truth about where the Traveller is now: keep the whole story
@@ -2167,26 +1960,28 @@ class GameSession:
                 journey.append(self.era)
         self.journey = journey or ([self.era] if self.era else [])
 
-    def _pick_era(self) -> str:
-        """Where the Device throws the Traveller: any playable era but this one.
+    def _visited_pool(self, era: str, limit: int | None = None) -> list[str]:
+        """The arrival phrases for the places this save has stood in, in an era.
 
-        The Compass Rose is missing, so it does not aim."""
-        options = [e for e in playable_eras() if e != self.era]
-        return self._rng.choice(options) if options else self.era
-
-    def _visited_pool(self, era: str) -> list[str]:
-        """The places this save has already stood in, in an era -- the Vernier's whole menu.
-
-        Read from the scene manifest (memory or disk); it never enters the prompt."""
+        Newest first -- the manifest records a `used` timestamp per place -- and `limit` caps
+        the list. Read from the scene manifest (memory or disk); it never enters the prompt."""
         try:
             places = known_scene_places(self.base_dir / OUTPUT_DIR, self.active_name or "", era)
         except Exception:  # noqa: BLE001 - never fail a jump over the arrival point
             places = []
-        return _arrival_candidates(places)
+        places = sorted(places, key=lambda p: int(p.get("used") or 0), reverse=True)
+        out = _arrival_candidates(places)
+        return out[:limit] if limit else out
 
     def _place_options(self) -> dict:
-        """{era id: [visited place phrase]} -- the Vernier's menu, per era."""
-        return {era: self._visited_pool(era) for era in playable_eras()}
+        """{era id: {"arrivals": [...], "recent": [...]}} for every reachable era.
+
+        The authored arrivals are always offered (from the start); `recent` is the last
+        `PLACE_MENU_RECENT` places visited in that era, newest first. The age the Traveller
+        stands in is never a destination."""
+        return {era: {"arrivals": era_arrivals(era),
+                      "recent": self._visited_pool(era, PLACE_MENU_RECENT)}
+                for era in self._reachable_eras()}
 
     def _pick_jump_arrival(self, era: str) -> str:
         """Where a jump lands: a visited place or one of the era's authored destinations.
@@ -2208,10 +2003,10 @@ class GameSession:
         return pick_arrival(era, rng=self._rng)
 
     def _chosen_arrival(self, era: str, wanted: str = "") -> str:
-        """The landing: a chosen place (the Vernier) when the save has visited it, else a draw."""
+        """The landing: the chosen place when the age offers it, else a draw (dev/edge)."""
         for candidate in (wanted, self._aim_place):
             place = " ".join(str(candidate or "").split())
-            if place and place in self._visited_pool(era):
+            if place and self._place_allowed(era, place):
                 return place
         return self._pick_jump_arrival(era)
 
@@ -2352,50 +2147,6 @@ class GameSession:
         return (KNOWN_PLACES_EMPTY_TEXT if not primed
                 else KNOWN_PLACES_HEADER_TEXT + "\n" + format_known_places(primed))
 
-    async def _check_cadence(self) -> None:
-        """After a turn: warn once before the jump, then jump when it is due.
-
-        A turn spent fighting is not a turn the Device counts: it pushes the jump one turn
-        further out, so the counter holds for the length of a fight and the jump can never
-        interrupt one. `_in_combat` is sticky (a whole fight, not only the turns a combat tool
-        ran on), so a mid-fight turn that merely narrates still holds the clock. The warning is
-        then re-evaluated in this SAME call, because pushing the
-        jump out makes the next turn the jump turn -- exactly the turn the warning has to
-        precede. A fight landing on the warned turn used to leave the warning a turn stale.
-        """
-        battle = self._in_combat
-        if self._jump_at_turn is None:
-            return
-        if battle:
-            self._jump_at_turn += 1
-            # The jump just moved out, so the "last turn of this age" the GM already holds may
-            # no longer be the last turn. Re-arm it and let the check below decide -- and drop
-            # any memory line already written, because the age is still going.
-            self._warned = False
-            self._pending_legend = ""
-            self._pending_era_state = None
-        remaining = self._jump_at_turn - self.turn_counter
-        if remaining > 0:
-            if remaining == WARNING_TURNS and not self._warned:
-                self._warned = True
-                # The GM hears it BEFORE the jump turn, so the age can be closed properly. A
-                # re-warning REPLACES the earlier one: that text claimed this was the last turn
-                # and the fight since made it false, so history holds exactly one claim. The
-                # memory ask and the STATE ask ride the same turn.
-                state_ask = ERA_STATE_ASK.format(era=self.era)
-                self.messages = [m for m in self.messages
-                                 if not (isinstance(m, dict)
-                                         and m.get("content") in (DEVICE_WARNING, LEGEND_ASK,
-                                                                 state_ask))]
-                self.messages.append({"role": "system", "content": DEVICE_WARNING})
-                self.messages.append({"role": "system", "content": LEGEND_ASK})
-                self.messages.append({"role": "system", "content": state_ask})
-                await self._emit({"type": "notice", "title": "The Device", "text": DEVICE_WARNING})
-            return
-        if battle:
-            return  # belt and braces: a jump may never fire on a battle turn
-        await self._jump()
-
     def _era_opening(self, resumed: bool = False) -> str:
         """The lines the GM is handed with an era: where the Traveller is in it, and that
         the kit is their own -- literal in every age. Written once, never always-on: it rides
@@ -2434,7 +2185,8 @@ class GameSession:
         block = _sheet_body(db) if isinstance(db, dict) else ""
         if not block:
             return ""
-        companions = self._companions_block(self.era)
+        store = db.get("companions") if isinstance(db, dict) else None
+        companions = self._companions_block(store)
         return f"{block}\n{companions}" if companions else block
 
     def _compact(self, just_left: str) -> None:
@@ -2474,7 +2226,7 @@ class GameSession:
 
         An automatic jump is warned ahead and the memory line rides its last turn; a jump the
         Traveller triggers has no such turn, so the engine manufactures one. `arrival` is the
-        place the Vernier aimed ("" for the usual draw). The STATE ask comes first, because the
+        place the aim named ("" for the usual draw). The STATE ask comes first, because the
         memory marker must stay the last thing in the turn.
         """
         ask = (ERA_STATE_ASK.format(era=self.era) + "\n\n"
@@ -2485,7 +2237,7 @@ class GameSession:
     async def _jump(self, to_era: str | None = None, arrival: str = "") -> None:
         """The Device fires: a new era, an aimed (or rolled) arrival, and the age left behind
         as one line. Whatever an era sees, it remembers. `to_era` is the destination the player
-        aimed; without it the Device does not aim. `arrival` is a place the Vernier picked."""
+        aimed; without it the Device does not aim. `arrival` is a place the aim picked."""
         old = self.era
         # The memory line is the compaction output, so it has to be known BEFORE the era is
         # thrown away: the GM wrote it on the closing turn, and one quiet round forces a line
@@ -2508,22 +2260,23 @@ class GameSession:
         # Freeze this visit's deaths before the age is thrown away: a return cannot undo them.
         self._freeze_dead()
         chosen = str(to_era or "").strip().lower()
-        self.era = chosen if chosen in self._all_other_eras() else self._steered_era()
+        target = chosen if chosen in self._reachable_eras() else self._steered_era()
+        self.era = target or self.era
         self.arrival = self._chosen_arrival(self.era, arrival)
-        self._reload_era_scene_state()
-        self._current_place = None  # a new age, a new place: the caption resets below
-        # `_compact` throws the sheet away with the rest, so rebuild it from the live DB first.
-        self._sheet_block = await self._fetch_sheet()
-        self._compact(old)
-        self._era_started_turn = self.turn_counter
-        # The engine DB must agree: the GM's reputation paths and `dump_player_db` read the
-        # era from there, and a save writes it back to the `.player`.
+        # The engine DB must agree FIRST: `dump_player_db` scopes reputation by the DB's era, so
+        # a sheet fetched before this is scoped to the age just left. A save writes these back.
         await self._call_tool_text("set_player_field", {"key": "era", "value": self.era})
         await self._call_tool_text("set_player_field", {"key": "arrival", "value": self.arrival})
         # Where the Traveller has stood, for "previous era".
         self.journey = list(self.journey or []) + [self.era]
         await self._call_tool_text("set_player_field", {"key": "journey",
                                                          "value": ",".join(self.journey)})
+        self._reload_era_scene_state()
+        self._current_place = None  # a new age, a new place: the caption resets below
+        # `_compact` throws the sheet away with the rest, so rebuild it from the live DB first.
+        self._sheet_block = await self._fetch_sheet()
+        self._compact(old)
+        self._era_started_turn = self.turn_counter
         if memory:
             await self._emit({"type": "notice", "title": "The Age Remembers", "text": memory})
         # The new age's caption now (era only -- the arrival place is not declared yet).
@@ -2536,11 +2289,6 @@ class GameSession:
         if not self.classic:
             jump = f"{jump}\n\n{render_era_text(self.era)}"
         await self._run_turn(jump, "jump")
-        # Rearm AFTER the jump turn: that turn is itself a turn, and counting it keeps the
-        # player's actions between jumps equal to the band (5 at the start, 5 again after).
-        span = self._cadence_span()
-        self._jump_at_turn = None if span is None else self.turn_counter + span
-        self._warned = False
         self._steer = ""
         self._aim_place = ""
         await self._emit({"type": "cadence", **self._device_state()})
@@ -2789,14 +2537,15 @@ class GameSession:
                 self._era_states[old] = _clamp_block(page, MAX_STATE_CHARS)
         self._pending_era_state = None
 
-    def _companions_block(self, era: str) -> str:
-        """The companions of this world, for the sheet: name, identity and the stable look.
+    def _companions_block(self, store: dict) -> str:
+        """The party, for the sheet: name, identity and the stable look.
 
-        A companion cannot travel in time, so the block is era-scoped. The description (the
-        look) rides along so the GM keeps the same person across saves and ages. Combat data
-        (stats, attacks, AC, HP) is never shown -- the engine fills the block in a fight."""
+        The store is the save's flat `{lowername: sheet}` map -- one party, it travels with the
+        Traveller, so it is not scoped to an age. The description (the look) rides along so the
+        GM keeps the same person across saves and ages. Combat data (stats, attacks, AC, HP) is
+        never shown -- the engine fills the block in a fight."""
         lines = []
-        for p in self._companions.get(era) or []:
+        for p in (store or {}).values():
             p = p if isinstance(p, dict) else {"name": p}
             name = " ".join(str(p.get("name") or "").split())
             if not name:
@@ -3278,7 +3027,6 @@ class GameSession:
             self._remember_declared(args.get("npcs"))
         if name == COMPANION_TOOL and not is_error:
             self._remember_companion(args)
-            self._track_companion(args, text)
         if name == PLACE_TOOL and not is_error:
             self._record_place_live(args)
         gm_text = _gm_tool_view(name, text)
@@ -3352,30 +3100,14 @@ class GameSession:
             await self._sync_device_after_inventory(text)
 
     async def _sync_device_after_inventory(self, text: str) -> None:
-        """A gear change can add or remove a Device part; the cadence reads from the items."""
+        """A gear change can add or remove a Device part; the panel reads from the items."""
         try:
             payload = json.loads(text)
         except (json.JSONDecodeError, TypeError):
             return
         if isinstance(payload, dict) and payload.get("key") == "inventory":
             await self._refresh_device()
-            self._rearm_cadence()
             await self._emit({"type": "cadence", **self._device_state()})
-
-    def _rearm_cadence(self) -> None:
-        """Re-derive the countdown from the live part set, without resetting a ticking one.
-
-        A complete Device (all five parts, no cadence band), a held Mainspring, or a Device
-        that is gone has no cadence at all, so an armed countdown is cleared -- this is what
-        makes a Device finished in the developer panel stop firing on its own. A change that
-        merely re-bands an already ticking countdown leaves it alone, and a Device that starts
-        ticking again (the parts were stripped) arms a fresh one from the current turn."""
-        span = self._cadence_span()
-        if span is None:
-            self._jump_at_turn = None
-            self._warned = False
-        elif self._jump_at_turn is None:
-            self._jump_at_turn = self.turn_counter + span
 
     def _collect_mechanics(self, text: str) -> list[str]:
         """The narrative_format lines from a tool result, for the engine-composed block."""
@@ -3457,36 +3189,6 @@ class GameSession:
         self._remember_declared([{"name": name, "race": sheet.get("race"),
                                   "class": sheet.get("class"),
                                   "description": sheet.get("description")}])
-
-    def _track_companion(self, args: dict, result_text: str) -> None:
-        """Keep the engine's own companion list in step with `register_companion`.
-
-        Parsed from the tool result, not the arguments, so a refused declaration (the era's
-        cap) never lists a companion the store did not keep. The identity (`race`/`class`) and
-        the look (`description`) come from the declare arguments, for the injected sheet."""
-        try:
-            result = json.loads(result_text) if result_text else {}
-        except (json.JSONDecodeError, TypeError):
-            return
-        if not isinstance(result, dict):
-            return
-        era = str(result.get("era") or "").strip().lower()
-        name = " ".join(str(result.get("name") or "").split())
-        if not name:
-            return
-        low = name.lower()
-        people = self._companions.get(era, [])
-        if str(result.get("status") or "") in ("forgotten", "absent"):
-            self._companions[era] = [p for p in people if str(p.get("name") or "").lower() != low]
-        elif result.get("success"):
-            sheet = args.get("sheet") if isinstance(args.get("sheet"), dict) else {}
-            entry = {"name": name,
-                     "race": " ".join(str(sheet.get("race") or "").split()),
-                     "class": " ".join(str(sheet.get("class") or "").split()),
-                     "description": " ".join(str(sheet.get("description") or "").split())}
-            kept = [p for p in people if str(p.get("name") or "").lower() != low]
-            kept.append(entry)
-            self._companions[era] = kept
 
     def _remember_declared(self, npcs) -> list[str]:
         """Buffer declared NPCs (name + race/class + description) and remember their names."""

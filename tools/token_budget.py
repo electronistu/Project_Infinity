@@ -161,20 +161,17 @@ _TIMELINE_SAMPLE = (
 )
 
 
-# The engine-listed companions line + the current age's page header, injected together in
-# the era game's session memory. They sit at the FRONT of the injected body, so the tokenizer
-# sees them before anything the cap truncates. The companions line is the engine's own,
-# never GM-written, and the page is written to its cap (MAX_STATE_CHARS = 1200) below.
+# The current age's page header, at the FRONT of the injected body so the tokenizer sees it
+# before anything the cap truncates. (The companions live in the CHARACTER SHEET, not here.)
+# The page is written to its cap (MAX_STATE_CHARS = 1200) below.
 _STATE_HEADER_SAMPLE = (
-    "COMPANIONS: Su Lian, Captain Pei\n"
     "THIS AGE — current truth; honour it.\n"
 )
 
 
 def timeline_block(count):
-    """The injected SESSION_TIMELINE body at its cap (MAX_TIMELINE_CHARS): the companions
-    line, the current age's STATE page, the chronicle and the kept entries. This is the
-    block compaction bounds."""
+    """The injected SESSION_TIMELINE body at its cap (MAX_TIMELINE_CHARS): the current age's
+    STATE page, the chronicle and the kept entries. This is the block compaction bounds."""
     from web.engine import MAX_TIMELINE_CHARS
     text = _STATE_HEADER_SAMPLE
     while len(text) < MAX_TIMELINE_CHARS:
@@ -199,7 +196,7 @@ _SHEET_SAMPLE = {
                  "Arcane Tradition", "Evocation Savant", "Sculpt Spells", "Potent Cantrip",
                  "Empowered Evocation", "Overchannel", "Spell Mastery", "Signature Spells"],
     "inventory": ["Spellbook", "Crowbar", "Dark Common Clothes", "Dagger +1", "The Device",
-                  "Escapement", "Compass Rose", "Regulator", "Mainspring", "Vernier"],
+                  "Escapement", "Compass Rose", "Regulator", "Mainspring"],
     "equipped": {"worn": ["Robe of the Archmagi"], "hands": ["Staff of Power", None]},
     "consumables": {"Potion of Healing": 3, "Bolts": 20, "Rations": 10},
     "_carrying": {"status": "heavily encumbered"},

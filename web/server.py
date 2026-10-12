@@ -686,8 +686,7 @@ async def ws_endpoint(websocket: WebSocket, sid: str):
                 await session.submit_save()
             elif mtype == "device":
                 await session.submit_device(msg.get("action", ""), msg.get("era", ""),
-                                            msg.get("direction", ""), msg.get("place", ""),
-                                            msg.get("value"), msg.get("delta"))
+                                            msg.get("place", ""))
             elif mtype == "dev":
                 await session.submit_dev(msg)
             elif mtype == "stats":

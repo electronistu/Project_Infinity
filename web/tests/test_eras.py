@@ -222,8 +222,8 @@ def main():
         f'{ny_meta.get("when")} / {ny_pol.get("capital")}')
     rec("E5: the sabotaged Horologe scattered its parts down the ages",
         any("scattered" in h for h in ny["body"].get("history") or []))
-    rec("E5: the Vernier is the part of the future, and future is the origin",
-        ny_meta.get("part") == "the Vernier" and ny_meta.get("origin") is True)
+    rec("E5: the future holds no part, and is the origin",
+        ny_meta.get("part") is None and ny_meta.get("origin") is True)
 
     # -- the reputation seed ----------------------------------------------
     seed = eras.era_reputation_seed("egypt")

@@ -29,9 +29,8 @@ DEBUG_MODE = False
 
 _COMBAT_REGISTRY: dict[str, dict] = {}
 
-# A companion is a person of the age it was found in and cannot travel in time, so each era
-# keeps its own declared companions -- at most this many. Current HP is never stored: a fight
-# states it (default: full).
+# A companion travels with the Traveller, so the store is one party -- at most this many, in
+# every age. Current HP is never stored: a fight states it (default: full).
 COMPANION_LIMIT = 3
 
 XP_THRESHOLDS = [
@@ -216,6 +215,15 @@ def init_player_db(player_file_path: str) -> str:
                 cursor.execute("INSERT INTO player (key, value) VALUES (?, ?)", (key, json.dumps(value)))
 
         DB_CONNECTION.commit()
+
+        # Companions are ONE party now (they travel with the Traveller): normalize a legacy
+        # per-era `{era: {name: sheet}}` map to the flat `{name: sheet}` store at load, so the
+        # next Save writes the flat shape and every reader sees it.
+        if isinstance(data.get("companions"), dict):
+            cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)",
+                           ("companions", json.dumps(_flatten_companions(data.get("companions"),
+                                                                        data.get("era")))))
+            DB_CONNECTION.commit()
 
         cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", ("active_effects", "[]"))
         cursor.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", ("_active_buff_data", "{}"))
@@ -2943,7 +2951,7 @@ def read_player_field(fields: list[str]) -> dict:
     """Read specific fields of the player database.
 
     WHEN: you need a value the CHARACTER SHEET does not carry -- above all the ability scores, or a companion's whole sheet. Never use it to refresh the sheet.
-    FIELDS (the sheet already carries identity, HP, gold, conditions, features, inventory, equipped, consumables, languages, speed and the era's reputation): stats, saves, skills, expertise, proficiency_bonus, armor_class, _passive, xp, armor_proficiencies, weapon_proficiencies, tool_proficiencies, hit_dice_count, hit_dice_size, spellcasting, _carrying, _equipment, companions. `companions` is THIS age's declared sheets, keyed by name. Every other stored field (name, gold, ...) is readable too.
+    FIELDS (the sheet already carries identity, HP, gold, conditions, features, inventory, equipped, consumables, languages, speed and the era's reputation): stats, saves, skills, expertise, proficiency_bonus, armor_class, _passive, xp, armor_proficiencies, weapon_proficiencies, tool_proficiencies, hit_dice_count, hit_dice_size, spellcasting, _carrying, _equipment, companions. `companions` is your party -- one store, they travel with you -- keyed by name. Every other stored field (name, gold, ...) is readable too.
     RETURNS {"fields": {<field>: <value>}, "missing": [<names not found>]}.
     """
     global DB_CONNECTION
@@ -2958,12 +2966,10 @@ def read_player_field(fields: list[str]) -> dict:
         cursor = DB_CONNECTION.cursor()
         view = _player_gm_view(cursor)
         if "companions" in wanted:
-            # The current world's declared sheets only, keyed by display name -- a companion
-            # belongs to the age she was found in and never travels (see `register_companion`).
-            era = str(_db_val(cursor, "era", "") or "").strip().lower()
-            bucket = _companions_all(cursor).get(era, {})
+            # One party, keyed by display name -- they travel with the Traveller, so the store
+            # is not scoped to the age (see `register_companion`).
             view["companions"] = {str(sheet.get("name") or key): sheet
-                                  for key, sheet in bucket.items()}
+                                  for key, sheet in _companions_store(cursor).items()}
         return {"fields": {k: view[k] for k in wanted if k in view},
                 "missing": [k for k in wanted if k not in view]}
     except Exception as e:
@@ -3622,15 +3628,9 @@ def perform_check(modifier: int | None = None, dc: int = 0, check_name: str = "C
                 _carry_get(cursor), check_name, context)
             modifier += check_bonus
     else:
-        # A declared companion's check and save are derived from her own sheet, exactly as the
-        # player's are: the engine rolls her numbers, never a number the GM computed.
+        # A declared companion's check and save are derived from its own sheet, exactly as the
+        # player's are: the engine rolls its numbers, never a number the GM computed.
         sheet = _companion_here(cursor, actor)
-        elsewhere = "" if sheet is not None else _companion_world(cursor, actor)
-        if elsewhere:
-            return _action_failure(
-                "companion_not_here",
-                f"{actor} was found in {device.era_label(elsewhere) or elsewhere} "
-                "and cannot travel in time.")
         saves = (sheet or {}).get("saves") if sheet is not None else None
         ab = str(ability or "").strip().lower()[:3]
         if sheet is not None and save and ab and isinstance(saves, dict) and ab in saves:
@@ -4737,17 +4737,42 @@ def _registry_summary_list() -> list[dict]:
     return out
 
 
-def _companions_all(cursor) -> dict:
-    """The declared companion sheets, `{era: {lowername: sheet}}` (era '' in the classic game)."""
-    raw = _db_val(cursor, "companions", {}) if cursor is not None else {}
+def _looks_like_sheet(value) -> bool:
+    """A companion sheet (vs a legacy era bucket): every sheet carries `ac`."""
+    return isinstance(value, dict) and any(k in value for k in ("ac", "stats", "max_hp"))
+
+
+def _flatten_companions(raw, era: str = "") -> dict:
+    """One flat `{lowername: sheet}` companion store, from either shape.
+
+    The store used to be `{era: {name: sheet}}`; companions now travel with the Traveller, so a
+    load migrates a legacy map in place (the current era's companions first, then the rest, at
+    most COMPANION_LIMIT). A store that is already flat is rebuilt unchanged."""
     if not isinstance(raw, dict):
         return {}
-    out: dict = {}
-    for era, bucket in raw.items():
-        if isinstance(bucket, dict):
-            out[str(era).strip().lower()] = {str(k).strip().lower(): v
-                                             for k, v in bucket.items() if isinstance(v, dict)}
-    return out
+    current = str(era or "").strip().lower()
+    items = sorted(raw.items(),
+                   key=lambda kv: 0 if str(kv[0]).strip().lower() == current else 1)
+    flat: dict = {}
+
+    def add(name, sheet):
+        key = str(name).strip().lower()
+        if key and key not in flat and _looks_like_sheet(sheet) and len(flat) < COMPANION_LIMIT:
+            flat[key] = sheet
+
+    for key, value in items:
+        if _looks_like_sheet(value):        # already flat
+            add(key, value)
+        elif isinstance(value, dict):        # a legacy era bucket
+            for name, sheet in value.items():
+                add(name, sheet)
+    return flat
+
+
+def _companions_store(cursor) -> dict:
+    """The declared companion sheets, `{lowername: sheet}` -- one party in every age."""
+    raw = _db_val(cursor, "companions", {}) if cursor is not None else {}
+    return _flatten_companions(raw)
 
 
 def _save_companions(cursor, data: dict) -> None:
@@ -4763,20 +4788,20 @@ _COMPANION_KEEP = (
     "damage_resistances", "damage_immunities", "damage_vulnerabilities",
     "condition_immunities", "initiative_modifier", "initiative_advantage",
 )
-# A companion is a full character, so her ability scores are required: they are what lets the
-# engine roll her own checks and saves instead of trusting a number the GM computed.
+# A companion is a full character, so its ability scores are required: they are what lets the
+# engine roll its own checks and saves instead of trusting a number the GM computed.
 COMPANION_ABILITY_KEYS = ("str", "dex", "con", "int", "wis", "cha")
-COMPANION_DEFAULT_PROF = 2   # the floor for any creature; give the real bonus when she is stronger
+COMPANION_DEFAULT_PROF = 2   # the floor for any creature; give the real bonus when it is stronger
 
 
-def _companion_sheet(name: str, sheet: dict, era: str) -> dict | None:
+def _companion_sheet(name: str, sheet: dict) -> dict | None:
     """One companion's durable sheet: static combat data, validated through the combatant
     normaliser, plus what an out-of-combat check needs.
 
     Requires a name, an `ac`, a `max_hp` (an `hp` in the declaration is read as the max) and the
-    six `stats` -- a companion is a full character, and her ability scores are what let the
-    engine derive her checks (`skills` may be empty, `proficiency_bonus` defaults to +2).
-    `advantages` are her combat-only special rules (Sneak Attack 2d6, Pack Tactics), which the
+    six `stats` -- a companion is a full character, and its ability scores are what let the
+    engine derive its checks (`skills` may be empty, `proficiency_bonus` defaults to +2).
+    `advantages` are its combat-only special rules (Sneak Attack 2d6, Pack Tactics), which the
     registry calls `traits`. `description`/`race`/`class` are identity for the illustrator, never
     combat data. Returns None when the declaration is too thin to fight with."""
     name = " ".join(str(name or "").split())
@@ -4805,24 +4830,20 @@ def _companion_sheet(name: str, sheet: dict, era: str) -> dict | None:
         "race": " ".join(str(sheet.get("race") or "").split()),
         "class": " ".join(str(sheet.get("class") or "").split()),
         "description": " ".join(str(sheet.get("description") or "").split()),
-        "era": era,
     })
     return out
 
 
 def _expand_companions(cursor, combatants):
-    """Fill a name-only combatant from a declared companion's sheet of THIS age.
+    """Fill a name-only combatant from a declared companion's sheet.
 
     Returns ``(combatants, filled, problem)``; `filled` is ``{lowername: sheet}`` for the
     entries the engine filled. An entry carrying `ac` is an explicit stat block and is never
-    shadowed. A companion cannot travel in time, so one declared in another age is refused
-    rather than silently registered, and a name-only entry that is no companion at all is
-    refused with words instead of the normalizer's KeyError."""
+    shadowed; a name-only entry that is no companion at all is refused with words instead of the
+    normalizer's KeyError. Companions travel with the Traveller, so the store is one party."""
     if cursor is None or not isinstance(combatants, list):
         return combatants, {}, None
-    store = _companions_all(cursor)
-    era = str(_db_val(cursor, "era", "") or "").strip().lower()
-    here = store.get(era, {})
+    store = _companions_store(cursor)
     filled: dict = {}
     out: list = []
     for c in combatants:
@@ -4833,17 +4854,8 @@ def _expand_companions(cursor, combatants):
         if not name:
             out.append(c)
             continue
-        sheet = here.get(name.lower())
+        sheet = store.get(name.lower())
         if sheet is None:
-            elsewhere = next((e for e, b in store.items() if name.lower() in b), "")
-            if elsewhere:
-                return combatants, {}, {
-                    "success": False, "error": "companion_not_here",
-                    "reason": f"{name} was found in "
-                              f"{device.era_label(elsewhere) or elsewhere} and cannot travel in time.",
-                    "gm_instruction": "Only a companion declared where the Traveller stands "
-                                      "now can be registered.",
-                }
             return combatants, {}, {
                 "success": False, "error": "not_declared",
                 "reason": f"{name} has no stat block and is not a declared companion.",
@@ -4879,30 +4891,18 @@ def _companion_line(sheet: dict, entry: dict) -> str:
 
 
 def _companion_here(cursor, name: str) -> dict | None:
-    """The declared companion of THIS world with that name, or None."""
+    """The declared companion with that name, or None (the party travels, one store)."""
     if cursor is None:
         return None
-    era = str(_db_val(cursor, "era", "") or "").strip().lower()
-    return (_companions_all(cursor).get(era) or {}).get(str(name or "").strip().lower())
-
-
-def _companion_world(cursor, name: str) -> str:
-    """The world a declared companion belongs to, or '' when the name is no companion."""
-    if cursor is None:
-        return ""
-    key = str(name or "").strip().lower()
-    for era, bucket in _companions_all(cursor).items():
-        if key in bucket:
-            return era
-    return ""
+    return _companions_store(cursor).get(str(name or "").strip().lower())
 
 
 def _companion_check_detail(sheet: dict, check_name: str, ability: str | None,
                             situational: int = 0) -> dict:
-    """A companion's ability/skill check modifier, derived from her own sheet.
+    """A companion's ability/skill check modifier, derived from its own sheet.
 
     The player path's shape and arithmetic, without the item/feature layers a player has: the
-    ability modifier from her `stats`, plus her proficiency bonus when the check is a skill she
+    ability modifier from its `stats`, plus its proficiency bonus when the check is a skill it
     is proficient in (doubled for Expertise). `proficiency_bonus` defaults to +2."""
     skill = skills.skill_name(check_name) if check_name else None
     ab = (str(ability or "").strip().lower()[:3]
@@ -4932,7 +4932,7 @@ def register_companion(name: str, sheet: dict | None = None, action: str = "decl
 
     WHEN: a companion joins (declare in FULL, once), changes lastingly (re-declare the same name), or leaves or dies (forget).
     - name: the exact name you keep using.
-    - sheet: the companion's static COMBAT sheet. REQUIRED: `stats` (all six ability scores), `ac`, `max_hp`. Optional: `attacks`, `advantages` (combat-only special rules, e.g. 'Sneak Attack 2d6'), `skills` (the skills she is proficient in), `expertise`, `proficiency_bonus` (+2 default), `speed`, `saves`, `spellcasting`, damage/condition resistances and immunities. `race`, `class` and `description` (the stable physical look the illustrator keeps) are identity, not combat. There is NO current-HP field.
+    - sheet: the companion's static COMBAT sheet. REQUIRED: `stats` (all six ability scores), `ac`, `max_hp`. Optional: `attacks`, `advantages` (combat-only special rules, e.g. 'Sneak Attack 2d6'), `skills` (the skills it is proficient in), `expertise`, `proficiency_bonus` (+2 default), `speed`, `saves`, `spellcasting`, damage/condition resistances and immunities. `race`, `class` and `description` (the stable physical look the illustrator keeps) are identity, not combat. There is NO current-HP field.
     - action: 'declare' (add or update) | 'forget' (remove).
     """
     global DB_CONNECTION
@@ -4947,40 +4947,33 @@ def register_companion(name: str, sheet: dict | None = None, action: str = "decl
         return {"success": False, "error": "name_required", "reason": "A companion needs a name."}
     try:
         cursor = DB_CONNECTION.cursor()
-        era = str(_db_val(cursor, "era", "") or "").strip().lower()
-        store = _companions_all(cursor)
-        bucket = store.get(era, {})
+        store = _companions_store(cursor)
         if action == "forget":
-            if key.lower() not in bucket:
-                return {"success": True, "status": "absent", "name": key, "era": era,
+            if key.lower() not in store:
+                return {"success": True, "status": "absent", "name": key,
                         "note": f"No companion named {key} is declared here."}
-            bucket.pop(key.lower(), None)
-            if bucket:
-                store[era] = bucket
-            else:
-                store.pop(era, None)
+            store.pop(key.lower(), None)
             _save_companions(cursor, store)
-            return {"success": True, "status": "forgotten", "name": key, "era": era,
-                    "count": len(bucket), "note": f"{key} is forgotten."}
-        entry = _companion_sheet(key, sheet or {}, era)
+            return {"success": True, "status": "forgotten", "name": key,
+                    "count": len(store), "note": f"{key} is forgotten."}
+        entry = _companion_sheet(key, sheet or {})
         if entry is None:
             return {"success": False, "error": "incomplete_sheet",
                     "reason": "A companion sheet needs `ac` and `max_hp` (and a name).",
                     "gm_instruction": "Give the full sheet: description, race, class, ac, "
                                       "max_hp, attacks, saves."}
-        if key.lower() not in bucket and len(bucket) >= COMPANION_LIMIT:
+        if key.lower() not in store and len(store) >= COMPANION_LIMIT:
             return {"success": False, "error": "companion_limit",
-                    "reason": f"This world already keeps {COMPANION_LIMIT} companions. "
+                    "reason": f"You already have {COMPANION_LIMIT} companions. "
                               "The player needs to decide which companion to remove if he "
                               "wants a new one.",
-                    "companions": sorted(str(v.get("name") or k) for k, v in bucket.items()),
+                    "companions": sorted(str(v.get("name") or k) for k, v in store.items()),
                     "gm_instruction": "Ask the player which companion leaves, then call "
                                       "register_companion(name=..., action='forget')."}
-        bucket[key.lower()] = entry
-        store[era] = bucket
+        store[key.lower()] = entry
         _save_companions(cursor, store)
-        return {"success": True, "status": "declared", "name": entry["name"], "era": era,
-                "count": len(bucket), "limit": COMPANION_LIMIT,
+        return {"success": True, "status": "declared", "name": entry["name"],
+                "count": len(store), "limit": COMPANION_LIMIT,
                 "note": "Register this companion by name alone from now on; the engine fills "
                         "the sheet."}
     except Exception as e:  # noqa: BLE001 - a declaration must never crash the server

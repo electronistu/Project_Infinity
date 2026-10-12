@@ -1383,33 +1383,26 @@ function renderStats(d) {
 function setStatus(t) { statusEl.textContent = t; }
 function updateTurn() { const el = $("turn-label"); if (el) el.textContent = "turn " + state.turn; }
 
-// The Device's counter: turns left before it fires. Quiet on purpose -- one word and a
-// number, in the same voice as "turn 3". Absent until the engine reports a cadence, and
-// absent again if the Device ever stops firing on its own.
+// The Device's chip: how many of its parts are back. Quiet on purpose -- one word and a
+// count, in the same voice as "turn 3". Hidden unless the Device is in the pack.
 function updateDevice(c) {
   const el = $("device-label");
   if (!el || !c) return;
-  const left = c.turns_until;
-  if (left === null || left === undefined) {
-    // A held Device (the Mainspring) still shows that it waits for the release.
-    if (c.holding && !c.manual) { el.hidden = false; el.textContent = "device \u2014 held"; el.classList.remove("device-warn"); return; }
-    el.hidden = true;
-    return;
-  }
+  if (!c.present) { el.hidden = true; return; }
   el.hidden = false;
-  el.textContent = "device " + left;
-  el.classList.toggle("device-warn", !!c.warning);
+  el.textContent = "device " + (c.parts || 0) + "/" + (c.total || 0);
+  el.classList.remove("device-warn");
 }
 
 /* ── the Device panel (sheet card) ────────────────────────── */
 
 function deviceSummary(dev, ctrl) {
   const c = ctrl || {};
-  const parts = `${dev.recovered} of ${dev.total} parts recovered`;
-  if (c.holding && !c.manual) return `held \u00b7 ${parts} \u00b7 release it to choose when`;
-  const left = c.turns_until;
-  if (left === null || left === undefined) return parts;
-  return `${parts} \u00b7 fires in ${left} ordinary ${left === 1 ? "turn" : "turns"}`;
+  let text = `${dev.recovered} of ${dev.total} parts recovered`;
+  if (c.future_locked && c.future_name) {
+    text += ` \u00b7 ${c.future_name} is beyond it until all are found`;
+  }
+  return text;
 }
 
 function devicePartRow(part) {
@@ -1437,52 +1430,34 @@ function devicePartRow(part) {
 }
 
 function fillDevicePlaces(sel, note, ctrl, era, selected, locked) {
-  // The Regulator picks the age, the Vernier picks a place inside it: the places this
-  // save has already stood in, in that age. The select always exists, so changing the
-  // age re-fills it; an age with nothing visited disables it and says so.
-  const places = ((ctrl || {}).places || {})[era] || [];
+  // Two sources, in two groups: the age's authored arrivals, then the places this save has
+  // already stood in there (the last 12, newest first). Changing the age re-fills it.
+  const sources = ((ctrl || {}).places || {})[era] || {};
+  const arrivals = sources.arrivals || [];
+  const recent = sources.recent || [];
   sel.innerHTML = "";
-  places.forEach((p) => {
-    const o = document.createElement("option");
-    o.value = p;
-    o.textContent = p;
-    sel.appendChild(o);
-  });
-  if (selected && places.indexOf(selected) >= 0) sel.value = selected;
-  sel.disabled = locked || !places.length;
-  if (note) {
-    note.textContent = places.length ? "" : "You have not stood anywhere in this age yet.";
-    note.hidden = !!places.length;
-  }
-  return places.length > 0;
-}
-
-function deviceAnyPlaceSelect(ctrl, selected, locked) {
-  // The Vernier on its own: any place this save has stood in, grouped by the age it is in --
-  // the place carries its age. The map is {era id: [place phrase]}.
-  const places = (ctrl || {}).places || {};
-  const names = (ctrl || {}).era_names || {};
-  const eras = Object.keys(places).filter((e) => (places[e] || []).length);
-  if (!eras.length) return null;
-  const sel = document.createElement("select");
-  sel.className = "device-place";
-  eras.forEach((era) => {
+  const addGroup = (label, items) => {
+    if (!items.length) return;
     const group = document.createElement("optgroup");
-    group.label = names[era] || era;
-    (places[era] || []).forEach((p) => {
+    group.label = label;
+    items.forEach((p) => {
       const o = document.createElement("option");
       o.value = p;
-      o.dataset.era = era;
       o.textContent = p;
       group.appendChild(o);
     });
     sel.appendChild(group);
-  });
-  if (selected) {
-    Array.from(sel.options).forEach((o) => { if (o.value === selected) sel.value = selected; });
+  };
+  addGroup("Arrivals", arrivals);
+  addGroup("Recently visited", recent);
+  const total = arrivals.length + recent.length;
+  if (selected && Array.from(sel.options).some((o) => o.value === selected)) sel.value = selected;
+  sel.disabled = locked || !total;
+  if (note) {
+    note.textContent = total ? "" : "This age offers no place yet.";
+    note.hidden = !!total;
   }
-  sel.disabled = locked;
-  return sel;
+  return total > 0;
 }
 
 function deviceActionRow(dev, ctrl) {
@@ -1501,29 +1476,8 @@ function deviceActionRow(dev, ctrl) {
     return b;
   };
   const steer = c.steer || "";
-  const placeEra = () => (placeSel && placeSel.selectedIndex >= 0)
-    ? (placeSel.options[placeSel.selectedIndex].dataset.era || "") : "";
 
-  // The Mainspring: the charge holds the Device (no forced jumps); it can be let go again.
-  // A fully-assembled Device is manual (no cadence to stop), so the toggle is not offered.
-  if (ab.charge && !c.manual) {
-    wrap.appendChild(btn(c.holding ? "let it run" : "hold the Device",
-      () => sendDevice({ type: "device", action: "hold", value: !c.holding }), true));
-  }
-
-  // The Compass Rose: a coarse direction for the next jump (the drift).
-  if (ab.direction) {
-    const prev = c.previous_era;
-    const hasForward = ((c.forward_eras || []).length > 0);
-    wrap.appendChild(btn(prev ? `\u2190 previous: ${c.previous_era_name || prev}` : "\u2190 previous",
-      () => sendDevice({ type: "device", action: "steer", direction: "previous" }),
-      !!prev, steer === "previous"));
-    wrap.appendChild(btn("random forward \u2192",
-      () => sendDevice({ type: "device", action: "steer", direction: "forward" }),
-      hasForward, steer === "forward"));
-  }
-
-  // The Regulator names any age; the Vernier names the place. Neither fires.
+  // The player names the age and the place; neither control fires.
   let eraSel = null;
   let placeSel = null;
   if (ab.era) {
@@ -1533,10 +1487,11 @@ function deviceActionRow(dev, ctrl) {
     options.forEach((e) => {
       const o = document.createElement("option");
       o.value = e.id;
-      o.textContent = e.name;
+      o.textContent = e.locked ? `${e.name} (locked)` : e.name;
+      o.disabled = !!e.locked;
       eraSel.appendChild(o);
     });
-    if (steer && steer !== "previous" && steer !== "forward") eraSel.value = steer;
+    if (steer) eraSel.value = steer;
     eraSel.disabled = locked || !options.length;
     wrap.appendChild(eraSel);
     if (ab.place) {
@@ -1556,30 +1511,24 @@ function deviceActionRow(dev, ctrl) {
     wrap.appendChild(btn("aim", () => sendDevice({
       type: "device", action: "aim", era: eraSel.value,
       place: (placeSel && !placeSel.disabled) ? placeSel.value : "" }), options.length > 0));
-  } else if (ab.place) {
-    // The Vernier alone: a place the save has stood in names its own age.
-    placeSel = deviceAnyPlaceSelect(c, c.aim_place, locked);
-    if (placeSel) {
-      wrap.appendChild(placeSel);
-      wrap.appendChild(btn("aim", () => sendDevice({
-        type: "device", action: "aim", era: placeEra(), place: placeSel.value }), true));
-    } else {
-      const note = document.createElement("div");
-      note.className = "field-note";
-      note.textContent = "The Vernier can only aim where you have already stood.";
-      wrap.appendChild(note);
-    }
   }
 
-  // The Mainspring winds it and holds it; the Escapement lets it go.
+  if (c.future_locked && c.future_name) {
+    const lockNote = document.createElement("div");
+    lockNote.className = "field-note";
+    lockNote.textContent = `${c.future_name} is beyond the Device until every part is found.`;
+    wrap.appendChild(lockNote);
+  }
+
   if (ab.release) {
+    const chosenPlace = (placeSel && !placeSel.disabled) ? placeSel.value : "";
     wrap.appendChild(btn("release the Device", () => sendDevice({
       type: "device", action: "release",
-      era: eraSel ? eraSel.value : placeEra(),
-      place: (placeSel && !placeSel.disabled) ? placeSel.value : "" }), true));
+      era: eraSel ? eraSel.value : "",
+      place: chosenPlace }), !!chosenPlace));
   }
 
-  if (!ab.charge && !ab.direction && !ab.era && !ab.release && !ab.place) {
+  if (!ab.era && !ab.release && !ab.place) {
     const note = document.createElement("div");
     note.className = "field-note";
     note.textContent = "The Device obeys no one \u2014 it cannot be steered yet.";
@@ -1843,7 +1792,6 @@ function handleEvent(evt) {
       devUi.draft = {};
       devUi.raw = {};
       devUi.device = null;
-      devUi.cadence = null;
       $("dev-note").textContent = evt.note || "applied";
       buildDevSheet();
       break;
@@ -1978,7 +1926,7 @@ async function startSession(save) {
   state.mechanicsLines = [];
   state.iconGenEpoch += 1;     // cancel any in-flight generation run
   devUi.draft = {}; devUi.raw = {}; devUi.rawFields = {}; devUi.rawPath = [];
-  devUi.device = null; devUi.cadence = null;
+  devUi.device = null;
   devUi.gmJournal = []; devUi.gmTools = null; devUi.gmCapped = false;
   transcript.innerHTML = "";
   const res = await fetch("/api/sessions", {
@@ -2856,7 +2804,6 @@ const devUi = {
   rawFields: {},    // the raw stored player rows, for the field browser
   rawPath: [],      // the browser's current drill-down path
   device: null,     // staged {present, parts:[]}
-  cadence: null,    // staged {turns, steer}
   gmJournal: [],
   gmTools: null,
   gmCapped: false,
@@ -2876,7 +2823,6 @@ function openDev() {
   devUi.rawFields = {};
   devUi.rawPath = [];
   devUi.device = null;
-  devUi.cadence = null;
   $("dev-overlay").classList.remove("hidden");
   $("dev-note").textContent = "";
   switchDevTab("sheet");
@@ -3019,7 +2965,7 @@ function buildDevSheet() {
     const jlab = document.createElement("label");
     jlab.textContent = "Jump now to";
     const jsel = document.createElement("select");
-    (ctrl.all_eras || ctrl.forward_eras || []).forEach((e) => {
+    (ctrl.all_eras || []).forEach((e) => {
       const o = document.createElement("option");
       o.value = e.id;
       o.textContent = e.name;
@@ -3038,41 +2984,6 @@ function buildDevSheet() {
     jumpWrap.appendChild(jbtn);
     kids.push(jumpWrap);
 
-    const turnsWrap = document.createElement("div");
-    turnsWrap.className = "dev-field";
-    const tlab = document.createElement("label");
-    tlab.textContent = "Turns until jump (blank = manual)";
-    const tinp = document.createElement("input");
-    tinp.type = "number";
-    tinp.value = ctrl.turns_until == null ? "" : ctrl.turns_until;
-    turnsWrap.appendChild(tlab);
-    turnsWrap.appendChild(tinp);
-    kids.push(turnsWrap);
-
-    const steerWrap = document.createElement("div");
-    steerWrap.className = "dev-field";
-    const slab = document.createElement("label");
-    slab.textContent = "Steer";
-    const ssel = document.createElement("select");
-    [["", "drift"], ["previous", "previous"], ["forward", "forward"]].forEach(([v, t]) => {
-      const o = document.createElement("option");
-      o.value = v;
-      o.textContent = t;
-      ssel.appendChild(o);
-    });
-    ssel.value = ctrl.steer || "";
-    steerWrap.appendChild(slab);
-    steerWrap.appendChild(ssel);
-    kids.push(steerWrap);
-
-    const stageCadence = () => {
-      devUi.cadence = {
-        turns: tinp.value === "" ? null : Number(tinp.value),
-        steer: ssel.value,
-      };
-    };
-    tinp.addEventListener("input", stageCadence);
-    ssel.addEventListener("change", stageCadence);
     section("Device", kids);
   }
 
@@ -3289,9 +3200,6 @@ function buildDevOps() {
   if (devUi.device) {
     ops.push({ kind: "device", present: devUi.device.present, parts: devUi.device.parts });
   }
-  if (devUi.cadence) {
-    ops.push({ kind: "cadence", turns: devUi.cadence.turns, steer: devUi.cadence.steer });
-  }
   Object.keys(devUi.raw).forEach((key) => {
     ops.push({ kind: "set", key, value: devUi.raw[key] });
   });
@@ -3312,7 +3220,6 @@ function revertDev() {
   devUi.draft = {};
   devUi.raw = {};
   devUi.device = null;
-  devUi.cadence = null;
   $("dev-note").textContent = "reverted";
   buildDevSheet();
 }

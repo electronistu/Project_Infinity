@@ -26,7 +26,6 @@ meta:
     - a pier on the East River
   playable: true
   origin: true
-  part: the Vernier
 
 body:
   history:

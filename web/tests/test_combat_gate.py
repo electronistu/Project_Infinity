@@ -32,7 +32,6 @@ def _session():
     gs.era = "egypt"
     gs.has_device = True
     gs.parts_recovered = 1
-    gs._jump_at_turn = gs.turn_counter + 5
     return gs
 
 
@@ -119,7 +118,6 @@ def main() -> bool:
 
     # -- the Device gate ----------------------------------------------------------
     gs2 = _session()
-    gs2.device_powers = {device_mod.CHARGE: True, device_mod.RELEASE: True}
     gs2._in_combat = True
     asyncio.run(gs2._device_release({}))
     dev_evts = []
