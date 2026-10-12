@@ -8,6 +8,7 @@ Run from the repo root:
 """
 
 import asyncio
+import json
 import os
 import re
 import sys
@@ -19,7 +20,7 @@ sys.path.insert(0, str(REPO))
 
 from web import engine  # noqa: E402
 from web.engine import (  # noqa: E402
-    TRAVELLER_SCOPE, GameSession, _clean_state_page, _clamp_block, _entry_turn_range,
+    GameSession, _clean_state_page, _clamp_block, _entry_turn_range,
     _extract_state, _extract_states, _split_timeline_entries, _state_has_fields,
     load_chronicle, load_state, load_states, load_timeline,
 )
@@ -191,25 +192,23 @@ def compaction_tests() -> bool:
 
 
 def per_era_tests() -> bool:
-    """STATE is scoped in the era game: a traveller page + one page per age, and only the
-    current age's page is ever injected."""
+    """STATE is scoped in the era game: one page per age, and only the current age's page
+    is ever injected."""
     print("  -- per-era STATE pages --")
-    from web.eras import playable_eras
-    rec("the traveller key is reserved, never an era id", TRAVELLER_SCOPE not in playable_eras())
     gs = _session()
     gs.classic = False
     gs.era = "wallachia"
-    gs._traveller = "**Goal**: master the Device.\n**Secrets**: he is the Traveller."
     gs._era_states = {"wallachia": "**Goal**: take Curtea de Arge\u0219.",
                       "egypt": "**Goal**: cross the desert."}
     gs._write_timeline()
     with open(gs.timeline_path, encoding="utf-8") as f:
         raw = f.read()
-    rec("each page gets its own keyed block", raw.count("<!-- state:") == 3, str(raw.count("<!-- state:")))
+    rec("each age gets its own keyed block", raw.count("<!-- state:") == 2, str(raw.count("<!-- state:")))
     rec("era mode writes no legacy unkeyed block", "<!-- state -->" not in raw)
+    rec("era mode writes no traveller page", "state:traveller" not in raw)
     pages = load_states(gs.timeline_path)
-    rec("load_states reads every page",
-        set(pages) == {TRAVELLER_SCOPE, "wallachia", "egypt"}, str(sorted(pages)))
+    rec("load_states reads every age page",
+        set(pages) == {"wallachia", "egypt"}, str(sorted(pages)))
     rec("load_state(key) reads one page",
         load_state(gs.timeline_path, "egypt").startswith("**Goal**: cross"))
     rec("load_state() (unkeyed) is empty in era mode", load_state(gs.timeline_path) == "")
@@ -224,20 +223,20 @@ def per_era_tests() -> bool:
         load_state(gs.timeline_path, "wallachia") == wallachia)
 
     body = gs._timeline_body()
-    rec("injection carries the traveller page", "THE TRAVELLER" in body)
     rec("injection carries only the current age",
         "leave the oasis" in body and "take Curtea" not in body)
     rec("the jump can inject the age it lands in", "take Curtea" in gs._state_body("wallachia"))
 
     # The departure ask: a page written into a narrative turn is captured, never shown.
     reply = ("The world folds shut.\n"
-             "<!-- state:traveller -->\n**Goal**: master the Device.\n<!-- /state:traveller -->\n"
              "<!-- state:egypt -->\n**Goal**: leave the oasis.\n<!-- /state:egypt -->\n"
+             "<!-- state:traveller -->\n**Goal**: master the Device.\n<!-- /state:traveller -->\n"
              "{{_REMEMBERS: the age forgets him.}}")
     gs.era = "egypt"
     cleaned = gs._capture_state_pages(reply)
     rec("a departure page never reaches the narrative", "<!-- state:" not in cleaned, cleaned[:40])
-    rec("... and is parked for the jump", gs._pending_era_state is not None
+    rec("... and a stray traveller page is stripped too", "traveller" not in cleaned)
+    rec("... the age page is parked for the jump", gs._pending_era_state is not None
         and gs._pending_era_state[0] == "egypt")
     gs._era_states.pop("egypt", None)
     gs._commit_departure_state("egypt")
@@ -268,6 +267,22 @@ def per_era_tests() -> bool:
         legacy._era_states.get("tang", "").startswith("**Goal**: old truth."))
     rec("... and is not left as the classic notebook", legacy._state == "")
 
+    # A retired scoped key (a legacy `state:traveller`) is not an age: it is never injected
+    # and never rewritten.
+    stale = _session()
+    stale.classic = False
+    stale.era = "tang"
+    with open(stale.timeline_path, "w", encoding="utf-8") as f:
+        f.write("# Session Timeline\n\n"
+                "<!-- state:tang -->\n**Goal**: keyed.\n<!-- /state:tang -->\n\n"
+                "<!-- state:traveller -->\n**Goal**: master the Device.\n<!-- /state:traveller -->\n")
+    stale._load_state_pages()
+    rec("a retired traveller page is not loaded as an age", "traveller" not in stale._era_states)
+    stale._write_timeline()
+    with open(stale.timeline_path, encoding="utf-8") as f:
+        stale_raw = f.read()
+    rec("... and is dropped from the rewritten file", "traveller" not in stale_raw)
+
     # A keyed page wins over a stale legacy block left in the same file.
     keyed = _session()
     keyed.classic = False
@@ -289,61 +304,122 @@ def per_era_tests() -> bool:
     rec("classic writes the single unkeyed notebook", "<!-- state -->" in craw and "state:" not in craw)
     rec("classic injection leads with STATE", cl._state_body().startswith("STATE"))
 
-    # The jump: compaction drops the events but must re-inject the state pages.
+    # The jump: compaction drops the events but must re-inject the page it lands in.
     jump = _session()
     jump.classic = False
     jump.era = "egypt"
     jump.messages = [{"role": "system", "content": "the protocol"}]
     jump._legends = {"wallachia": "Wallachia remembers a conqueror."}
-    jump._traveller = "**Goal**: master the Device."
     jump._era_states = {"egypt": "**Goal**: leave the oasis."}
     jump._chronicle = (1, 5, "The story so far: he fled the capital.")
     jump._timeline_kept = "## Turns 6-6 | place | day\n**Key Events**:\n- six."
     jump._compact("wallachia")
     joined = "\n".join(m.get("content", "") for m in jump.messages if isinstance(m, dict))
-    rec("the jump re-injects the traveller page and the new age's page",
-        "THE TRAVELLER" in joined and "leave the oasis" in joined)
+    rec("the jump re-injects the age's page", "leave the oasis" in joined)
     rec("the jump still drops the events",
         "The story so far" not in joined and "Turns 6-6" not in joined)
     return True
 
 
+def companions_tests() -> bool:
+    """The companions are engine-derived (never GM-written), era-scoped, and live in the
+    CHARACTER SHEET (name + identity + the stable look), not in the state page."""
+    print("  -- engine-listed companions --")
+    gs = _session()
+    gs.classic = False
+    gs.era = "tang"
+    gs._era_states = {"tang": "**Goal**: hold the quay."}
+    gs._companions = {"tang": [{"name": "Su Lian", "race": "human", "class": "monk",
+                                "description": "a free woman"},
+                               {"name": "Pei", "race": "human", "class": "fighter",
+                                "description": ""}],
+                      "egypt": [{"name": "Setka", "race": "human", "class": "priest",
+                                 "description": "the oasis"}]}
+    block = gs._companions_block("tang")
+    rec("the companions block carries name, identity and the look",
+        "Su Lian (human monk)" in block and "— a free woman" in block
+        and "Pei (human fighter)" in block, block.replace("\n", " | ")[:80])
+    rec("an age with no companions carries no block", gs._companions_block("wallachia") == "")
+    rec("only the current age's companions are listed", "Setka" not in block)
+    rec("the state page itself never stores a companions field",
+        "companions" not in gs._state_body().lower())
+
+    # A save's own store is the source: `.player` -> `{era: [{name, race, class, description}]}`.
+    d = tempfile.mkdtemp()
+    p = os.path.join(d, "x.player")
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump({"companions": {
+            "tang": {"su lian": {"name": "Su Lian", "race": "human", "class": "monk",
+                                    "description": "a free woman"}},
+            "": {"bramble": {"name": "Bramble"}}}}, f)
+    read = engine._player_companions(p)
+    rec("_player_companions reads name + identity + look",
+        read.get("tang") == [{"name": "Su Lian", "race": "human", "class": "monk",
+                               "description": "a free woman"}], str(read))
+    rec("... and a classic save's empty era", read.get("")[0]["name"] == "Bramble", str(read))
+    rec("a missing store is empty", engine._player_companions(os.path.join(d, "none.player")) == {})
+
+    # Live declares update the list (identity from the args); a refusal does not.
+    gs._companions = {"tang": [{"name": "Su Lian", "race": "", "class": "",
+                                "description": ""}]}
+    gs._track_companion({"sheet": {"race": "human", "class": "fighter",
+                                    "description": "grey at the temples"}},
+                        json.dumps({"success": True, "status": "declared", "era": "tang",
+                                    "name": "Captain Pei"}))
+    rec("a declared companion joins with identity + look",
+        gs._companions["tang"][-1] == {"name": "Captain Pei", "race": "human",
+                                       "class": "fighter", "description": "grey at the temples"})
+    gs._track_companion({}, json.dumps({"success": True, "status": "forgotten", "era": "tang",
+                                        "name": "Captain Pei"}))
+    rec("a forgotten companion leaves it",
+        [p["name"] for p in gs._companions["tang"]] == ["Su Lian"])
+    gs._track_companion({"sheet": {"race": "human"}},
+                        json.dumps({"success": False, "error": "companion_limit",
+                                    "era": "tang", "name": "A Fourth"}))
+    rec("a refused declaration is not listed",
+        [p["name"] for p in gs._companions["tang"]] == ["Su Lian"])
+    return True
+
+
 def guard_tests() -> bool:
     """The STATE guard and the core repair: engine-owned keys dropped, synonyms renamed,
-    scope enforced, and a core-less page kept or repaired (never silently absent)."""
+    and a core-less page kept or repaired (never silently absent)."""
     print("  -- STATE page guard --")
     wild = (
         "era: victorian\n"
         "year: 1858\n"
         "location: England / Liverpool / the dock road\n"
         "regulars: Michael Quill — pier master (Human, Fighter)\n"
+        "standing: Pei — wary, honest\n"
+        "attitudes: the court is cold\n"
+        "companions: Su Lian — sworn to him\n"
         "cast: none\n"
         "reputation: england — nothing owed him\n"
         "device: whole — all five parts in hand\n"
         "threads: Preda still sealed and then freed in Wallachia\n"
         "**Goal**: take the city\n"
         "**Hooks**: the watch is coming\n"
+        "**Clocks**: the siege runs\n"
         "**Debts**: his oath to the captain\n"
         "**Secrets**: he is the Traveller\n"
         "**Canon**: he came without a gate\n"
+        "**Unpaid**: the sealed door\n"
     )
-    era = _clean_state_page(wild, "era")
-    clean_keys = ("era:", "year:", "location:", "cast:", "reputation:", "device:")
+    era = _clean_state_page(wild)
+    clean_keys = ("era:", "year:", "location:", "cast:", "reputation:", "device:",
+                  "regulars:", "standing:", "attitudes:", "companions:")
     rec("engine-owned keys are dropped", not any(k in era for k in clean_keys), era[:60])
-    rec("`regulars` is renamed to Standing", "**Standing**: Michael Quill" in era
-        and "regulars" not in era)
-    rec("`threads` becomes Hooks on an age page", "**Hooks**: Preda still sealed" in era)
-    rec("an age page drops Debts and the Secrets field",
-        "**Debts**" not in era and "**Secrets**" not in era)
+    rec("`standing`/`regulars`/`attitudes` are dropped, not renamed",
+        "Standing" not in era and "Michael Quill" not in era and "wary" not in era)
+    rec("a `companions` line is dropped (the engine owns it)",
+        "Su Lian" not in era and "**Companions**" not in era)
+    rec("`threads` becomes Hooks", "**Hooks**: Preda still sealed" in era)
+    rec("an age page keeps Debts and Secrets", "**Debts**" in era and "**Secrets**" in era)
     rec("the canonical order survives (Goal first)", era.startswith("**Goal**:"))
-
-    trav = _clean_state_page(wild, "traveller")
-    rec("`threads` becomes Echoes on the traveller page", "**Echoes**: Preda" in trav)
-    rec("the traveller page drops the age-only fields",
-        "**Hooks**" not in trav and "**Canon**" not in trav and "**Standing**" not in trav)
-
-    rec("the core check reads the fields", _state_has_fields(trav, ("Goal", "Secrets"))
-        and not _state_has_fields(trav, ("Goal", "Bogus")))
+    rec("the canonical order puts Hooks before Clocks",
+        era.index("**Hooks**") < era.index("**Clocks**"))
+    rec("the core check reads the fields", _state_has_fields(era, ("Goal", "Secrets"))
+        and not _state_has_fields(era, ("Goal", "Bogus")))
 
     # A page on disk written before the vocabulary was enforced is cleaned on read.
     gs = _session()
@@ -352,7 +428,7 @@ def guard_tests() -> bool:
                 + "<!-- /state:victorian -->\n")
     loaded = load_states(gs.timeline_path).get("victorian", "")
     rec("a wild page on disk is cleaned on read",
-        "year:" not in loaded and "**Standing**:" in loaded and loaded.startswith("**Goal**"))
+        "year:" not in loaded and "**Hooks**:" in loaded and loaded.startswith("**Goal**"))
 
     # The repair path: core present -> stored; core missing + held -> kept, silently;
     # core missing + nothing held -> ONE tool-free re-ask.
@@ -364,30 +440,24 @@ def guard_tests() -> bool:
     async def fake_plain(messages, label="summary"):
         calls.append(label)
         key = re.search(r"state:([a-z0-9_-]+)", messages[0]["content"]).group(1)
-        body = ("**Goal**: go home.\n**Secrets**: the Device." if key == TRAVELLER_SCOPE
-                else "**Goal**: hold the court.")
-        return f"<!-- state:{key} -->\n{body}\n<!-- /state:{key} -->"
+        return f"<!-- state:{key} -->\n**Goal**: hold the court.\n<!-- /state:{key} -->"
 
     gs._plain_call = fake_plain
-    gs._traveller = ""
-    asyncio.run(run(gs, TRAVELLER_SCOPE, "**Goal**: go home.\n**Secrets**: the Device.", "raw"))
-    rec("a page carrying its core is stored", gs._traveller.startswith("**Goal**") and not calls)
-
-    gs._traveller = "**Goal**: the old goal.\n**Secrets**: the old secret."
-    asyncio.run(run(gs, TRAVELLER_SCOPE, "**Echoes**: only echoes, no goal", "raw"))
-    rec("a page missing its core keeps the one held, silently",
-        gs._traveller.startswith("**Goal**: the old goal") and not calls)
-
-    gs._traveller = ""
-    asyncio.run(run(gs, TRAVELLER_SCOPE, "**Echoes**: only echoes, no goal", "the malformed reply"))
-    rec("with nothing held, one tool-free re-ask runs", calls == ["state-fix"] and gs._traveller,
-        str(calls))
-
-    calls.clear()
     gs._era_states = {}
-    asyncio.run(run(gs, "wallachia", "**Hooks**: a fight tonight", "raw"))
-    rec("an era page with no core is repaired too",
-        gs._era_states.get("wallachia", "").startswith("**Goal**") and calls == ["state-fix"])
+    asyncio.run(run(gs, "wallachia", "**Goal**: hold the court.", "raw"))
+    rec("a page carrying its core is stored",
+        gs._era_states.get("wallachia", "").startswith("**Goal**") and not calls)
+
+    gs._era_states["wallachia"] = "**Goal**: the old goal."
+    asyncio.run(run(gs, "wallachia", "**Hooks**: only hooks, no goal", "raw"))
+    rec("a page missing its core keeps the one held, silently",
+        gs._era_states["wallachia"].startswith("**Goal**: the old goal") and not calls)
+
+    gs._era_states = {}
+    asyncio.run(run(gs, "wallachia", "**Hooks**: only hooks, no goal", "the malformed reply"))
+    rec("with nothing held, one tool-free re-ask runs",
+        calls == ["state-fix"] and gs._era_states.get("wallachia", "").startswith("**Goal**"),
+        str(calls))
     return True
 
 
@@ -398,6 +468,7 @@ def main() -> int:
     unit_tests()
     compaction_tests()
     per_era_tests()
+    companions_tests()
     guard_tests()
     ok = all(RESULTS)
     print(f"\n  RESULT: {'PASS' if ok else 'FAIL'} ({sum(RESULTS)}/{len(RESULTS)})")

@@ -106,6 +106,10 @@ def get_player_json(pc, reputation=None, era=None, arrival=None, mode=None) -> s
             spell_data["spells_prepared"] = pc.spells_prepared
         else:
             spell_data["spells_known"] = pc.spells_known
+        if getattr(pc, "subclass", None):
+            spell_data["subclass"] = pc.subclass
+        if getattr(pc, "always_prepared", None):
+            spell_data["always_prepared"] = list(pc.always_prepared)
         player_data["spellcasting"] = spell_data
     # The Time Traveler game: the Device is in the inventory from the first turn, with its
     # engine description, and the visit history starts at the rolled first age. A classic

@@ -86,7 +86,8 @@ def main():
         missing = sorted(offered - classified)
         rec(f"every tool offered in {mode} is KEEP/DROP/FULL", not missing, ", ".join(missing))
     rec("the engine-only tools are not in the maps",
-        not ({"set_player_field", "dump_player_save_state", "debug_set_field", "debug_device"}
+        not ({"set_player_field", "dump_player_save_state", "debug_set_field", "debug_device",
+              "dump_player_db"}
              & classified))
 
     print("\n-- the always-drop keys are stripped at any depth")

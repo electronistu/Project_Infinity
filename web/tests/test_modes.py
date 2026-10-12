@@ -121,12 +121,12 @@ def main() -> bool:
     rec("the bookkeeping tools are hidden in both",
         all(engine_only not in _names(filter_tools(TOOLS, True, MODE_CLASSIC))
             and engine_only not in _names(filter_tools(TOOLS, True, MODE_TIME_TRAVELER))
-            for engine_only in ("set_player_field", "dump_player_save_state")))
+            for engine_only in ("set_player_field", "dump_player_save_state", "dump_player_db")))
     rec("scenes off hides the scene and NPC tools",
-        _names(filter_tools(TOOLS, False, MODE_TIME_TRAVELER)) == ["dump_player_db", "lookup"])
+        _names(filter_tools(TOOLS, False, MODE_TIME_TRAVELER)) == ["lookup"])
     rec("scenes on keeps them",
         set(_names(filter_tools(TOOLS, True, MODE_TIME_TRAVELER)))
-        == {"dump_player_db", "lookup", "request_scene_image", "register_npcs"})
+        == {"lookup", "request_scene_image", "register_npcs"})
 
     print("\n-- a classic session runs no era machinery")
     gs = GameSession(base_dir=REPO, model="test", scene_images=True)

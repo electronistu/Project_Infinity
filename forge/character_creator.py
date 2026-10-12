@@ -17,6 +17,7 @@ from . import ui
 from .class_spells import (
     get_available_cantrips, get_available_level1_spells,
     CANTRIP_COUNTS, KNOWN_SPELL_COUNTS, PREPARED_SPELL_COUNTS_BASE,
+    get_always_prepared, get_circle_terrains, get_subclass_name,
 )
 
 KNOWN_SPELL_CLASSES = {"Sorcerer", "Warlock", "Bard", "Ranger"}
@@ -871,6 +872,19 @@ def create_character(config: Config) -> PlayerCharacter:
         spell_save_dc = 8 + calculate_modifier(player_stats.dict()[spellcasting_ability]) + proficiency_bonus
         spell_attack_modifier = calculate_modifier(player_stats.dict()[spellcasting_ability]) + proficiency_bonus
 
+    # The SRD domain / oath / circle spells: always prepared, never counted against the number
+    # the caster can prepare. The SRD carries one subclass per class, so only the Circle of the
+    # Land chooses (its terrain); everything else is fixed (Life Domain / Oath of Devotion).
+    subclass_name = ""
+    always_prepared = []
+    if chosen_class.name in ("Cleric", "Paladin", "Druid"):
+        terrain = ""
+        if chosen_class.name == "Druid":
+            terrain = ui.select_single("Choose your Circle of the Land terrain",
+                                       get_circle_terrains())
+        subclass_name = get_subclass_name(chosen_class.name, terrain)
+        always_prepared = get_always_prepared(chosen_class.name, 1, terrain)
+
     fs_name = fighting_style.name if fighting_style else None
     equipped = equipment.pick_starting_equipped(player_equipment.inventory)
     feature_names = [f.name for f in features_and_traits]
@@ -930,5 +944,7 @@ def create_character(config: Config) -> PlayerCharacter:
         spells_known=spells_known,
         spells_prepared=spells_prepared,
         spellbook=spellbook,
+        subclass=subclass_name or None,
+        always_prepared=list(always_prepared),
         spell_slots=spell_slots
     )

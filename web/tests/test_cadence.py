@@ -48,6 +48,10 @@ class _FakeMCP:
             def __init__(self, text):
                 self.content = [type("C", (), {"text": text})()]
 
+        # `dump_player_db` is engine-only; the engine injects a sheet from it at session build
+        # and at every jump, so return a real (minimal) row map rather than the ack stub.
+        if name == "dump_player_db":
+            return _R('{"name": "Test", "level": 1}')
         return _R('{"success": true}')
 
 
@@ -187,8 +191,10 @@ def main():
 
     # -- the compaction: prefix + what the ages remember, and nothing behind -------
     rec("the jump COMPACTS: everything behind the Traveller is gone",
-        len(gs.messages) == 5 and not any("a turn that happened" in str(m.get("content") or "")
-                                          for m in gs.messages),
+        len(gs.messages) == 6
+        and "CHARACTER SHEET" in "\n".join(str(m.get("content") or "") for m in gs.messages)
+        and not any("a turn that happened" in str(m.get("content") or "")
+                    for m in gs.messages),
         f"{len(gs.messages)} messages, was {messages_before + 20} before the jump")
     rec("the era just left is now one line -- the legend",
         gs.messages[3]["content"].startswith("WHAT THE AGES REMEMBER")

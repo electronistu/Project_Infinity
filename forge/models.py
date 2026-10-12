@@ -200,6 +200,10 @@ class PlayerCharacter(BaseEntity):
     spells_known: List[str] = []
     spells_prepared: List[str] = []
     spellbook: List[str] = []
+    # The SRD domain/oath/circle spells: always prepared, never counted against the prepared
+    # number. `subclass` names the granting subclass (and, for Circle of the Land, its terrain).
+    subclass: Optional[str] = None
+    always_prepared: List[str] = []
     spell_slots: Dict[str, int] = Field(default_factory=dict)
 
 # --- World State Models ---

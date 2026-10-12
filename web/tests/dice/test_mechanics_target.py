@@ -28,7 +28,13 @@ class TargetLabelTest(H.EngineCase):
 
 
 class SingleTargetSpellTargetTest(H.EngineCase):
-    player_factory = staticmethod(H.wizard_l3)  # name "Senna"
+    @staticmethod
+    def player_factory():
+        # A homebrew spell must be on the sheet (the engine enforces knowledge); 'Zap' is a
+        # cantrip here so it rides `cantrips`.
+        p = H.wizard_l3()
+        p["spellcasting"]["cantrips"] = p["spellcasting"]["cantrips"] + ["Zap"]
+        return p
 
     def test_npc_save_spell_names_the_player(self):
         with H.rolls_always(4):

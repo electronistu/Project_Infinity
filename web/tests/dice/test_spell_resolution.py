@@ -49,7 +49,11 @@ class RegistryAcLookupTest(H.EngineCase):
 
 
 class TargetsNeverDroppedTest(H.EngineCase):
-    player_factory = staticmethod(H.wizard_l3)
+    @staticmethod
+    def player_factory():
+        p = H.wizard_l3()
+        p["spellcasting"]["cantrips"] = p["spellcasting"]["cantrips"] + ["Ray Volley"]
+        return p
 
     def test_attack_roll_spell_with_targets_resolves_each(self):
         a = dict(GOBLIN, name="Goblin A")

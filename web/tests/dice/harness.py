@@ -28,6 +28,38 @@ import dice_server as ds  # noqa: E402
 
 # ── player fixtures ───────────────────────────────────────────────────────
 
+_ALL_SPELLS: list[tuple[str, int]] | None = None
+
+
+def _spell_names_by_level() -> list[tuple[str, int]]:
+    global _ALL_SPELLS
+    if _ALL_SPELLS is None:
+        import yaml
+        rows = yaml.safe_load((REPO_ROOT / "config" / "spells.yml").read_text(encoding="utf-8"))
+        _ALL_SPELLS = [(r["name"], int(r.get("level") or 0)) for r in rows]
+    return list(_ALL_SPELLS)
+
+
+def all_spell_names() -> list[str]:
+    """Every spell in ``config/spells.yml``."""
+    return [n for n, _lvl in _spell_names_by_level()]
+
+
+def all_cantrip_names() -> list[str]:
+    return [n for n, lvl in _spell_names_by_level() if lvl == 0]
+
+
+def all_leveled_spell_names() -> list[str]:
+    return [n for n, lvl in _spell_names_by_level() if lvl > 0]
+
+
+def _union(existing, extra) -> list[str]:
+    seen: dict[str, str] = {}
+    for n in list(existing or []) + list(extra):
+        seen.setdefault(str(n).lower(), n)
+    return list(seen.values())
+
+
 def make_player(**overrides):
     """A complete, valid `.player` dict with sane Fighter-1 defaults."""
     base = {
@@ -65,6 +97,14 @@ def make_player(**overrides):
         "_active_buff_data": {},
     }
     base.update(overrides)
+    # The spell tests exercise a spell's own resolution, not the knowledge gate: a caster that
+    # does not name its own lists *knows everything* (all cantrips + all leveled spells). A test
+    # that passes its own `cantrips`/`always_prepared` (even empty) is left exactly as given, so
+    # the gate can be exercised too.
+    sc = base.get("spellcasting")
+    if isinstance(sc, dict):
+        sc.setdefault("cantrips", all_cantrip_names())
+        sc.setdefault("always_prepared", all_leveled_spell_names())
     return base
 
 

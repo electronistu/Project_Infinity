@@ -1596,6 +1596,57 @@ def _has_spellbook_item(cursor) -> bool:
     return False
 
 
+def _spell_list_names(entries) -> list[str]:
+    """Normalise a spell list that may hold strings or `{name}` dicts."""
+    out = []
+    for s in entries or []:
+        name = s.get("name") if isinstance(s, dict) else s
+        name = " ".join(str(name or "").split())
+        if name:
+            out.append(name)
+    return out
+
+
+def _dedupe_names(names) -> list[str]:
+    seen: dict[str, str] = {}
+    for n in names:
+        seen.setdefault(n.lower(), n)
+    return [seen[k] for k in sorted(seen)]
+
+
+def _castable_spells(cursor) -> dict:
+    """The player's castable spells, for the refusal that names the character's real options.
+
+    `spells` is the leveled set (prepared / known / always-prepared); `ritual_spells` is the
+    wizard-style spellbook (castable only as a ritual). Names are display-case, deduped."""
+    sc = _db_val(cursor, "spellcasting", {}) or {}
+    if not isinstance(sc, dict):
+        return {"cantrips": [], "spells": [], "ritual_spells": []}
+    leveled = (_spell_list_names(sc.get("spells_prepared"))
+               + _spell_list_names(sc.get("spells_known"))
+               + _spell_list_names(sc.get("always_prepared")))
+    return {
+        "cantrips": _dedupe_names(_spell_list_names(sc.get("cantrips"))),
+        "spells": _dedupe_names(leveled),
+        "ritual_spells": _dedupe_names(_spell_list_names(sc.get("spellbook"))),
+    }
+
+
+def _player_knows_spell(known: dict, spell_key: str, sp_level: int, ritual: bool = False) -> bool:
+    """True when the player's sheet carries this spell. A cantrip is checked against
+    `cantrips`; a leveled spell against prepared/known/always-prepared, plus the spellbook
+    when it is cast as a ritual. Case-insensitive."""
+    key = str(spell_key or "").strip().lower()
+    if not key:
+        return False
+    if sp_level == 0:
+        return key in {n.lower() for n in known.get("cantrips") or []}
+    pool = {n.lower() for n in known.get("spells") or []}
+    if ritual:
+        pool |= {n.lower() for n in known.get("ritual_spells") or []}
+    return key in pool
+
+
 def _needs_spellbook(cursor) -> bool:
     """True for a caster whose spell list lives in a spellbook (wizard-style).
 
@@ -2015,7 +2066,7 @@ def update_player_list(key: str, item: str, action: str, weight: float | None = 
 
     WHEN: gear/items/spells/reputation/effects change.
     FIELDS (only the non-obvious; declare a weapon's/armour's stats WITH the add):
-    - key: dotted list path, e.g. 'inventory', 'spellcasting.spells_known', 'reputation.KINGDOM.FACTION'.
+    - key: dotted list path, one of: inventory, equipped, conditions, active_effects, consumables, spellcasting, reputation, stats, skills, saves, expertise, features (a deeper path nests under it, e.g. 'spellcasting.spells_known', 'reputation.KINGDOM.FACTION').
     - item: add -> 'Name' or 'Name: Description'; remove -> name only.
     - action: 'add' | 'remove' | 'update'.
     - description: the item's flavour/state text -- on add AND update; preferred over the inline 'Name: Description' form. The NAME is identity; transient state (sealed/opened, lit, half-full, emptied, broken) belongs here.
@@ -6499,6 +6550,33 @@ def resolve_magic(
         sp_post_hit_save = None
         sp_variants = None
         sp_condition_ends_on_damage = False
+
+    # ── SPELL KNOWLEDGE (the player casts only what the character has) ──
+    # A player can only cast a cantrip from `cantrips`, or a leveled spell from
+    # `spells_prepared` / `spells_known` / `always_prepared` (a wizard may also use the
+    # `spellbook` when casting as a ritual). Matched case-insensitively. A miss casts nothing
+    # and SPENDS NO ACTION -- the engine hands the GM what the character CAN cast, so the
+    # player can choose again (SRD: an unprepared spell simply is not cast).
+    if is_player_caster and cursor is not None and not is_scroll and not maintain_spell:
+        sc_now = _db_val(cursor, "spellcasting", {}) or {}
+        # Only a *configured* caster is gated: a sheet with no `spellcasting` block at all has
+        # no list to check against (an unconfigured caster, a magic item, the GM's word).
+        if isinstance(sc_now, dict) and sc_now:
+            known = _castable_spells(cursor)
+            if not _player_knows_spell(known, spell_key, sp_level, ritual=ritual):
+                refusal = {
+                    "success": False,
+                    "error": f"{spell_name} is not prepared or known by {actor}.",
+                    "spell_name": spell_name,
+                    "known_cantrips": known["cantrips"],
+                    "known_spells": known["spells"],
+                    "gm_instruction": "The cast did not happen and no action is spent -- offer "
+                                      "the character's real options from the lists above.",
+                }
+                if known["ritual_spells"]:
+                    refusal["ritual_spells"] = known["ritual_spells"]
+                    refusal["gm_instruction"] += " A spellbook spell may be cast as a ritual."
+                return refusal
 
     # ── CONFIG WINS + WARN ──
     # A spell in config/spells.yml is authoritative. When the GM explicitly passes a

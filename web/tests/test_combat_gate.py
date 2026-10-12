@@ -107,11 +107,15 @@ def main() -> bool:
         any(e.get("type") == "save_refused" and e.get("reason") == "combat"
             and e.get("text") == COMBAT_HOLD_MESSAGE for e in evts),
         str(evts))
+    rec("... and a refused save never locks the client",
+        not any(e.get("type") == "saving" for e in evts), str(evts))
 
     calls, evts = _save_attempt(False)
     rec("a save out of combat still summarizes, then writes",
         calls == ["summarize", "save"], str(calls))
     rec("... with no refusal", not any(e.get("type") == "save_refused" for e in evts), str(evts))
+    saving = [e.get("value") for e in evts if e.get("type") == "saving"]
+    rec("... and brackets itself with the `saving` lock", saving == [True, False], str(saving))
 
     # -- the Device gate ----------------------------------------------------------
     gs2 = _session()

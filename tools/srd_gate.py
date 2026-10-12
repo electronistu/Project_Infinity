@@ -125,6 +125,15 @@ def run(lists: Lists) -> Report:
             rep.check_all("config/classes.yml", [f["name"] for f in c.get(key) or []],
                           lists.sets["class_features"])
 
+    for sub in _yaml(REPO / "config" / "subclasses.yml"):
+        rep.check("config/subclasses.yml", sub["name"], lists.sets["subclasses"])
+        rep.check("config/subclasses.yml", sub["class"], lists.sets["classes"])
+        tables = [sub.get("always_prepared") or {}]
+        tables += list((sub.get("always_prepared_by_terrain") or {}).values())
+        rep.check_all("config/subclasses.yml",
+                      [s for table in tables for spells in table.values() for s in spells],
+                      spells)
+
     for r in _yaml(REPO / "config" / "races.yml"):
         rep.check("config/races.yml", r["name"], lists.sets["races"])
         rep.check_all("config/races.yml", [t["name"] for t in r.get("traits") or []],

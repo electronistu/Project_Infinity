@@ -41,8 +41,9 @@ def smoke_caster():
         stats={"str": 10, "dex": 14, "con": 14, "int": 20, "wis": 12, "cha": 10},
         spellcasting={
             "ability": "intelligence", "dc": 19, "attack_modifier": 11,
-            "cantrips": [], "spells_known": [], "spellbook": [],
-            "spells_prepared": [], "slots": {str(n): 9 for n in range(1, 10)},
+            "cantrips": H.all_cantrip_names(), "spells_known": [], "spellbook": [],
+            "spells_prepared": [], "always_prepared": H.all_leveled_spell_names(),
+            "slots": {str(n): 9 for n in range(1, 10)},
         },
         inventory=["Spellbook", "Component Pouch"],
     )

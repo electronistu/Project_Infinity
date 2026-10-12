@@ -156,36 +156,86 @@ def known_places_block(n: int, count):
 _TIMELINE_SAMPLE = (
     "**Key Events**:\n- You bribed the dockmaster and sailed at midnight.\n"
     "- The Strigoi followed; you lost it in the fog off Gravesend.\n"
-    "**Standing**: Marlow (the dockmaster) — knows your face, wants coin.\n"
+    "**Debts**: the dockmaster's coin, unpaid.\n"
     "**Hooks**: the Strigoi is still hunting; the Regulator is missing.\n"
 )
 
 
-# The `state:traveller` page and the current age's page header, injected alongside each other
-# in the era game. They sit at the FRONT of the injected body, so the tokenizer sees them
-# before anything the cap truncates, and the page is written to its cap (MAX_TRAVELLER_CHARS
-# = 500) to make this the worst case.
-_TRAVELLER_SAMPLE = (
-    "THE TRAVELLER — true in every age; honour it.\n"
-    "**Goal**: repair the Horologe, gather its five parts and go home to New York.\n"
-    "**Echoes**: Wallachia — Căpitan Preda was freed and swore to see him again; five dead "
-    "left unanswered. Egypt — a caravan broke and three of them know his face. Tang — the "
-    "quay-master saw him vanish, and the berth stays empty.\n"
-    "**Debts**: his oath to Căpitan Preda that he would return; the Horologer's name.\n"
-    "**Secrets**: he is the Traveller, thrown here by the Device; no age knows the Device.\n\n"
+# The engine-listed companions line + the current age's page header, injected together in
+# the era game's session memory. They sit at the FRONT of the injected body, so the tokenizer
+# sees them before anything the cap truncates. The companions line is the engine's own,
+# never GM-written, and the page is written to its cap (MAX_STATE_CHARS = 1200) below.
+_STATE_HEADER_SAMPLE = (
+    "COMPANIONS: Su Lian, Captain Pei\n"
     "THIS AGE — current truth; honour it.\n"
 )
 
 
 def timeline_block(count):
-    """The injected SESSION_TIMELINE body at its cap (MAX_TIMELINE_CHARS): the traveller page
-    + the current age's STATE page + the chronicle + kept entries. This is the block
-    compaction bounds."""
+    """The injected SESSION_TIMELINE body at its cap (MAX_TIMELINE_CHARS): the companions
+    line, the current age's STATE page, the chronicle and the kept entries. This is the
+    block compaction bounds."""
     from web.engine import MAX_TIMELINE_CHARS
-    text = _TRAVELLER_SAMPLE
+    text = _STATE_HEADER_SAMPLE
     while len(text) < MAX_TIMELINE_CHARS:
         text += _TIMELINE_SAMPLE
     text = text[:MAX_TIMELINE_CHARS]
+    return text, count(text)
+
+
+# A worst-case lean CHARACTER SHEET: a level-20 prepared caster with a full spell list, a
+# populated pack and every field the block carries. The engine builds this from the live
+# `dump_player_db` row map (`web/engine.py:_sheet_body`); here it is a fixed sample, injected
+# once at session start and re-injected at every jump (never once per turn).
+_SHEET_SAMPLE = {
+    "name": "Worst Case", "race": "High Elf", "character_class": "Wizard", "level": 20,
+    "background": "Sage", "alignment": "Neutral Good", "gender": "female", "age": 700,
+    "languages": ["Common", "Elvish", "Dwarvish", "Gnomish", "Draconic", "Infernal"],
+    "gold": 99999, "current_hit_points": 200, "total_hit_points": 200,
+    "temporary_hit_points": 50, "speed": 30,
+    "conditions": ["blinded", "poisoned"], "concentration": "Haste",
+    "active_effects": [{"name": "Mage Armor"}, {"name": "Fly"}],
+    "features": ["Darkvision", "Fey Ancestry", "Trance", "Spellcasting", "Arcane Recovery",
+                 "Arcane Tradition", "Evocation Savant", "Sculpt Spells", "Potent Cantrip",
+                 "Empowered Evocation", "Overchannel", "Spell Mastery", "Signature Spells"],
+    "inventory": ["Spellbook", "Crowbar", "Dark Common Clothes", "Dagger +1", "The Device",
+                  "Escapement", "Compass Rose", "Regulator", "Mainspring", "Vernier"],
+    "equipped": {"worn": ["Robe of the Archmagi"], "hands": ["Staff of Power", None]},
+    "consumables": {"Potion of Healing": 3, "Bolts": 20, "Rations": 10},
+    "_carrying": {"status": "heavily encumbered"},
+    "spellcasting": {
+        "cantrips": ["Mage Hand", "Minor Illusion", "Poison Spray", "Fire Bolt",
+                     "Prestidigitation", "Ray of Frost", "Shocking Grasp", "Light"],
+        "spells_prepared": [f"Prepared Spell {i}" for i in range(1, 26)],
+        "slots": {str(n): 4 for n in range(1, 10)},
+    },
+    "reputation": {
+        "the empire": {"ruler": ["+2"], "bureaucracy": ["-1"], "monasteries": ["0"],
+                       "market_guilds": ["+1"], "caravans": ["-2"], "poets": ["+3"]},
+        "the frontier": {"ruler": ["+1"], "jiedushi": ["-1"], "garrisons": ["0"]},
+        "others": {"a merchant house": ["+1"]},
+    },
+}
+
+
+# The maximum three companions of one world, with the capped look the sheet carries.
+_COMPANIONS_SAMPLE = (
+    "companions:\n"
+    "- Su Lian (human monk) — a free woman with ink-stained fingers and a stolen name, sworn "
+    "to him and running his trade in the eastern ward; she reads people faster than she "
+    "reads ledgers.\n"
+    "- Captain Pei (human fighter) — grey at the temples, honest to a fault, holds the east "
+    "gate and asks the questions other men are paid not to ask.\n"
+    "- Xiaoyu (human rogue) — quick, quiet, and loyal; she was bought and freed in the same "
+    "hour and has never once said thank you for it.\n"
+)
+
+
+def sheet_block(count):
+    """The engine-injected CHARACTER SHEET at its worst case: a level-20 caster plus the
+    maximum three companions of one world (name, identity and the capped look)."""
+    from web.engine import _sheet_body
+    text = _sheet_body(_SHEET_SAMPLE) + "\n" + _COMPANIONS_SAMPLE
     return text, count(text)
 
 
@@ -215,6 +265,15 @@ def _metric_injected_timeline(count):
     """The injected SESSION_TIMELINE body at its cap, or None if unavailable."""
     try:
         _, tokens = timeline_block(count)
+        return tokens
+    except Exception:
+        return None
+
+
+def _metric_injected_sheet(count):
+    """The engine-injected CHARACTER SHEET block at worst case, or None if unavailable."""
+    try:
+        _, tokens = sheet_block(count)
         return tokens
     except Exception:
         return None
@@ -361,6 +420,7 @@ def _metrics(prefix_on, prefix_off, era_index_tokens, count, rows=None,
         "era_file_bytes": _metric_era_file_bytes(),
         "lookup_schema": _metric_lookup_schema(rows),
         "injected_timeline": _metric_injected_timeline(count),
+        "injected_sheet": _metric_injected_sheet(count),
         "always_on_total": always_on,
         "always_on_total_classic": classic_prefix_on,
         # Not built yet: named so a manifest row resolves; value unknown.

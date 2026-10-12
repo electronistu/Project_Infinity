@@ -87,6 +87,7 @@ async def functional() -> bool:
     player_mtime_before = player.stat().st_mtime_ns
 
     got_timeline = got_saved = saved_before_manual = False
+    saving_values = []
     session = GameSession(base_dir=REPO, model=MODEL, context_window=1_048_576, temperature=1.0)
     ok = False
 
@@ -122,6 +123,8 @@ async def functional() -> bool:
                 saved_before_manual = True
             elif t == "timeline":
                 got_timeline = True
+            elif t == "saving":
+                saving_values.append(evt.get("value"))
             elif t == "fatal":
                 print(f"    [fatal] {evt.get('message')}")
                 break
@@ -135,6 +138,9 @@ async def functional() -> bool:
         ok = True
         ok &= got_saved and got_timeline
         ok &= not saved_before_manual
+        # The client is locked as soon as the save starts. (This loop breaks on `saved`, so
+        # the closing `saving:false` is asserted in test_combat_gate.)
+        ok &= saving_values == [True]
         ok &= session.turn_counter == 20 and session.last_timeline_turn == 20
         ok &= player.exists() and tl.exists()
         ok &= continued

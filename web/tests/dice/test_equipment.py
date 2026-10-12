@@ -497,7 +497,13 @@ class SpellHandsTest(unittest.TestCase):
             self.assertTrue(r["success"])
 
     def test_components_override_lets_the_gm_declare_a_homebrew_spell(self):
-        with H.load(busy_cleric()):
+        # A homebrew spell must first be ON the sheet (the engine enforces knowledge); once the
+        # GM has granted it, a components override still resolves it.
+        caster = busy_cleric()
+        caster["spellcasting"] = dict(
+            caster["spellcasting"],
+            cantrips=list(caster["spellcasting"]["cantrips"]) + ["Word of the Void"])
+        with H.load(caster):
             r = H.ds.resolve_magic(spell_name="Word of the Void", actor="Tester", components="V",
                                    attack_type="automatic", damage_dice="1d6", target_name="Goblin",
                                    target_current_hp=10)

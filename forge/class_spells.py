@@ -1,6 +1,8 @@
 # forge/class_spells.py
 # Full SRD 5.1 class spell lists — used for interactive spell selection in the World Forge
 
+from pathlib import Path
+
 CLASS_CANTRIPS = {
     "Bard": ["Dancing Lights", "Light", "Mage Hand", "Mending", "Message", "Minor Illusion", "Prestidigitation",
              "True Strike", "Vicious Mockery"],
@@ -71,3 +73,63 @@ def get_available_cantrips(class_name: str, available_spell_names: set) -> list:
 def get_available_level1_spells(class_name: str, available_spell_names: set) -> list:
     full = LEVEL_1_SPELLS.get(class_name, [])
     return _filter_available(full, available_spell_names)
+
+
+# ── SRD domain / oath / circle spells (always prepared) ─────────────────────────
+# Data: config/subclasses.yml. The SRD carries one subclass per class, so there is no
+# subclass *choice* -- only the Circle of the Land chooses a terrain. These spells are
+# always prepared and never count against the number the caster can prepare.
+
+_SUBCLASSES = None
+
+
+def load_subclasses() -> list:
+    global _SUBCLASSES
+    if _SUBCLASSES is None:
+        import yaml
+        path = Path(__file__).resolve().parent.parent / "config" / "subclasses.yml"
+        _SUBCLASSES = yaml.safe_load(path.read_text(encoding="utf-8")) or []
+    return _SUBCLASSES
+
+
+def subclass_for(class_name: str):
+    """The subclass entry that grants this class its always-prepared spells, or None."""
+    for s in load_subclasses():
+        if s.get("class") == class_name:
+            return s
+    return None
+
+
+def get_circle_terrains() -> list:
+    """The Circle of the Land terrains (empty for everything else)."""
+    s = subclass_for("Druid")
+    return list((s or {}).get("always_prepared_by_terrain") or {})
+
+
+def get_subclass_name(class_name: str, terrain: str = "") -> str:
+    """The SRD subclass name, with the terrain appended for the Circle of the Land."""
+    s = subclass_for(class_name)
+    if not s:
+        return ""
+    name = str(s.get("name") or "")
+    if s.get("terrain") and terrain:
+        return f"{name} ({terrain})"
+    return name
+
+
+def get_always_prepared(class_name: str, level: int, terrain: str = "") -> list:
+    """Every always-prepared spell granted at or below `level` (in tier order, deduped)."""
+    s = subclass_for(class_name)
+    if not s:
+        return []
+    table = s.get("always_prepared") or {}
+    if s.get("terrain"):
+        table = (s.get("always_prepared_by_terrain") or {}).get(terrain) or {}
+    out: list = []
+    for tier in sorted(table, key=lambda k: int(k)):
+        if int(tier) > int(level or 1):
+            continue
+        for spell in table[tier]:
+            if spell not in out:
+                out.append(spell)
+    return out

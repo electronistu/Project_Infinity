@@ -9,6 +9,7 @@
       "spells": "source",
       "spell_aliases": "source",
       "classes": "source",
+      "subclasses": "source",
       "races": "source",
       "conditions": "source",
       "magic_items": "source",
@@ -380,6 +381,21 @@
     "Sorcerer",
     "Warlock",
     "Wizard"
+  ],
+  "subclasses": [
+    "Berserker",
+    "Champion",
+    "Circle of the Land",
+    "College of Lore",
+    "Draconic Bloodline",
+    "Hunter",
+    "Life Domain",
+    "Oath of Devotion",
+    "Path of the Berserker",
+    "School of Evocation",
+    "The Fiend",
+    "Thief",
+    "Way of the Open Hand"
   ],
   "races": [
     "Dragonborn",

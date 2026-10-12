@@ -10,6 +10,7 @@ const state = {
   contextTokens: 0,
   turn: 0,
   busy: false,
+  saving: false,                        // a save is in flight: lock send/save/load/end + the Device
   connected: false,
   ready: false,
   lastCommandType: null,
@@ -1487,7 +1488,7 @@ function deviceAnyPlaceSelect(ctrl, selected, locked) {
 function deviceActionRow(dev, ctrl) {
   const c = ctrl || {};
   const ab = c.abilities || {};
-  const locked = !state.ready || state.busy;
+  const locked = !state.ready || state.busy || state.saving;
   const wrap = document.createElement("div");
   wrap.className = "device-actions";
   const btn = (label, onClick, enabled, active) => {
@@ -1651,14 +1652,17 @@ function toggleSheet() {
 }
 
 function updateComposer() {
-  const enabled = state.connected && state.ready && !state.busy;
+  const enabled = state.connected && state.ready && !state.busy && !state.saving;
   input.disabled = !enabled;
   sendBtn.disabled = !enabled;
   $("refresh-stats").disabled = !(state.connected && state.ready);
-  $("end-session").disabled = !state.sessionId;
-  // Save and the Device stay clickable mid-fight: the attempt surfaces COMBAT_HOLD_MESSAGE
-  // (the engine refuses too, so the wording never depends on the client alone).
-  if ($("save-open")) $("save-open").disabled = !state.connected || !state.ready;
+  // Save, Load and End stay clickable mid-fight (the attempt surfaces COMBAT_HOLD_MESSAGE;
+  // the engine refuses too), but a save in flight locks them: a second save, a load or an
+  // end would interleave with the one already writing.
+  if ($("save-open")) $("save-open").disabled = !state.connected || !state.ready
+    || state.busy || state.saving;
+  if ($("load-open")) $("load-open").disabled = state.saving;
+  $("end-session").disabled = !state.sessionId || state.saving;
 }
 
 function send(msg) {
@@ -1668,6 +1672,7 @@ function send(msg) {
 /* A Device control: a release IS a turn (the era changes), so the sheet must refresh
    afterwards; aim and steer are only nudges and consume no turn. */
 function sendDevice(msg) {
+  if (!state.connected || !state.ready || state.busy || state.saving) return;
   if (msg && msg.action === "release") state.lastCommandType = "action";
   send(msg);
 }
@@ -1681,6 +1686,7 @@ function requestStats() {
 function submitInput() {
   const text = input.value.trim();
   if (!text) return;
+  if (state.busy || state.saving) return;  // Enter can fire past a disabled field
   addPlayer(text);
   state.lastCommandType = "action";
   send({ type: "action", text });
@@ -1900,6 +1906,16 @@ function handleEvent(evt) {
       setStatus(state.busy ? "GM is thinking…" : (state.ready ? "Awaiting your action" : "Loading…"));
       break;
 
+    case "saving":
+      // A save is a long, inline operation: lock the composer, Save/Load/End and the Device
+      // so the player cannot queue a message (or a second save) behind it.
+      state.saving = !!evt.value;
+      updateComposer();
+      renderDeviceCard();
+      setStatus(state.saving ? "saving the game…"
+        : state.busy ? "GM is thinking…" : (state.ready ? "Awaiting your action" : "Loading…"));
+      break;
+
     case "error":
       addError(evt.message || "unknown error");
       break;
@@ -1933,7 +1949,7 @@ function connect() {
     updateComposer();
     setStatus("Loading…");
   };
-  ws.onclose = () => { state.connected = false; setConn("disconnected", "off"); updateComposer(); setStatus("Disconnected"); };
+  ws.onclose = () => { state.connected = false; state.saving = false; setConn("disconnected", "off"); updateComposer(); setStatus("Disconnected"); };
   ws.onerror = () => setConn("error", "err");
   ws.onmessage = (e) => { try { handleEvent(JSON.parse(e.data)); } catch (err) { console.error(err); } };
 }
@@ -1954,7 +1970,7 @@ async function startSession(save) {
     try { await fetch(`/api/sessions/${state.sessionId}`, { method: "DELETE" }); } catch (e) { /* ignore */ }
   }
   if (state.ws) { try { state.ws.close(); } catch (e) { /* ignore */ } state.ws = null; }
-  state.connected = false; state.ready = false; state.busy = false;
+  state.connected = false; state.ready = false; state.busy = false; state.saving = false;
   state.lastStats = null;      // drop the previous character's sheet
   state.combatRoster = [];     // drop the previous fight's tooltips
   state.combatOrder = [];
@@ -2384,12 +2400,14 @@ function showSaveError(msg) { const el = $("save-error"); el.textContent = msg; 
 
 function confirmSave() {
   if (!state.connected) { showSaveError("Not connected."); return; }
+  if (state.saving) { showSaveError("A save is already in progress."); return; }
   if (state.inCombat) { showSaveError(COMBAT_HOLD_MESSAGE); return; }
   send({ type: "save" });
   closeSave();
 }
 
 async function openLoad() {
+  if (state.saving) return;
   try { await loadWorlds(); } catch (e) { /* ignore */ }
   renderLoadList();
   $("load-overlay").classList.remove("hidden");
@@ -2465,6 +2483,7 @@ async function deleteWorld(file) {
 }
 
 function openEnd() {
+  if (state.saving) return;
   if (!state.sessionId) { resetToHome(); return; }
   $("end-overlay").classList.remove("hidden");
 }
@@ -2472,6 +2491,7 @@ function closeEnd() { $("end-overlay").classList.add("hidden"); }
 
 function saveAndEnd() {
   closeEnd();
+  if (state.saving) return;
   if (!state.connected) { finishEnd(); return; }
   state.endAfterSave = true;
   setStatus("saving before ending…");
@@ -2497,6 +2517,7 @@ function resetToHome() {
   state.connected = false;
   state.ready = false;
   state.busy = false;
+  state.saving = false;
   state.activeSaveName = null;
   state.endAfterSave = false;
   state.lastStats = null;      // never generate icons for a closed character

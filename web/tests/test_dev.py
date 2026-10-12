@@ -121,7 +121,7 @@ def main():
         "debug_set_field" not in names and "debug_device" not in names, str(names))
     rec("... alongside the other bookkeeping tools",
         set(ENGINE_ONLY_TOOLS) == {"set_player_field", "dump_player_save_state",
-                                   "debug_set_field", "debug_device"},
+                                   "debug_set_field", "debug_device", "dump_player_db"},
         str(ENGINE_ONLY_TOOLS))
 
     # ── dev is off unless asked ─────────────────────────────────────────────
@@ -172,7 +172,7 @@ def main():
     offered = {t["name"] for t in tools.get("offered", [])}
     hidden = {t["name"] for t in tools.get("hidden", [])}
     rec("... and the tool listing the GM is offered",
-        "dump_player_db" in offered and "debug_set_field" not in offered, str(offered))
+        "dump_player_db" not in offered and "debug_set_field" not in offered, str(offered))
     rec("... and what was hidden from it",
         "debug_set_field" in hidden and "set_player_field" in hidden, str(hidden))
     rec("gm_open starts the live watch", gs._gm_watch is True)

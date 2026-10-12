@@ -471,9 +471,9 @@ async def main() -> bool:
     out_a = await gs_a._run_role("ERA_FILE", "awakening")
     nudges = [m.get("content") for m in gs_a.messages
               if "CONTINUE_EXECUTION" in str(m.get("content"))]
-    rec("the session-start resume re-anchors step 3, narrative and image together",
+    rec("the session-start resume re-anchors the narrative and image together",
         out_a == "You wake in the dark." and bool(nudges)
-        and "SESSION START step 3" in nudges[-1] and "request_scene_image" in nudges[-1],
+        and "SESSION START" in nudges[-1] and "request_scene_image" in nudges[-1],
         str(nudges[-1:]))
 
     resume_labels.clear()

@@ -300,6 +300,20 @@ def apply_level_up(character_class, old_level, new_level, player_data):
             else:
                 summary.append(f"spellcasting.slots: {json.dumps(new_sc['slots'])}")
 
+        # SRD domain / oath / circle spells are GRANTED, not chosen: top up `always_prepared`
+        # as the character's level crosses a tier (they never count against the prepared cap).
+        from forge.class_spells import get_always_prepared
+        terrain = ""
+        sub = str(new_sc.get("subclass") or "")
+        if "(" in sub and sub.endswith(")"):
+            terrain = sub[sub.rfind("(") + 1:-1]
+        granted = get_always_prepared(character_class, new_level, terrain)
+        held = [s for s in (new_sc.get("always_prepared") or []) if isinstance(s, str)]
+        added = [s for s in granted if s not in held]
+        if added:
+            new_sc["always_prepared"] = held + added
+            summary.append("always_prepared: +" + ", ".join(added))
+
         changes['spellcasting'] = json.dumps(new_sc)
 
     return changes, summary

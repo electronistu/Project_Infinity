@@ -1,0 +1,73 @@
+# SRD 5.1 subclasses that grant always-prepared spells (the "domain / oath / circle" rule):
+# these spells are always prepared and never count against the number of spells the caster
+# can prepare. A spell is granted once the character's level reaches its tier key.
+#
+# The SRD carries exactly one subclass per class, so there is no subclass *choice* -- only the
+# Circle of the Land chooses a terrain, which selects its table. (The Warlock's Fiend expanded
+# list is not always-prepared: it only widens the class spell list, so it is not here.)
+#
+# `class` must be an SRD class; every spell name must exist in `config/spells.yml`. Both are
+# enforced by `tools/srd_gate.py`.
+
+- name: Life Domain
+  class: Cleric
+  always_prepared:
+    1: ["Bless", "Cure Wounds"]
+    3: ["Lesser Restoration", "Spiritual Weapon"]
+    5: ["Beacon of Hope", "Revivify"]
+    7: ["Death Ward", "Guardian of Faith"]
+    9: ["Mass Cure Wounds", "Raise Dead"]
+
+- name: Oath of Devotion
+  class: Paladin
+  always_prepared:
+    3: ["Protection from Evil and Good", "Sanctuary"]
+    5: ["Lesser Restoration", "Zone of Truth"]
+    9: ["Beacon of Hope", "Dispel Magic"]
+    13: ["Freedom of Movement", "Guardian of Faith"]
+    17: ["Commune", "Flame Strike"]
+
+- name: Circle of the Land
+  class: Druid
+  terrain: true
+  always_prepared_by_terrain:
+    Arctic:
+      3: ["Hold Person", "Spike Growth"]
+      5: ["Sleet Storm", "Slow"]
+      7: ["Freedom of Movement", "Ice Storm"]
+      9: ["Commune with Nature", "Cone of Cold"]
+    Coast:
+      3: ["Mirror Image", "Misty Step"]
+      5: ["Water Breathing", "Water Walk"]
+      7: ["Control Water", "Freedom of Movement"]
+      9: ["Conjure Elemental", "Scrying"]
+    Desert:
+      3: ["Blur", "Silence"]
+      5: ["Create Food and Water", "Hallucinatory Terrain"]
+      7: ["Blight", "Locate Creature"]
+      9: ["Insect Plague", "Wall of Stone"]
+    Forest:
+      3: ["Barkskin", "Spider Climb"]
+      5: ["Call Lightning", "Plant Growth"]
+      7: ["Divination", "Freedom of Movement"]
+      9: ["Commune with Nature", "Tree Stride"]
+    Grassland:
+      3: ["Invisibility", "Pass Without Trace"]
+      5: ["Daylight", "Haste"]
+      7: ["Divination", "Freedom of Movement"]
+      9: ["Dream", "Insect Plague"]
+    Mountain:
+      3: ["Spider Climb", "Spike Growth"]
+      5: ["Lightning Bolt", "Meld into Stone"]
+      7: ["Stone Shape", "Stoneskin"]
+      9: ["Passwall", "Wall of Stone"]
+    Swamp:
+      3: ["Darkness", "Acid Arrow"]
+      5: ["Water Walk", "Stinking Cloud"]
+      7: ["Freedom of Movement", "Locate Creature"]
+      9: ["Insect Plague", "Scrying"]
+    Underdark:
+      3: ["Spider Climb", "Web"]
+      5: ["Gaseous Form", "Stinking Cloud"]
+      7: ["Greater Invisibility", "Stone Shape"]
+      9: ["Cloudkill", "Insect Plague"]

@@ -293,6 +293,37 @@ def main() -> int:
         print(f"  [modes] time traveler built: mode {tdata.get('mode')} era {tdata.get('era')} "
               f"arrival {tdata.get('arrival')!r}")
 
+    # The SRD domain/oath/circle spells ride the sheet: a Cleric is a Life Domain whose
+    # domain spells are always prepared (and never counted against the prepared number).
+    preclean("Cleric Life")
+    terminal_c, _ = run_bridge_creation("Cleric Life", prefer="Cleric")
+    ok &= bool(terminal_c) and terminal_c.get("type") == "done"
+    if terminal_c and terminal_c.get("type") == "done":
+        cp = OUTPUT / terminal_c["player"]
+        created += [cp]
+        cdata = json.loads(cp.read_text(encoding="utf-8"))
+        csc = cdata.get("spellcasting") or {}
+        ok &= cdata.get("character_class") == "Cleric"
+        ok &= csc.get("subclass") == "Life Domain"
+        ok &= csc.get("always_prepared") == ["Bless", "Cure Wounds"]
+        print(f"  [domain] cleric: {csc.get('subclass')} "
+              f"always_prepared {csc.get('always_prepared')}")
+
+    # The Circle of the Land asks for a terrain (the only subclass with a choice); level 1
+    # grants no circle spells yet, but the terrain is recorded for the levels that do.
+    preclean("Druid Circle")
+    terminal_d, _ = run_bridge_creation("Druid Circle", prefer="Druid")
+    ok &= bool(terminal_d) and terminal_d.get("type") == "done"
+    if terminal_d and terminal_d.get("type") == "done":
+        dp = OUTPUT / terminal_d["player"]
+        created += [dp]
+        ddata = json.loads(dp.read_text(encoding="utf-8"))
+        dsc = ddata.get("spellcasting") or {}
+        ok &= ddata.get("character_class") == "Druid"
+        ok &= str(dsc.get("subclass") or "").startswith("Circle of the Land (")
+        ok &= dsc.get("always_prepared") in (None, [])  # level 1 grants no circle spells yet
+        print(f"  [domain] druid: {dsc.get('subclass')}")
+
     # A fresh install has no `output/` (its contents are gitignored): the Forge must
     # create it before its final write, or creation dies at the very last step.
     with tempfile.TemporaryDirectory() as tmp:
