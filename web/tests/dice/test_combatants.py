@@ -169,6 +169,46 @@ class NpcAttackTest(H.EngineCase):
         self.assertEqual(after["hp"], f"{db_hp}/44")
         self.assertNotEqual(after["hp"], before["hp"])
 
+    def test_a_names_group_shares_one_sheet_across_many_entries(self):
+        wardens = {"names": ["Market Warden 1", "Market Warden 2"], "hp": 11, "ac": 13,
+                   "initiative_modifier": 1, "challenge_rating": 0.125, "role": "hostile",
+                   "attacks": [{"name": "Cudgel", "attack_bonus": 3, "damage_dice": "1d6",
+                                "damage_modifier": 1, "damage_type": "bludgeoning"}]}
+        with H.fixed_rolls([15, 6, 7]) as calls:  # player (15), then ONE roll for the group (6)
+            r = H.ds.register_combatants([wardens])
+        self.assertEqual(len(calls), 2, calls)  # the player and the group, not each warden
+        self.assertEqual(set(H.ds._COMBAT_REGISTRY),
+                         {"Borin", "Market Warden 1", "Market Warden 2"})
+        one = H.ds._COMBAT_REGISTRY["Market Warden 1"]
+        two = H.ds._COMBAT_REGISTRY["Market Warden 2"]
+        self.assertEqual((one["ac"], one["current_hp"]), (13, 11))       # the shared sheet
+        self.assertEqual(one["attacks"][0]["name"], "Cudgel")
+        self.assertEqual(one["initiative_total"], two["initiative_total"])  # they act together
+        self.assertEqual(r["initiative_order"],
+                         ["Borin", "Market Warden 1", "Market Warden 2"])
+        self.assertEqual({s["name"] for s in r["sheets"]},
+                         {"Market Warden 1", "Market Warden 2"})
+
+    def test_a_group_and_a_unique_npc_register_together(self):
+        boss = {"name": "Bahram", "hp": 9, "ac": 12, "initiative_modifier": 1, "role": "hostile"}
+        wardens = {"names": ["Market Warden 1", "Market Warden 2"], "hp": 11, "ac": 13,
+                   "initiative_modifier": 1, "role": "hostile"}
+        with H.fixed_rolls([15, 6, 7, 8]):
+            H.ds.register_combatants([boss, wardens])
+        self.assertEqual(set(H.ds._COMBAT_REGISTRY),
+                         {"Borin", "Bahram", "Market Warden 1", "Market Warden 2"})
+
+    def test_a_names_group_is_validated_loudly(self):
+        cases = [
+            ({"name": "X", "names": ["Y"], "hp": 1, "ac": 10}, "name_and_names"),
+            ({"names": [], "hp": 1, "ac": 10}, "empty_names"),
+            ({"names": ["X", "  "], "hp": 1, "ac": 10}, "blank_name"),
+            ({"names": ["X", "x"], "hp": 1, "ac": 10}, "duplicate_name"),
+        ]
+        for entry, error in cases:
+            r = H.ds.register_combatants([entry])
+            self.assertEqual(r.get("error"), error, str(r))
+
     def test_base_fills_missing_damage(self):
         npc = {"name": "Bandit", "hp": 11, "ac": 12, "initiative_modifier": 1,
                "attacks": [{"name": "Blade", "base": "Scimitar", "attack_bonus": 3}]}

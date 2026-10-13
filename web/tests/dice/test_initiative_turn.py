@@ -100,6 +100,17 @@ class InitiativeTurnTest(H.EngineCase):
         self.assertEqual(H.ds._combat_turn_state(),
                          {"round": 0, "actor": "", "next": "", "skipped": []})
 
+    def test_an_arrival_resyncs_the_cursor(self):
+        self._register()                     # turn order: Goblin 17, Borin 12, Scout 5
+        H.ds._advance_turn("Borin")          # the cursor is on Borin
+        with H.fixed_rolls([20]):
+            H.ds.register_combatants(
+                [{"name": "Late", "hp": 5, "ac": 12, "initiative_modifier": 0}],
+                add_to_existing=True)
+        # Late rolled 20 and now leads the order; the cursor still tracks Borin.
+        self.assertEqual(H.ds._COMBAT_ACTOR, "Borin")
+        self.assertEqual(H.ds._combat_next_actor()[1], "Scout")
+
 
 if __name__ == "__main__":
     unittest.main()

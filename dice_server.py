@@ -4008,6 +4008,13 @@ def _combat_turn_order() -> list[str]:
         key=lambda n: (-_COMBAT_REGISTRY[n].get("initiative_total", 0), n))
 
 
+def _resync_combat_cursor() -> None:
+    """Re-point the cursor at the last actor after the order changed (an arrival inserted)."""
+    global _COMBAT_POS
+    order = _combat_turn_order()
+    _COMBAT_POS = order.index(_COMBAT_ACTOR) if _COMBAT_ACTOR in order else -1
+
+
 def _combat_is_active(entry) -> bool:
     """A combatant still able to take a turn: not killed, not fled or surrendered."""
     if not isinstance(entry, dict):
@@ -4628,7 +4635,7 @@ def _normalize_attacks(value) -> list[dict]:
     return attacks
 
 
-def _normalize_combatant(c, add_to_existing=False) -> dict:
+def _normalize_combatant(c) -> dict:
     """Normalize a declared stat block into a registry entry."""
     max_hp = int(c.get("max_hp", c["hp"]))
     saves = c.get("saves") if isinstance(c.get("saves"), dict) else {}
@@ -4639,7 +4646,7 @@ def _normalize_combatant(c, add_to_existing=False) -> dict:
         "saves": {k: int(v) for k, v in saves.items()
                   if k in ABILITY_KEYS and isinstance(v, (int, float))},
         "challenge_rating": c.get("challenge_rating"),
-        "initiative_modifier": 0 if add_to_existing else int(c.get("initiative_modifier", 0) or 0),
+        "initiative_modifier": int(c.get("initiative_modifier", 0) or 0),
         "initiative_advantage": bool(c.get("initiative_advantage", False)),
         "role": str(c.get("role") or "hostile").strip().lower(),
         "speed": c.get("speed"),
@@ -5069,17 +5076,72 @@ def register_companion(name: str, sheet: dict | None = None, action: str = "decl
         return {"success": False, "error": f"Error declaring the companion: {str(e)}"}
 
 
+def _expand_groups(combatants):
+    """Expand a `names` group into one entry per name, sharing the rest of the block.
+
+    A combatant entry carries either `name` (one creature) or `names` (many identical ones) --
+    never both. Grouping a stat block saves the Game Master from repeating it for every mook. The
+    engine then rolls ONE initiative for the whole group (SRD: identical creatures act together),
+    while each name keeps its own HP and conditions. Returns ``(combatants, group_of, problem)``;
+    `group_of` maps each grouped name to a group id, and `problem` is a refusal or None."""
+    if not isinstance(combatants, list):
+        return combatants, {}, None
+    out: list = []
+    group_of: dict[str, int] = {}
+    next_gid = 0
+    for c in combatants:
+        if not isinstance(c, dict) or "names" not in c:
+            out.append(c)
+            continue
+        if "name" in c:
+            return combatants, {}, {
+                "success": False, "error": "name_and_names",
+                "reason": "An entry has both `name` and `names`; use one or the other.",
+                "narrative_format": "Refused: a combatant cannot carry both `name` and `names`.",
+            }
+        names = c.get("names")
+        if not isinstance(names, list) or not names:
+            return combatants, {}, {
+                "success": False, "error": "empty_names",
+                "reason": "`names` must be a non-empty list of combatant names.",
+                "narrative_format": "Refused: `names` was empty.",
+            }
+        block = {k: v for k, v in c.items() if k != "names"}
+        gid = next_gid
+        next_gid += 1
+        seen: set[str] = set()
+        for raw in names:
+            nm = " ".join(str(raw or "").split())
+            if not nm:
+                return combatants, {}, {
+                    "success": False, "error": "blank_name",
+                    "reason": "`names` contains a blank entry.",
+                    "narrative_format": "Refused: `names` contains a blank entry.",
+                }
+            if nm.lower() in seen:
+                return combatants, {}, {
+                    "success": False, "error": "duplicate_name",
+                    "reason": f"`names` lists '{nm}' more than once.",
+                    "narrative_format": f"Refused: '{nm}' is listed twice in `names`.",
+                }
+            seen.add(nm.lower())
+            group_of[nm] = gid
+            out.append({**block, "name": nm})
+    return out, group_of, None
+
+
 @mcp.tool()
 def register_combatants(combatants: list[dict], add_to_existing: bool = False) -> dict:
     """Register every combatant for a battle and roll initiative; the player is auto-registered.
 
     WHEN: a fight starts -- call this FIRST, before ANY resolve_attack/resolve_magic.
-    FIELDS (combatants: list of dicts; required name, hp, ac):
-    - name; hp; max_hp (defaults to hp); ac; initiative_modifier (DEX mod; required unless add_to_existing); initiative_advantage; challenge_rating (XP); role 'hostile' | 'ally' | 'neutral' (default hostile); speed.
+    FIELDS (combatants: list of dicts; required name (or names), hp, ac):
+    - name; hp; max_hp (defaults to hp); ac; initiative_modifier (DEX mod; default 0); initiative_advantage; challenge_rating (XP); role 'hostile' | 'ally' | 'neutral' (default hostile); speed.
+    - names: a list of names sharing this whole block (identical mooks) -- declare the sheet once instead of repeating it. `name` and `names` are exclusive; the group shares one initiative roll (identical creatures act together), while each name keeps its own HP and conditions.
     - saves {str, dex, con, int, wis, cha}; damage_resistances/damage_immunities/damage_vulnerabilities (list; 'all' allowed); condition_immunities.
     - attacks: list of {name, base?, attack_bonus, damage_dice, damage_modifier?, damage_type?, properties?, reach?, range?} -- resolve_attack(actor, attack) uses these.
     - multiattack (int or str; reported, not enforced); spellcasting {ability, save_dc, attack_modifier}; conditions; exhaustion (0-6); traits (a list of strings, e.g. ["Sneak Attack 2d6."]).
-    - add_to_existing (default False): add arrivals without wiping the registry or re-rolling initiative.
+    - add_to_existing (default False): add arrivals without wiping the registry; each arrival rolls its own initiative and joins the order.
 
     RULES:
     - Declare the FULL stat block -- the engine derives attacks/saves/AC/damage from it and you never repeat those values; estimate only when a creature truly has no block.
@@ -5088,9 +5150,17 @@ def register_combatants(combatants: list[dict], add_to_existing: bool = False) -
     - Declared conditions drive advantage/disadvantage, auto failures and crits automatically.
 
     EX:
-    register_combatants(combatants=[{"name":"Goblin","hp":7,"ac":15,"initiative_modifier":2,"challenge_rating":0.25,"role":"hostile","attacks":[{"name":"Scimitar","attack_bonus":4,"damage_dice":"1d6","damage_modifier":2,"damage_type":"slashing"}]}])
+    register_combatants(combatants=[
+        {"name":"Bahram","hp":9,"ac":12,"initiative_modifier":1,"challenge_rating":0.125,"role":"hostile"},
+        {"names":["Market Warden 1","Market Warden 2"],"hp":11,"ac":13,"initiative_modifier":1,"challenge_rating":0.125,"role":"hostile","attacks":[{"name":"Cudgel","attack_bonus":3,"damage_dice":"1d6","damage_modifier":1,"damage_type":"bludgeoning"}]}])
     """
     global _COMBAT_REGISTRY, DB_CONNECTION
+
+    # A `names` group is one shared stat block for many identical creatures: expand it into one
+    # plain entry per name first, so everything downstream sees single combatants.
+    combatants, group_of, problem = _expand_groups(combatants)
+    if problem is not None:
+        return problem
 
     # A companion is registered by NAME ALONE: the engine fills its declared sheet here, so the
     # Game Master never restates the stat block. An explicit block is left as it is.
@@ -5103,8 +5173,6 @@ def register_combatants(combatants: list[dict], add_to_existing: bool = False) -
         _COMBAT_REGISTRY = {}
         _reset_combat_cursor()
 
-    initiative_results = []
-
     if not add_to_existing and DB_CONNECTION is not None:
         cursor = DB_CONNECTION.cursor()
         player = _player_registry_entry(cursor)
@@ -5113,38 +5181,39 @@ def register_combatants(combatants: list[dict], add_to_existing: bool = False) -
         _COMBAT_REGISTRY[player_name] = player
 
         player_d20, player_rolls, _, _ = _roll_d20(advantage=player.get("initiative_advantage", False))
-        player_init_total = player_d20 + player_init_mod
         _COMBAT_REGISTRY[player_name]["initiative_roll"] = player_d20
-        _COMBAT_REGISTRY[player_name]["initiative_total"] = player_init_total
-        initiative_results.append({
-            "name": player_name,
-            "roll": player_d20,
-            "modifier": player_init_mod,
-            "total": player_init_total,
-            "is_player": True,
-        })
+        _COMBAT_REGISTRY[player_name]["initiative_total"] = player_d20 + player_init_mod
 
+    # One roll per `names` group (SRD: identical creatures act together); a lone entry rolls its
+    # own. Arrivals roll too, so a latecomer joins the order instead of always acting last.
+    group_rolls: dict[int, tuple[int, int, int]] = {}
     for c in combatants:
         name = c["name"]
-        entry = _normalize_combatant(c, add_to_existing=add_to_existing)
+        entry = _normalize_combatant(c)
         init_mod = entry["initiative_modifier"]
         _COMBAT_REGISTRY[name] = entry
-
-        if not add_to_existing:
-            if entry.get("initiative_advantage"):
-                d20 = max(random.randint(1, 20), random.randint(1, 20))
-            else:
-                d20 = random.randint(1, 20)
+        gid = group_of.get(name)
+        if gid is not None and gid in group_rolls:
+            d20, init_mod, init_total = group_rolls[gid]
+        else:
+            d20 = (max(random.randint(1, 20), random.randint(1, 20))
+                   if entry.get("initiative_advantage") else random.randint(1, 20))
             init_total = d20 + init_mod
-            _COMBAT_REGISTRY[name]["initiative_roll"] = d20
-            _COMBAT_REGISTRY[name]["initiative_total"] = init_total
-            initiative_results.append({
-                "name": name,
-                "roll": d20,
-                "modifier": init_mod,
-                "total": init_total,
-                "is_player": False,
-            })
+            if gid is not None:
+                group_rolls[gid] = (d20, init_mod, init_total)
+        entry["initiative_roll"] = d20
+        entry["initiative_total"] = init_total
+
+    # The whole order is rebuilt from the registry, so an arrival re-sorts it for the client.
+    initiative_results = [
+        {"name": n, "roll": e.get("initiative_roll", 0),
+         "modifier": e.get("initiative_modifier", 0), "total": e.get("initiative_total", 0),
+         "is_player": bool(e.get("is_player"))}
+        for n, e in _COMBAT_REGISTRY.items()
+    ]
+    initiative_results.sort(key=lambda r: (-r["total"], r["name"]))
+    order = [r["name"] for r in initiative_results]
+    _resync_combat_cursor()
 
     registry_summary = _registry_summary_list()
     total = len(_COMBAT_REGISTRY)
@@ -5172,19 +5241,11 @@ def register_combatants(combatants: list[dict], add_to_existing: bool = False) -
             })
 
     if add_to_existing:
-        added_names = [c["name"] for c in combatants]
-        return {
-            "success": True,
-            "registry_summary": registry_summary,
-            "combat_turn": _combat_turn_state(),
-            "sheets": sheets,
-            "companions": companion_lines,
-            "narrative_format": (f"Combatants registered ({total} total). "
-                                 f"Added to existing registry: {', '.join(added_names)}"),
-        }
-
-    initiative_results.sort(key=lambda r: (-r["total"], r["name"]))
-    order = [r["name"] for r in initiative_results]
+        added = ", ".join(c["name"] for c in combatants)
+        narrative = (f"Combatants registered ({total} total). "
+                     f"Added to existing registry: {added}")
+    else:
+        narrative = f"Combatants registered ({total} total). Initiative Order"
 
     return {
         "success": True,
@@ -5194,7 +5255,7 @@ def register_combatants(combatants: list[dict], add_to_existing: bool = False) -
         "combat_turn": _combat_turn_state(),
         "sheets": sheets,
         "companions": companion_lines,
-        "narrative_format": f"Combatants registered ({total} total). Initiative Order",
+        "narrative_format": narrative,
     }
 
 

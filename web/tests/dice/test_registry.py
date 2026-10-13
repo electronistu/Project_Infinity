@@ -55,17 +55,22 @@ class RegistryTest(H.EngineCase):
         self.assertTrue(a["target_killed"])
         self.assertEqual(H.ds._registry_hp("Goblin"), 0)
 
-    def test_add_to_existing_preserves_hp_and_skips_initiative(self):
+    def test_add_to_existing_preserves_hp_and_rolls_initiative(self):
         self._register(npcs=OGRE_ONLY, rolls=[10])
         with H.fixed_rolls([15, 7]):
             H.ds.resolve_attack(actor="Borin", attack_modifier=7, target_ac=11,
                                 damage_dice="1d8", damage_modifier=4, target_name="Ogre")
         hp_before = H.ds._registry_hp("Ogre")
         with H.fixed_rolls([1]):
-            r = H.ds.register_combatants([{"name": "Wolf", "hp": 11, "ac": 13}], add_to_existing=True)
+            r = H.ds.register_combatants([{"name": "Wolf", "hp": 11, "ac": 13,
+                                           "initiative_modifier": 2}], add_to_existing=True)
         self.assertTrue(r["success"])
         self.assertEqual(H.ds._registry_hp("Ogre"), hp_before)
         self.assertEqual(H.ds._registry_hp("Wolf"), 11)
+        # The arrival rolls and joins the order (1 + 2 = 3), instead of sitting at 0.
+        self.assertEqual(H.ds._COMBAT_REGISTRY["Wolf"]["initiative_total"], 3)
+        self.assertIn("Wolf", r["initiative_order"])
+        self.assertEqual(r["initiative_order"], ["Borin", "Ogre", "Wolf"])
 
     def test_reregistering_wipes_registry(self):
         self._register()
@@ -106,6 +111,7 @@ class RegistryTest(H.EngineCase):
                          "Combatants registered (3 total). Added to existing registry: Wolf")
         self.assertEqual([s["name"] for s in r["sheets"]], ["Wolf"])   # only the arrival
         self.assertIn("HP 11/11  AC 13", "\n".join(r["sheets"][0]["lines"]))
+        self.assertIn("Wolf", r["initiative_order"])                    # the order is re-sent
 
     def test_attack_narrative_no_longer_restates_hp(self):
         self._register(npcs=OGRE_ONLY, rolls=[10])
