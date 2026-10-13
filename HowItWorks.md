@@ -20,7 +20,7 @@ Under the hood:
 - **Dice & checks** — `perform_check` (`d20 + modifier` vs a DC, natural-20/1 criticals) and `roll_dice` (any notation, e.g. `3d6+2`). Player ability/skill checks are engine-derived (ability + skill proficiency, doubled for Expertise or halved for Jack of All Trades, + item bonuses), and passive Perception/Investigation/Insight (10 + modifier) are exposed on the sheet.
 - **State authority** — `modify_player_numeric` and `update_player_list` own all state; HP clamps to `[0, max]`; dropping to 0 starts death saves (`make_death_save`), massive leftover damage is instant death, and healing any real HP clears the counters.
 - **Exhaustion & concentration** — `modify_exhaustion` tracks the SRD level 0–6 and the engine applies the whole table (checks, speed, attacks/saves, halved HP maximum, death); a long rest removes one level. The engine also tracks the player's concentration spell and rolls the CON save (DC 10 or half the damage) when damage lands, ending the spell on a failure. The sheet's **Condition** card shows the exhaustion level, the active concentration spell and the death-save counters.
-- **Combat authority** — `register_combatants` declares a full stat block once; `resolve_attack` and `resolve_magic` derive AC, saves, damage types and conditions from it; `update_combatant` adjusts the registry mid-fight; `end_combat` closes one the fiction has ended (the engine also ends it on its own once every hostile is killed, fled or surrendered). A declared **companion** is registered by name alone, its sheet filled in by the engine, and its checks and saves are derived from it exactly as the player's are. **The registry is fight state and is emptied the moment a fight ends**, so nothing about a combatant — a companion's hit points above all — can carry into the next one.
+- **Combat authority** — `register_combatants` declares a full stat block once; `resolve_attack` and `resolve_magic` derive AC, saves, damage types and conditions from it; `update_combatant` adjusts the registry mid-fight; `end_combat` closes one the fiction has ended (the engine also ends it on its own once every hostile is killed, fled or surrendered). A declared **companion** is registered by name alone, its sheet filled in by the engine, and its checks and saves are derived from it exactly as the player's are. **The registry is fight state and is emptied the moment a fight ends**, so nothing about a combatant — a companion's hit points above all — can carry into the next one. The client shows a **combat bar** built from that registry — initiative order, HP, conditions, role and status — with an informational turn cursor (the last actor, the **next in line**, the round). The order is **shown, never enforced**: the Game Master decides who acts when.
 - **Phased resolution** — the GM resolves all mechanics first (pausing between the two phases on a system handshake), then narrates, so results are mechanically correct before the story is told.
 
 ---
@@ -78,10 +78,12 @@ The mode is chosen at creation, stored on the save, and hidden from the GM.
 | World | A fixed invented realm — the political scaffold is injected at awakening | A ladder of ages — four historical, plus New York, the Traveller's own — one file each in `config/eras/` |
 | Where you start | The one world | **Rolled** from the playable ages — but never New York, the Traveller's own. Later ages are yours to choose |
 | Reputation | Flat, per kingdom | Per age, then per polity and faction |
-| The Device | Player-controlled | Yours to command from the first turn: choose the age and the place (the age's own destinations, or a place already visited), and when. There is no countdown and no forced jump. Its **four parts** are real inventory items and the key to the future — New York is unreachable until every one is held |
+| The Device | — | Yours to command from the first turn: choose the age and the place (the age's own destinations, or a place already visited), and when. There is no countdown and no forced jump. Its **four parts** are real inventory items and the key to the future — New York is unreachable until every one is held |
 | `lookup` tool | Offered — a tool's on-demand field reference (`ref:TOOL`) | Offered — any era's scaffold and factions, plus the same `ref:TOOL` references |
 
 The mode costs nothing when it is not in play: the protocol is marker-gated and rendered per session, and the era index is its own system message. `lookup` is the one generic read-only tool and is offered in **both** games — in classic its era branches simply have no other era to reach.
+
+**Difficulty is orthogonal to the mode.** **Hard** plays strict SRD as written — a lone hero in a party-of-four world. **Easy** keeps exactly the same resolution and adds the balancing guidance the Game Master reads: encounters, tactics, pacing, DCs, and how failure lands. The rules never change; the world does. Like the mode it is marker-gated in the protocol (`<!-- EASY:ON … -->`), so a Hard save pays nothing for it.
 
 ---
 
@@ -116,6 +118,8 @@ Sheet icons are a **shared, cross-character library**, cached under `assets/{fam
 | World | Two modes: a fixed invented realm (`config/world.yml`) and a ladder of historical eras (`config/eras/`) |
 | Game Master models | Ollama Cloud, Google Gemini *(optional)* |
 | Images *(recommended)* | Google Gemini image models, cached per save (portraits, icons, place seeds) |
+
+*Model choice* belongs to the provider, not the engine — the offered list changes with the providers, so it lives in the app. One caveat is ours to state: **Gemini ignores custom sampling** (`temperature`/`top_p`/`top_k` are deprecated and fixed by the model), so the temperature control applies to the Ollama models only.
 
 ---
 
@@ -175,6 +179,7 @@ The engine owns the **mechanical skeleton**: attack rolls, saves, damage, hit po
 - **Purely narrative spells.** 144 of the 319 resolve as automatic with no roll and no condition or buff — cantrips and utility from Detect Magic to Wish. The engine validates the slot and records the cast; the effect is the fiction.
 - **Timing.** There is no clock: spell durations (1 minute / 1 hour / 24 hours / until dispelled), the expiry of a concentration, and the action to shake or slap a sleeping creature awake are all the GM's to end with `update_combatant` / `update_player_list`.
 - **Action economy and reactions.** Bonus-action casts, reactions (Shield, Counterspell, Hellish Rebuke) and Haste's extra action. The engine resolves the spell, not whether the actor still had the action to spend.
+- **Initiative and turns.** The engine rolls the initiative, sorts the order and tracks an informational cursor — the last actor, the **next in line** and the round — which the client's combat bar shows. It does not enforce the sequence: which combatant acts when (a foe that acts out of turn, a turn the GM lets slide) is the Game Master's call.
 - **Combat and environment.** Cover (+2 / +5), disadvantage for ranged attacks in melee, the once-per-24-hours long rest, item charges and curses, underwater, mounted, surprise and hiding, and grapple/shove contests.
 - **Targeting and interaction.** A charmed or dominated creature's "cannot attack the charmer", illusion disbelief, invisibility against See Invisibility or Truesight, and polymorph or wild-shape stat blocks.
 

@@ -1241,12 +1241,6 @@ class GameSession:
         # The eras the Traveller has stood in, oldest first: "previous" means the one before
         # the current, which the timeline legends cannot give (a return does not rewrite one).
         self.journey: list[str] = []
-        # The pending aimed era for the next jump, or "". Set without firing; consumed and
-        # cleared by the jump.
-        self._steer: str = ""
-        # The pending aimed place for the next jump, or ""; honoured when the landing era
-        # offers it (an authored arrival or a place already visited).
-        self._aim_place: str = ""
         # The GM's memory line for the age it is leaving, captured from `{{_REMEMBERS: ...}}`
         # on the closing turn; `_jump` prefers it over the config template and clears it.
         self._pending_legend: str = ""
@@ -1590,15 +1584,13 @@ class GameSession:
         await self._emit({"type": "cadence", **self._device_state()})
 
     async def _handle_device_command(self, cmd: dict) -> None:
-        """A player-driven Device action: aim the next jump, or release the held one."""
+        """A player-driven Device action: release it now, to a chosen age and place."""
         action = str(cmd.get("action") or "").strip().lower()
         if self.classic or not self.has_device:
             await self._emit({"type": "notice", "title": "The Device",
                               "text": "There is no Device to command."})
             return
-        if action == "aim":
-            await self._device_aim(cmd)
-        elif action == "release":
+        if action == "release":
             await self._device_release(cmd)
         else:
             await self._emit({"type": "error", "message": f"unknown Device action: {action}"})
@@ -1612,8 +1604,8 @@ class GameSession:
         """The future is reachable only while every part of the Device is held."""
         return self.parts_recovered >= device.part_total()
 
-    def _aim_allowed(self, era: str) -> bool:
-        """Whether the Device may name this age.
+    def _era_allowed(self, era: str) -> bool:
+        """Whether the Device may name this age as a destination.
 
         Any other playable age -- ahead or behind; there is no dead end at the last age. The
         future is the one exception: it is unreachable until every part is held.
@@ -1636,25 +1628,8 @@ class GameSession:
         pool |= {p.lower() for p in self._visited_pool(era)}
         return wanted in pool
 
-    async def _device_aim(self, cmd: dict) -> None:
-        """Aim the next jump without firing it: the era, and a place inside it.
-
-        The Device names any other reachable age; the place is one the age offers (its
-        authored arrivals or a place already visited). Firing uses the same aim."""
-        era = str(cmd.get("era") or "").strip().lower()
-        place = self._clean_aim_place(cmd.get("place"))
-        if not self._aim_allowed(era) or (place and not self._place_allowed(era, place)):
-            await self._device_refuse()
-            return
-        self._steer = era
-        self._aim_place = place
-        text = f"The Device is aimed at {device.era_label(era)}"
-        text += f", {place}." if place else "."
-        await self._emit({"type": "notice", "title": "The Device", "text": text})
-        await self._emit({"type": "cadence", **self._device_state()})
-
-    def _clean_aim_place(self, place) -> str:
-        """The aimed place, whitespace-collapsed."""
+    def _clean_place(self, place) -> str:
+        """The chosen place, whitespace-collapsed."""
         return " ".join(str(place or "").split())
 
     async def _device_release(self, cmd: dict) -> None:
@@ -1668,18 +1643,16 @@ class GameSession:
             await self._emit({"type": "notice", "title": "The Device",
                               "text": COMBAT_HOLD_MESSAGE})
             return
-        era = str(cmd.get("era") or self._steer or "").strip().lower()
-        place = self._clean_aim_place(cmd.get("place") or self._aim_place)
-        if not self._aim_allowed(era):
+        era = str(cmd.get("era") or "").strip().lower()
+        place = self._clean_place(cmd.get("place"))
+        if not self._era_allowed(era):
             await self._device_refuse()
             return
         if not place or not self._place_allowed(era, place):
             await self._emit({"type": "notice", "title": "The Device",
                               "text": "Choose a place in that age first."})
             return
-        self._steer = era
-        self._aim_place = place
-        await self._close_and_jump(era)
+        await self._close_and_jump(era, place)
 
     async def _device_refuse(self) -> None:
         await self._emit({"type": "notice", "title": "The Device",
@@ -1891,21 +1864,16 @@ class GameSession:
         """Every playable era but this one that the Device may actually reach.
 
         The future is the one exception: while it is locked (not every part is held) it is not
-        a legal destination anywhere -- not the aim."""
+        a legal destination anywhere."""
         future = self._future_era()
         return [e for e in playable_eras()
                 if e != self.era and not (e == future and not self._future_unlocked())]
 
     def _all_other_eras(self) -> list[str]:
-        """Every playable era but the one the Traveller is standing in (the aim menu).
+        """Every playable era but the one the Traveller is standing in (the destination menu).
 
         Includes the future even while locked, so the panel can show it disabled."""
         return [e for e in playable_eras() if e != self.era]
-
-    def _steered_era(self) -> str:
-        """The pending aimed era, or '' when none is set."""
-        steer = str(self._steer or "").strip().lower()
-        return steer if steer in self._reachable_eras() else ""
 
     def _era_options(self, eras: list[str]) -> list[dict]:
         future = self._future_era()
@@ -1928,8 +1896,6 @@ class GameSession:
             "total": total,
             "present": live,
             "in_combat": self._in_combat,
-            "steer": self._steer,
-            "aim_place": self._aim_place,
             "abilities": abilities,
             "future_era": future,
             "future_name": device.era_label(future) if future else "",
@@ -2005,11 +1971,10 @@ class GameSession:
         return pick_arrival(era, rng=self._rng)
 
     def _chosen_arrival(self, era: str, wanted: str = "") -> str:
-        """The landing: the chosen place when the age offers it, else a draw (dev/edge)."""
-        for candidate in (wanted, self._aim_place):
-            place = " ".join(str(candidate or "").split())
-            if place and self._place_allowed(era, place):
-                return place
+        """The landing: the chosen place when the age offers it, else a draw (edge)."""
+        place = " ".join(str(wanted or "").split())
+        if place and self._place_allowed(era, place):
+            return place
         return self._pick_jump_arrival(era)
 
     def _reload_era_scene_state(self) -> None:
@@ -2228,7 +2193,7 @@ class GameSession:
 
         An automatic jump is warned ahead and the memory line rides its last turn; a jump the
         Traveller triggers has no such turn, so the engine manufactures one. `arrival` is the
-        place the aim named ("" for the usual draw). The STATE ask comes first, because the
+        place the player named ("" for the usual draw). The STATE ask comes first, because the
         memory marker must stay the last thing in the turn.
         """
         ask = (ERA_STATE_ASK.format(era=self.era) + "\n\n"
@@ -2237,9 +2202,9 @@ class GameSession:
         await self._jump(to_era=era, arrival=arrival)
 
     async def _jump(self, to_era: str | None = None, arrival: str = "") -> None:
-        """The Device fires: a new era, an aimed (or rolled) arrival, and the age left behind
+        """The Device fires: a new era, a chosen (or rolled) arrival, and the age left behind
         as one line. Whatever an era sees, it remembers. `to_era` is the destination the player
-        aimed; without it the Device does not aim. `arrival` is a place the aim picked."""
+        chose; `arrival` is the place picked for the landing."""
         old = self.era
         # The memory line is the compaction output, so it has to be known BEFORE the era is
         # thrown away: the GM wrote it on the closing turn, and one quiet round forces a line
@@ -2262,7 +2227,7 @@ class GameSession:
         # Freeze this visit's deaths before the age is thrown away: a return cannot undo them.
         self._freeze_dead()
         chosen = str(to_era or "").strip().lower()
-        target = chosen if chosen in self._reachable_eras() else self._steered_era()
+        target = chosen if chosen in self._reachable_eras() else self.era
         self.era = target or self.era
         self.arrival = self._chosen_arrival(self.era, arrival)
         # The engine DB must agree FIRST: `dump_player_db` scopes reputation by the DB's era, so
@@ -2291,8 +2256,6 @@ class GameSession:
         if not self.classic:
             jump = f"{jump}\n\n{render_era_text(self.era)}"
         await self._run_turn(jump, "jump")
-        self._steer = ""
-        self._aim_place = ""
         await self._emit({"type": "cadence", **self._device_state()})
 
     async def _handle_slash(self, command: str) -> None:

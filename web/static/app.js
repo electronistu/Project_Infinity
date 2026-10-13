@@ -1609,8 +1609,6 @@ function deviceActionRow(dev, ctrl) {
     b.addEventListener("click", onClick);
     return b;
   };
-  const steer = c.steer || "";
-
   // The player names the age and the place; neither control fires.
   let eraSel = null;
   let placeSel = null;
@@ -1625,7 +1623,6 @@ function deviceActionRow(dev, ctrl) {
       o.disabled = !!e.locked;
       eraSel.appendChild(o);
     });
-    if (steer) eraSel.value = steer;
     eraSel.disabled = locked || !options.length;
     wrap.appendChild(eraSel);
     if (ab.place) {
@@ -1639,12 +1636,9 @@ function deviceActionRow(dev, ctrl) {
       wrap.appendChild(placeNote);
       const refill = (selected) =>
         fillDevicePlaces(placeSel, placeNote, c, eraSel.value, selected, locked);
-      refill(c.aim_place);
+      refill("");
       eraSel.addEventListener("change", () => refill(""));
     }
-    wrap.appendChild(btn("aim", () => sendDevice({
-      type: "device", action: "aim", era: eraSel.value,
-      place: (placeSel && !placeSel.disabled) ? placeSel.value : "" }), options.length > 0));
   }
 
   if (c.future_locked && c.future_name) {
@@ -1665,7 +1659,7 @@ function deviceActionRow(dev, ctrl) {
   if (!ab.era && !ab.release && !ab.place) {
     const note = document.createElement("div");
     note.className = "field-note";
-    note.textContent = "The Device obeys no one \u2014 it cannot be steered yet.";
+    note.textContent = "The Device obeys no one \u2014 it cannot be commanded yet.";
     wrap.appendChild(note);
   }
   return wrap;
@@ -1682,7 +1676,7 @@ function buildDeviceCard(dev, ctrl) {
   return card("The Device", kids);
 }
 
-/* Rebuild just the Device card in place (aim/release re-render fast). */
+/* Rebuild just the Device card in place (the release re-renders fast). */
 function renderDeviceCard() {
   const box = $("device-card");
   if (!box || !state.lastStats || !state.lastStats.device) return;
@@ -1752,8 +1746,7 @@ function send(msg) {
   if (state.ws && state.ws.readyState === WebSocket.OPEN) state.ws.send(JSON.stringify(msg));
 }
 
-/* A Device control: a release IS a turn (the era changes), so the sheet must refresh
-   afterwards; aim and steer are only nudges and consume no turn. */
+/* A Device release IS a turn (the era changes), so the sheet must refresh afterwards. */
 function sendDevice(msg) {
   if (!state.connected || !state.ready || state.busy || state.saving) return;
   if (msg && msg.action === "release") state.lastCommandType = "action";

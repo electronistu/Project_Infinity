@@ -140,32 +140,29 @@ def main():
     rec("the panel is refreshed every turn",
         any(e.get("type") == "cadence" for e in _drain(gs)))
 
-    # -- the aim names any historical age, but never the locked future ----------
-    print("\n-- the aim: any age but the future")
-    rec("any other historical age is a legal aim",
-        all(gs._aim_allowed(e) for e in ("tang", "wallachia", "victorian")))
-    rec("the age it stands in is not", gs._aim_allowed(gs.era) is False)
+    # -- the destination names any historical age, but never the locked future --
+    print("\n-- the destination: any age but the future")
+    rec("any other historical age is a legal destination",
+        all(gs._era_allowed(e) for e in ("tang", "wallachia", "victorian")))
+    rec("the age it stands in is not", gs._era_allowed(gs.era) is False)
     rec("the future is locked with fewer than four parts",
-        gs._aim_allowed("future") is False and gs._future_unlocked() is False)
+        gs._era_allowed("future") is False and gs._future_unlocked() is False)
     rec("the future is not a reachable destination yet",
         "future" not in gs._reachable_eras())
     locked_opts = [o for o in gs._era_options(gs._all_other_eras()) if o["id"] == "future"]
     rec("the panel still lists the future, marked locked",
         bool(locked_opts) and locked_opts[0]["locked"] is True, str(locked_opts))
 
-    # -- aiming writes the pending steer; the locked future is refused ----------
-    aim = _session(era="egypt")
-    asyncio.run(aim._device_aim({"era": "tang"}))
-    rec("aiming a historical age sets the pending steer", aim._steer == "tang", aim._steer)
+    # -- the release refuses the locked future -----------------------------------
     refused = _session(era="egypt")
-    asyncio.run(refused._device_aim({"era": "future"}))
-    rec("aiming the locked future is refused", refused._steer == "")
+    asyncio.run(refused._device_release({"era": "future"}))
+    rec("a release to the locked future is refused", refused.era == "egypt")
 
     # -- unlocking: every part opens the future --------------------------------
     print("\n-- four parts open the future")
     opened = _with_parts(_session(era="victorian"), *ALL_PARTS)
     rec("four parts unlock it", opened._future_unlocked() is True)
-    rec("... the future becomes aimable", opened._aim_allowed("future") is True)
+    rec("... the future becomes a legal destination", opened._era_allowed("future") is True)
     rec("... and reachable", "future" in opened._reachable_eras())
     rec("... and the panel no longer locks it",
         [o for o in opened._era_options(opened._all_other_eras())
@@ -200,22 +197,19 @@ def main():
     # -- the release jumps, and the closing turn is manufactured ----------------
     print("\n-- release fires the jump")
     jump = _session(era="egypt")
-    jump._steer = "tang"
-    jump._aim_place = era_arrivals("tang")[0]
-    asyncio.run(jump._device_release({}))
-    rec("the release lands in the aimed age", jump.era == "tang", jump.era)
-    rec("the aim is consumed by the jump", jump._steer == "" and jump._aim_place == "")
+    chosen = era_arrivals("tang")[0]
+    asyncio.run(jump._device_release({"era": "tang", "place": chosen}))
+    rec("the release lands in the chosen age", jump.era == "tang", jump.era)
+    rec("... at the chosen place", jump.arrival == chosen, jump.arrival)
     rec("the engine DB is told the new age",
         any(n == "set_player_field" and a.get("key") == "era" for n, a in jump.session.calls))
 
     # -- both choices are required ----------------------------------------------
     no_place = _session(era="egypt")
-    no_place._steer = "tang"
-    asyncio.run(no_place._device_release({}))
+    asyncio.run(no_place._device_release({"era": "tang"}))
     rec("a release with no place is refused", no_place.era == "egypt")
     no_era = _session(era="egypt")
-    no_era._aim_place = era_arrivals("tang")[0]
-    asyncio.run(no_era._device_release({}))
+    asyncio.run(no_era._device_release({"place": era_arrivals("tang")[0]}))
     rec("a release with no era is refused", no_era.era == "egypt")
 
     # -- the release is refused in combat ---------------------------------------
@@ -226,8 +220,8 @@ def main():
 
     # -- the place control is base ----------------------------------------------
     print("\n-- the place control is base")
-    rec("the aimed place is kept without any part",
-        _session()._clean_aim_place("  the east gate  ") == "the east gate")
+    rec("a chosen place is whitespace-collapsed",
+        _session()._clean_place("  the east gate  ") == "the east gate")
 
     print(f"\n  RESULT: {'PASS' if all(RESULTS) else 'FAIL'} ({sum(RESULTS)}/{len(RESULTS)})")
     return 0 if all(RESULTS) else 1
