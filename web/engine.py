@@ -1016,7 +1016,7 @@ _GM_VIEW_FULL: dict[str, str] = {
 # Always dropped, at ANY depth: the engine's own mechanics disclosure, and the state the GM
 # already holds. Recursive because a tool can embed another tool's result.
 _GM_VIEW_ALWAYS_DROP = ("narrative_format", "equipment", "current_list", "registry_summary",
-                        "sheets", "difficulty", "era", "arrival")
+                        "sheets", "combat_turn", "difficulty", "era", "arrival")
 # `carrying` is reduced to the one-line state that drives disadvantage.
 _GM_VIEW_CARRYING = ("status", "speed_penalty", "carried", "capacity")
 
@@ -1221,6 +1221,8 @@ class GameSession:
         self._combat_sheets: dict[str, list[str]] = {}
         self._combat_order: list[str] = []
         self._combat_initiative: dict[str, dict] = {}
+        self._combat_turn: dict = {}                  # {round, actor, skipped} from the engine
+        self._combat_last_roster: list[dict] = []     # last non-empty roster (for the tally)
         # True while the registry holds a hostile, living, active non-player (derived from
         # every combat tool's `registry_summary`). The Device does not count such turns, and
         # a save is refused while it holds -- an unfinished fight would snapshot transient
@@ -3054,12 +3056,20 @@ class GameSession:
             self._mechanics_lines.extend(mech)
             await self._emit({"type": "mechanics", "lines": list(self._mechanics_lines)})
         if name in COMBAT_TOOLS:
+            was_in_combat = self._in_combat
             roster = self._combat_roster_update(text)
             if roster is not None:
                 await self._emit({"type": "combat_roster", "combatants": roster,
                                   "order": list(self._combat_order),
                                   "initiative": dict(self._combat_initiative),
+                                  "combat_turn": dict(self._combat_turn),
                                   "in_combat": self._in_combat})
+            if was_in_combat and not self._in_combat:
+                line = self._combat_over_line()
+                if line:
+                    self._mechanics_lines.append(line)
+                    await self._emit({"type": "mechanics",
+                                      "lines": list(self._mechanics_lines)})
         if name == SCENE_TOOL and self.scene_images and warning is None and not self._scene_requested_turn:
             self._scene_requested_turn = True
             raw = args.get("place")
@@ -3127,7 +3137,7 @@ class GameSession:
 
         `sheets` (from register_combatants) carries the static stat lines; every combat
         tool's `registry_summary` carries the live HP/AC/conditions. Returns the merged
-        roster to emit, or None when the result carries no roster."""
+        roster (possibly empty, when a fight ends) or None when the result carries none."""
         try:
             payload = json.loads(text)
         except (json.JSONDecodeError, TypeError):
@@ -3142,20 +3152,23 @@ class GameSession:
                     if isinstance(lines, list):
                         self._combat_sheets[str(sheet["name"])] = [str(x) for x in lines]
         summary = payload.get("registry_summary")
-        if isinstance(summary, list):
-            # Main NPCs of the current place: a name at 0 HP is marked dead for this visit.
-            self._track_main_npc_deaths(summary)
-            # One hostile, living, active non-player keeps combat on. Derived here so the save
-            # gate and the Device cadence share the server's truth (`_in_active_combat`).
-            self._in_combat = any(
-                isinstance(e, dict)
-                and not e.get("is_player")
-                and str(e.get("role") or "hostile").strip().lower() == "hostile"
-                and not e.get("killed")
-                and str(e.get("status") or "active").strip().lower() == "active"
-                for e in summary)
-        if not isinstance(summary, list) or not summary:
+        if not isinstance(summary, list):
             return None
+        turn = payload.get("combat_turn")
+        if isinstance(turn, dict):
+            self._combat_turn = turn
+        # Main NPCs of the current place: a name at 0 HP is marked dead for this visit.
+        self._track_main_npc_deaths(summary)
+        # One hostile, living, active non-player keeps combat on. Derived here so the save
+        # gate and the Device cadence share the server's truth (`_in_active_combat`); an
+        # empty summary (end_combat) clears it, so the bar always auto-closes.
+        self._in_combat = any(
+            isinstance(e, dict)
+            and not e.get("is_player")
+            and str(e.get("role") or "hostile").strip().lower() == "hostile"
+            and not e.get("killed")
+            and str(e.get("status") or "active").strip().lower() == "active"
+            for e in summary)
         init = payload.get("initiative")
         if isinstance(init, list) and init:
             self._combat_initiative = {
@@ -3172,7 +3185,33 @@ class GameSession:
             item = dict(entry)
             item["sheet"] = self._combat_sheets.get(str(entry["name"]), [])
             roster.append(item)
+        if roster:
+            self._combat_last_roster = roster
         return roster
+
+    def _combat_over_line(self) -> str:
+        """One mechanics line when a fight ends: the combatants' fates (the panel is gone by
+        then). Read from the last non-empty roster, so `end_combat` (an empty summary) still
+        reports who fell."""
+        dead = fled = surrendered = 0
+        for entry in self._combat_last_roster:
+            if not isinstance(entry, dict) or entry.get("is_player"):
+                continue
+            status = str(entry.get("status") or "").strip().lower()
+            if entry.get("killed"):
+                dead += 1
+            elif status == "fled":
+                fled += 1
+            elif status == "surrendered":
+                surrendered += 1
+        parts = []
+        if dead:
+            parts.append(f"{dead} dead")
+        if fled:
+            parts.append(f"{fled} fled")
+        if surrendered:
+            parts.append(f"{surrendered} surrendered")
+        return "Combat over — " + (", ".join(parts) if parts else "no casualties")
 
     def _remember_companion(self, args: dict) -> None:
         """A companion's look rides the image pipeline exactly like a recurring NPC's.

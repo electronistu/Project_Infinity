@@ -3780,6 +3780,8 @@ def _registry_kill(target_name: str):
 # resolves (a creature whose turn starts is passed over by whoever acts next).
 _COMBAT_POS = -1
 _COMBAT_ROUND = 0
+_COMBAT_ACTOR = ""                 # last actor the engine resolved an action for
+_COMBAT_SKIPPED: list[str] = []    # turns the cursor crossed without acting
 
 
 def _record_saved_target(caster, spell, target):
@@ -3798,9 +3800,11 @@ def _record_saved_target(caster, spell, target):
 
 
 def _reset_combat_cursor():
-    global _COMBAT_POS, _COMBAT_ROUND
+    global _COMBAT_POS, _COMBAT_ROUND, _COMBAT_ACTOR, _COMBAT_SKIPPED
     _COMBAT_POS = -1
     _COMBAT_ROUND = 0
+    _COMBAT_ACTOR = ""
+    _COMBAT_SKIPPED = []
 
 
 def _scale_repeat_dice(base: str, higher_levels: str, levels_above: int) -> str:
@@ -3996,15 +4000,71 @@ def _flush_recurring(names):
     return results, lines
 
 
+def _combat_turn_order() -> list[str]:
+    """The initiative order used to advance turns. Neutrals sit the fight out (auto-skip)."""
+    return sorted(
+        (name for name, entry in _COMBAT_REGISTRY.items()
+         if str((entry or {}).get("role") or "hostile").strip().lower() != "neutral"),
+        key=lambda n: (-_COMBAT_REGISTRY[n].get("initiative_total", 0), n))
+
+
+def _combat_is_active(entry) -> bool:
+    """A combatant still able to take a turn: not killed, not fled or surrendered."""
+    if not isinstance(entry, dict):
+        return False
+    if entry.get("killed"):
+        return False
+    return str(entry.get("status") or "active").strip().lower() == "active"
+
+
+def _combat_next_actor():
+    """The next active combatant after the last actor, best-effort (never enforced).
+
+    Walks forward from the last actor's position in the non-neutral turn order, skipping
+    anyone killed, fled or surrendered. Returns ``(round, name)`` where the round is the
+    UPCOMING turn's round, so it advances by one when the walk wraps past the last position.
+    When nobody has acted yet the first active combatant is next and the round reads 1."""
+    order = _combat_turn_order()
+    if not order:
+        return _COMBAT_ROUND, ""
+    n = len(order)
+    base = (order.index(_COMBAT_ACTOR) + 1) if _COMBAT_ACTOR in order else 0
+    for off in range(n):
+        pos = base + off
+        name = order[pos % n]
+        if _combat_is_active(_COMBAT_REGISTRY.get(name)):
+            return (_COMBAT_ROUND or 1) + (pos // n), name
+    return _COMBAT_ROUND, ""
+
+
+def _combat_turn_state() -> dict:
+    """The turn cursor the client shows: the last actor, the NEXT in line, the round of that
+    upcoming turn, and the turns the cursor crossed without acting (skipped). Informational
+    only -- the engine does not enforce the turn sequence; the Game Master adjudicates timing."""
+    round_, nxt = _combat_next_actor()
+    return {"round": round_, "actor": _COMBAT_ACTOR, "next": nxt,
+            "skipped": list(_COMBAT_SKIPPED)}
+
+
+def _attach_roster(result: dict) -> dict:
+    """Attach the live roster + turn cursor to a combat tool result."""
+    result["registry_summary"] = _registry_summary_list()
+    result["combat_turn"] = _combat_turn_state()
+    return result
+
+
 def _advance_turn(actor):
     """Advance the initiative cursor to `actor` and resolve every turn that started on the
     way. Returns (results, narrative_lines). Turn-advancing calls name an actor; the cursor
-    fires each position it passes, so a combatant whose turn the GM skipped still resolves."""
-    global _COMBAT_POS, _COMBAT_ROUND
+    fires each position it passes, so a combatant whose turn the GM skipped still resolves.
+    Neutrals never take a turn. The cursor is informational -- it does not enforce order."""
+    global _COMBAT_POS, _COMBAT_ROUND, _COMBAT_ACTOR, _COMBAT_SKIPPED
     if not _COMBAT_REGISTRY or not actor:
         return [], []
-    order = sorted(_COMBAT_REGISTRY,
-                   key=lambda n: (-_COMBAT_REGISTRY[n].get("initiative_total", 0), n))
+    entry = _COMBAT_REGISTRY.get(actor)
+    if entry is not None and str(entry.get("role") or "hostile").strip().lower() == "neutral":
+        return [], []
+    order = _combat_turn_order()
     if actor not in order:
         order.append(actor)
     q = order.index(actor)
@@ -4019,6 +4079,8 @@ def _advance_turn(actor):
     else:
         fired = []
     _COMBAT_POS = q
+    _COMBAT_ACTOR = actor
+    _COMBAT_SKIPPED = [n for n in fired if n != actor]
     return _flush_recurring(fired)
 
 
@@ -4713,14 +4775,41 @@ def _combatant_sheet_lines(name, entry) -> list[str]:
     return lines
 
 
+def _player_registry_vitals() -> tuple[int, int, int] | None:
+    """The player's live vitals (current HP, max HP, AC) straight from the DB, or None.
+
+    The registry's player entry is a registration snapshot: damage from an NPC attack,
+    ``modify_player_numeric``, healing, a rest and a changed AC all land in the DB only. The
+    roster summary refreshes from here so the client never shows a stale player."""
+    if DB_CONNECTION is None:
+        return None
+    cursor = DB_CONNECTION.cursor()
+    current = int(_db_val(cursor, "current_hit_points", 0) or 0)
+    total = int(_db_val(cursor, "total_hit_points", 0) or 0)
+    ac = int(_db_val(cursor, "armor_class", 10) or 10)
+    return current, total, ac
+
+
 def _registry_summary_list() -> list[dict]:
-    """The compact roster the engine forwards to the client for the combatant tooltips."""
+    """The compact roster the engine forwards to the client for the combatant tooltips.
+
+    The player's row is refreshed from the DB, since the registry entry only snapshots their
+    vitals at registration."""
+    vitals = _player_registry_vitals()
     out: list[dict] = []
     for rname, entry in _COMBAT_REGISTRY.items():
+        cur_hp, max_hp, ac = entry["current_hp"], entry["max_hp"], entry["ac"]
+        if entry.get("is_player") and vitals is not None:
+            v_cur, v_max, v_ac = vitals
+            if v_max > 0:
+                cur_hp, max_hp = v_cur, v_max
+            if v_ac > 0:
+                ac = v_ac
+            entry["current_hp"], entry["max_hp"], entry["ac"] = cur_hp, max_hp, ac
         summary = {
             "name": rname,
-            "hp": f"{entry['current_hp']}/{entry['max_hp']}",
-            "ac": entry["ac"],
+            "hp": f"{cur_hp}/{max_hp}",
+            "ac": ac,
             "initiative": entry["initiative_total"],
             "is_player": entry.get("is_player", False),
             "role": entry.get("role", "hostile"),
@@ -5087,6 +5176,7 @@ def register_combatants(combatants: list[dict], add_to_existing: bool = False) -
         return {
             "success": True,
             "registry_summary": registry_summary,
+            "combat_turn": _combat_turn_state(),
             "sheets": sheets,
             "companions": companion_lines,
             "narrative_format": (f"Combatants registered ({total} total). "
@@ -5101,6 +5191,7 @@ def register_combatants(combatants: list[dict], add_to_existing: bool = False) -
         "initiative": initiative_results,
         "initiative_order": order,
         "registry_summary": registry_summary,
+        "combat_turn": _combat_turn_state(),
         "sheets": sheets,
         "companions": companion_lines,
         "narrative_format": f"Combatants registered ({total} total). Initiative Order",
@@ -5261,6 +5352,7 @@ def update_combatant(name: str, conditions_add: list[str] | None = None,
         "already_present": already_present,
         "note": " ".join(notes) or None,
         "registry_summary": summary,
+        "combat_turn": _combat_turn_state(),
         "conditions_woke": woke or None,
         "narrative_format": narrative,
     }
@@ -5276,6 +5368,7 @@ def end_combat() -> dict:
     _COMBAT_REGISTRY = {}
     _reset_combat_cursor()
     return {"success": True, "registry_summary": [],
+            "combat_turn": _combat_turn_state(),
             "narrative_format": "The combat is over."}
 
 
@@ -5572,7 +5665,7 @@ def resolve_attack(
                 result["npc_vs_npc"] = True
             _flush_recurring_into(result, narrative_parts)
             result["narrative_format"] = "\n".join(narrative_parts)
-            result["registry_summary"] = _registry_summary_list()
+            _attach_roster(result)
             _finish_combat_if_over()
             return result
 
@@ -5750,7 +5843,7 @@ def resolve_attack(
         _flush_recurring_into(result, narrative_parts)
 
         result["narrative_format"] = "\n".join(narrative_parts)
-        result["registry_summary"] = _registry_summary_list()
+        _attach_roster(result)
         _finish_combat_if_over()
 
         return result
@@ -6175,7 +6268,7 @@ def _finalize_spell_result(result, narrative_parts, sp_duration, sp_buffs, sp_re
 
     _ensure_spell_attribution(result, narrative_parts)
     result["narrative_format"] = "\n".join(narrative_parts)
-    result["registry_summary"] = _registry_summary_list()
+    _attach_roster(result)
     _finish_combat_if_over()
     return result
 

@@ -19,6 +19,8 @@ const state = {
   combatRoster: [], // live combatants (name, hp, ac, conditions, sheet lines) for tooltips
   combatOrder: [],  // authoritative initiative order (names)
   combatInitiative: {}, // name -> {roll, modifier, total}
+  combatTurn: {},   // {round, actor, skipped} — the engine's informational turn cursor
+  combatBarDismissed: false, // the user closed the bar: keep it closed until reopened
   mechanicsLines: [], // engine-composed Mechanics block for the current turn
   worldsMeta: [],  // enriched /api/worlds entries
   activeSaveName: null,
@@ -305,6 +307,138 @@ function appendMechanics(tb) {
   tb.hasNarrative = true;
   tagCombatantNames(panel);
   tagInitiative(panel);
+}
+
+/* ── combat tracker bar ───────────────────────────────────────
+   A transient docked bar over the transcript. It opens when a fight starts (a non-empty
+   roster), the player can close it (stays closed until reopened), and it auto-closes when
+   combat ends. The engine's turn cursor is informational only -- order is enforced by the
+   roll, but the GM adjudicates the turn sequence. */
+
+function combatTitleCase(s) {
+  return String(s || "").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function combatRole(c) {
+  const r = String((c && c.role) || "hostile").toLowerCase();
+  if (r === "ally") return { key: "ally", label: "ally" };
+  if (r === "neutral") return { key: "neutral", label: "neutral" };
+  return { key: "enemy", label: "enemy" };
+}
+
+function combatStatus(c) {
+  if (!c) return { key: "alive", label: "alive" };
+  if (c.is_player && Number(String(c.hp || "0/0").split("/")[0]) <= 0) {
+    return { key: "dying", label: "dying" };
+  }
+  if (c.killed) return { key: "dead", label: "dead" };
+  const s = String(c.status || "active").toLowerCase();
+  if (s === "fled") return { key: "fled", label: "fled" };
+  if (s === "surrendered") return { key: "surrendered", label: "surrendered" };
+  return { key: "alive", label: "alive" };
+}
+
+function combatBarNames() {
+  const roster = state.combatRoster || [];
+  const order = state.combatOrder || [];
+  const byName = {};
+  roster.forEach((c) => { if (c && c.name) byName[c.name] = c; });
+  const names = order.filter((n) => byName[n]);
+  Object.keys(byName).forEach((n) => { if (!names.includes(n)) names.push(n); });
+  return names;
+}
+
+function renderCombatBar() {
+  const bar = $("combat-bar");
+  const rowsEl = $("combat-rows");
+  if (!bar || !rowsEl) return;
+  const roster = state.combatRoster || [];
+  const byName = {};
+  roster.forEach((c) => { if (c && c.name) byName[c.name] = c; });
+  const names = combatBarNames();
+  updateCombatToggle(names.length > 0);
+
+  const visible = names.length > 0 && !state.combatBarDismissed;
+  bar.classList.toggle("hidden", !visible);
+  if (!visible) return;
+
+  const turn = state.combatTurn || {};
+  const skipped = new Set(Array.isArray(turn.skipped) ? turn.skipped : []);
+  $("combat-round").textContent = turn.round ? `Round ${turn.round}` : "";
+
+  rowsEl.innerHTML = "";
+  names.forEach((name, i) => {
+    const c = byName[name] || {};
+    const role = combatRole(c);
+    const status = combatStatus(c);
+    const row = document.createElement("div");
+    row.className = "combat-row" + (status.key === "dead" ? " dead" : "") +
+      (status.key === "fled" || status.key === "surrendered" ? " out" : "") +
+      (turn.next === name ? " next" : "") +
+      (skipped.has(name) || role.key === "neutral" ? " skipped" : "");
+
+    const pos = document.createElement("span");
+    pos.className = "combat-pos";
+    pos.textContent = String(i + 1);
+    row.appendChild(pos);
+
+    const nm = document.createElement("span");
+    nm.className = "combat-name";
+    nm.textContent = name;
+    if (c.is_player) nm.classList.add("player");
+    else nm.setAttribute("data-combatant", name);
+    row.appendChild(nm);
+
+    if (!c.is_player) {
+      const roleEl = document.createElement("span");
+      roleEl.className = "combat-role " + role.key;
+      roleEl.textContent = role.label;
+      row.appendChild(roleEl);
+    }
+
+    const st = document.createElement("span");
+    st.className = "combat-status " + status.key;
+    st.textContent = status.label;
+    row.appendChild(st);
+
+    if (c.hp) {
+      const hp = document.createElement("span");
+      hp.className = "combat-hp";
+      hp.textContent = `HP ${c.hp}`;
+      row.appendChild(hp);
+    }
+
+    if (Array.isArray(c.conditions) && c.conditions.length) {
+      const cond = document.createElement("span");
+      cond.className = "combat-cond";
+      cond.textContent = c.conditions.map(combatTitleCase).join(", ");
+      row.appendChild(cond);
+    }
+
+    if (role.key === "neutral") {
+      const sk = document.createElement("span");
+      sk.className = "combat-skip-mark";
+      sk.textContent = "skip";
+      row.appendChild(sk);
+    }
+
+    rowsEl.appendChild(row);
+  });
+}
+
+function updateCombatToggle(live) {
+  const btn = $("combat-toggle");
+  if (btn) btn.classList.toggle("hidden", !live);
+}
+
+function dismissCombatBar() {
+  state.combatBarDismissed = true;
+  renderCombatBar();
+}
+
+function toggleCombatBar() {
+  state.combatBarDismissed = !state.combatBarDismissed;
+  renderCombatBar();
 }
 
 function updateThinkingLabel() {
@@ -1736,7 +1870,9 @@ function handleEvent(evt) {
       state.combatRoster = Array.isArray(evt.combatants) ? evt.combatants : [];
       if (Array.isArray(evt.order)) state.combatOrder = evt.order.map(String);
       if (evt.initiative && typeof evt.initiative === "object") state.combatInitiative = evt.initiative;
+      if (evt.combat_turn && typeof evt.combat_turn === "object") state.combatTurn = evt.combat_turn;
       if (typeof evt.in_combat === "boolean") { state.inCombat = evt.in_combat; updateComposer(); }
+      renderCombatBar();
       break;
 
     case "mechanics":
@@ -1923,7 +2059,10 @@ async function startSession(save) {
   state.combatRoster = [];     // drop the previous fight's tooltips
   state.combatOrder = [];
   state.combatInitiative = {};
+  state.combatTurn = {};
+  state.combatBarDismissed = false;
   state.mechanicsLines = [];
+  renderCombatBar();
   state.iconGenEpoch += 1;     // cancel any in-flight generation run
   devUi.draft = {}; devUi.raw = {}; devUi.rawFields = {}; devUi.rawPath = [];
   devUi.device = null;
@@ -2473,7 +2612,10 @@ function resetToHome() {
   state.inCombat = false;
   state.combatOrder = [];
   state.combatInitiative = {};
+  state.combatTurn = {};
+  state.combatBarDismissed = false;
   state.mechanicsLines = [];
+  renderCombatBar();
   state.iconGenEpoch += 1;     // cancel any in-flight generation run
   transcript.innerHTML = "";
   statsBox.innerHTML = '<div class="muted">Start a session to load your sheet.</div>';
@@ -3349,6 +3491,8 @@ async function init() {
   });
   $("theme-toggle").addEventListener("click", toggleTheme);
   $("sheet-toggle").addEventListener("click", toggleSheet);
+  $("combat-toggle").addEventListener("click", toggleCombatBar);
+  $("combat-close").addEventListener("click", dismissCombatBar);
   $("dev-open").addEventListener("click", openDev);
   $("dev-close").addEventListener("click", closeDev);
   $("dev-tab-sheet").addEventListener("click", () => switchDevTab("sheet"));

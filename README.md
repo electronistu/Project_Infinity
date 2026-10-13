@@ -2,6 +2,8 @@
 
 *Local web client · Ollama Cloud & Google Gemini models*
 
+![Project Infinity — a Time Traveler session at Chang'an: the combat bar in initiative order, a captioned per-turn illustration, and the engine-written Mechanics panel](screenshot-1.png)
+
 **Images are optional but recommended** — they carry your character's portrait, an illustration of each turn.
 
 ---
@@ -12,13 +14,9 @@ You pick one when you create the character. Everything else — the rules engine
 
 ### Classic — the invented world
 
-![Classic](screenshot-1.png)
-
 An invented realm of four kingdoms, a decade after a war that ended in an uneasy peace: old grievances, guarded borders, and a peace nobody trusts. A straightforward campaign, played straight — the Game Master builds the story on top of the political scaffold.
 
 ### Time Traveler — the Device
-
-![Time Traveler](screenshot-2.png)
 
 You are a Traveler from the future — from New York in 2400 — carrying a **hollow** timepiece missing the four parts that would make it whole. You command it from the first turn: choose the age it reaches, the place, and when to go — but the future you came from is closed to it until every part is found. The way home is to find what it lost.
 
@@ -139,6 +137,7 @@ This works for any missed mechanic: gold, inventory, spell slots, hit dice, cond
 | **↻** | Character sheet | Regenerate the character portrait |
 | **Enter** | Composer | Send your action (**Shift+Enter** for a new line) |
 | **Hover a green combatant name** | Transcript | Show that combatant's **live sheet** — HP, AC, conditions, attacks, saves, traits. Names are highlighted wherever they appear, not just in the initiative order. |
+| **Combat bar** | Transcript | While a fight is live, the combatants in **initiative order** — name (hover for the full sheet), ally/enemy, alive/dead/fled, HP, conditions, the round, and the **next in line** highlighted. **✕** closes it; **combat** reopens it; it closes itself when the fight ends. |
 
 ### Choosing a model
 

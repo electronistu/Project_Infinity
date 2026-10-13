@@ -26,6 +26,7 @@
         <button id="dev-open" class="ghost dev-only hidden" type="button" title="Developer mode">dev</button>
         <button id="load-open" class="ghost" type="button" title="Load game">load</button>
         <button id="end-session" class="ghost danger" type="button" title="End session and return home">end</button>
+        <button id="combat-toggle" class="ghost hidden" type="button" title="Combat tracker">combat</button>
         <button id="theme-toggle" class="icon-btn" type="button" title="Toggle light / dark" aria-label="Toggle light or dark theme">◐</button>
         <button id="sheet-toggle" class="icon-btn sheet-toggle" type="button" title="Character sheet" aria-label="Open character sheet">☰</button>
         <span id="conn" class="conn off">disconnected</span>
@@ -33,7 +34,17 @@
     </header>
 
     <main>
-      <section id="transcript" class="transcript" aria-live="polite"></section>
+      <div class="center-col">
+        <section id="combat-bar" class="combat-bar hidden" aria-label="Combat tracker">
+          <div class="combat-bar-head">
+            <span class="combat-bar-title">Combat</span>
+            <span id="combat-round" class="combat-round"></span>
+            <button id="combat-close" class="combat-close" type="button" aria-label="Close the combat tracker">✕</button>
+          </div>
+          <div id="combat-rows" class="combat-rows"></div>
+        </section>
+        <section id="transcript" class="transcript" aria-live="polite"></section>
+      </div>
       <aside id="sidebar" class="sidebar">
         <div class="sidebar-head">
           <span id="sheet-title">Character</span>

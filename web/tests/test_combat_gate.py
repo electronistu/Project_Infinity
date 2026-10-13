@@ -45,6 +45,14 @@ def _feed(gs, entries):
     return gs._combat_roster_update(json.dumps({"registry_summary": entries}))
 
 
+def _feed_full(gs, entries, turn=None):
+    """`_feed` plus the engine's turn cursor (round/actor/skipped)."""
+    payload = {"registry_summary": entries}
+    if turn is not None:
+        payload["combat_turn"] = turn
+    return gs._combat_roster_update(json.dumps(payload))
+
+
 def _save_attempt(in_combat):
     gs = _session()
     gs._in_combat = in_combat
@@ -127,6 +135,41 @@ def main() -> bool:
         any(e.get("type") == "notice" and e.get("text") == COMBAT_HOLD_MESSAGE
             for e in dev_evts),
         str(dev_evts))
+
+    # -- the combat bar data: hp, conditions, turn cursor -------------------------
+    gs = _session()
+    goblin = {"name": "Goblin", "hp": "3/7", "ac": 15, "is_player": False,
+              "role": "hostile", "killed": False, "status": "active",
+              "conditions": ["prone"]}
+    roster = _feed_full(gs, [goblin], {"round": 2, "actor": "Goblin", "next": "Borin",
+                                      "skipped": ["Scout"]})
+    rec("the roster carries hp + conditions for the bar",
+        bool(roster) and roster[0]["hp"] == "3/7" and roster[0]["conditions"] == ["prone"],
+        str(roster))
+    rec("... and the engine keeps the turn cursor",
+        gs._combat_turn == {"round": 2, "actor": "Goblin", "next": "Borin",
+                            "skipped": ["Scout"]},
+        str(gs._combat_turn))
+
+    # -- an emptied registry still yields a roster, so the bar auto-closes ---------
+    gs = _session()
+    _feed(gs, [_npc("Goblin")])
+    empty = _feed(gs, [])
+    rec("an emptied registry still yields an empty roster so the bar closes",
+        empty == [], str(empty))
+    rec("... and combat is over", gs._in_combat is False)
+
+    # -- the combat-over tally (goes to the mechanics block, not the panel) -------
+    gs = _session()
+    _feed(gs, [_npc("A", killed=True), _npc("B", status="fled"),
+               _npc("C", status="surrendered"), _npc("Hero", is_player=True)])
+    rec("the combat-over line tallies the fates",
+        gs._combat_over_line() == "Combat over — 1 dead, 1 fled, 1 surrendered",
+        gs._combat_over_line())
+    gs = _session()
+    _feed(gs, [_npc("Hero", is_player=True)])
+    rec("the combat-over line reads 'no casualties' when none fell",
+        gs._combat_over_line() == "Combat over — no casualties", gs._combat_over_line())
 
     return all(RESULTS)
 

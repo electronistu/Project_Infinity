@@ -152,6 +152,23 @@ class NpcAttackTest(H.EngineCase):
         self.assertEqual(r["damage_type"], "slashing")
         self.assertEqual(r["multiattack"], 1)
 
+    def test_the_player_row_refreshes_from_the_db(self):
+        # The registry snapshots the player's HP at registration; an NPC's hit lands in the DB.
+        # The roster (and so the combat bar) must read the live value, not the snapshot.
+        with H.fixed_rolls([15, 6, 7]):
+            H.ds.register_combatants([GOBLIN])
+        before = next(e for e in H.ds._registry_summary_list() if e["is_player"])
+        self.assertEqual(before["hp"], "44/44")
+        with H.fixed_rolls([15, 4]):  # 15 + 4 = 19 vs AC 17, hit; 1d6 (4) + 2 = 6 damage
+            r = H.ds.resolve_attack(actor="Goblin", attack="Scimitar", target_name="Borin",
+                                    is_npc_attack=True)
+        self.assertTrue(r["success"], str(r))
+        db_hp = int(H.ds._db_val(H.ds.DB_CONNECTION.cursor(), "current_hit_points", 0))
+        self.assertEqual(db_hp, 38)
+        after = next(e for e in H.ds._registry_summary_list() if e["is_player"])
+        self.assertEqual(after["hp"], f"{db_hp}/44")
+        self.assertNotEqual(after["hp"], before["hp"])
+
     def test_base_fills_missing_damage(self):
         npc = {"name": "Bandit", "hp": 11, "ac": 12, "initiative_modifier": 1,
                "attacks": [{"name": "Blade", "base": "Scimitar", "attack_bonus": 3}]}

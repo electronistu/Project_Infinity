@@ -124,6 +124,10 @@ body {
 /* ── layout ──────────────────────────────────────────────── */
 main { position: relative; flex: 1; display: grid; grid-template-columns: 1fr; min-height: 0; }
 .transcript { width: var(--reading); margin-inline: auto; overflow-y: auto; padding: 18px 14px 28px; display: flex; flex-direction: column; gap: 14px; }
+/* The center column holds the combat bar above the scrolling transcript, so the bar stays
+   put while the narrative scrolls (and survives transcript.innerHTML resets). */
+.center-col { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.center-col .transcript { flex: 1 1 auto; min-height: 0; }
 .sidebar {
   position: fixed; top: 0; right: 0; z-index: 30;
   height: 100vh; height: 100dvh; width: min(370px, 88vw);
@@ -279,6 +283,43 @@ button.wide { width: 100%; margin-top: 10px; }
 .combatant { color: var(--npc); cursor: help; }
 .initiative { color: var(--npc); cursor: help; }
 .tooltip-sheet { font-family: var(--mono); font-size: 11.5px; line-height: 1.5; }
+
+/* ── combat tracker bar ─────────────────────────────────── */
+.combat-bar {
+  width: var(--reading); margin: 12px auto 0;
+  background: var(--surface); border: 1px solid var(--border-soft); border-left: 3px solid var(--accent);
+  border-radius: var(--radius); padding: 8px 10px;
+}
+.combat-bar-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px;
+  font-family: var(--sans); font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.4px; color: var(--muted); }
+.combat-bar-title { color: var(--accent-text); }
+.combat-round { font-family: var(--mono); font-size: 11px; text-transform: none; letter-spacing: 0; color: var(--gold); }
+.combat-close { margin-left: auto; width: 26px; height: 26px; min-width: 26px; padding: 0; display: inline-flex;
+  align-items: center; justify-content: center; background: transparent; color: var(--muted);
+  border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 12px; line-height: 1; cursor: pointer; }
+.combat-close:hover { color: var(--text); border-color: var(--accent); }
+.combat-rows { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+.combat-row { flex: 0 0 auto; display: flex; align-items: center; gap: 6px;
+  background: var(--surface-2); border: 1px solid var(--border-soft); border-radius: var(--radius-sm);
+  padding: 3px 8px; font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+.combat-row.next { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); }
+.combat-row.dead { opacity: 0.55; }
+.combat-row.dead .combat-name { text-decoration: line-through; }
+.combat-row.out, .combat-row.skipped { opacity: 0.7; }
+.combat-pos { color: var(--faint); }
+.combat-name { color: var(--npc); cursor: help; }
+.combat-name.player { color: var(--info); cursor: default; }
+.combat-role { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; padding: 0 5px;
+  border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+.combat-role.enemy { color: var(--danger); border-color: var(--danger); }
+.combat-role.ally { color: var(--ok); border-color: var(--ok); }
+.combat-hp { color: var(--text); }
+.combat-status { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.combat-status.dead, .combat-status.dying { color: var(--danger); }
+.combat-status.fled, .combat-status.surrendered { color: var(--info); }
+.combat-cond { color: var(--muted); }
+.combat-cond::before { content: "·"; margin-right: 5px; color: var(--faint); }
+.combat-skip-mark { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); }
 
 /* ── stats cards ─────────────────────────────────────────── */
 .stats { display: flex; flex-direction: column; gap: 12px; }

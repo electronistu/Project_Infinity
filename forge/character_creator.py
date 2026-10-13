@@ -439,7 +439,7 @@ def create_character(config: Config) -> PlayerCharacter:
         display_fn=lambda m: (
             "Classic — the invented world: the four kingdoms, a straight campaign"
             if m == "classic" else
-            "Time Traveler — the Device throws you between the historical eras"
+            "Time Traveler — aim the Device across the historical eras; the first age is rolled"
         ),
     ) or "classic"
 
