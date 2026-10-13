@@ -286,6 +286,8 @@ button.wide { width: 100%; margin-top: 10px; }
 
 /* ── combat tracker bar ─────────────────────────────────── */
 .combat-bar {
+  --combat-row-h: 28px;
+  --combat-row-gap: 6px;
   width: var(--reading); margin: 12px auto 0;
   background: var(--surface); border: 1px solid var(--border-soft); border-left: 3px solid var(--accent);
   border-radius: var(--radius); padding: 8px 10px;
@@ -298,8 +300,11 @@ button.wide { width: 100%; margin-top: 10px; }
   align-items: center; justify-content: center; background: transparent; color: var(--muted);
   border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 12px; line-height: 1; cursor: pointer; }
 .combat-close:hover { color: var(--text); border-color: var(--accent); }
-.combat-rows { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
-.combat-row { flex: 0 0 auto; display: flex; align-items: center; gap: 6px;
+.combat-rows { display: flex; flex-wrap: wrap; gap: var(--combat-row-gap);
+  max-height: calc(3 * var(--combat-row-h) + 2 * var(--combat-row-gap));
+  overflow-y: auto; align-content: flex-start; }
+.combat-row { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; box-sizing: border-box;
+  min-height: var(--combat-row-h);
   background: var(--surface-2); border: 1px solid var(--border-soft); border-radius: var(--radius-sm);
   padding: 3px 8px; font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; }
 .combat-row.next { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); }
