@@ -171,35 +171,43 @@ def main():
     three = _with_parts(_session(era="victorian"), *ALL_PARTS[:3])
     rec("one part short keeps it locked", three._future_unlocked() is False)
 
-    # -- the place menu: only the places this save has stood in ------------------
-    print("\n-- the place menu: visited only")
+    # -- the place menu: age -> area -> up to 12 places --------------------------
+    print("\n-- the place menu: age, area, then places")
     menu = _session(era="egypt")._place_options()
     rec("the menu is scoped to the reachable eras",
         "egypt" not in menu and "future" not in menu and "tang" in menu, str(sorted(menu)))
-    rec("an era offers no preset arrivals, only a recent list",
-        "arrivals" not in menu["tang"] and isinstance(menu["tang"]["recent"], list),
+    rec("an era offers no preset arrivals -- only areas and their places",
+        "arrivals" not in menu["tang"] and isinstance(menu["tang"]["areas"], list),
         str(menu["tang"]))
     rec("an invented place is never legal",
-        _session(era="egypt")._place_allowed("tang", "nowhere") is False)
+        _session(era="egypt")._place_allowed("tang", "Chang'an", "nowhere") is False)
 
-    fake = [{"place": [f"Place {i}"], "area": "City", "kingdom": "K", "used": i, "era": "tang"}
-            for i in range(20)]
+    fake = ([{"place": [f"West {i}"], "area": "Chang'an", "kingdom": "Tang",
+              "used": 100 + i, "era": "tang"} for i in range(20)]
+            + [{"place": [f"East {i}"], "area": "Luoyang", "kingdom": "Tang",
+                "used": i, "era": "tang"} for i in range(20)])
     orig_known = engine_mod.known_scene_places
     engine_mod.known_scene_places = lambda *a, **k: fake
     try:
         gsv = _session(era="egypt")
         gsv.active_name = "save"
-        pool = gsv._visited_pool("tang", 12)
-        visited_ok = gsv._place_allowed("tang", "Place 19, in City")
-        landing = gsv._landing_place("tang", "Place 19, in City")
+        opts = gsv._place_options()["tang"]["areas"]
+        area_ok = gsv._area_allowed("tang", "Chang'an")
+        visited_ok = gsv._place_allowed("tang", "Chang'an", "West 19")
+        cross = gsv._place_allowed("tang", "Luoyang", "West 19")
+        landing = gsv._landing_place("tang", "Chang'an", "West 19")
     finally:
         engine_mod.known_scene_places = orig_known
-    rec("the recent list is capped at 12", len(pool) == 12, str(len(pool)))
-    rec("... newest first", pool[0] == "Place 19, in City", pool[0])
-    rec("a visited place is a legal landing", visited_ok is True)
+    rec("each area keeps its own capped list (<=12), newest first",
+        [(a["area"], len(a["places"])) for a in opts] == [("Chang'an", 12), ("Luoyang", 12)]
+        and opts[0]["places"][0] == "West 19", str(opts)[:120])
+    rec("a visited area is a legal joint", area_ok is True)
+    rec("a place is legal in its own area", visited_ok is True)
+    rec("... and not in another area", cross is False)
     rec("a picked place resolves to its real address",
-        isinstance(landing, dict) and landing.get("place") == ["Place 19"]
-        and landing.get("area") == "City" and landing.get("kingdom") == "K", str(landing))
+        isinstance(landing, dict) and landing.get("place") == ["West 19"]
+        and landing.get("area") == "Chang'an" and landing.get("kingdom") == "Tang",
+        str(landing))
 
     # -- the release jumps: an age alone, or an age and a visited place ---------
     print("\n-- release fires the jump")
@@ -233,10 +241,10 @@ def main():
          "used": 1, "era": "tang"}]
     try:
         asyncio.run(picked._device_release(
-            {"era": "tang", "place": "the west market, in Chang'an"}))
+            {"era": "tang", "area": "Chang'an", "place": "the west market — the stalls"}))
     finally:
         engine_mod.known_scene_places = orig_known
-    rec("a release to a visited place lands on it",
+    rec("a release to a place lands on it",
         picked.era == "tang" and picked.arrival == "the west market, in Chang'an", picked.arrival)
     rec("... with its real address, so the caption is right at once",
         isinstance(picked._current_place, dict)
@@ -247,12 +255,51 @@ def main():
         f"You arrive at {picked.arrival}." in picked_text
         and "choose where the Traveller lands" not in picked_text)
 
-    # -- an invented place is refused; the age is still required ----------------
+    # -- the area alone: the GM chooses inside it -------------------------------
+    area_only = _session(era="egypt")
+    area_only.active_name = "save"
+    engine_mod.known_scene_places = lambda *a, **k: [
+        {"place": ["the west market", "the stalls"], "area": "Chang'an", "kingdom": "Tang",
+         "used": 1, "era": "tang"}]
+    try:
+        asyncio.run(area_only._device_release({"era": "tang", "area": "Chang'an"}))
+    finally:
+        engine_mod.known_scene_places = orig_known
+    area_text = "".join(str(m.get("content") or "") for m in area_only.messages)
+    rec("a release to an area alone lands in it",
+        area_only.era == "tang" and area_only.arrival == "Chang'an", area_only.arrival)
+    rec("... the caption keeps the area and the GM chooses the spot",
+        isinstance(area_only._current_place, dict)
+        and area_only._current_place.get("area") == "Chang'an"
+        and area_only._current_place.get("place") == []
+        and "You arrive in Chang'an; choose the exact place inside it." in area_text,
+        str(area_only._current_place))
+
+    # -- an invented area or place is refused; the age is still required --------
+    bad_area = _session(era="egypt")
+    bad_area.active_name = "save"
+    engine_mod.known_scene_places = lambda *a, **k: [
+        {"place": ["the west market", "the stalls"], "area": "Chang'an", "kingdom": "Tang",
+         "used": 1, "era": "tang"}]
+    try:
+        asyncio.run(bad_area._device_release({"era": "tang", "area": "Nowhere"}))
+    finally:
+        engine_mod.known_scene_places = orig_known
+    rec("a release to an invented area is refused", bad_area.era == "egypt", bad_area.era)
+
     bad = _session(era="egypt")
-    asyncio.run(bad._device_release({"era": "tang", "place": "nowhere"}))
+    bad.active_name = "save"
+    engine_mod.known_scene_places = lambda *a, **k: [
+        {"place": ["the west market", "the stalls"], "area": "Chang'an", "kingdom": "Tang",
+         "used": 1, "era": "tang"}]
+    try:
+        asyncio.run(bad._device_release(
+            {"era": "tang", "area": "Chang'an", "place": "nowhere"}))
+    finally:
+        engine_mod.known_scene_places = orig_known
     rec("a release to an invented place is refused", bad.era == "egypt", bad.era)
     no_era = _session(era="egypt")
-    asyncio.run(no_era._device_release({"place": "the west market, in Chang'an"}))
+    asyncio.run(no_era._device_release({"area": "Chang'an", "place": "whatever"}))
     rec("a release with no era is refused", no_era.era == "egypt")
 
     # -- the GM's declaration is the arrival ------------------------------------

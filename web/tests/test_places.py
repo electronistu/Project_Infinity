@@ -214,18 +214,19 @@ async def main() -> bool:
         gsj = GameSession(base_dir=Path(td), model="test", scene_images=False)
         gsj.active_name = "save"
         gsj.era = "egypt"  # the era the Traveller stands in is never a destination
-        visited = "Ropehaven Wharf, in Wapping"
-        opts = gsj._place_options().get(ERA, {})
-        rec("the place menu offers only the places already visited",
-            "arrivals" not in opts and visited in (opts.get("recent") or []), str(opts))
-        landing = gsj._landing_place(ERA, visited)
+        label = "Ropehaven Wharf — Warehouse Nine — the counting office"
+        areas = gsj._place_options().get(ERA, {}).get("areas", [])
+        rec("the place menu groups by area, only the places already visited",
+            len(areas) == 1 and areas[0]["area"] == "Wapping"
+            and label in areas[0]["places"], str(areas))
+        landing = gsj._landing_place(ERA, "Wapping", label)
         rec("a chosen visited place resolves to its real address",
             isinstance(landing, dict) and landing.get("place") == PLACE
             and landing.get("area") == "Wapping" and landing.get("kingdom") == "London",
             str(landing))
         rec("an unnamed or unseen place resolves to nothing -- the GM lands you",
-            gsj._landing_place(ERA, "") is None
-            and gsj._landing_place("egypt", visited) is None)
+            gsj._landing_place(ERA, "Wapping", "") is None
+            and gsj._landing_place("egypt", "Wapping", label) is None)
 
         # ── ensure_scene redraws a file-less seed ─────────────────────────────
         scc = SceneService(out)

@@ -1342,9 +1342,10 @@ class GameSession:
     async def submit_save(self) -> None:
         await self._cmd_q.put({"type": "save"})
 
-    async def submit_device(self, action: str, era: str = "", place: str = "") -> None:
+    async def submit_device(self, action: str, era: str = "", area: str = "",
+                            place: str = "") -> None:
         await self._cmd_q.put({"type": "device", "action": action,
-                               "era": era, "place": place})
+                               "era": era, "area": area, "place": place})
 
     async def submit_dev(self, cmd: dict) -> None:
         """A developer-mode command (state edit, Device control, GM-inspector watch).
@@ -1636,37 +1637,56 @@ class GameSession:
             return False
         return True
 
-    def _place_allowed(self, era: str, place: str) -> bool:
-        """Whether an age offers this place: one the save has already visited there."""
-        wanted = " ".join(str(place or "").split()).lower()
-        return bool(wanted) and wanted in {p.lower() for p in self._visited_pool(era)}
-
     def _clean_place(self, place) -> str:
-        """The chosen place, whitespace-collapsed."""
+        """The chosen place or area, whitespace-collapsed."""
         return " ".join(str(place or "").split())
 
-    async def _device_release(self, cmd: dict) -> None:
-        """Fire the Device: jump now, to the chosen age and (optionally) a place you have seen.
+    def _area_allowed(self, era: str, area: str) -> bool:
+        """Whether the save has stood anywhere in this area of `era`."""
+        wanted = " ".join(str(area or "").split()).lower()
+        return bool(wanted) and any(a.lower() == wanted for a, _ in self._visited_by_area(era))
 
-        A deliberate jump is refused in combat. The age must be another reachable one. The place
-        is optional: pick one of the age's visited places, or name none and the GM chooses where
-        the Traveller lands.
+    def _place_allowed(self, era: str, area: str, place: str) -> bool:
+        """Whether an area of `era` holds a visited place with this picker label."""
+        wanted = " ".join(str(place or "").split()).lower()
+        if not wanted:
+            return False
+        area = " ".join(str(area or "").split()).lower()
+        for a, places in self._visited_by_area(era):
+            if area and a.lower() != area:
+                continue
+            if any(self._place_option_label(p.get("place")).lower() == wanted for p in places):
+                return True
+        return False
+
+    async def _device_release(self, cmd: dict) -> None:
+        """Fire the Device: jump now, to the chosen age and (optionally) an area and place.
+
+        A deliberate jump is refused in combat. The age must be another reachable one. The area
+        and the place are both optional: name just the age, or an area you have stood in, or the
+        exact place -- whatever you leave out, the Game Master chooses.
         """
         if self._in_combat:
             await self._emit({"type": "notice", "title": "The Device",
                               "text": COMBAT_HOLD_MESSAGE})
             return
         era = str(cmd.get("era") or "").strip().lower()
+        area = self._clean_place(cmd.get("area"))
         place = self._clean_place(cmd.get("place"))
         if not self._era_allowed(era):
             await self._device_refuse()
             return
-        if place and not self._place_allowed(era, place):
+        if area and not self._area_allowed(era, area):
             await self._emit({"type": "notice", "title": "The Device",
-                              "text": "Choose one of the places you have already visited in "
-                                      "that age, or none and the Game Master chooses."})
+                              "text": "Choose an area you have already stood in, or none and "
+                                      "the Game Master chooses."})
             return
-        await self._close_and_jump(era, place)
+        if place and not self._place_allowed(era, area, place):
+            await self._emit({"type": "notice", "title": "The Device",
+                              "text": "Choose one of the places you have already visited there, "
+                                      "or none and the Game Master chooses."})
+            return
+        await self._close_and_jump(era, area, place)
 
     async def _device_refuse(self) -> None:
         await self._emit({"type": "notice", "title": "The Device",
@@ -1903,6 +1923,7 @@ class GameSession:
         abilities = {
             "release": live,                            # fire the jump now
             "era": live,                                # name any age
+            "area": live,                               # name an area the save has stood in
             "place": live,                              # name an offered place
         }
         return {
@@ -1955,38 +1976,67 @@ class GameSession:
         out = _arrival_candidates(places)
         return out[:limit] if limit else out
 
-    def _place_options(self) -> dict:
-        """{era id: {"recent": [...]}} for every reachable era.
+    def _visited_by_area(self, era: str) -> list[tuple[str, list[dict]]]:
+        """The save's visited places in `era`, grouped by area, newest areas first.
 
-        Only the places the save has already stood in, newest first (the last
-        `PLACE_MENU_RECENT`). An age with none is new to the Traveller -- there is nothing to
-        pick, and the Game Master chooses the landing. The age they stand in is never a
-        destination."""
-        return {era: {"recent": self._visited_pool(era, PLACE_MENU_RECENT)}
-                for era in self._reachable_eras()}
-
-    def _landing_place(self, era: str, phrase: str) -> dict | None:
-        """The visited place the player picked in `era`, or None to let the GM choose.
-
-        `phrase` is one of `_visited_pool`'s labels; it is matched back to the manifest entry it
-        came from, so the landing carries the real address (kingdom / area / path), not a
-        re-invented one."""
-        wanted = " ".join(str(phrase or "").split()).lower()
-        if not wanted:
-            return None
+        Each area keeps at most `PLACE_MENU_RECENT` places (newest first), so a city the
+        Traveller walked all over cannot crowd another out of the picker."""
         try:
             places = known_scene_places(self.base_dir / OUTPUT_DIR, self.active_name or "", era)
-        except Exception:  # noqa: BLE001 - never fail a jump over the landing place
+        except Exception:  # noqa: BLE001 - never fail a jump over the place tree
+            places = []
+        places = sorted(places, key=lambda p: int(p.get("used") or 0), reverse=True)
+        grouped: dict[str, list[dict]] = {}
+        order: list[str] = []
+        for p in places:
+            area = " ".join(str(p.get("area") or "").split())
+            if area not in grouped:
+                grouped[area] = []
+                order.append(area)
+            if len(grouped[area]) < PLACE_MENU_RECENT:
+                grouped[area].append(p)
+        return [(area, grouped[area]) for area in order]
+
+    def _place_option_label(self, place) -> str:
+        """A place's picker label: its full path, joined ('Western Market — the wine-shop')."""
+        path = place if isinstance(place, list) else ([place] if place else [])
+        return " — ".join(str(s).strip() for s in path if str(s or "").strip())
+
+    def _place_options(self) -> dict:
+        """{era id: {"areas": [{"area": name, "places": [labels]}]}} for every reachable era.
+
+        The picker has two joints: an **area** the save has stood in, then up to
+        `PLACE_MENU_RECENT` places inside it (newest first). An age with none is new to the
+        Traveller -- the Game Master chooses the landing. The age they stand in is never a
+        destination."""
+        out: dict = {}
+        for era in self._reachable_eras():
+            areas = [{"area": area,
+                      "places": [self._place_option_label(p.get("place")) for p in places]}
+                     for area, places in self._visited_by_area(era)]
+            out[era] = {"areas": areas}
+        return out
+
+    def _landing_place(self, era: str, area: str, label: str) -> dict | None:
+        """The visited place the player picked in `era`/`area`, or None to let the GM choose.
+
+        `label` is a picker label (a full place path); it is matched back to the manifest entry
+        it came from, so the landing carries the real address (kingdom / area / path)."""
+        wanted = " ".join(str(label or "").split()).lower()
+        if not wanted:
             return None
-        for p in sorted(places, key=lambda p: int(p.get("used") or 0), reverse=True):
-            label = self._arrival_label(p.get("place"), p.get("area"))
-            if label.lower() != wanted:
+        area = " ".join(str(area or "").split()).lower()
+        for a, places in self._visited_by_area(era):
+            if area and a.lower() != area:
                 continue
-            path = [str(s).strip() for s in (p.get("place") or []) if str(s or "").strip()]
-            if not path:
-                continue
-            return {"kingdom": str(p.get("kingdom") or "").strip(),
-                    "area": str(p.get("area") or "").strip(), "place": path}
+            for p in places:
+                if self._place_option_label(p.get("place")).lower() != wanted:
+                    continue
+                path = [str(s).strip() for s in (p.get("place") or []) if str(s or "").strip()]
+                if not path:
+                    continue
+                return {"kingdom": str(p.get("kingdom") or "").strip(),
+                        "area": str(p.get("area") or "").strip(), "place": path}
         return None
 
     def _arrival_label(self, place, area: str) -> str:
@@ -2230,24 +2280,24 @@ class GameSession:
                 return
             await self._run_role(LEGEND_RECOVERY_NUDGE, "legend-fix", quiet=True)
 
-    async def _close_and_jump(self, era: str, arrival: str = "") -> None:
+    async def _close_and_jump(self, era: str, area: str = "", arrival: str = "") -> None:
         """A player-driven jump: one closing turn first, so the GM can say what the age keeps.
 
         An automatic jump is warned ahead and the memory line rides its last turn; a jump the
-        Traveller triggers has no such turn, so the engine manufactures one. `arrival` is the
-        place the player named ("" for the usual draw). The STATE ask comes first, because the
-        memory marker must stay the last thing in the turn.
+        Traveller triggers has no such turn, so the engine manufactures one. `area` and `arrival`
+        are what the player named (both "" when they left it to the GM). The STATE ask comes
+        first, because the memory marker must stay the last thing in the turn.
         """
         ask = (ERA_STATE_ASK.format(era=self.era) + "\n\n"
                + DEVICE_CLOSES.format(name=device.era_label(era)))
         await self._run_turn(ask, "closing")
-        await self._jump(to_era=era, arrival=arrival)
+        await self._jump(to_era=era, area=area, arrival=arrival)
 
-    async def _jump(self, to_era: str | None = None, arrival: str = "") -> None:
+    async def _jump(self, to_era: str | None = None, area: str = "", arrival: str = "") -> None:
         """The Device fires: a new age, and the place the Traveller lands in.
 
-        `to_era` is the destination the player chose; `arrival` is one of that age's visited
-        places, or "" when the age is new to them -- then the GM chooses where they land."""
+        `to_era` is the destination the player chose. `area` is one they have stood in and
+        `arrival` a place inside it -- either may be "", and whatever is left out the GM chooses."""
         old = self.era
         # The memory line is the compaction output, so it has to be known BEFORE the era is
         # thrown away: the GM wrote it on the closing turn, and one quiet round forces a line
@@ -2272,10 +2322,17 @@ class GameSession:
         chosen = str(to_era or "").strip().lower()
         target = chosen if chosen in self._reachable_eras() else self.era
         self.era = target or self.era
-        # The landing: a visited place the player picked, or None -- a new age is the GM's to
-        # choose. The address is resolved from the save's own registry, never re-invented.
-        landing = self._landing_place(self.era, arrival)
-        self.arrival = self._arrival_label(landing.get("place"), landing.get("area")) if landing else ""
+        # The landing: a visited place the player picked (in an area they named), or None -- the
+        # address is resolved from the save's own registry, never re-invented.
+        landing = self._landing_place(self.era, area, arrival)
+        chosen_area = self._clean_place(area)
+        if landing:
+            self.arrival = self._arrival_label(landing.get("place"), landing.get("area"))
+        elif chosen_area:
+            # The area alone: the GM chooses the exact place, but inside the area they named.
+            self.arrival = chosen_area
+        else:
+            self.arrival = ""
         # The engine DB must agree FIRST: `dump_player_db` scopes reputation by the DB's era, so
         # a sheet fetched before this is scoped to the age just left. A save writes these back.
         await self._call_tool_text("set_player_field", {"key": "era", "value": self.era})
@@ -2289,8 +2346,15 @@ class GameSession:
         # true: a buff reverts, a disguise ends, a curse or a geas stays.
         reset = await self._call_tool_text("device_jump_reset", {})
         reset_note = _jump_reset_note(reset)
-        # The landing place when one was picked; else None -- the GM declares it below.
-        self._current_place = ({"era": self.era, **landing} if landing else None)
+        # The landing place when one was picked; an area alone keeps the caption to the area; else
+        # None -- the GM declares the exact place below.
+        if landing:
+            self._current_place = {"era": self.era, **landing}
+        elif chosen_area:
+            self._current_place = {"era": self.era, "kingdom": "", "area": chosen_area,
+                                   "place": []}
+        else:
+            self._current_place = None
         # `_compact` throws the sheet away with the rest, so rebuild it from the live DB first.
         self._sheet_block = await self._fetch_sheet()
         self._compact(old)
@@ -2299,8 +2363,12 @@ class GameSession:
             await self._emit({"type": "notice", "title": "The Age Remembers", "text": memory})
         # The new age's caption now (era only when the GM still has to choose the landing).
         await self._emit_caption()
-        landing_line = (f"You arrive at {self.arrival}." if self.arrival
-                        else "This age is new to you; choose where the Traveller lands.")
+        if landing:
+            landing_line = f"You arrive at {self.arrival}."
+        elif chosen_area:
+            landing_line = f"You arrive in {chosen_area}; choose the exact place inside it."
+        else:
+            landing_line = "This age is new to you; choose where the Traveller lands."
         situation = SITUATION_JUMP.format(new=device.era_label(self.era) or self.era)
         jump = f"{situation}\n\n{DEVICE_FIRES.format(old=old, new=self.era, arrival=landing_line)}"
         if reset_note:

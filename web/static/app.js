@@ -1563,26 +1563,51 @@ function devicePartRow(part) {
   return d;
 }
 
-function fillDevicePlaces(sel, note, ctrl, era, selected, locked) {
-  // One source: the places this save has already stood in there (the last 12, newest first).
-  // A new age has none -- the Game Master chooses where you land. Changing the age re-fills it.
-  const sources = ((ctrl || {}).places || {})[era] || {};
-  const recent = sources.recent || [];
-  sel.innerHTML = "";
-  recent.forEach((p) => {
+function deviceAreas(ctrl, era) {
+  // The areas this save has stood in for that age, newest first: [{area, places: [labels]}].
+  return (((ctrl || {}).places || {})[era] || {}).areas || [];
+}
+
+function fillDeviceArea(areaSel, placeSel, note, ctrl, era, locked, refreshRelease) {
+  // The age's visited areas; a blank choice lets the Game Master pick anywhere in the age.
+  const areas = deviceAreas(ctrl, era);
+  areaSel.innerHTML = "";
+  const any = document.createElement("option");
+  any.value = "";
+  any.textContent = "anywhere in this age \u2014 the Game Master chooses";
+  areaSel.appendChild(any);
+  areas.forEach((a) => {
+    const o = document.createElement("option");
+    o.value = a.area;
+    o.textContent = a.area;
+    areaSel.appendChild(o);
+  });
+  areaSel.disabled = locked || !areas.length;
+  if (note) {
+    note.textContent = areas.length
+      ? "" : "A new age \u2014 the Game Master chooses where you land.";
+    note.hidden = !!areas.length;
+  }
+  fillDevicePlace(areaSel, placeSel, ctrl, era, locked, refreshRelease);
+}
+
+function fillDevicePlace(areaSel, placeSel, ctrl, era, locked, refreshRelease) {
+  // Up to 12 places in the chosen area; a blank choice lets the Game Master pick inside it.
+  const area = deviceAreas(ctrl, era).find((a) => a.area === areaSel.value);
+  const places = (area && area.places) || [];
+  placeSel.innerHTML = "";
+  const any = document.createElement("option");
+  any.value = "";
+  any.textContent = "anywhere in this area \u2014 the Game Master chooses";
+  placeSel.appendChild(any);
+  places.forEach((p) => {
     const o = document.createElement("option");
     o.value = p;
     o.textContent = p;
-    sel.appendChild(o);
+    placeSel.appendChild(o);
   });
-  if (selected && Array.from(sel.options).some((o) => o.value === selected)) sel.value = selected;
-  sel.disabled = locked || !recent.length;
-  if (note) {
-    note.textContent = recent.length
-      ? "" : "A new age \u2014 the Game Master chooses where you land.";
-    note.hidden = !!recent.length;
-  }
-  return recent.length > 0;
+  placeSel.disabled = locked || !places.length;
+  if (refreshRelease) refreshRelease();
 }
 
 function deviceActionRow(dev, ctrl) {
@@ -1600,18 +1625,19 @@ function deviceActionRow(dev, ctrl) {
     b.addEventListener("click", onClick);
     return b;
   };
-  // The player names the age and the place; neither control fires.
+  // The player names the age, the area and the place; none of them fires the Device.
   let eraSel = null;
+  let areaSel = null;
   let placeSel = null;
-  // Re-read the chosen place every time the age changes (or the button would send the
-  // place of the age that was selected when the card was first drawn).
+  // Re-read the chosen controls on every change (or the button would send the values from the
+  // moment the card was first drawn).
   let refreshRelease = () => {};
   if (ab.era) {
     const options = c.era_options || [];
     eraSel = document.createElement("select");
     eraSel.className = "device-era";
     // A blank choice first: an age must be picked on purpose, or the release would fire on the
-    // first age in the list. The place stays optional -- leave it and the GM chooses the landing.
+    // first age in the list. Area and place stay optional -- leave them and the GM chooses.
     const blank = document.createElement("option");
     blank.value = "";
     blank.textContent = "choose an age\u2026";
@@ -1627,29 +1653,37 @@ function deviceActionRow(dev, ctrl) {
     });
     eraSel.disabled = locked || !options.length;
     wrap.appendChild(eraSel);
-    if (ab.place) {
-      // Always present (so changing the age can fill it), disabled with a note when the age
-      // holds no visited place yet.
+    if (ab.area) {
+      // Always present (so changing the age can fill them), disabled with a note when the age
+      // holds no visited area yet.
+      areaSel = document.createElement("select");
+      areaSel.className = "device-area";
+      areaSel.disabled = true;
+      wrap.appendChild(areaSel);
       placeSel = document.createElement("select");
       placeSel.className = "device-place";
       placeSel.disabled = true;
       wrap.appendChild(placeSel);
-      const placeNote = document.createElement("div");
-      placeNote.className = "field-note";
-      wrap.appendChild(placeNote);
-      const refill = () => {
+      const areaNote = document.createElement("div");
+      areaNote.className = "field-note";
+      wrap.appendChild(areaNote);
+      const refillAreas = () => {
         if (!eraSel.value) {
+          areaSel.innerHTML = "";
+          areaSel.disabled = true;
           placeSel.innerHTML = "";
           placeSel.disabled = true;
-          placeNote.textContent = "Choose an age.";
-          placeNote.hidden = false;
-        } else {
-          fillDevicePlaces(placeSel, placeNote, c, eraSel.value, "", locked);
+          areaNote.textContent = "Choose an age.";
+          areaNote.hidden = false;
+          refreshRelease();
+          return;
         }
-        refreshRelease();
+        fillDeviceArea(areaSel, placeSel, areaNote, c, eraSel.value, locked, refreshRelease);
       };
-      refill();
-      eraSel.addEventListener("change", refill);
+      refillAreas();
+      eraSel.addEventListener("change", refillAreas);
+      areaSel.addEventListener("change", () =>
+        fillDevicePlace(areaSel, placeSel, c, eraSel.value, locked, refreshRelease));
     }
   }
 
@@ -1661,15 +1695,17 @@ function deviceActionRow(dev, ctrl) {
   }
 
   if (ab.release) {
+    const currentArea = () => (areaSel && !areaSel.disabled) ? areaSel.value : "";
     const currentPlace = () => (placeSel && !placeSel.disabled) ? placeSel.value : "";
     const releaseBtn = btn("release the Device", () => {
       if (!eraSel || !eraSel.value) return;  // an age must be chosen
       sendDevice({
         type: "device", action: "release",
         era: eraSel.value,
+        area: currentArea(),
         place: currentPlace() });
     }, true);
-    // The place is optional; only the age gates the release.
+    // Area and place are optional; only the age gates the release.
     refreshRelease = () => { releaseBtn.disabled = locked || !eraSel || !eraSel.value; };
     refreshRelease();
     wrap.appendChild(releaseBtn);
