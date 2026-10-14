@@ -3135,13 +3135,6 @@ def rest(rest_type: str, prepared_spells: list[str] | None = None) -> dict:
             sc_raw = json.loads(sc_raw)
         sc = dict(sc_raw) if sc_raw else {}
 
-        buff_data = _db_val(cursor, "_active_buff_data", {})
-        if isinstance(buff_data, str):
-            buff_data = json.loads(buff_data)
-        effects_list = _db_val(cursor, "active_effects", [])
-        if isinstance(effects_list, str):
-            effects_list = json.loads(effects_list)
-
         result = {"success": True, "rest_type": rest_type}
         changes = {}
         hints = []
@@ -3272,22 +3265,15 @@ def rest(rest_type: str, prepared_spells: list[str] | None = None) -> dict:
                 if caster_type == "warlock":
                     changes["slots_restored"] = {"pact_magic": {str(k): v for k, v in slot_table.items()}}
 
-            effects_cleared = []
-            for spell_name in list(buff_data.keys()):
-                entries = buff_data[spell_name]
-                for entry in entries:
-                    if not isinstance(entry, dict):
-                        continue
-                    if entry.get("delta") is not None:
-                        modify_player_numeric(key=entry["field"], delta=-entry["delta"])
-                effects_cleared.append(spell_name)
-            _db_set(cursor, "active_effects", [])
-            _db_set(cursor, "_active_buff_data", {})
-            _db_set(cursor, "concentration", {})
+            # End the running spells but keep the lasting marks (a curse, a geas, a disease).
+            ended = _end_transient_effects(cursor)
             _clear_death_saves(cursor)
             DB_CONNECTION.commit()
+            effects_cleared = ended["effects_cleared"]
             if effects_cleared:
                 changes["effects_cleared"] = effects_cleared
+            if ended["conditions_cleared"]:
+                changes["conditions_cleared"] = ended["conditions_cleared"]
 
             # SRD 5.1: a long rest removes one level of exhaustion.
             if _exhaustion_level(cursor) > 0:
@@ -4268,6 +4254,89 @@ def _conditions_for(cursor, name, is_player=False) -> set:
     if is_player:
         return _player_conditions(cursor)
     return _registry_conditions(name)
+
+
+# A long rest and a Device jump both end the running spells. The lasting marks -- a curse, a
+# geas, a disease -- are the GM's `active_effects` tags: they carry no buff data and no
+# appearance, so their shape alone tells them apart from a running spell. `petrified` and a long
+# `poisoned` are the two SRD conditions a rest does not simply wash away; everything else in
+# `conditions` is a transient spell or combat state.
+_LASTING_CONDITIONS = {"petrified", "poisoned"}
+
+
+def _effect_name(entry) -> str:
+    return str(entry.get("name") if isinstance(entry, dict) else entry or "").strip()
+
+
+def _end_transient_effects(cursor) -> dict:
+    """End the running-spell state on the sheet, keeping the GM's lasting marks.
+
+    Reverts every buff delta and clears `_active_buff_data` and `concentration`; drops the active
+    effects that are running-spell state (they have buff data) or a disguise (they carry an
+    `appearance`); clears the transient conditions, keeping `_LASTING_CONDITIONS`. Returns what
+    changed so the caller can tell the Game Master."""
+    buff_data = _db_val(cursor, "_active_buff_data", {}) or {}
+    if isinstance(buff_data, str):
+        buff_data = json.loads(buff_data)
+    if not isinstance(buff_data, dict):
+        buff_data = {}
+    effects = _db_val(cursor, "active_effects", []) or []
+    if isinstance(effects, str):
+        effects = json.loads(effects)
+
+    running = {str(k).strip().lower() for k in buff_data}
+    cleared_effects: list[str] = []
+    kept_effects: list = []
+    for entry in effects:
+        name = _effect_name(entry)
+        appearance = bool(isinstance(entry, dict) and entry.get("appearance"))
+        if name.lower() in running or appearance:
+            if name:
+                cleared_effects.append(name)
+            continue
+        kept_effects.append(entry)
+
+    # Revert the numeric deltas before dropping the buff data.
+    for _spell, entries in buff_data.items():
+        for entry in entries or []:
+            if isinstance(entry, dict) and entry.get("delta") is not None:
+                modify_player_numeric(key=entry["field"], delta=-entry["delta"])
+
+    conditions = _db_val(cursor, "conditions", []) or []
+    if isinstance(conditions, str):
+        conditions = json.loads(conditions)
+    kept_conditions = [c for c in conditions if str(c).strip().lower() in _LASTING_CONDITIONS]
+    cleared_conditions = [c for c in conditions
+                          if str(c).strip().lower() not in _LASTING_CONDITIONS]
+
+    _db_set(cursor, "active_effects", kept_effects)
+    _db_set(cursor, "_active_buff_data", {})
+    _db_set(cursor, "concentration", {})
+    _db_set(cursor, "conditions", sorted(kept_conditions))
+    DB_CONNECTION.commit()
+    return {
+        "effects_cleared": cleared_effects,
+        "effects_kept": [n for n in (_effect_name(e) for e in kept_effects) if n],
+        "conditions_cleared": cleared_conditions,
+        "conditions_kept": kept_conditions,
+    }
+
+
+@mcp.tool()
+def device_jump_reset() -> dict:
+    """ENGINE-ONLY (never offered to the Game Master): the Device jump's effect reset.
+
+    The Traveller crosses an age and the crossing ends the running spells: every buff is reverted,
+    concentration drops, and the transient conditions clear -- while a curse, a geas or a disease
+    stays. Called by the engine when the Device fires."""
+    global DB_CONNECTION
+    if DB_CONNECTION is None:
+        return {"success": False, "error": "Database not initialized."}
+    try:
+        cursor = DB_CONNECTION.cursor()
+        return {"success": True, **_end_transient_effects(cursor)}
+    except Exception as e:  # noqa: BLE001
+        return {"success": False, "error": f"Error resetting for the jump: {str(e)}"}
 
 
 def _is_player_name(cursor, name) -> bool:

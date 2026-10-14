@@ -11,19 +11,6 @@ meta:
   name: New York
   when: "2400"
   character: New York rebuilt above the drowned grid — the Traveller's home
-  arrivals:
-    - the Horologers' hall
-    - the seawall promenade
-    - a raised street above the old grid
-    - the drowned financial district, seen from the wall
-    - the public library, rebuilt
-    - the harbor market
-    - the Brooklyn anchorage
-    - the roof-gardens of Queens
-    - the old subway, still running
-    - the Hall of Records
-    - the workshop where the Horologe broke
-    - a pier on the East River
   playable: true
   origin: true
 

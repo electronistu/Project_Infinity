@@ -1564,34 +1564,25 @@ function devicePartRow(part) {
 }
 
 function fillDevicePlaces(sel, note, ctrl, era, selected, locked) {
-  // Two sources, in two groups: the age's authored arrivals, then the places this save has
-  // already stood in there (the last 12, newest first). Changing the age re-fills it.
+  // One source: the places this save has already stood in there (the last 12, newest first).
+  // A new age has none -- the Game Master chooses where you land. Changing the age re-fills it.
   const sources = ((ctrl || {}).places || {})[era] || {};
-  const arrivals = sources.arrivals || [];
   const recent = sources.recent || [];
   sel.innerHTML = "";
-  const addGroup = (label, items) => {
-    if (!items.length) return;
-    const group = document.createElement("optgroup");
-    group.label = label;
-    items.forEach((p) => {
-      const o = document.createElement("option");
-      o.value = p;
-      o.textContent = p;
-      group.appendChild(o);
-    });
-    sel.appendChild(group);
-  };
-  addGroup("Arrivals", arrivals);
-  addGroup("Recently visited", recent);
-  const total = arrivals.length + recent.length;
+  recent.forEach((p) => {
+    const o = document.createElement("option");
+    o.value = p;
+    o.textContent = p;
+    sel.appendChild(o);
+  });
   if (selected && Array.from(sel.options).some((o) => o.value === selected)) sel.value = selected;
-  sel.disabled = locked || !total;
+  sel.disabled = locked || !recent.length;
   if (note) {
-    note.textContent = total ? "" : "This age offers no place yet.";
-    note.hidden = !!total;
+    note.textContent = recent.length
+      ? "" : "A new age \u2014 the Game Master chooses where you land.";
+    note.hidden = !!recent.length;
   }
-  return total > 0;
+  return recent.length > 0;
 }
 
 function deviceActionRow(dev, ctrl) {
@@ -1612,10 +1603,21 @@ function deviceActionRow(dev, ctrl) {
   // The player names the age and the place; neither control fires.
   let eraSel = null;
   let placeSel = null;
+  // Re-read the chosen place every time the age changes (or the button would send the
+  // place of the age that was selected when the card was first drawn).
+  let refreshRelease = () => {};
   if (ab.era) {
     const options = c.era_options || [];
     eraSel = document.createElement("select");
     eraSel.className = "device-era";
+    // A blank choice first: an age must be picked on purpose, or the release would fire on the
+    // first age in the list. The place stays optional -- leave it and the GM chooses the landing.
+    const blank = document.createElement("option");
+    blank.value = "";
+    blank.textContent = "choose an age\u2026";
+    blank.disabled = true;
+    blank.selected = true;
+    eraSel.appendChild(blank);
     options.forEach((e) => {
       const o = document.createElement("option");
       o.value = e.id;
@@ -1626,18 +1628,28 @@ function deviceActionRow(dev, ctrl) {
     eraSel.disabled = locked || !options.length;
     wrap.appendChild(eraSel);
     if (ab.place) {
-      // Always present (so changing the age can fill it), disabled with a note when the
-      // chosen age holds no visited place yet.
+      // Always present (so changing the age can fill it), disabled with a note when the age
+      // holds no visited place yet.
       placeSel = document.createElement("select");
       placeSel.className = "device-place";
+      placeSel.disabled = true;
       wrap.appendChild(placeSel);
       const placeNote = document.createElement("div");
       placeNote.className = "field-note";
       wrap.appendChild(placeNote);
-      const refill = (selected) =>
-        fillDevicePlaces(placeSel, placeNote, c, eraSel.value, selected, locked);
-      refill("");
-      eraSel.addEventListener("change", () => refill(""));
+      const refill = () => {
+        if (!eraSel.value) {
+          placeSel.innerHTML = "";
+          placeSel.disabled = true;
+          placeNote.textContent = "Choose an age.";
+          placeNote.hidden = false;
+        } else {
+          fillDevicePlaces(placeSel, placeNote, c, eraSel.value, "", locked);
+        }
+        refreshRelease();
+      };
+      refill();
+      eraSel.addEventListener("change", refill);
     }
   }
 
@@ -1649,11 +1661,18 @@ function deviceActionRow(dev, ctrl) {
   }
 
   if (ab.release) {
-    const chosenPlace = (placeSel && !placeSel.disabled) ? placeSel.value : "";
-    wrap.appendChild(btn("release the Device", () => sendDevice({
-      type: "device", action: "release",
-      era: eraSel ? eraSel.value : "",
-      place: chosenPlace }), !!chosenPlace));
+    const currentPlace = () => (placeSel && !placeSel.disabled) ? placeSel.value : "";
+    const releaseBtn = btn("release the Device", () => {
+      if (!eraSel || !eraSel.value) return;  // an age must be chosen
+      sendDevice({
+        type: "device", action: "release",
+        era: eraSel.value,
+        place: currentPlace() });
+    }, true);
+    // The place is optional; only the age gates the release.
+    refreshRelease = () => { releaseBtn.disabled = locked || !eraSel || !eraSel.value; };
+    refreshRelease();
+    wrap.appendChild(releaseBtn);
   }
 
   if (!ab.era && !ab.release && !ab.place) {

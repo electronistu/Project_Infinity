@@ -318,6 +318,27 @@ async def main() -> bool:
     rec("images on refuses note_place without calling the server",
         gs_on.session.calls == [], str(gs_on.session.calls))
 
+    # The GM's place declaration IS the arrival, whichever tool carries it.
+    gs_pin_off = GameSession(base_dir=REPO, model="test", scene_images=False)
+    gs_pin_off.session = _SpyMCP()
+    gs_pin_off.arrival = ""
+    await gs_pin_off._execute_tool({"function": {"name": "note_place", "arguments": {
+        "kingdom": "Egypt", "area": "Giza", "place": ["The quarry", "the working face"]}}})
+    rec("note_place sets the arrival to the declared place",
+        gs_pin_off.arrival == "The quarry, in Giza", gs_pin_off.arrival)
+    rec("... and tells the player DB", "set_player_field" in gs_pin_off.session.calls,
+        str(gs_pin_off.session.calls))
+
+    gs_pin_on = GameSession(base_dir=REPO, model="test", scene_images=True)
+    gs_pin_on.session = _SpyMCP()
+    gs_pin_on._scene_requested_turn = False
+    gs_pin_on.arrival = ""
+    await gs_pin_on._execute_tool({"function": {"name": "request_scene_image", "arguments": {
+        "description": "a street", "kingdom": "Egypt", "area": "Waset",
+        "place": ["Thebes", "Karnak"], "establishing": "a temple street"}}})
+    rec("request_scene_image sets the arrival to the declared place",
+        gs_pin_on.arrival == "Thebes, in Waset", gs_pin_on.arrival)
+
     gs_eng = GameSession(base_dir=REPO, model="test", scene_images=False)
     gs_eng.session = _SpyMCP()
     await gs_eng._execute_tool({"function": {"name": "set_player_field",

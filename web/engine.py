@@ -47,7 +47,7 @@ from .tool_schema import compact_schema  # noqa: E402
 from forge.world import render_world_text  # noqa: E402
 import device  # noqa: E402  # the Device (Text Time Traveler): vocabulary and control
 from web.eras import (  # noqa: E402
-    START_ERA, era_arrivals, era_ids, origin_eras, pick_arrival, playable_eras,
+    START_ERA, era_ids, origin_eras, playable_eras,
     render_era_index, render_era_text,
 )
 from .ollama_stream import stream_chat  # noqa: E402
@@ -773,39 +773,13 @@ def _arrival_candidates(places) -> list[str]:
     return out
 
 
-def _visited_arrival_candidates(player_path: str, era: str) -> list[str]:
-    """The arrival phrases for the places a save has already seen in an era (disk only)."""
-    try:
-        stem = os.path.splitext(os.path.basename(player_path))[0]
-        output_dir = os.path.dirname(player_path) or "."
-        return _arrival_candidates(known_scene_places(output_dir, stem, era))
-    except Exception:  # noqa: BLE001 - never fail a session over an arrival point
-        return []
-
-
 def _player_arrival(player_path: str, era: str) -> str:
-    """The saved arrival point in `era`, or a fresh one.
-
-    A visited-place arrival is engine-written and is not in the era's static list, so it
-    has to be validated against the places the save has actually seen too -- otherwise a
-    reload would discard it and re-roll a static phrase.
-    """
-    try:
-        from web.eras import era_arrivals, pick_arrival
-
-        options = era_arrivals(era)
-    except Exception:  # noqa: BLE001 - never fail a session over the arrival point
-        options = []
+    """The saved arrival string -- the last place the GM declared -- or '' for a fresh save."""
     try:
         with open(player_path, "r", encoding="utf-8") as f:
-            value = str((json.load(f) or {}).get("arrival", "") or "").strip()
+            return str((json.load(f) or {}).get("arrival", "") or "").strip()
     except (OSError, ValueError, TypeError):
-        value = ""
-    if value and (value in options or value in _visited_arrival_candidates(player_path, era)):
-        return value
-    if options:
-        return pick_arrival(era)
-    return value
+        return ""
 
 
 def _split_journey(value) -> list[str]:
@@ -815,12 +789,32 @@ def _split_journey(value) -> list[str]:
     return [p.strip().lower() for p in str(value or "").split(",") if p.strip()]
 
 
+def _jump_reset_note(raw: str) -> str:
+    """A one-line note on what a Device crossing ended and what it left, from the reset tool."""
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return ""
+    if not isinstance(data, dict):
+        return ""
+    gone = [str(x) for x in list(data.get("effects_cleared") or [])
+            + list(data.get("conditions_cleared") or [])]
+    left = [str(x) for x in list(data.get("effects_kept") or [])
+            + list(data.get("conditions_kept") or [])]
+    bits = []
+    if gone:
+        bits.append("The crossing ends the spells on you: " + ", ".join(gone) + ".")
+    if left:
+        bits.append("What was laid on you remains: " + ", ".join(left) + ".")
+    return " ".join(bits)
+
+
 # Tools the GM never sees: called directly by the session for its own bookkeeping, filtered
 # out of the GM's tool list (and out of the measured prefix -- see tools/token_budget.py).
 # The `debug_*` tools are the developer's levers (dev mode only); the GM is never offered
 # them, and they no-op unless the dice server was started with `--debug`.
 ENGINE_ONLY_TOOLS = ("set_player_field", "dump_player_save_state",
-                     "debug_set_field", "debug_device", "dump_player_db")
+                     "debug_set_field", "debug_device", "dump_player_db", "device_jump_reset")
 
 # The one system message a dev Apply leaves for the GM, so the next turn narrates against
 # the state the developer just set instead of a stale sheet.
@@ -835,7 +829,7 @@ GM_JOURNAL_MAX_BYTES = 20_000_000
 
 # The Device is player-controlled from the first turn: it never fires on its own, so there
 # is no cadence, no countdown and no warning. The four parts are the key to the future age.
-# The place menu offers each era's authored arrivals plus this many recently visited places.
+# The place menu offers each age's last few visited places; there are no preset arrivals.
 PLACE_MENU_RECENT = 12
 
 # The scope of an age's memory. The legend is what the era actually knows -- the Traveller
@@ -899,7 +893,7 @@ STATE_RECOVERY_NUDGE = (
 
 DEVICE_FIRES = (
     "The Device fires. You are thrown out of {old} and into {new}.\n\n"
-    "You arrive at {arrival}.\n\n"
+    "{arrival}\n\n"
     "You still have everything you carried, exactly as it is: nothing is translated, "
     "nothing is left behind. This age has never seen its like, and people will notice.\n\n"
     "Your companions come with you -- the Device carries everyone travelling with you, exactly "
@@ -908,6 +902,25 @@ DEVICE_FIRES = (
     "Narrate the arrival -- the disorientation, what the place smells and sounds like at "
     "this hour, and whether anyone notices a stranger appear."
 )
+
+# Text mode only (no scene call carries the place): a landing must declare its place, reusing the
+# known path when it already exists, so the engine pins the arrival to the place the GM used.
+DEVICE_DECLARES = (
+    "Declare the place you land in once with `note_place` -- if it is already among the KNOWN "
+    "PLACES, reuse its exact `kingdom` / `area` / `place` path -- so the landing is recorded."
+)
+
+# A short, explicit situation line at the top of every model-facing turn, so the GM never has to
+# guess from the timeline whether this is a new game, a resumed session, or a Device jump.
+# Runtime text only -- never always-on.
+SITUATION_NEW = ("SITUATION: SESSION START — a new Traveller; open the story with the opening "
+                 "scene.")
+SITUATION_RESUME = ("SITUATION: SESSION RESUMED — the story continues from the last beat; this is "
+                    "not a new landing and not a new game.")
+SITUATION_JUMP = ("SITUATION: DEVICE JUMP — the Traveller has crossed into {new}; the same story "
+                  "continues. This is not a new game and not a session start.")
+# Labels a jump's era scaffold so it cannot be read as the session's ERA_FILE.
+JUMP_ERA_LABEL = "THE AGE YOU HAVE ENTERED (the era file):"
 
 # The Traveller keeps the whole kit, and it stays LITERAL in every era. No
 # translation, no re-skinning -- a Victorian pistol is a pistol in 2560 BC, and the era
@@ -1307,6 +1320,10 @@ class GameSession:
         # The places/NPC registry is memory-only for a session: start it from the last Save,
         # never from a working copy a previous unsaved session left behind.
         discard_scene_manifest(os.path.dirname(self.player_path), self.active_name)
+        # A resumed save already has its place declared (the manifest's `current`): connect the
+        # arrival string to it now. A new character has no declared place, so the GM declares the
+        # opening one.
+        self._connect_arrival_to_declared_place()
         self._task = asyncio.create_task(self._run())
 
     async def events(self):
@@ -1620,24 +1637,20 @@ class GameSession:
         return True
 
     def _place_allowed(self, era: str, place: str) -> bool:
-        """Whether an age offers this place: one of its authored arrivals, or one visited."""
+        """Whether an age offers this place: one the save has already visited there."""
         wanted = " ".join(str(place or "").split()).lower()
-        if not wanted:
-            return False
-        pool = {p.lower() for p in era_arrivals(era)}
-        pool |= {p.lower() for p in self._visited_pool(era)}
-        return wanted in pool
+        return bool(wanted) and wanted in {p.lower() for p in self._visited_pool(era)}
 
     def _clean_place(self, place) -> str:
         """The chosen place, whitespace-collapsed."""
         return " ".join(str(place or "").split())
 
     async def _device_release(self, cmd: dict) -> None:
-        """Fire the Device: jump now, to the chosen age and place.
+        """Fire the Device: jump now, to the chosen age and (optionally) a place you have seen.
 
-        A deliberate jump is refused in combat. Both must be chosen: the age any other
-        reachable one, the place one the age offers (its authored arrivals or a place already
-        visited). Nothing is left to chance.
+        A deliberate jump is refused in combat. The age must be another reachable one. The place
+        is optional: pick one of the age's visited places, or name none and the GM chooses where
+        the Traveller lands.
         """
         if self._in_combat:
             await self._emit({"type": "notice", "title": "The Device",
@@ -1648,9 +1661,10 @@ class GameSession:
         if not self._era_allowed(era):
             await self._device_refuse()
             return
-        if not place or not self._place_allowed(era, place):
+        if place and not self._place_allowed(era, place):
             await self._emit({"type": "notice", "title": "The Device",
-                              "text": "Choose a place in that age first."})
+                              "text": "Choose one of the places you have already visited in "
+                                      "that age, or none and the Game Master chooses."})
             return
         await self._close_and_jump(era, place)
 
@@ -1942,40 +1956,69 @@ class GameSession:
         return out[:limit] if limit else out
 
     def _place_options(self) -> dict:
-        """{era id: {"arrivals": [...], "recent": [...]}} for every reachable era.
+        """{era id: {"recent": [...]}} for every reachable era.
 
-        The authored arrivals are always offered (from the start); `recent` is the last
-        `PLACE_MENU_RECENT` places visited in that era, newest first. The age the Traveller
-        stands in is never a destination."""
-        return {era: {"arrivals": era_arrivals(era),
-                      "recent": self._visited_pool(era, PLACE_MENU_RECENT)}
+        Only the places the save has already stood in, newest first (the last
+        `PLACE_MENU_RECENT`). An age with none is new to the Traveller -- there is nothing to
+        pick, and the Game Master chooses the landing. The age they stand in is never a
+        destination."""
+        return {era: {"recent": self._visited_pool(era, PLACE_MENU_RECENT)}
                 for era in self._reachable_eras()}
 
-    def _pick_jump_arrival(self, era: str) -> str:
-        """Where a jump lands: a visited place or one of the era's authored destinations.
+    def _landing_place(self, era: str, phrase: str) -> dict | None:
+        """The visited place the player picked in `era`, or None to let the GM choose.
 
-        The pool is the deduped union of the places this save has visited and the era's
-        authored destinations (cities, landmarks, regions), drawn uniformly -- a visited
-        place is one entry like any other, with no preference for recency or repeat visits.
-        The list never enters the prompt, so a larger pool costs nothing.
-        """
-        candidates: list[str] = []
-        seen: set[str] = set()
-        for phrase in self._visited_pool(era) + era_arrivals(era):
-            key = phrase.lower()
-            if key and key not in seen:
-                seen.add(key)
-                candidates.append(phrase)
-        if candidates:
-            return self._rng.choice(candidates)
-        return pick_arrival(era, rng=self._rng)
+        `phrase` is one of `_visited_pool`'s labels; it is matched back to the manifest entry it
+        came from, so the landing carries the real address (kingdom / area / path), not a
+        re-invented one."""
+        wanted = " ".join(str(phrase or "").split()).lower()
+        if not wanted:
+            return None
+        try:
+            places = known_scene_places(self.base_dir / OUTPUT_DIR, self.active_name or "", era)
+        except Exception:  # noqa: BLE001 - never fail a jump over the landing place
+            return None
+        for p in sorted(places, key=lambda p: int(p.get("used") or 0), reverse=True):
+            label = self._arrival_label(p.get("place"), p.get("area"))
+            if label.lower() != wanted:
+                continue
+            path = [str(s).strip() for s in (p.get("place") or []) if str(s or "").strip()]
+            if not path:
+                continue
+            return {"kingdom": str(p.get("kingdom") or "").strip(),
+                    "area": str(p.get("area") or "").strip(), "place": path}
+        return None
 
-    def _chosen_arrival(self, era: str, wanted: str = "") -> str:
-        """The landing: the chosen place when the age offers it, else a draw (edge)."""
-        place = " ".join(str(wanted or "").split())
-        if place and self._place_allowed(era, place):
-            return place
-        return self._pick_jump_arrival(era)
+    def _arrival_label(self, place, area: str) -> str:
+        """A declared place as an arrival phrase: its first path segment, in its settlement.
+
+        Deliberately the same shape `_arrival_candidates` derives for the visited pool, so
+        a re-pinned arrival round-trips back through `_player_arrival` on the next load."""
+        path = place if isinstance(place, list) else ([place] if place else [])
+        labels = _arrival_candidates([{"place": path, "area": area}])
+        return labels[0] if labels else ""
+
+    def _connect_arrival_to_declared_place(self) -> bool:
+        """A resumed save already has a place declared: make the arrival string be it.
+
+        The arrival is the label of the place the GM declared for the age, and the same phrase
+        the visited pool lists. Returns whether a place was connected."""
+        if self.classic:
+            return False
+        try:
+            current = current_scene_place(self.base_dir / OUTPUT_DIR, self.active_name or "")
+        except Exception:  # noqa: BLE001 - never fail a session over the arrival point
+            return False
+        if not isinstance(current, dict):
+            return False
+        cur_era = str(current.get("era") or "").strip().lower()
+        if cur_era and cur_era != str(self.era or "").strip().lower():
+            return False
+        label = self._arrival_label(current.get("place"), current.get("area"))
+        if not label:
+            return False
+        self.arrival = label
+        return True
 
     def _reload_era_scene_state(self) -> None:
         """Re-read the places, cast and roles for the era the Traveller is now in."""
@@ -2115,15 +2158,14 @@ class GameSession:
                 else KNOWN_PLACES_HEADER_TEXT + "\n" + format_known_places(primed))
 
     def _era_opening(self, resumed: bool = False) -> str:
-        """The lines the GM is handed with an era: where the Traveller is in it, and that
-        the kit is their own -- literal in every age. Written once, never always-on: it rides
-        the ERA_FILE at session start and the jump message after that. A RESUMED session must
-        not read as a new landing, or the GM skips the session-start sheet."""
-        parts = []
+        """The lines the GM is handed with an era: which situation this is, where the Traveller
+        is in it, and that the kit is their own -- literal in every age. Written once, never
+        always-on: it rides the ERA_FILE at session start and the jump message after that."""
+        parts = [SITUATION_RESUME if resumed else SITUATION_NEW]
         if resumed:
             at = f" You are already at {self.arrival}." if self.arrival else ""
-            parts.append("SESSION RESUMED — the story continues from where it left off; this "
-                         "is not a new landing and you do not open a new scene." + at)
+            parts.append("The story continues from where it left off; you do not open a new "
+                         "scene." + at)
         elif self.arrival:
             parts.append(f"You arrive at {self.arrival}.")
         parts.append(CARRY_NOTE)
@@ -2202,9 +2244,10 @@ class GameSession:
         await self._jump(to_era=era, arrival=arrival)
 
     async def _jump(self, to_era: str | None = None, arrival: str = "") -> None:
-        """The Device fires: a new era, a chosen (or rolled) arrival, and the age left behind
-        as one line. Whatever an era sees, it remembers. `to_era` is the destination the player
-        chose; `arrival` is the place picked for the landing."""
+        """The Device fires: a new age, and the place the Traveller lands in.
+
+        `to_era` is the destination the player chose; `arrival` is one of that age's visited
+        places, or "" when the age is new to them -- then the GM chooses where they land."""
         old = self.era
         # The memory line is the compaction output, so it has to be known BEFORE the era is
         # thrown away: the GM wrote it on the closing turn, and one quiet round forces a line
@@ -2229,7 +2272,10 @@ class GameSession:
         chosen = str(to_era or "").strip().lower()
         target = chosen if chosen in self._reachable_eras() else self.era
         self.era = target or self.era
-        self.arrival = self._chosen_arrival(self.era, arrival)
+        # The landing: a visited place the player picked, or None -- a new age is the GM's to
+        # choose. The address is resolved from the save's own registry, never re-invented.
+        landing = self._landing_place(self.era, arrival)
+        self.arrival = self._arrival_label(landing.get("place"), landing.get("area")) if landing else ""
         # The engine DB must agree FIRST: `dump_player_db` scopes reputation by the DB's era, so
         # a sheet fetched before this is scoped to the age just left. A save writes these back.
         await self._call_tool_text("set_player_field", {"key": "era", "value": self.era})
@@ -2239,22 +2285,36 @@ class GameSession:
         await self._call_tool_text("set_player_field", {"key": "journey",
                                                          "value": ",".join(self.journey)})
         self._reload_era_scene_state()
-        self._current_place = None  # a new age, a new place: the caption resets below
+        # The crossing ends the running spells before the sheet is rebuilt, so what the GM reads is
+        # true: a buff reverts, a disguise ends, a curse or a geas stays.
+        reset = await self._call_tool_text("device_jump_reset", {})
+        reset_note = _jump_reset_note(reset)
+        # The landing place when one was picked; else None -- the GM declares it below.
+        self._current_place = ({"era": self.era, **landing} if landing else None)
         # `_compact` throws the sheet away with the rest, so rebuild it from the live DB first.
         self._sheet_block = await self._fetch_sheet()
         self._compact(old)
         self._era_started_turn = self.turn_counter
         if memory:
             await self._emit({"type": "notice", "title": "The Age Remembers", "text": memory})
-        # The new age's caption now (era only -- the arrival place is not declared yet).
+        # The new age's caption now (era only when the GM still has to choose the landing).
         await self._emit_caption()
-        jump = DEVICE_FIRES.format(old=old, new=self.era, arrival=self.arrival or "somewhere")
-        # Hand the new age's scaffold WITH the jump, as the awakening does. Asking the GM to
-        # `lookup` it first mixed a tool call with narration (the protocol forbids that), and a
-        # model resolved the conflict with a holding line -- "I'll consult the era first." --
-        # which stalled the turn with no narration.
+        landing_line = (f"You arrive at {self.arrival}." if self.arrival
+                        else "This age is new to you; choose where the Traveller lands.")
+        situation = SITUATION_JUMP.format(new=device.era_label(self.era) or self.era)
+        jump = f"{situation}\n\n{DEVICE_FIRES.format(old=old, new=self.era, arrival=landing_line)}"
+        if reset_note:
+            jump = f"{jump}\n\n{reset_note}"
+        if not landing and not self.classic and not self.scene_images:
+            # Text mode has no scene call to carry the place, so the landing itself must declare it
+            # (reusing the known path) -- that declaration is what pins the arrival.
+            jump = f"{jump}\n\n{DEVICE_DECLARES}"
+        # Hand the new age's scaffold WITH the jump, as the awakening does -- but labelled, so it
+        # cannot be mistaken for the session's ERA_FILE. Asking the GM to `lookup` it first mixed a
+        # tool call with narration (the protocol forbids that), and a model resolved the conflict
+        # with a holding line -- "I'll consult the era first." -- which stalled the turn.
         if not self.classic:
-            jump = f"{jump}\n\n{render_era_text(self.era)}"
+            jump = f"{jump}\n\n{JUMP_ERA_LABEL}\n{render_era_text(self.era)}"
         await self._run_turn(jump, "jump")
         await self._emit({"type": "cadence", **self._device_state()})
 
@@ -3043,6 +3103,8 @@ class GameSession:
                 self._scene_places[_scene_key(place)] = (kingdom, area)
             elif not kingdom and not area:
                 kingdom, area = self._scene_places.get(_scene_key(place), ("", ""))
+            # The GM's scene call is the images-on place declaration: the arrival follows it.
+            await self._pin_arrival(place, area)
             # Declarations flow to the server with the image call (the single writer).
             npcs, self._pending_npcs = self._pending_npcs, []
             main_npcs = args.get("main_npcs") if isinstance(args.get("main_npcs"), list) else []
@@ -3066,6 +3128,8 @@ class GameSession:
 
         if name == PLACE_TOOL and not is_error:
             await self._emit_place_note(args)
+            # The GM's note_place is the images-off place declaration: the arrival follows it.
+            await self._pin_arrival(args.get("place"), args.get("area"))
             # The place moved: refresh the scene caption.
             await self._emit_caption()
 
@@ -3285,6 +3349,20 @@ class GameSession:
                                                if n in declared}
         # The scene caption's place is the one just declared.
         self._current_place = {"era": era, "kingdom": kingdom, "area": area, "place": place}
+
+    async def _pin_arrival(self, place, area) -> None:
+        """Where the GM declares the Traveller is, that is the arrival string.
+
+        There are no preset arrivals: the GM chooses the place, and this keeps the arrival's one
+        string in step with it (persisted, so a reload can say "you are already at ..." before the
+        save's place registry is even read)."""
+        if self.classic:
+            return
+        label = self._arrival_label(place, area)
+        if not label:
+            return
+        self.arrival = label
+        await self._call_tool_text("set_player_field", {"key": "arrival", "value": label})
 
     async def _emit_place_note(self, args: dict) -> None:
         """Tell the server to persist the place (the manifest's single writer)."""

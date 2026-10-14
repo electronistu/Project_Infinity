@@ -170,11 +170,10 @@ def main() -> bool:
         else:
             rec("a time traveler is written with mode time_traveler",
                 data.get("mode") == "time_traveler")
-            from web.eras import era_arrivals, playable_eras
+            from web.eras import playable_eras
 
-            rec("... starting in a rolled playable era, at a rolled arrival",
-                data.get("era") in playable_eras()
-                and data.get("arrival") in era_arrivals(data.get("era") or ""),
+            rec("... starting in a rolled playable era, with no preset arrival",
+                data.get("era") in playable_eras() and not data.get("arrival"),
                 f"{data.get('era')} / {data.get('arrival')!r}")
             rec("... with that era's own reputation seed, and no other era's",
                 list(data.get("reputation") or {}) == [data.get("era")])

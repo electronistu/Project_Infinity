@@ -54,7 +54,7 @@ Open **http://127.0.0.1:8000**. The server binds to localhost only. Flags: `--ho
 
 **Create character** on the start screen opens the in-browser **Character Forge**: the full SRD 5.1 creation flow, asked one step at a time.
 
-Your character is written to `output/yourcharacter.player`. **In Time Traveler, the Forge rolls your first age** and the arrival point inside it — you have not aimed the Device yet — and seeds your standing in that age's own powers.
+Your character is written to `output/yourcharacter.player`. **In Time Traveler, the Forge rolls your first age** — you have not aimed the Device yet, and the Game Master chooses where in it you land — and seeds your standing in that age's own powers.
 
 ---
 

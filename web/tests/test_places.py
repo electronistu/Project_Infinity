@@ -1,4 +1,4 @@
-"""Text-only place memory: `note_place`, the file-less registry, priming and arrivals.
+"""Text-only place memory: `note_place`, the file-less registry and priming.
 
 No network. Run from the repo root:
     venv\\Scripts\\python.exe web\\tests\\test_places.py
@@ -6,7 +6,6 @@ No network. Run from the repo root:
 
 import asyncio
 import json
-import random
 import sys
 import tempfile
 from pathlib import Path
@@ -22,7 +21,6 @@ from web.images import (  # noqa: E402
     SceneService, known_scene_places, known_npc_names, live_scene_manifest,
     commit_scene_manifest, discard_scene_manifest, current_scene_place,
 )
-from web.eras import era_arrivals  # noqa: E402
 
 RESULTS = []
 
@@ -212,17 +210,22 @@ async def main() -> bool:
             any(p["place"] == ["Ropehaven Wharf", "The Drowned Lantern"]
                 for p in gsc._primed), str(gsc._primed))
 
-        # ── jump arrivals: one uniform pool (visited + authored) ──────────────
+        # ── the place menu: visited only, resolved to the real address ────────
         gsj = GameSession(base_dir=Path(td), model="test", scene_images=False)
         gsj.active_name = "save"
-        gsj.era = ERA
-        gsj._rng = random.Random(0)
+        gsj.era = "egypt"  # the era the Traveller stands in is never a destination
         visited = "Ropehaven Wharf, in Wapping"
-        authored = set(era_arrivals(ERA))
-        picks = {gsj._pick_jump_arrival(ERA) for _ in range(400)}
-        rec("a jump can land in a text-only visited place", visited in picks, str(sorted(picks)))
-        rec("a jump still draws the era's authored arrivals",
-            bool(picks & authored), str(sorted(picks)))
+        opts = gsj._place_options().get(ERA, {})
+        rec("the place menu offers only the places already visited",
+            "arrivals" not in opts and visited in (opts.get("recent") or []), str(opts))
+        landing = gsj._landing_place(ERA, visited)
+        rec("a chosen visited place resolves to its real address",
+            isinstance(landing, dict) and landing.get("place") == PLACE
+            and landing.get("area") == "Wapping" and landing.get("kingdom") == "London",
+            str(landing))
+        rec("an unnamed or unseen place resolves to nothing -- the GM lands you",
+            gsj._landing_place(ERA, "") is None
+            and gsj._landing_place("egypt", visited) is None)
 
         # ── ensure_scene redraws a file-less seed ─────────────────────────────
         scc = SceneService(out)

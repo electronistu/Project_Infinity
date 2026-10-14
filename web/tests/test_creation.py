@@ -284,11 +284,11 @@ def main() -> int:
         tp = OUTPUT / terminal_t["player"]
         created += [tp]
         tdata = json.loads(tp.read_text(encoding="utf-8"))
-        from web.eras import era_arrivals, playable_eras
+        from web.eras import playable_eras
 
         ok &= tdata.get("mode") == "time_traveler"
         ok &= tdata.get("era") in playable_eras()  # rolled at creation, not START_ERA
-        ok &= tdata.get("arrival") in era_arrivals(tdata.get("era") or "")
+        ok &= not tdata.get("arrival")  # no preset arrival; the GM declares the opening place
         ok &= list(tdata.get("reputation") or {}) == [tdata.get("era")]
         print(f"  [modes] time traveler built: mode {tdata.get('mode')} era {tdata.get('era')} "
               f"arrival {tdata.get('arrival')!r}")

@@ -40,7 +40,6 @@ ERAS_DIR = Path(__file__).resolve().parent.parent / "config" / "eras"
 # is only what an era-game save that cannot say where it is falls back to.
 START_ERA = "egypt"
 
-# `arrivals` is required (and >= 2) only for a playable era; the frame has nowhere to enter.
 # `order` is validated separately -- it is the one non-string required field.
 REQUIRED_META = ("id", "name", "when", "character")
 
@@ -123,9 +122,8 @@ def render_era_index(current: Optional[str] = None) -> str:
     """The always-on ERA INDEX: id, the year, and a one-line character.
 
     The year is what the GM dates every scene by (`meta.when` is an exact year, never a
-    period); it used to be dead metadata. The arrival point is deliberately absent: it is
-    rolled at random (the Device has no Compass Rose), so it is a property of the save, not
-    of the era.
+    period). The landing place is deliberately absent: it is a property of the save -- the GM
+    chooses the first one, and the visited places are the save's own memory of it.
     """
     lines = [f"ERAS{' (current: ' + current + ')' if current else ''}:"]
     for m in list_era_meta():
@@ -133,23 +131,6 @@ def render_era_index(current: Optional[str] = None) -> str:
         stamp = f" ({when})" if when else ""
         lines.append(f"- {m.get('id')}{stamp} -- {m.get('character', '')}")
     return "\n".join(lines)
-
-
-def era_arrivals(era_id: str) -> list[str]:
-    """The era's possible arrival points (short, real places)."""
-    meta = load_era(era_id)["meta"]
-    return [str(a).strip() for a in (meta.get("arrivals") or []) if str(a or "").strip()]
-
-
-def pick_arrival(era_id: str, rng=None) -> str:
-    """One arrival point, drawn at random -- the Device cannot aim.
-
-    `rng` is injectable so tests are deterministic.
-    """
-    options = era_arrivals(era_id)
-    if not options:
-        return ""
-    return (rng or random).choice(options)
 
 
 def _polity_lines(p: dict) -> list[str]:
@@ -302,18 +283,6 @@ def validate_era(era: dict, stem: Optional[str] = None) -> list[str]:
         problems.append("meta.playable must be a boolean")
     if "origin" in meta and not isinstance(meta.get("origin"), bool):
         problems.append("meta.origin must be a boolean when present")
-    arrivals = meta.get("arrivals") or []
-    if not isinstance(arrivals, list) or not all(isinstance(a, str) and a.strip() for a in arrivals):
-        problems.append("meta.arrivals must be a list of non-empty strings")
-    else:
-        # The chosen arrival is injected verbatim into the prompt and the fallback legend, so
-        # keep it a short phrase -- a sentence-length entry would cost tokens and read badly.
-        for entry in arrivals:
-            text = str(entry).strip()
-            if not (3 <= len(text) <= 60):
-                problems.append(f"meta.arrivals entries must be 3-60 characters: {text!r}")
-        if meta.get("playable") and len(arrivals) < 2:
-            problems.append("meta.arrivals needs at least 2 entries when playable")
     part = meta.get("part")
     if part is not None and not (isinstance(part, str) and part.strip()):
         problems.append("meta.part must be a string or null")

@@ -9,19 +9,6 @@ meta:
   name: Egypt
   when: "2560 BC"
   character: the Old Kingdom builds the Great Pyramid
-  arrivals:
-    - the Giza quarry, on the Nile
-    - a mudbrick street in Memphis
-    - the river bank at Heliopolis
-    - the temple of Ptah at Memphis
-    - the granite quarries at Aswan
-    - the terraces of Saqqara, above the old pyramid
-    - the copper road into Sinai
-    - the frontier fort at Elephantine
-    - a village standing in the flood
-    - the limestone quarries at Tura
-    - the desert road to Dakhla
-    - the royal quay at Memphis
   playable: true
   part: the Escapement
 

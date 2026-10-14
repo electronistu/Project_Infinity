@@ -330,14 +330,15 @@ def _generate_world(config, player_character, output_dir):
     stem, player_path = unique_paths(output_dir, slugify(player_character.name))
     mode = str(getattr(player_character, "mode", "") or "classic").strip().lower()
     if mode == "time_traveler":
-        from web.eras import era_reputation_seed, pick_arrival, pick_start_era
+        from web.eras import era_reputation_seed, pick_start_era
 
-        # The first age is rolled like every later one (the Device cannot aim), so is the
-        # arrival point, and the reputation map is seeded from that era's own polities and
-        # factions so the GM's first write has somewhere to land.
+        # The first age is rolled; the landing place is not -- there are no preset arrivals, so
+        # the GM chooses the opening place from the era file, exactly as it does on a jump into
+        # an age the Traveller has not stood in. The reputation map is seeded from that era's own
+        # polities and factions so the GM's first write has somewhere to land.
         era = pick_start_era()
         payload = get_player_json(player_character, era_reputation_seed(era),
-                                  era, pick_arrival(era), mode=mode)
+                                  era, "", mode=mode)
     else:
         from forge.world import build_kingdoms
 

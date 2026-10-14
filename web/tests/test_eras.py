@@ -105,21 +105,10 @@ def main():
     index = eras.render_era_index("egypt")
     rec("index marks the current era", "(current: egypt)" in index)
     rec("index lists every era", all(i in index for i in ids))
-    rec("the index names no arrival point (it is rolled, not a static fact)",
+    rec("the index names no place, only the age (the landing is the GM's to choose)",
         "Giza" not in index and "quarry" not in index and "Chang'an" not in index)
-    rec("every playable era offers >= 2 arrival points",
-        all(len(eras.era_arrivals(e)) >= 2 for e in eras.playable_eras()),
-        str({e: len(eras.era_arrivals(e)) for e in eras.playable_eras()}))
-    rec("every playable era offers a real spread of destinations (>= 8)",
-        all(len(eras.era_arrivals(e)) >= 8 for e in eras.playable_eras()),
-        str({e: len(eras.era_arrivals(e)) for e in eras.playable_eras()}))
-    picks = {eras.pick_arrival("egypt", random.Random(n)) for n in range(20)}
-    rec("pick_arrival draws from the era's own list",
-        bool(picks) and picks <= set(eras.era_arrivals("egypt")), str(sorted(picks)))
-    rec("pick_arrival is deterministic under a seeded rng",
-        eras.pick_arrival("egypt", random.Random(1)) == eras.pick_arrival("egypt", random.Random(1)))
-    rec("the origin age is a place like any other (12 arrivals)",
-        len(eras.era_arrivals("future")) == 12, str(len(eras.era_arrivals("future"))))
+    rec("no era carries preset arrivals any more",
+        all("arrivals" not in (eras.load_era(e)["meta"] or {}) for e in eras.playable_eras()))
 
     # -- the first era is rolled, like every later one --------------------------
     starts = {eras.pick_start_era(random.Random(n)) for n in range(30)}

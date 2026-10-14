@@ -72,5 +72,58 @@ class WarlockShortRestTest(H.EngineCase):
         self.assertEqual(H.dbv("spellcasting")["slots"]["2"], 2)
 
 
+def _wizard_with_marks():
+    p = H.wizard_l3()
+    p["conditions"] = ["invisible", "petrified", "poisoned"]
+    return p
+
+
+class LastingMarksTest(H.EngineCase):
+    """A rest or a Device jump ends the running spells but keeps the lasting marks:
+    a buff reverts, a disguise ends, a curse stays, and only the durable conditions survive."""
+
+    player_factory = staticmethod(_wizard_with_marks)
+
+    def _seed(self):
+        with H.fixed_rolls([10]):
+            H.ds.resolve_magic(spell_name="Mage Armor", actor="Senna",
+                               slot_level=1, target_name="Senna")
+        H.ds.update_player_list(key="active_effects", item="Cursed", action="add")
+        H.ds.update_player_list(key="active_effects", item="Disguise Self", action="add",
+                                appearance="a tall pale stranger")
+
+    @staticmethod
+    def _names():
+        return [e.get("name") if isinstance(e, dict) else e
+                for e in (H.raw_dbv("active_effects") or [])]
+
+    def _assert_marks(self):
+        self.assertNotIn("Mage Armor", self._names())     # a running buff ends
+        self.assertNotIn("Disguise Self", self._names())  # a disguise ends
+        self.assertIn("Cursed", self._names())            # a lasting mark stays
+        self.assertEqual(H.raw_dbv("_active_buff_data"), {})
+        self.assertEqual(sorted(H.raw_dbv("conditions") or []), ["petrified", "poisoned"])
+
+    def test_long_rest_ends_spells_but_keeps_the_lasting_marks(self):
+        self._seed()
+        r = H.ds.rest("long")
+        self.assertTrue(r["success"])
+        self._assert_marks()
+
+    def test_device_jump_reset_ends_spells_but_keeps_the_lasting_marks(self):
+        self._seed()
+        r = H.ds.device_jump_reset()
+        self.assertTrue(r["success"])
+        self._assert_marks()
+
+    def test_short_rest_leaves_the_effects_alone(self):
+        self._seed()
+        H.ds.rest("short")
+        self.assertIn("Mage Armor", self._names())
+        self.assertIn("Cursed", self._names())
+        self.assertEqual(sorted(H.raw_dbv("conditions") or []),
+                         ["invisible", "petrified", "poisoned"])
+
+
 if __name__ == "__main__":
     unittest.main()

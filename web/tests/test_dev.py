@@ -121,7 +121,8 @@ def main():
         "debug_set_field" not in names and "debug_device" not in names, str(names))
     rec("... alongside the other bookkeeping tools",
         set(ENGINE_ONLY_TOOLS) == {"set_player_field", "dump_player_save_state",
-                                   "debug_set_field", "debug_device", "dump_player_db"},
+                                   "debug_set_field", "debug_device", "dump_player_db",
+                                   "device_jump_reset"},
         str(ENGINE_ONLY_TOOLS))
 
     # ── dev is off unless asked ─────────────────────────────────────────────

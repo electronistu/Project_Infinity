@@ -1,8 +1,9 @@
 """The Device: player control from turn 0, and the future gate.
 
-The Device never fires on its own any more -- the player controls when, which historical age,
-and the place. The four parts are the key to the future (New York): it is unreachable until
-every one is held. No LLM / no network: the transitions are driven directly.
+The Device never fires on its own -- the player controls when, which historical age, and (if
+they have stood there) the place. The four parts are the key to the future (New York): it is
+unreachable until every one is held. There are no preset arrivals: the GM chooses the landing in
+an age the Traveller has not stood in. No LLM / no network: the transitions are driven directly.
 
 Run from the repo root:
     venv\\Scripts\\python.exe web\\tests\\test_device_control.py
@@ -20,8 +21,8 @@ sys.path.insert(0, str(REPO))
 import device as device_mod  # noqa: E402
 import web.engine as engine_mod  # noqa: E402
 
-from web.engine import GameSession  # noqa: E402
-from web.eras import era_arrivals, render_era_index  # noqa: E402
+from web.engine import GameSession, DEVICE_DECLARES  # noqa: E402
+from web.eras import render_era_index  # noqa: E402
 
 RESULTS = []
 
@@ -74,7 +75,7 @@ def _session(seed=7, era="egypt"):
     gs._places_at = len(gs.messages)
     gs.messages.append({"role": "system", "content": "places"})
     gs._primed = []
-    gs.arrival = "the Giza quarry, on the Nile"
+    gs.arrival = ""
     gs._pending_legend = ""
     _stub_turns(gs)
 
@@ -170,47 +171,136 @@ def main():
     three = _with_parts(_session(era="victorian"), *ALL_PARTS[:3])
     rec("one part short keeps it locked", three._future_unlocked() is False)
 
-    # -- the place menu: authored arrivals + the last 12 visited ----------------
-    print("\n-- the place menu: two sources")
+    # -- the place menu: only the places this save has stood in ------------------
+    print("\n-- the place menu: visited only")
     menu = _session(era="egypt")._place_options()
     rec("the menu is scoped to the reachable eras",
         "egypt" not in menu and "future" not in menu and "tang" in menu, str(sorted(menu)))
-    rec("each era offers its authored arrivals",
-        menu["tang"]["arrivals"] == era_arrivals("tang"), str(menu["tang"]["arrivals"])[:60])
-    rec("... and a recent list", isinstance(menu["tang"]["recent"], list))
-    rec("an authored arrival is a legal place",
-        _session(era="egypt")._place_allowed("tang", era_arrivals("tang")[0]) is True)
-    rec("an invented place is not",
+    rec("an era offers no preset arrivals, only a recent list",
+        "arrivals" not in menu["tang"] and isinstance(menu["tang"]["recent"], list),
+        str(menu["tang"]))
+    rec("an invented place is never legal",
         _session(era="egypt")._place_allowed("tang", "nowhere") is False)
 
-    fake = [{"place": [f"Place {i}"], "area": "City", "used": i, "era": "tang"}
+    fake = [{"place": [f"Place {i}"], "area": "City", "kingdom": "K", "used": i, "era": "tang"}
             for i in range(20)]
     orig_known = engine_mod.known_scene_places
     engine_mod.known_scene_places = lambda *a, **k: fake
     try:
-        pool = _session(era="egypt")._visited_pool("tang", 12)
+        gsv = _session(era="egypt")
+        gsv.active_name = "save"
+        pool = gsv._visited_pool("tang", 12)
+        visited_ok = gsv._place_allowed("tang", "Place 19, in City")
+        landing = gsv._landing_place("tang", "Place 19, in City")
     finally:
         engine_mod.known_scene_places = orig_known
     rec("the recent list is capped at 12", len(pool) == 12, str(len(pool)))
     rec("... newest first", pool[0] == "Place 19, in City", pool[0])
+    rec("a visited place is a legal landing", visited_ok is True)
+    rec("a picked place resolves to its real address",
+        isinstance(landing, dict) and landing.get("place") == ["Place 19"]
+        and landing.get("area") == "City" and landing.get("kingdom") == "K", str(landing))
 
-    # -- the release jumps, and the closing turn is manufactured ----------------
+    # -- the release jumps: an age alone, or an age and a visited place ---------
     print("\n-- release fires the jump")
-    jump = _session(era="egypt")
-    chosen = era_arrivals("tang")[0]
-    asyncio.run(jump._device_release({"era": "tang", "place": chosen}))
-    rec("the release lands in the chosen age", jump.era == "tang", jump.era)
-    rec("... at the chosen place", jump.arrival == chosen, jump.arrival)
+    solo = _session(era="egypt")
+    asyncio.run(solo._device_release({"era": "tang"}))
+    rec("a release needs only an age", solo.era == "tang", solo.era)
+    rec("... and leaves the landing to the GM", solo.arrival == "" and solo._current_place is None)
+    solo_text = "".join(str(m.get("content") or "") for m in solo.messages)
+    rec("... the GM is told to choose where the Traveller lands",
+        "This age is new to you; choose where the Traveller lands." in solo_text)
+    rec("... the images-on jump needs no note_place instruction", DEVICE_DECLARES not in solo_text)
     rec("the engine DB is told the new age",
-        any(n == "set_player_field" and a.get("key") == "era" for n, a in jump.session.calls))
+        any(n == "set_player_field" and a.get("key") == "era" for n, a in solo.session.calls))
+    rec("... the jump is labelled a jump, not a new game",
+        "SITUATION: DEVICE JUMP" in solo_text)
+    rec("... and the era file is labelled, so it is not read as a session start",
+        "THE AGE YOU HAVE ENTERED" in solo_text)
+    rec("... the crossing resets the running spells",
+        any(n == "device_jump_reset" for n, _a in solo.session.calls), str(solo.session.calls))
 
-    # -- both choices are required ----------------------------------------------
-    no_place = _session(era="egypt")
-    asyncio.run(no_place._device_release({"era": "tang"}))
-    rec("a release with no place is refused", no_place.era == "egypt")
+    text_solo = _session(era="egypt")
+    text_solo.scene_images = False
+    asyncio.run(text_solo._device_release({"era": "tang"}))
+    ts_text = "".join(str(m.get("content") or "") for m in text_solo.messages)
+    rec("a text-mode landing tells the GM to declare its place", DEVICE_DECLARES in ts_text)
+
+    picked = _session(era="egypt")
+    picked.active_name = "save"
+    engine_mod.known_scene_places = lambda *a, **k: [
+        {"place": ["the west market", "the stalls"], "area": "Chang'an", "kingdom": "Tang",
+         "used": 1, "era": "tang"}]
+    try:
+        asyncio.run(picked._device_release(
+            {"era": "tang", "place": "the west market, in Chang'an"}))
+    finally:
+        engine_mod.known_scene_places = orig_known
+    rec("a release to a visited place lands on it",
+        picked.era == "tang" and picked.arrival == "the west market, in Chang'an", picked.arrival)
+    rec("... with its real address, so the caption is right at once",
+        isinstance(picked._current_place, dict)
+        and picked._current_place.get("place") == ["the west market", "the stalls"]
+        and picked._current_place.get("era") == "tang", str(picked._current_place))
+    picked_text = "".join(str(m.get("content") or "") for m in picked.messages)
+    rec("... and the GM is told the place, not sent to choose one",
+        f"You arrive at {picked.arrival}." in picked_text
+        and "choose where the Traveller lands" not in picked_text)
+
+    # -- an invented place is refused; the age is still required ----------------
+    bad = _session(era="egypt")
+    asyncio.run(bad._device_release({"era": "tang", "place": "nowhere"}))
+    rec("a release to an invented place is refused", bad.era == "egypt", bad.era)
     no_era = _session(era="egypt")
-    asyncio.run(no_era._device_release({"place": era_arrivals("tang")[0]}))
+    asyncio.run(no_era._device_release({"place": "the west market, in Chang'an"}))
     rec("a release with no era is refused", no_era.era == "egypt")
+
+    # -- the GM's declaration is the arrival ------------------------------------
+    print("\n-- the GM's declaration is the arrival")
+    rec("an arrival label matches the visited-pool shape",
+        _session()._arrival_label(["The quarry", "the working face"], "Giza")
+        == "The quarry, in Giza")
+    pin = _session(era="egypt")
+    asyncio.run(pin._pin_arrival(["The quarry", "the working face"], "Giza"))
+    rec("the declared place becomes the arrival", pin.arrival == "The quarry, in Giza", pin.arrival)
+    rec("... and the player DB is told it",
+        any(n == "set_player_field" and a.get("key") == "arrival"
+            and a.get("value") == "The quarry, in Giza" for n, a in pin.session.calls))
+    asyncio.run(pin._pin_arrival(["Somewhere else"], "Elsewhere"))
+    rec("... a later declaration moves it (the arrival is where you are)",
+        pin.arrival == "Somewhere else, in Elsewhere", pin.arrival)
+
+    # -- a resume connects the arrival to the age's declared place --------------
+    print("\n-- a resumed save connects its arrival")
+    orig_csp = engine_mod.current_scene_place
+    resume = _session(era="tang")
+    engine_mod.current_scene_place = lambda *a, **k: {
+        "era": "tang", "kingdom": "Tang", "area": "Chang'an",
+        "place": ["the west market", "the stalls"]}
+    try:
+        ok = resume._connect_arrival_to_declared_place()
+    finally:
+        engine_mod.current_scene_place = orig_csp
+    rec("a resumed save connects the arrival to its declared place",
+        ok and resume.arrival == "the west market, in Chang'an", resume.arrival)
+    engine_mod.current_scene_place = lambda *a, **k: {
+        "era": "egypt", "area": "Giza", "place": ["The quarry"]}
+    try:
+        ok = resume._connect_arrival_to_declared_place()
+    finally:
+        engine_mod.current_scene_place = orig_csp
+    rec("a place from another age is never connected",
+        ok is False and resume.arrival == "the west market, in Chang'an", resume.arrival)
+
+    engine_mod.known_scene_places = lambda *a, **k: [
+        {"place": ["the west market", "the stalls"], "area": "Chang'an",
+         "used": 1, "era": "tang"}]
+    try:
+        pool = resume._visited_pool("tang")
+    finally:
+        engine_mod.known_scene_places = orig_known
+    rec("the arrival is the same phrase the visited pool lists",
+        resume.arrival in pool, str(pool))
 
     # -- the release is refused in combat ---------------------------------------
     fight = _session(era="egypt")

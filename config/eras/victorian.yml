@@ -8,23 +8,6 @@ meta:
   name: Victorian Britain
   when: "1858"
   character: the United Kingdom of Great Britain and Ireland
-  arrivals:
-    - a fogbound London street
-    - a railway platform in the smoke
-    - the steps of a dock warehouse
-    - a Lancashire mill town
-    - the Manchester cotton exchange
-    - the Liverpool landing stage
-    - a Glasgow shipyard on the Clyde
-    - the Edinburgh Old Town
-    - a Cornish tin mine
-    - a Yorkshire colliery
-    - a seaside pier, out of season
-    - the Great Exhibition, under glass
-    - the Thames embankment
-    - a Welsh slate quarry
-    - a Highland glen after the Clearances
-    - the Dublin quays
   playable: true
   part: the Regulator
 
