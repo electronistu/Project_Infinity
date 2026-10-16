@@ -275,6 +275,10 @@ def main():
         isinstance(picked._current_place, dict)
         and picked._current_place.get("place") == ["the west market", "the stalls"]
         and picked._current_place.get("era") == "tang", str(picked._current_place))
+    landing_block = picked.messages[picked._places_at]["content"]
+    rec("... and the primed block follows the landing into its area",
+        "the west market" in landing_block and "the stalls · ← you are here" in landing_block,
+        landing_block[-200:])
     picked_text = "".join(str(m.get("content") or "") for m in picked.messages)
     rec("... and the GM is told the place, not sent to choose one",
         f"You arrive at {picked.arrival}." in picked_text
@@ -299,6 +303,10 @@ def main():
         and area_only._current_place.get("place") == []
         and "You arrive in Chang'an; choose the exact place inside it." in area_text,
         str(area_only._current_place))
+    area_block = area_only.messages[area_only._places_at]["content"]
+    rec("... and the block lists that area's places with no place marked yet",
+        "the west market" in area_block and "you are here" not in area_block,
+        area_block[-200:])
 
     # -- an invented area or place is refused; the age is still required --------
     bad_area = _session(era="egypt")

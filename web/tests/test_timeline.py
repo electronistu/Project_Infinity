@@ -20,7 +20,7 @@ sys.path.insert(0, str(REPO))
 
 from web import timeline  # noqa: E402
 from web.engine import GameSession  # noqa: E402
-from web.gm_view import _clamp_block  # noqa: E402
+from web.gm_view import _clamp_block, _trim_legend  # noqa: E402
 from web.timeline import (  # noqa: E402
     _clean_state_page, _entry_turn_range, _extract_state, _extract_states,
     _split_timeline_entries, _state_has_fields, load_chronicle, load_state, load_states,
@@ -84,6 +84,18 @@ def unit_tests() -> bool:
 
     clamped = _clamp_block("a\n" * 100, 8)
     rec("_clamp_block bounds at a line boundary", len(clamped) <= 8 and not clamped.endswith("a\n"))
+
+    # The age's memory is bounded by dropping the OLDEST sentences -- the newest memory is
+    # what matters, and the payload is a whole multi-sentence memory, not one sentence.
+    memory = ("He came out of the desert with a device no smith could name. The priests put a "
+              "price on his head. The soldiers never found him. He left by the river.")
+    kept_sentences = _trim_legend(memory, 110)
+    rec("_trim_legend drops the oldest sentences and keeps the newest",
+        kept_sentences.endswith("He left by the river.")
+        and "desert" not in kept_sentences and len(kept_sentences) <= 110,
+        kept_sentences)
+    rec("_trim_legend leaves a memory inside the limit untouched",
+        _trim_legend(memory, 500) == memory)
 
     # A state block must not affect turn numbering.
     rec("numbering ignores the chronicle/state", timeline._max_timeline_turn(kept) == 12)
@@ -233,7 +245,7 @@ def per_era_tests() -> bool:
     reply = ("The world folds shut.\n"
              "<!-- state:egypt -->\n**Goal**: leave the oasis.\n<!-- /state:egypt -->\n"
              "<!-- state:traveller -->\n**Goal**: master the Device.\n<!-- /state:traveller -->\n"
-             "{{_REMEMBERS: the age forgets him.}}")
+             "{{remembers: the age forgets him.}}")
     gs.era = "egypt"
     cleaned = gs._capture_state_pages(reply)
     rec("a departure page never reaches the narrative", "<!-- state:" not in cleaned, cleaned[:40])

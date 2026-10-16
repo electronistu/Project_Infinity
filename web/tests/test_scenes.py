@@ -15,9 +15,14 @@ REPO = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO))
 
 from web.engine import GameSession  # noqa: E402
-from web.protocol import filter_tools, render_protocol, MAX_RESUME_ROUNDS  # noqa: E402
-from web.places import format_known_places, _primed_places, PLACE_TREE_CAP  # noqa: E402
-from web.gm_view import _gm_tool_view  # noqa: E402
+from web.protocol import (  # noqa: E402
+    filter_tools, has_unknown_marker, is_pause, render_protocol, strip_markers,
+    MAX_RESUME_ROUNDS,
+)
+from web.places import (  # noqa: E402
+    format_known_places, places_feed, _places_for_area, PLACE_TREE_CAP,
+)
+from web.gm_view import _extract_legend, _gm_tool_view  # noqa: E402
 from web.scenes import (  # noqa: E402
     SceneService, commit_scene_manifest, current_scene_place, discard_scene_manifest,
     known_scene_places, live_scene_manifest, mutate_scene_manifest, _SCENE_LOCK,
@@ -103,10 +108,30 @@ async def main() -> bool:
     capped = format_known_places(many)
     rec("at most 2 NPC names per place, with a +N count for the rest",
         capped.count("+2") == 3 and "N00, N01" in capped and "N02" not in capped, capped)
-    primed = _primed_places([{"kingdom": "K", "area": "A", "place": [f"Room {i}"],
-                              "main_npcs": []} for i in range(20)])
-    rec("the primed tree is capped at PLACE_TREE_CAP",
-        len(primed) == PLACE_TREE_CAP, f"{len(primed)} places")
+    many = [{"kingdom": "K", "area": "A", "place": [f"Room {i}"], "main_npcs": [],
+             "used": 100 - i} for i in range(20)]
+    per_area = _places_for_area(many, "K", "A")
+    shown = [p["place"][0] for p in per_area]
+    rec("the primed list is capped per AREA, newest kept",
+        len(per_area) == PLACE_TREE_CAP and "Room 0" in shown and "Room 19" not in shown,
+        f"{len(per_area)} places")
+
+    feed = places_feed(many, {"kingdom": "K", "area": "A", "place": ["Room 0"]}, False)
+    rec("the feed marks the place the GM is in",
+        "Room 0 · ← you are here" in feed and feed.count("you are here") == 1, feed[-200:])
+    with_other = many + [{"kingdom": "Tang", "area": "Chang'an", "place": ["The west market"],
+                          "main_npcs": [], "used": 5}]
+    scoped = places_feed(with_other, {"kingdom": "K", "area": "A", "place": ["Room 0"]}, True)
+    rec("the feed scopes to the current area and anchors each other area by its newest place",
+        "        - The west market" not in scoped
+        and "Tang — Chang'an: The west market" in scoped, scoped[-200:])
+    nowhere = places_feed(with_other, None, True)
+    rec("a landing with no place yet lists every area with one place to reuse",
+        "Tang — Chang'an: The west market" in nowhere and "NO PLACE YET" in nowhere,
+        nowhere[:200])
+    rec("an undeclared current place says so",
+        "(not recorded yet)" in places_feed(
+            many, {"kingdom": "K", "area": "A", "place": ["a room never declared"]}, False))
 
     gs = GameSession(base_dir=REPO, model="test", scene_images=True)
     gs.session = _FakeMCP()
@@ -432,7 +457,7 @@ async def main() -> bool:
 
     async def _pause_stream(label, quiet=False, gm=None):
         pause_rounds.append(label)
-        return ("{{_NEED_AN_OTHER_PROMPT}}", "", [], False)
+        return ("{{pause}}", "", [], False)
 
     gs_r._stream_assistant = _pause_stream  # type: ignore[assignment]
     out_r = await gs_r._run_role("go", "turn")
@@ -451,7 +476,7 @@ async def main() -> bool:
         return _gen
 
     gs_f = GameSession(base_dir=REPO, model="test", scene_images=True)
-    gs_f._stream = _stream_of("{{_NEED_ANOTHER_PROMPT}}")  # type: ignore[assignment]
+    gs_f._stream = _stream_of("{{pause}}")  # type: ignore[assignment]
     await gs_f._stream_assistant("turn")
     rec("a bare pause token is not prose", gs_f._narrative_emitted_turn is False)
 
@@ -459,6 +484,64 @@ async def main() -> bool:
     gs_f2._stream = _stream_of("You wake in the dark.")  # type: ignore[assignment]
     await gs_f2._stream_assistant("turn")
     rec("real prose sets the flag", gs_f2._narrative_emitted_turn is True)
+
+    # The marker is matched tolerantly -- padding underscores, spaces, case, the one word's
+    # tail -- and every accepted spelling pauses the turn and is not prose.
+    for spelling in ("{{pause}}", "{{PAUSE}}", "{{__pause__}}", "{{ pause }}",
+                     "{{_pauses_}}", "{{paused}}", "{{pausing}}"):
+        gs_v = GameSession(base_dir=REPO, model="test", scene_images=True)
+        gs_v._stream = _stream_of(f"  {spelling}  ")  # type: ignore[assignment]
+        await gs_v._stream_assistant("turn")
+        rec(f"{spelling} pauses and is not prose",
+            is_pause(spelling) and gs_v._narrative_emitted_turn is False,
+            f"flag={gs_v._narrative_emitted_turn}")
+
+    # A marker shape no core matches is not prose either (the residue guard): it earns a
+    # recovery round instead of reaching the player, whatever the model invented.
+    for spelling in ("{{halt}}", "{{_NEED_AN_OTHER_PROMPT}}", "{{__CONTINUE_EXECUTION}}"):
+        gs_u = GameSession(base_dir=REPO, model="test", scene_images=True)
+        gs_u._stream = _stream_of(spelling)  # type: ignore[assignment]
+        await gs_u._stream_assistant("turn")
+        rec(f"{spelling} is not prose",
+            has_unknown_marker(spelling) and gs_u._narrative_emitted_turn is False)
+
+    # The engine's own resume token is stripped and is never read as a pause.
+    rec("a resume echo is stripped, and is not a pause",
+        strip_markers("{{__resume__}}") == "" and not is_pause("{{resume}}")
+        and not is_pause("{{__resume__}}"))
+
+    # Prose that merely uses the word is untouched.
+    rec("the word alone is not a marker",
+        strip_markers("There is a pause in the wind.") == "There is a pause in the wind."
+        and not is_pause("There is a pause in the wind."))
+
+    # The era memory is the age's WHOLE memory, not one sentence: a multi-sentence payload
+    # survives extraction intact, leaves the narrative, and a placeholder echo is rejected.
+    memory = ("He came out of the desert with a device no smith could name. The priests put "
+              "a price on his head; the soldiers never found him.")
+    legend, cleaned = _extract_legend(f"The world folds shut.\n{{{{remembers: {memory}}}}}")
+    rec("a multi-sentence age memory survives whole and leaves the narrative",
+        legend == memory and "remembers" not in cleaned and cleaned == "The world folds shut.",
+        str(legend[:40]))
+    legend_p, cleaned_p = _extract_legend("{{remembers: <one or a few sentences>}}")
+    rec("a placeholder echo is rejected", legend_p == "" and "<" not in cleaned_p)
+
+    # The residue guard's payoff through the real loop: a round whose only text is an
+    # unrecognized marker is not prose, so the turn still earns its recovery round.
+    gs_g = GameSession(base_dir=REPO, model="test", scene_images=True)
+    gs_g._stream = _stream_of("{{__NEED_AN_OTHER_PROMPT}}")  # type: ignore[assignment]
+    first = await gs_g._run_role("go", "turn")
+    fix_labels: list[str] = []
+
+    async def _fix_role(role_content, label, quiet=False):
+        fix_labels.append(label)
+        return "You wake in the dark."
+
+    gs_g._run_role = _fix_role  # type: ignore[assignment]
+    recovered = await gs_g._ensure_turn_prose(first)
+    rec("an unrecognized marker earns the recovery round",
+        recovered == "You wake in the dark." and fix_labels == ["narrative-fix"],
+        str(fix_labels))
 
     # The guarantee is the flag, never the returned string: a truthy placeholder is not prose.
     prose_calls: list[tuple] = []
@@ -488,14 +571,14 @@ async def main() -> bool:
 
     async def _pause_then_prose(label, quiet=False, gm=None):
         resume_labels.append(label)
-        return (("{{_NEED_ANOTHER_PROMPT}}", "", [], False) if len(resume_labels) == 1
+        return (("{{pause}}", "", [], False) if len(resume_labels) == 1
                 else ("You wake in the dark.", "", [], False))
 
     gs_a = GameSession(base_dir=REPO, model="test", scene_images=True)
     gs_a._stream_assistant = _pause_then_prose  # type: ignore[assignment]
     out_a = await gs_a._run_role("ERA_FILE", "awakening")
     nudges = [m.get("content") for m in gs_a.messages
-              if "CONTINUE_EXECUTION" in str(m.get("content"))]
+              if "{{resume}}" in str(m.get("content"))]
     rec("the session-start resume re-anchors the narrative and image together",
         out_a == "You wake in the dark." and bool(nudges)
         and "SESSION START" in nudges[-1] and "request_scene_image" in nudges[-1],
@@ -506,13 +589,13 @@ async def main() -> bool:
     gs_a2._stream_assistant = _pause_then_prose  # type: ignore[assignment]
     await gs_a2._run_role("an action", "turn")
     nudges2 = [m.get("content") for m in gs_a2.messages
-               if "CONTINUE_EXECUTION" in str(m.get("content"))]
+               if "{{resume}}" in str(m.get("content"))]
     rec("every other resume stays the bare token",
-        bool(nudges2) and nudges2[-1] == "{{_CONTINUE_EXECUTION}}", str(nudges2[-1:]))
+        bool(nudges2) and nudges2[-1] == "{{resume}}", str(nudges2[-1:]))
 
     # The whole chain that live play hit, through the REAL stream/flag/loop code: a
     # pause-token echo, an empty resume, then the recovery round that finally narrates.
-    script = [("{{_NEED_ANOTHER_PROMPT}}", []),
+    script = [("{{pause}}", []),
               ("", []),
               ("You wake in the dark, and the Device ticks.",
                [{"function": {"name": "request_scene_image", "arguments": {
@@ -574,8 +657,7 @@ async def main() -> bool:
         "already displayed by the engine" in real_on and "{{_MECHANICS}}" not in real_on
         and "already displayed by the engine" in real_off)
     rec("recovery is scoped to calls that never ran",
-        "Only for a call that never ran" in real_on
-        and "Only for a call that never ran" in real_off)
+        "a call you never made" in real_on and "a call you never made" in real_off)
     rec("an inline patch no longer routes into RECOVERY",
         "Use RECOVERY only for a call you never made" in real_off
         and "Tool call appended to prose → use RECOVERY instead" not in real_off)

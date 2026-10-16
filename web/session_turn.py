@@ -1,13 +1,14 @@
 """The turn loop and the GM tool dispatch."""
 
 import json
-from .gm_view import _clean_pause_tokens, _extract_legend, _gm_tool_view
+from .gm_view import _extract_legend, _gm_tool_view
 from .scenes import known_scene_places
-from .places import _people_list, _scene_key
+from .places import _people_list, _scene_key, name_key, path_label, resolve_place_path
 from .protocol import (
     AWAKENING_RESUME, COMPANION_TOOL, MAX_RESUME_ROUNDS, MAX_THINKING_RETRIES,
-    NARRATIVE_PHASE_TOOLS, NARRATIVE_RECOVERY_NUDGE, NPC_TOOL, PAUSE_TOKENS, PLACE_TOOL,
-    PROSE_RECOVERY_NUDGE, RESUME_GUARD_NUDGE, SCENE_TOOL, _hidden_tools
+    NARRATIVE_PHASE_TOOLS, NARRATIVE_RECOVERY_NUDGE, NPC_TOOL, PLACE_TOOL,
+    PROSE_RECOVERY_NUDGE, RESUME_GUARD_NUDGE, SCENE_TOOL, _hidden_tools,
+    has_unknown_marker, is_pause, strip_markers
 )
 from .session_base import OUTPUT_DIR
 
@@ -44,7 +45,7 @@ class TurnMixin:
                 elif origin == "awakening":
                     nudge = AWAKENING_RESUME
                 else:
-                    nudge = "{{_CONTINUE_EXECUTION}}"
+                    nudge = "{{resume}}"
                 self.messages.append({"role": "user", "content": nudge})
                 label = "resume"
                 gm["trigger"] = "pause"
@@ -97,11 +98,13 @@ class TurnMixin:
         # A departure STATE page rides the closing turn the same way, and is stripped here
         # rather than at the jump so it can never reach the client.
         content = self._capture_state_pages(content)
-        if not quiet and _clean_pause_tokens(content):
-            # A narrative has reached the player this turn; never ask for it again. This must
-            # test the CLEANED text: the pause token is emitted as *content*, so a bare
-            # `{{_NEED_ANOTHER_PROMPT}}` used to mark a turn as narrated that had no prose at
-            # all -- which defeated the narrative guarantee and left the opening scene unwritten.
+        # A narrative has reached the player this turn; never ask for it again. This must test
+        # the CLEANED text: a marker is emitted as *content*, so a bare `{{pause}}` used to mark
+        # a turn as narrated that had no prose at all -- which defeated the narrative guarantee
+        # and left the opening scene unwritten. A marker-shaped token no core matched (a drifted
+        # spelling) is not prose either: it earns a recovery round instead of reaching the player.
+        prose = strip_markers(content)
+        if not quiet and prose and not has_unknown_marker(prose):
             self._narrative_emitted_turn = True
         if prompt_eval:
             self.current_context_tokens = prompt_eval
@@ -178,7 +181,7 @@ class TurnMixin:
                 gm["trigger"] = "tools"
                 continue
 
-            if any(token in (content or "") for token in PAUSE_TOKENS):
+            if is_pause(content):
                 return "__SYSTEM_PAUSE__"
 
             return content
@@ -240,6 +243,11 @@ class TurnMixin:
             return
         self._scene_requested_turn = True
         kingdom, area, place = self._match_known_place(narrative)
+        if place:
+            # The narrative named a place the save knows: that is where the story is, so the
+            # engine's idea of it follows even when the GM never declared the move.
+            self._set_current_place(kingdom, area, place)
+            await self._after_place_change()
         npcs, self._pending_npcs = self._pending_npcs, []
         await self._emit({
             "type": "scene_request", "kind": "auto",
@@ -315,6 +323,20 @@ class TurnMixin:
             # `caption` was dropped from the tool; tolerate a stale model that still sends it.
             args.pop("caption", None)
         await self._emit({"type": "tool_call", "name": name, "arguments": args})
+        self._place_note = ""
+        # Identity first: a place the registry already holds keeps the registry's path, whatever
+        # the GM's spelling (an article dropped, case, or a known place nested under a parent it
+        # invented). Done BEFORE the seed check, so a drifted path cannot look like a new place.
+        if name in (SCENE_TOOL, PLACE_TOOL):
+            raw = args.get("place")
+            declared = ([str(p).strip() for p in raw if str(p or "").strip()]
+                        if isinstance(raw, list) else [])
+            known = resolve_place_path(self._primed, declared)
+            if known and _scene_key(known) != _scene_key(declared):
+                self._place_note = (f'NOTE: "{path_label(declared)}" is held in the registry as '
+                                    f'"{path_label(known)}" — the saved path is used; reuse it '
+                                    "exactly.")
+                args["place"] = known
         if name in _hidden_tools(self.scene_images, self.mode):
             await self._refuse_unoffered_tool(name, fn.get("id"))
             return
@@ -348,6 +370,8 @@ class TurnMixin:
             notes = [self._undeclared_note(args), self._on_stage_note(args)]
         if name in (SCENE_TOOL, NPC_TOOL, PLACE_TOOL):
             notes.append(self._missing_identity_note(args))
+        if self._place_note:
+            notes.append(self._place_note)
         for note in notes:
             if note:
                 text = f"{text}\n\n{note}" if text else note
@@ -387,12 +411,20 @@ class TurnMixin:
             place = [str(p).strip() for p in raw if str(p or "").strip()] if isinstance(raw, list) else []
             kingdom = str(args.get("kingdom") or "")
             area = str(args.get("area") or "")
+            # A scene call may still name the wrong area for a place the registry holds: the
+            # record decides (same rule as `note_place`).
+            kingdom, area = self._corrected_address(kingdom, area, place)
             if str(args.get("establishing") or "") or str(args.get("seed_change") or ""):
                 self._scene_places[_scene_key(place)] = (kingdom, area)
-            elif not kingdom and not area:
-                kingdom, area = self._scene_places.get(_scene_key(place), ("", ""))
-            # The GM's scene call is the images-on place declaration: the arrival follows it.
-            await self._pin_arrival(place, area)
+            if not (kingdom and area):
+                # kingdom/area are optional once a place is known: recover them from the exact
+                # path, else from the deepest known path that contains it (a new room inside a
+                # known building keeps its settlement).
+                kingdom, area = self._known_address(place, kingdom, area)
+            # The GM's scene call is the images-on place declaration: the engine now knows where
+            # the Traveller is, so the caption, the death attribution and the primed block follow.
+            self._set_current_place(kingdom, area, place)
+            await self._after_place_change()
             # Declarations flow to the server with the image call (the single writer).
             npcs, self._pending_npcs = self._pending_npcs, []
             main_npcs = args.get("main_npcs") if isinstance(args.get("main_npcs"), list) else []
@@ -416,10 +448,9 @@ class TurnMixin:
 
         if name == PLACE_TOOL and not is_error:
             await self._emit_place_note(args)
-            # The GM's note_place is the images-off place declaration: the arrival follows it.
-            await self._pin_arrival(args.get("place"), args.get("area"))
-            # The place moved: refresh the scene caption.
-            await self._emit_caption()
+            # The GM's note_place is the images-off place declaration: the arrival, the caption
+            # and the primed block all follow it.
+            await self._after_place_change()
 
         if name == "update_player_list":
             await self._sync_device_after_inventory(text)
@@ -555,7 +586,7 @@ class TurnMixin:
             name = " ".join(str(entry.get("name") or "").split())[:80]
             if not name:
                 continue
-            self._cast_names.add(name.lower())
+            self._cast_names.add(name_key(name))
             self._pending_npcs.append({
                 "name": name,
                 "race": " ".join(str(entry.get("race") or "").split())[:40],
@@ -577,10 +608,10 @@ class TurnMixin:
                     continue
                 name = " ".join(str(entry.get("name") or "").split())
                 if name:
-                    self._cast_names.add(name.lower())
+                    self._cast_names.add(name_key(name))
 
     def _remember_people(self, entries) -> None:
-        """Remember declared NPC identity (role, race, class), by lowercased name.
+        """Remember declared NPC identity (role, race, class), by identity key (`name_key`).
 
         An entry with none of the three is skipped: there is nothing to remind the GM of."""
         if not isinstance(entries, list):
@@ -593,10 +624,48 @@ class TurnMixin:
             race = " ".join(str(entry.get("race") or "").split())
             klass = " ".join(str(entry.get("class") or "").split())
             if name and (role or race or klass):
-                self._npc_people[name.lower()] = (name, role, race, klass)
+                self._npc_people[name_key(name)] = (name, role, race, klass)
+
+    def _corrected_address(self, kingdom: str, area: str, place) -> tuple[str, str]:
+        """A declared area that contradicts -- or omits -- an unambiguous known place.
+
+        Live, the model given only "Wapping" filed a Wapping place under the area it was
+        standing in (the block named the area but no path to reuse). When the path's first
+        segment matches exactly ONE known place and the declared area differs, the registry
+        wins: the record decides where a place is, not the declaration. Two areas sharing a
+        first segment are left alone -- ambiguous, so the GM's word stands.
+
+        A MISSING area is the same decision, and live 2026-10-16 it went the other way: the
+        model declared a new path below a known district (`the Western Market / the
+        dye-shops lane / the dyer's yard`) with no `kingdom`/`area` -- the shapes the tool
+        calls for once the place exists -- and the engine kept neither, so the player's
+        caption lost its settlement and the KNOWN PLACES block lost its scoping (an empty
+        area matches EVERY place, see `places._in_area`).
+        """
+        key = _scene_key(place)
+        declared_area = str(area or "").strip()
+        if not key:
+            return kingdom, area
+        found: set[tuple[str, str]] = set()
+        for known, address in self._scene_places.items():
+            if not known or known[0] != key[0]:
+                continue
+            if address[0] or address[1]:
+                found.add((address[0] or "", address[1] or ""))
+            if len(found) > 1:
+                return kingdom, area
+        if len(found) != 1:
+            return kingdom, area
+        known_kingdom, known_area = next(iter(found))
+        if not known_area.strip() or known_area.strip().lower() == declared_area.lower():
+            return known_kingdom or kingdom, area
+        return known_kingdom or kingdom, known_area
 
     def _record_place_live(self, args: dict) -> None:
-        """Apply a `note_place` declaration to the live session (the tree updates at once)."""
+        """Apply a `note_place` declaration to the live session (the tree updates at once).
+
+        The path's identity was already resolved against the registry (`_execute_tool`); this
+        adds the address correction and keeps the live tree, the map and the arrival in step."""
         raw = args.get("place")
         place = [str(p).strip() for p in raw if str(p or "").strip()] if isinstance(raw, list) else []
         if not place:
@@ -604,6 +673,12 @@ class TurnMixin:
         era = "" if self.classic else str(self.era or "")
         kingdom = " ".join(str(args.get("kingdom") or "").split())
         area = " ".join(str(args.get("area") or "").split())
+        declared_area = area
+        kingdom, area = self._corrected_address(kingdom, area, place)
+        corrected = area if area != declared_area else ""
+        # The correction must reach the manifest too (the `place_note` event is built from
+        # `args`), so write it back rather than keeping it in the live session alone.
+        args["kingdom"], args["area"] = kingdom, area
         main = args.get("main_npcs") if isinstance(args.get("main_npcs"), list) else []
         cast = args.get("cast") if isinstance(args.get("cast"), list) else []
         self._scene_places[_scene_key(place)] = (kingdom, area)
@@ -613,7 +688,7 @@ class TurnMixin:
             if isinstance(entry, dict):
                 name = " ".join(str(entry.get("name") or "").split())
                 if name:
-                    self._cast_names.add(name.lower())
+                    self._cast_names.add(name_key(name))
         key = _scene_key(place)
         live = None
         for p in self._primed:
@@ -624,10 +699,15 @@ class TurnMixin:
         if live is None:
             self._primed.append({"era": era, "kingdom": kingdom, "area": area,
                                  "place": place, "description": "",
-                                 "main_npcs": people, "dead": [], "used": 0})
+                                 "main_npcs": people, "dead": [],
+                                 "used": self._next_place_tick()})
         else:
             live["kingdom"] = kingdom or live.get("kingdom", "")
             live["area"] = area or live.get("area", "")
+            # A re-declaration is the GM saying the story MOVED here: it re-stamps the live
+            # ordering, so the place just returned to is the newest one here as well (the
+            # manifest re-stamps its own `used` in `record_place`).
+            live["used"] = self._next_place_tick()
             if people:
                 live["main_npcs"] = people
                 # A re-declaration must not wipe liveness: keep the dead names still declared.
@@ -635,8 +715,57 @@ class TurnMixin:
                 live["dead"] = [n for n in (live.get("dead") or []) if str(n).lower() in declared]
                 self._dead_perm[(era, key)] = {n for n in self._dead_perm.get((era, key), set())
                                                if n in declared}
-        # The scene caption's place is the one just declared.
-        self._current_place = {"era": era, "kingdom": kingdom, "area": area, "place": place}
+        # The place just declared is where the GM is now.
+        self._set_current_place(kingdom, area, place)
+        if corrected and corrected != declared_area:
+            held = (f'not in "{declared_area}"' if declared_area else "and you declared none")
+            note = (f'NOTE: "{path_label(place)}" is held in area "{corrected}", {held} — the '
+                    "place is filed at the record's address; reuse its exact kingdom / area / "
+                    "place path.")
+            self._place_note = f"{self._place_note}\n\n{note}" if self._place_note else note
+
+    def _set_current_place(self, kingdom: str = "", area: str = "", place=None) -> None:
+        """The one writer for "where the GM is now".
+
+        Four sources call it: an accepted scene call, a `note_place`, a Device landing, and the
+        session start's registry read. Nothing else may assign `_current_place`: the caption,
+        the death attribution and the primed block all read it, and a second writer is how the
+        engine came to believe the story was still in the place it last declared.
+        """
+        path = [str(p).strip() for p in (place or []) if str(p or "").strip()]
+        self._current_place = {"era": "" if self.classic else str(self.era or ""),
+                               "kingdom": " ".join(str(kingdom or "").split()),
+                               "area": " ".join(str(area or "").split()),
+                               "place": path}
+
+    async def _after_place_change(self) -> None:
+        """Publish a place change: the arrival, the caption, and the primed block."""
+        await self._pin_arrival((self._current_place or {}).get("place"),
+                                (self._current_place or {}).get("area"))
+        await self._emit_caption()
+        self._refresh_places_block()
+
+    def _known_address(self, place, kingdom: str = "", area: str = "") -> tuple[str, str]:
+        """A place's kingdom/area from the registry.
+
+        The deepest known path that contains this one and carries an address: a new room inside
+        a known building keeps its settlement, so the caption, the arrival and the primed block
+        stay anchored even though the room itself was never declared. An entry with no address
+        (a declaration that omitted kingdom/area) is skipped rather than shadowing its parent.
+        """
+        key = _scene_key(place)
+        if not key:
+            return kingdom, area
+        best: tuple | None = None
+        for known, (known_kingdom, known_area) in self._scene_places.items():
+            if (not (known_kingdom or known_area) or len(known) > len(key)
+                    or key[:len(known)] != known):
+                continue
+            if best is None or len(known) > best[0]:
+                best = (len(known), known_kingdom, known_area)
+        if best is None:
+            return kingdom, area
+        return best[1] or kingdom, best[2] or area
 
     async def _pin_arrival(self, place, area) -> None:
         """Where the GM declares the Traveller is, that is the arrival string.
@@ -648,6 +777,12 @@ class TurnMixin:
             return
         label = self._arrival_label(place, area)
         if not label:
+            return
+        # Never degrade a specific arrival to a vaguer one: a room whose settlement the engine
+        # could not resolve must not overwrite "<place>, in <settlement>" with the bare name.
+        if (not str(area or "").strip() and ", in " in str(self.arrival or "")
+                and label.split(",")[0].strip().lower()
+                == str(self.arrival).split(",")[0].strip().lower()):
             return
         self.arrival = label
         await self._call_tool_text("set_player_field", {"key": "arrival", "value": label})
@@ -705,7 +840,7 @@ class TurnMixin:
         labels: list[str] = []
         seen: set[str] = set()
         for key in characters:
-            key_l = " ".join(str(key or "").split()).lower()
+            key_l = name_key(key)
             found = self._npc_people.get(key_l)
             if not found or key_l in seen:
                 continue
@@ -717,14 +852,18 @@ class TurnMixin:
         return ("on stage: " + ", ".join(labels)) if labels else ""
 
     def _undeclared_note(self, args: dict) -> str:
-        """A soft note listing `characters` names that no declaration covers."""
+        """A soft note listing `characters` names that no declaration covers.
+
+        The key is the model's own spelling of a name (`Master_Guo` for a declared
+        `Master Guo`), so it is folded with `name_key` before the check: an exact match
+        told the GM its own declaration was missing."""
         characters = args.get("characters")
         if not isinstance(characters, dict) or not characters:
             return ""
         unknown: list[str] = []
         for key in characters:
             name = " ".join(str(key or "").split())
-            if name and name.lower() not in self._cast_names:
+            if name and name_key(name) not in self._cast_names:
                 unknown.append(name)
         if not unknown:
             return ""

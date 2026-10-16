@@ -16,7 +16,8 @@ sys.path.insert(0, str(REPO))
 from web.engine import GameSession  # noqa: E402
 from web.protocol import filter_tools, render_protocol  # noqa: E402
 from web.places import (  # noqa: E402
-    KNOWN_PLACES_HEADER, KNOWN_PLACES_HEADER_TEXT, KNOWN_PLACES_EMPTY_TEXT,
+    KNOWN_PLACES_HEADER, KNOWN_PLACES_HEADER_TEXT, KNOWN_PLACES_EMPTY_TEXT, path_label,
+    resolve_place_path,
 )
 from web.scenes import (  # noqa: E402
     SceneService, known_scene_places, known_npc_names, live_scene_manifest,
@@ -43,7 +44,11 @@ class _Result:
 
 
 class _FakeMCP:
+    def __init__(self):
+        self.calls: list[tuple[str, dict]] = []
+
     async def call_tool(self, name, arguments=None):
+        self.calls.append((name, dict(arguments or {})))
         return _Result(
             '{"status":"noted","kingdom":"London","area":"Wapping",'
             '"place":["Ropehaven Wharf","Warehouse Nine","the counting office"],'
@@ -185,6 +190,196 @@ async def main() -> bool:
         rec("the GM view is trimmed to the acknowledgement",
             "main_npcs" in gs.messages[-1]["content"]
             and "extra" not in gs.messages[-1]["content"], gs.messages[-1]["content"])
+
+        # The `characters` key is the model's own spelling of a name, and live 2026-10-16 it
+        # keyed two declared names with an underscore (`Master_Guo` for the declared `Master
+        # Guo`; the same call passed `npcs: ["Master Guo"]`). The exact `name.lower()` check
+        # then told the GM, in the result of the call that declared them, that those names
+        # were undeclared -- and the identity echo (the one place a role/race/class rides)
+        # stayed silent for them. Folding the separators fixes both.
+        note = gs._undeclared_note({"characters": {"Corvin_Hale": "at the door",
+                                                   "a stray dog": "in the alley"}})
+        rec("an underscore-keyed declared name is not reported as undeclared",
+            "Corvin_Hale" not in note and "a stray dog" in note, note)
+        echo = gs._on_stage_note({"characters": {"Corvin_Hale": "at the door"}})
+        rec("... and its identity still echoes on stage",
+            echo == "on stage: Corvin Hale (the bounty hunter)", echo)
+
+        # ── the path resolver itself ─────────────────────────────────────────
+        # `the`/`a`/`an` carry no identity, a known path may appear as the TAIL of a longer
+        # declared one (the model nesting a place it knows under a parent it invented), a new
+        # room inside a known building stays NEW, and two equal matches resolve to nothing.
+        registry = [{"place": ["the Western Market", "the House of Guo"]},
+                    {"place": ["the Ximing Monastery", "the gate court"]}]
+        cases = [
+            (["Western Market", "the House of Guo"],
+             ["the Western Market", "the House of Guo"]),
+            (["western  market", "The House Of Guo"],
+             ["the Western Market", "the House of Guo"]),
+            (["Western Market", "the Ximing Monastery", "the gate court"],
+             ["the Ximing Monastery", "the gate court"]),
+            (["the Western Market", "the House of Guo", "the back room"], None),
+            (["a brand new place", "somewhere else"], None),
+        ]
+        for place, want in cases:
+            rec(f"resolve_place_path({path_label(place)})",
+                resolve_place_path(registry, place) == want,
+                str(resolve_place_path(registry, place)))
+        rec("two equal matches resolve to nothing",
+            resolve_place_path(registry + [{"place": ["Western Market", "the house of guo"]}],
+                               ["western market", "the House of Guo"]) is None)
+
+        # ── the movement declaration: the GM's return to a known place ────────
+        # The doc used to say "declare a place once, on entering a NEW one", so a return said
+        # nothing and the engine kept believing the story was still where it had last declared
+        # it: a stale caption, a stale arrival, and a death attributed to the wrong place.
+        svc.record_place("moving", era=ERA, kingdom="London", area="Wapping",
+                         place=PLACE, main_npcs=MAIN)
+        limehouse = ["Ratcliffe Highway", "the opium den"]
+        svc.record_place("moving", era=ERA, kingdom="London", area="Limehouse",
+                         place=limehouse, main_npcs=[])
+        gsm = GameSession(base_dir=Path(td), model="test", scene_images=False)
+        gsm.session = _FakeMCP()
+        gsm.active_name = "moving"
+        gsm.era = ERA
+        gsm._reload_era_scene_state()
+        gsm.messages.insert(0, {"role": "system", "content": "the protocol"})
+        gsm._places_at = 1
+        gsm.messages.insert(1, {"role": "system", "content": gsm._places_body()})
+        before = gsm.messages[gsm._places_at]["content"]
+        rec("the block scopes to the place the save last stood in",
+            "the opium den · ← you are here" in before
+            and "        - Ropehaven Wharf" not in before
+            and "London — Wapping: Ropehaven Wharf — Warehouse Nine" in before, before[-260:])
+
+        await gsm._execute_tool({"function": {"name": "note_place", "arguments": {
+            "kingdom": "London", "area": "Wapping", "place": PLACE,
+            "main_npcs": [{"name": "Bess", "role": "the lamp-lighter",
+                           "race": "halfling", "class": "rogue"}]}}})
+        evts2 = drain(gsm._evt_q)
+        caps2 = [e for e in evts2 if e.get("type") == "caption"]
+        rec("a movement declaration moves the current place",
+            (gsm._current_place or {}).get("area") == "Wapping"
+            and (gsm._current_place or {}).get("place") == PLACE, str(gsm._current_place))
+        rec("... and the caption follows it",
+            bool(caps2) and "Wapping" in str(caps2[-1].get("text")), str(caps2[-1:] or []))
+        after = gsm.messages[gsm._places_at]["content"]
+        rec("... and the primed block is rewritten in place",
+            after != before and f"{PLACE[-1]} · ← you are here" in after
+            and f"{limehouse[-1]} · ← you are here" not in after
+            and "London — Limehouse: Ratcliffe Highway — the opium den" in after, after[-260:])
+        rec("... with the area just left kept as an exact anchor",
+            "the opium den" in after and "London — Limehouse:" in after, after[-260:])
+        rec("... and the place returned to is the newest in the live ordering",
+            max(int(p.get("used") or 0) for p in gsm._primed)
+            == int([p["used"] for p in gsm._primed if p["place"] == PLACE][0]),
+            str([(p["area"], p["used"]) for p in gsm._primed]))
+
+        # ── a wrong area is put back where the record holds the place ─────────
+        # Live, the model given only an area name invented a path AND filed it under the area
+        # it was standing in. The registry is the authority when the first path segment names
+        # exactly one known place; the GM is told, so it reuses the exact area next time.
+        await gsm._execute_tool({"function": {"name": "note_place", "arguments": {
+            "kingdom": "London", "area": "Wapping",
+            "place": ["Ratcliffe Highway", "a new den"]}}})
+        rec("a place the record holds elsewhere is filed back into its area",
+            (gsm._current_place or {}).get("area") == "Limehouse", str(gsm._current_place))
+        told = [m for m in gsm.messages if m.get("name") == "note_place"][-1]["content"]
+        rec("... and the GM is told the area it was filed under",
+            "NOTE:" in told and "Limehouse" in told, told[-180:])
+
+        svc.record_place("moving", era=ERA, kingdom="London", area="Wapping",
+                         place=["Ratcliffe Highway", "the other den"], main_npcs=[])
+        gsm._reload_era_scene_state()
+        await gsm._execute_tool({"function": {"name": "note_place", "arguments": {
+            "kingdom": "London", "area": "Wapping",
+            "place": ["Ratcliffe Highway", "a second den"]}}})
+        rec("an ambiguous first segment leaves the GM's own area alone",
+            (gsm._current_place or {}).get("area") == "Wapping", str(gsm._current_place))
+
+        # The same rule fixes a drifted KINGDOM when the area already agrees (the live model
+        # wrote "Eldoria" for "Kingdom of Eldoria" on a return it had resolved correctly).
+        await gsm._execute_tool({"function": {"name": "note_place", "arguments": {
+            "kingdom": "Eldoria", "area": "Wapping", "place": PLACE}}})
+        rec("a drifted kingdom is taken from the record",
+            (gsm._current_place or {}).get("kingdom") == "London", str(gsm._current_place))
+
+        # ── a drifted PATH keeps the registry's identity ──────────────────────
+        # Live, the model declared ['Western Market', 'the House of Guo'] for a save holding
+        # 'the Western Market' -- one dropped article filed the place a second time, and the
+        # player's caption lost the article too. The registry's spelling is adopted instead.
+        before_count = len(gsm._primed)
+        drifted = ["Ratcliffe Highway", "opium den"]
+        await gsm._execute_tool({"function": {"name": "note_place", "arguments": {
+            "kingdom": "London", "area": "Limehouse", "place": drifted}}})
+        rec("a dropped article is adopted as the registry spells the place",
+            len(gsm._primed) == before_count and (gsm._current_place or {}).get("place") == limehouse
+            and sum(1 for p in gsm._primed if p["place"] == limehouse) == 1,
+            str(gsm._current_place))
+        told = [m for m in gsm.messages if m.get("name") == "note_place"][-1]["content"]
+        rec("... and the GM is told the exact saved path",
+            "held in the registry as" in told and "the opium den" in told, told[-200:])
+
+        # A MISSING area is the same decision as a wrong one. Live 2026-10-16 the model
+        # declared a NEW path below a known district with no kingdom/area at all (`the Western
+        # Market / the dye-shops lane / the dyer's yard`, the shapes the tool calls for once
+        # the place exists): the engine kept neither, so the player's caption lost its
+        # settlement and the KNOWN PLACES block lost its scoping -- an empty area matches
+        # EVERY place (`places._in_area`), which is the whole-era tree the block exists to
+        # avoid. The record's first segment names exactly one address, so it decides.
+        no_area = PLACE[:1] + ["a lane off the wharf", "a yard never entered"]
+        await gsm._execute_tool({"function": {"name": "note_place",
+                                             "arguments": {"place": no_area}}})
+        rec("a missing area is taken from the record's first segment",
+            (gsm._current_place or {}).get("area") == "Wapping"
+            and (gsm._current_place or {}).get("kingdom") == "London",
+            str(gsm._current_place))
+        told = [m for m in gsm.messages if m.get("name") == "note_place"][-1]["content"]
+        rec("... and the GM is told the address it was filed at",
+            "NOTE:" in told and "Wapping" in told and '"not in ""' not in told, told[-200:])
+
+        # A scene call resolved the same way cannot look like a new place: without this the
+        # drifted key missed `_scene_places` and the engine rejected the call as unseeded.
+        gsd = GameSession(base_dir=Path(td), model="test", scene_images=True)
+        gsd.session = _FakeMCP()
+        gsd.active_name = "moving"
+        gsd.era = ERA
+        gsd._reload_era_scene_state()
+        await gsd._execute_tool({"function": {"name": "request_scene_image", "arguments": {
+            "description": "the protagonist comes back to the strongroom",
+            "place": ["Ropehaven Wharf", "Warehouse Nine", "counting office"]}}})
+        rec("a scene call with a drifted path keeps the saved identity",
+            (gsd._current_place or {}).get("place") == PLACE and not gsd._scene_rejected,
+            str(gsd._current_place))
+
+        # ── a new room inside a known building keeps its settlement ───────────
+        # kingdom/area are optional once a place is known, so a scene call that starts a seed
+        # for a room (with `establishing`) and omits them used to lose the settlement: a
+        # caption without its area, and a shortened arrival written into the player file.
+        room = PLACE + ["the strongroom"]
+        gsi = GameSession(base_dir=Path(td), model="test", scene_images=True)
+        gsi.session = _FakeMCP()
+        gsi.active_name = "moving"
+        gsi.era = ERA
+        gsi._reload_era_scene_state()
+        await gsi._execute_tool({"function": {"name": "request_scene_image", "arguments": {
+            "description": "the protagonist forces the strongroom door", "place": room,
+            "establishing": "a stone strongroom, shelves of ledgers"}}})
+        rec("a room inside a known building inherits its settlement",
+            (gsi._current_place or {}).get("area") == "Wapping", str(gsi._current_place))
+        rec("... and its arrival keeps the settlement",
+            gsi.arrival == "Ropehaven Wharf, in Wapping", gsi.arrival)
+
+        # The guard itself: an unresolved settlement must not shorten an arrival already held.
+        gsp = GameSession(base_dir=Path(td), model="test", scene_images=False)
+        gsp.session = _FakeMCP()
+        gsp.era = ERA
+        gsp.arrival = "Ropehaven Wharf, in Wapping"
+        await gsp._pin_arrival(PLACE, "")
+        rec("an unresolved settlement never degrades a specific arrival",
+            gsp.arrival == "Ropehaven Wharf, in Wapping"
+            and not [c for c in gsp.session.calls if c[0] == "set_player_field"],
+            f"{gsp.arrival} / {gsp.session.calls}")
 
         # ── the priming body is mode-aware ────────────────────────────────────
         gs._primed = known_scene_places(out, "save", ERA)

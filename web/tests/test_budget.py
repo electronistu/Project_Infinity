@@ -82,24 +82,37 @@ def main():
     rec("a single breach reddens the gate", not ok)
 
     # -- the live metrics -----------------------------------------------------
+    # Every comparison below reads the ceiling from `budgets.yml` itself: the numbers live in
+    # that file (a decision log), and a second copy here is what rots -- raising a ceiling
+    # must not mean editing a test.
     place_tree = tb._metric_place_tree(count)
-    rec("place tree is measured at the 12-place cap", isinstance(place_tree, int), f"{place_tree} tok")
-    rec("the 12-place worst case is inside 400", place_tree <= 400, f"{place_tree} tok")
+    from web.places import AREA_INDEX_CAP, PLACE_TREE_CAP
+    rec("place tree is measured at its worst case (the area cap AND the anchor cap)",
+        isinstance(place_tree, int), f"{place_tree} tok")
+    rec("... and that worst case is inside its own ceiling",
+        isinstance(place_tree, int) and place_tree <= by_name["place_tree"]["ceiling"],
+        f"{place_tree} <= {by_name['place_tree']['ceiling']} "
+        f"({PLACE_TREE_CAP} places + {AREA_INDEX_CAP} anchors)")
     era_bytes = tb._metric_era_file_bytes()
+    ceiling = by_name["era_file_bytes"]["ceiling"]
     rec("era_file_bytes measures config/eras/*.yml",
-        isinstance(era_bytes, int) and era_bytes <= 5120, f"{era_bytes} B")
+        isinstance(era_bytes, int) and era_bytes <= ceiling, f"{era_bytes} B <= {ceiling}")
     era_index_tokens = count(tb._era_index_text())
+    ceiling = by_name["era_index"]["ceiling"]
     rec("era_index is measured and within its ceiling",
-        era_index_tokens <= 150, f"{era_index_tokens} tok")
+        era_index_tokens <= ceiling, f"{era_index_tokens} <= {ceiling} tok")
     metrics = tb._metrics(0, 0, era_index_tokens, count)
     rec("always_on_total is reported", isinstance(metrics.get("always_on_total"), int),
-        f"{metrics.get('always_on_total')} tok")
+        str(metrics.get("always_on_total")))
     lookup_row = tb._metric_lookup_schema(tb._tool_rows(count))
+    ceiling = by_name["lookup_schema"]["ceiling"]
     rec("lookup tool row is measured and inside its ceiling",
-        isinstance(lookup_row, int) and lookup_row <= 100, f"{lookup_row} tok")
+        isinstance(lookup_row, int) and lookup_row <= ceiling, f"{lookup_row} <= {ceiling} tok")
     era_scaffold_tokens = tb._metric_era_scaffold(count)
+    ceiling = by_name["era_scaffold"]["ceiling"]
     rec("era_scaffold is measured and within its ceiling",
-        isinstance(era_scaffold_tokens, int) and era_scaffold_tokens <= 450, f"{era_scaffold_tokens} tok")
+        isinstance(era_scaffold_tokens, int) and era_scaffold_tokens <= ceiling,
+        f"{era_scaffold_tokens} <= {ceiling} tok")
 
     # -- the two games are measured apart (D31, D32) ---------------------------
     rows = tb._tool_rows(count)

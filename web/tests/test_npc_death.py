@@ -42,6 +42,28 @@ def _place_of(places, path):
     return [p for p in places if p["place"] == path][0]
 
 
+class _Block:
+    def __init__(self, text):
+        self.text = text
+
+
+class _Result:
+    def __init__(self, text):
+        self.content = [_Block(text)]
+        self.isError = False
+
+
+class _FakeMCP:
+    """Enough of the MCP session for a tool call that reads and writes player fields."""
+
+    def __init__(self):
+        self.calls = []
+
+    async def call_tool(self, name, arguments=None):
+        self.calls.append((name, arguments or {}))
+        return _Result("{}")
+
+
 def _session(td):
     gs = GameSession(base_dir=Path(td), model="test", scene_images=False)
     gs.active_name = "save"
@@ -50,7 +72,7 @@ def _session(td):
     gs._reload_era_scene_state()
     # The manifest's `current` pointer is the last recorded place; point the session at
     # the place under test so a combat result is matched against its main NPCs.
-    gs._current_place = {"era": ERA, "kingdom": "London", "area": "Wapping", "place": PLACE}
+    gs._set_current_place("London", "Wapping", PLACE)
     return gs
 
 
@@ -141,6 +163,40 @@ async def main() -> bool:
                                      "is_player": False}])
         rec("a name that is only cast (not a main_npc of the place) is not annotated",
             "Corvin Hale (dead)" not in gs3._places_body(), gs3._places_body())
+
+        # ── images on: a scene call IS the movement signal ────────────────────
+        # It used to be thrown away: a fight in the place the story just entered left its
+        # regular un-marked, and a same-named regular of the place the save last recorded
+        # could be marked instead. The two places below share one name on purpose.
+        gasworks = ["Ropehaven Wharf", "the gasworks"]
+        market = ["Ropehaven Wharf", "the fish market"]
+        keeper = {"name": "the harbourmaster", "role": "the harbourmaster",
+                  "race": "human", "class": "rogue"}
+        svc.record_place("save", era=ERA, kingdom="London", area="Wapping",
+                         place=gasworks, main_npcs=[keeper])
+        svc.record_place("save", era=ERA, kingdom="London", area="Wapping",
+                         place=market, main_npcs=[keeper])
+        gsx = GameSession(base_dir=Path(td), model="test", scene_images=True)
+        gsx.active_name = "save"
+        gsx.era = ERA
+        gsx.classic = False
+        gsx.session = _FakeMCP()
+        gsx._reload_era_scene_state()
+        rec("the session opens where the save last stood",
+            (gsx._current_place or {}).get("place") == market, str(gsx._current_place))
+        await gsx._execute_tool({"function": {"name": "request_scene_image", "arguments": {
+            "description": "the protagonist climbs the gantry", "place": gasworks}}})
+        rec("a scene call in a known place moves the engine's idea of where the GM is",
+            (gsx._current_place or {}).get("place") == gasworks
+            and (gsx._current_place or {}).get("area") == "Wapping", str(gsx._current_place))
+        gsx._track_main_npc_deaths([{"name": "the harbourmaster", "killed": True,
+                                     "is_player": False}])
+        gsx._freeze_dead()
+        dead_now = {p["place"][-1]: p["dead"] for p in known_scene_places(out, "save", ERA)}
+        rec("a death lands on the place the story is in",
+            dead_now.get("the gasworks") == ["the harbourmaster"], str(dead_now))
+        rec("... and never on the place the save merely last recorded",
+            dead_now.get("the fish market") == [], str(dead_now))
 
     return all(RESULTS)
 

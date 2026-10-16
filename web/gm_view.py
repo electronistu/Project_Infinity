@@ -1,7 +1,7 @@
 import json
 import re
 
-from .protocol import MAX_LEGEND_CHARS, MAX_LEGEND_EXTRACT, PAUSE_TOKENS
+from .protocol import MAX_LEGEND_CHARS, MAX_LEGEND_EXTRACT, REMEMBERS_RE
 
 
 # ── What the GM is shown of a tool result ─────────────────────────────────
@@ -131,31 +131,26 @@ def _gm_tool_view(name: str, text: str) -> str:
     return json.dumps(view, ensure_ascii=True)
 
 
-def _clean_pause_tokens(text: str) -> str:
-    for token in PAUSE_TOKENS:
-        text = text.replace(token, "")
-    return text.strip()
-
-
-# The GM's era memory, written on the closing turn: `{{_REMEMBERS: <one sentence>}}`. The
-# client hides it while streaming; the engine keeps only the sentence.
-_REMEMBERS_RE = re.compile(r"\{\{_REMEMBERS:\s*(.*?)\s*\}\}", re.DOTALL)
+# The GM's era memory, written on the closing turn: `{{remembers: <the age's memory>}}` --
+# the age's whole memory, not one sentence (see `_MEMORY_SCOPE`). The client hides it while
+# streaming; the engine keeps only the memory block. The marker is matched tolerantly
+# (`protocol.REMEMBERS_RE`); the payload is judged here.
 
 
 def _extract_legend(text: str) -> tuple[str, str]:
-    """Pull the `{{_REMEMBERS: ...}}` marker out of an assistant message.
+    """Pull the `{{remembers: ...}}` marker out of an assistant message.
 
     Returns ``(legend, cleaned_text)``. A legend that merely echoes the placeholder, or is
     absurdly short or long, is rejected -- the template fallback is better than a broken
     memory line. A message without the marker is returned untouched.
     """
     raw = text or ""
-    match = _REMEMBERS_RE.search(raw)
+    match = REMEMBERS_RE.search(raw)
     if not match:
         return "", raw
     legend = " ".join(match.group(1).split())
-    cleaned = _REMEMBERS_RE.sub("", raw).strip()
-    if "<one sentence" in legend.lower() or legend.startswith("<") or "<" in legend:
+    cleaned = REMEMBERS_RE.sub("", raw).strip()
+    if "<" in legend:
         return "", cleaned
     if not (15 <= len(legend) <= MAX_LEGEND_EXTRACT):
         return "", cleaned

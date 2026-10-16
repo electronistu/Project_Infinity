@@ -135,7 +135,7 @@ class SessionBase:
         # The eras the Traveller has stood in, oldest first: "previous" means the one before
         # the current, which the timeline legends cannot give (a return does not rewrite one).
         self.journey: list[str] = []
-        # The GM's memory line for the age it is leaving, captured from `{{_REMEMBERS: ...}}`
+        # The GM's memory line for the age it is leaving, captured from `{{remembers: ...}}`
         # on the closing turn; `_jump` prefers it over the config template and clears it.
         self._pending_legend: str = ""
         # Injected in tests so the "random" era is reproducible.
@@ -148,6 +148,12 @@ class SessionBase:
         # The scene caption's place: the last declared/used place (age and place are the only
         # scene fields the engine knows; time and weather are dropped in text mode).
         self._current_place: dict | None = None
+        # The live ordering stamp for the place list (see `_reload_era_scene_state`): bumped on
+        # every touch of a place this session, seeded above the manifest's own stamps.
+        self._place_tick: int = 0
+        # The tool result's place correction for the call in flight (path identity or address):
+        # set by `_execute_tool`, appended to the result, reset at the start of the next call.
+        self._place_note: str = ""
         # ── what the ages remember ──────────────────────────────────────
         # One or two lines per era, read from the save's timeline and injected lazily: the
         # eras the Traveller is not in cost nothing.
@@ -359,11 +365,11 @@ class SessionBase:
                         self.messages.append({"role": "system",
                                               "content": SESSION_TIMELINE_HEADER + memory_body})
 
-                    # The place/NPC tree is primed in BOTH modes: with images on it comes
-                    # from the scene manifest, with images off from the text registry.
+                    # The place/NPC registry is primed in BOTH modes: with images on it comes
+                    # from the scene manifest, with images off from the text registry. The block
+                    # itself goes LAST in the fixed prefix (below the sheet): it is the one
+                    # always-on message a move rewrites in place.
                     self._reload_era_scene_state()
-                    self._places_at = len(self.messages)
-                    self.messages.append({"role": "system", "content": self._places_body()})
 
                     # What the ages remember: this era's legend, if it has one. The ages
                     # exist only in the era game, so a classic session never hears them.
@@ -379,6 +385,10 @@ class SessionBase:
                     self._sheet_block = await self._fetch_sheet()
                     if self._sheet_block:
                         self.messages.append({"role": "system", "content": self._sheet_block})
+                    # The KNOWN PLACES block: scoped to where the GM is, and last in the fixed
+                    # prefix, so a move invalidates nothing before it.
+                    self._places_at = len(self.messages)
+                    self.messages.append({"role": "system", "content": self._places_body()})
                     self._era_started_turn = self.turn_counter
 
                     # The Device: how many parts are in the pack, and the eras visited, from
@@ -450,7 +460,7 @@ class SessionBase:
             await self._emit({"type": "busy", "value": True})
             try:
                 self._narrative_emitted_turn = False
-                text = await self._run_role("{{_CONTINUE_EXECUTION}}", "resume")
+                text = await self._run_role("{{resume}}", "resume")
                 await self._emit({"type": "turn_end", "text": text or ""})
             finally:
                 await self._emit({"type": "busy", "value": False})
@@ -506,9 +516,6 @@ class SessionBase:
         character sheet is re-injected too (it is engine-owned and would otherwise be lost)."""
         head = [self.messages[0], {"role": "system", "content": render_era_index(self.era)}]
         self._era_index_at = 1
-        self._places_at = None
-        self._places_at = len(head)
-        head.append({"role": "system", "content": self._places_body()})
         memory = self._memory_message(just_left)
         if memory:
             head.append({"role": "system", "content": memory})
@@ -517,4 +524,8 @@ class SessionBase:
             head.append({"role": "system", "content": state})
         if self._sheet_block:
             head.append({"role": "system", "content": self._sheet_block})
+        # The KNOWN PLACES block LAST: it is the one always-on message a move rewrites, so the
+        # messages before it stay cache-stable.
+        self._places_at = len(head)
+        head.append({"role": "system", "content": self._places_body()})
         self.messages = head

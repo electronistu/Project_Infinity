@@ -5,12 +5,12 @@ import os
 import shutil
 from . import timeline
 from .eras import playable_eras
-from .gm_view import _clamp_block, _clean_pause_tokens, _trim_legend
+from .gm_view import _clamp_block, _trim_legend
 from .scenes import commit_scene_manifest
 from .ollama_stream import stream_chat
 from .protocol import (
     CHRONICLE_PROMPT, COMBAT_HOLD_MESSAGE, STATE_RECOVERY_NUDGE, TIMELINE_PROMPT,
-    TIMELINE_PROMPT_ERA
+    TIMELINE_PROMPT_ERA, strip_markers
 )
 from .timeline import (
     _STATE_FIELDS, _TIMELINE_HEADER, _entry_turn_range, _extract_state, _extract_states,
@@ -162,7 +162,7 @@ class SaveMixin:
         else:
             prompt = (TIMELINE_PROMPT_ERA.replace("X-Y", f"{start}-{target_turn}")
                       .replace("{era}", self.era))
-        text = _clean_pause_tokens(await self._plain_summary(prompt) or "")
+        text = strip_markers(await self._plain_summary(prompt) or "")
         reply = text
         if self.classic:
             state, text = _extract_state(reply)
@@ -208,7 +208,7 @@ class SaveMixin:
         fields = " / ".join(_STATE_FIELDS)
         prompt = STATE_RECOVERY_NUDGE.format(
             scope=scope, fields=fields, reply=(reply or "")[:4000])
-        text = _clean_pause_tokens(await self._plain_call(
+        text = strip_markers(await self._plain_call(
             [{"role": "user", "content": prompt}], "state-fix") or "")
         pages, _ = _extract_states(text, [scope])
         return pages.get(scope, "")
@@ -308,7 +308,7 @@ class SaveMixin:
         """One tool-free call that folds older entries into a single chronicle. It gets
         only the old text -- never the session history -- so the compaction is cheap."""
         prompt = CHRONICLE_PROMPT.format(a=a, b=b, old=old_text)
-        return _clean_pause_tokens(await self._plain_call(
+        return strip_markers(await self._plain_call(
             [{"role": "user", "content": prompt}], "chronicle") or "").strip()
 
     async def _compact_timeline(self, entry: str | None) -> None:

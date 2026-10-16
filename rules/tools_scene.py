@@ -79,8 +79,10 @@ def note_place(kingdom: str, area: str, place: list[str],
                cast: list[dict] | None = None) -> dict:
     """Remember a place (and its regulars) in the storyline when images are off.
 
-    WHEN: once, on entering a genuinely NEW place -- not every turn. The engine primes the
-    tree (names only) each session, and pools these places with the ones it already knows.
+    WHEN: whenever the story moves the Traveller to a place he is not already in -- a place
+    that is new to the story, or a return to one already known -- and again when a place gains
+    a regular. Not every turn: only when the story moves. The engine primes the tree (names
+    only) each session, and pools these places with the ones it already knows.
     FIELDS:
     - place: ordered path BELOW the settlement, deepest last, at least 2 entries -- [district/neighbourhood, the exact building/room, (any room inside it, ...)]. Reuse the exact path once used.
     - kingdom = realm; area = settlement (city/town).
@@ -89,7 +91,8 @@ def note_place(kingdom: str, area: str, place: list[str],
 
     RULES:
     - Names + roles + races + classes only: never a look, a pose or a second person's details.
-    - Re-declaring a name updates it; reuse names and paths exactly.
+    - Re-declaring a name updates it; re-declaring a place says the story moved back there;
+      reuse names and paths exactly.
     - Does not change game state; the engine remembers the place.
     """
     path = [" ".join(str(p).split()) for p in (place or []) if str(p or "").strip()]

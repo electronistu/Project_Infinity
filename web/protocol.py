@@ -4,7 +4,57 @@ import re
 from .tool_schema import compact_schema
 
 
-PAUSE_TOKENS = ("{{_NEED_AN_OTHER_PROMPT}}", "{{_NEED_ANOTHER_PROMPT}}")
+# ── The engine's markers ──────────────────────────────────────────────────
+#
+# Three markers, each with ONE canonical spelling and no leading underscore: a `_NAME` right
+# after `{{` reads as a mangled dunder, so the model "repairs" it to `{{__NAME}}` and the
+# token stops matching.
+#
+#   {{pause}}                          GM -> engine: the batch is done, resume me
+#   {{resume}}                         engine -> GM (and the GM's echo of it)
+#   {{remembers: <the age's memory>}}  the closing turn's era memory
+#
+# Recognition is tolerant on the MARKER -- padding underscores, stray spaces, case, and the
+# one word's `-s`/`-d`/`-ing` tail -- and strict on the payload. The accepted set is the
+# canonical cores alone: the underscore-prefixed `_NEED_AN_OTHER_PROMPT` pause and the
+# `_CONTINUE_EXECUTION` resume are gone. A marker no core matches is caught by
+# `has_unknown_marker`, so it is never narrated as prose.
+_MARKER_HEAD = r"\{\{\s*_*\s*"
+_MARKER_TAIL = r"\s*_*\s*\}\}"
+PAUSE_MARKER_RE = re.compile(_MARKER_HEAD + r"paus(?:e[sd]?|ing)?" + _MARKER_TAIL, re.I)
+RESUME_MARKER_RE = re.compile(_MARKER_HEAD + r"resum(?:e[sd]?|ing)?" + _MARKER_TAIL, re.I)
+# The era memory's payload is the age's whole memory, not one sentence (`_MEMORY_SCOPE`).
+# Non-greedy with DOTALL, so it closes at the first `}}`.
+REMEMBERS_RE = re.compile(r"\{\{\s*_*\s*remembers?\s*:?\s*(.*?)\s*_*\s*\}\}", re.I | re.S)
+# Any marker shape left after the three above are stripped: the residue guard.
+UNKNOWN_MARKER_RE = re.compile(r"\{\{[^}]{0,80}\}\}")
+
+
+def is_pause(text: str) -> bool:
+    """True when the GM paused the turn -- `{{pause}}`, tolerantly spelled."""
+    return bool(PAUSE_MARKER_RE.search(text or ""))
+
+
+def strip_markers(text: str) -> str:
+    """Every engine marker removed, with the result stripped.
+
+    Used to decide whether the player actually saw prose, and to keep a marker out of the
+    timeline summaries. The remembers marker takes its payload with it.
+    """
+    text = REMEMBERS_RE.sub("", text or "")
+    text = PAUSE_MARKER_RE.sub("", text)
+    text = RESUME_MARKER_RE.sub("", text)
+    return text.strip()
+
+
+def has_unknown_marker(text: str) -> bool:
+    """True when a marker-shaped token survived `strip_markers`: a spelling no core matched.
+
+    The caller treats such a round as having no prose -- a recovery round, never a narrative.
+    """
+    return bool(UNKNOWN_MARKER_RE.search(text or ""))
+
+
 MAX_THINKING_RETRIES = 3
 DEFAULT_CONTEXT_WINDOW = 1_048_576
 # Emitted only when the GM attached the illustration with no prose. The GM has no
@@ -28,12 +78,12 @@ RESUME_GUARD_NUDGE = (
     "SYSTEM: You have already paused; the engine resumed. Write the turn's narrative now."
 )
 MAX_RESUME_ROUNDS = 3
-# The session start's resume re-anchors the one step a bare `{{_CONTINUE_EXECUTION}}` leaves
+# The session start's resume re-anchors the one step a bare `{{resume}}` leaves
 # implicit: after the pause the next beat IS the narrative (the opening scene for a new game,
 # the continuation for a resumed one), and it carries the illustration. An empty turn there
 # otherwise reads as valid. A runtime message, so it costs no prefix tokens.
 AWAKENING_RESUME = (
-    "{{_CONTINUE_EXECUTION}} — write the SESSION START narrative now — the opening scene for "
+    "{{resume}} — write the SESSION START narrative now — the opening scene for "
     "a new game, the continuation for a resumed one — in the same response as exactly ONE "
     "`request_scene_image`. The CHARACTER SHEET is already in your context."
 )
@@ -260,19 +310,19 @@ MAX_LEGEND_EXTRACT = 2000
 # rewrites the age's whole memory; there is no engine-authored fallback.
 LEGEND_ASK = (
     "Close this age. End the narrative of THIS turn with "
-    "{{_REMEMBERS: <" + _MEMORY_SCOPE + ">}} and nothing after it."
+    "{{remembers: <" + _MEMORY_SCOPE + ">}} and nothing after it."
 )
 
 # A player-driven jump has no warning turn, so the engine runs one closing turn first.
 DEVICE_CLOSES = (
     "The Traveller turns the Device toward {name}. Narrate the last moment of this age -- "
-    "the world letting go -- and end with {{{{_REMEMBERS: <" + _MEMORY_SCOPE + ">}}}} and "
+    "the world letting go -- and end with {{{{remembers: <" + _MEMORY_SCOPE + ">}}}} and "
     "nothing after it."
 )
 
 LEGEND_RECOVERY_NUDGE = (
     "SYSTEM: this age's memory line is missing. Reply with ONLY the marker "
-    "{{_REMEMBERS: <" + _MEMORY_SCOPE + ">}} -- no prose, no tool calls, nothing else."
+    "{{remembers: <" + _MEMORY_SCOPE + ">}} -- no prose, no tool calls, nothing else."
 )
 
 # Asked on the same closing turn, and it must come BEFORE the memory marker (which stays
@@ -282,7 +332,7 @@ LEGEND_RECOVERY_NUDGE = (
 ERA_STATE_ASK = (
     "Before that, write this age's STATE page exactly as in a save reply -- a "
     "<!-- state:{era} --> … <!-- /state:{era} --> block with this age's fields, scoped to "
-    "THIS age. It comes BEFORE the {{{{_REMEMBERS}}}} marker, which stays last."
+    "THIS age. It comes BEFORE the {{{{remembers}}}} marker, which stays last."
 )
 
 # Asked ONCE, tool-free, when a Save produced a state page with no core AND there is no page

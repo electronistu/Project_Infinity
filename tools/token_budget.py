@@ -129,25 +129,35 @@ def _public(row):
     return {k: v for k, v in row.items() if k not in _TEXT_KEYS}
 
 
-def _synthetic_places(n: int) -> list[dict]:
-    """N representative places for the KNOWN PLACES priming measure."""
+def _synthetic_places(n: int, cap: int = 12) -> list[dict]:
+    """N representative places for the KNOWN PLACES measure.
+
+    The CURRENT area holds the cap and no more (the feed's worst case), and every further
+    place gets its OWN area: past `AREA_INDEX_CAP` other areas the block is bounded by the
+    anchor cap, so a measurement built this way exercises it. `used` runs newest-first, so
+    the cap keeps the first `cap` places.
+    """
     out = []
     for i in range(n):
+        home = i < cap
         out.append({
-            "kingdom": "Eldoria" if i % 3 else "Zarthus",
-            "area": "Eldoria City" if i % 3 else "Zarthus City",
+            "kingdom": "Eldoria" if home else f"Zarthus {i - cap + 1}",
+            "area": "Eldoria City" if home else f"Zarthus City {i - cap + 1}",
             "place": [f"District {i // 3}", f"Landmark {i}"],
             "description": "",
             "main_npcs": [{"name": f"NPC{i}A", "role": "the keeper", "description": ""},
                           {"name": f"NPC{i}B", "role": "the table-runner", "description": ""}],
+            "used": n - i,
         })
     return out
 
 
 def known_places_block(n: int, count):
-    """The awakening KNOWN PLACES message for N places (header + tree)."""
-    from web.places import KNOWN_PLACES_HEADER, format_known_places
-    text = KNOWN_PLACES_HEADER + "\n" + format_known_places(_synthetic_places(n))
+    """The KNOWN PLACES message for N places, built by the session's own feed builder."""
+    from web.places import PLACE_TREE_CAP, places_feed
+    places = _synthetic_places(n, PLACE_TREE_CAP)
+    current = places[0] if places else None
+    text = places_feed(places, current, scene_images=True)
     return text, count(text)
 
 
@@ -238,7 +248,6 @@ def sheet_block(count):
 
 BUDGETS = REPO / "tools" / "budgets.yml"
 ERA_DIR = REPO / "config" / "eras"
-PLACE_TREE_CAP = 12
 
 
 def check_gate_ready(exact: bool) -> tuple[bool, str]:
@@ -250,9 +259,10 @@ def check_gate_ready(exact: bool) -> tuple[bool, str]:
 
 
 def _metric_place_tree(count):
-    """KNOWN PLACES at the S0.3 cap, or None if the engine is unavailable."""
+    """KNOWN PLACES at its worst case -- the area cap AND the anchor cap -- or None."""
     try:
-        _, tokens = known_places_block(PLACE_TREE_CAP, count)
+        from web.places import AREA_INDEX_CAP, PLACE_TREE_CAP
+        _, tokens = known_places_block(PLACE_TREE_CAP + AREA_INDEX_CAP, count)
         return tokens
     except Exception:
         return None

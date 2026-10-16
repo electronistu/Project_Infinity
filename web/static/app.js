@@ -63,13 +63,13 @@ function escapeHtml(s) {
 }
 
 function stripTokens(s) {
+  // The engine's markers, matched exactly as `web/protocol.py` does (tolerant on the marker:
+  // padding underscores, stray spaces, case, the one word's tail). Keep the two in step.
   return String(s)
-    .replace(/\{\{_NEED_AN_OTHER_PROMPT\}\}/g, "")
-    .replace(/\{\{_NEED_ANOTHER_PROMPT\}\}/g, "")
-    .replace(/\{\{_CONTINUE_EXECUTION\}\}/g, "")
-    // The GM's era memory line (hidden while streaming and in the final render).
-    .replace(/\{\{_REMEMBERS:[\s\S]*?\}\}/g, "")
-    .replace(/\{\{_REMEMBERS:[\s\S]*$/g, "")
+    .replace(/\{\{\s*_*\s*remembers?\s*:?\s*[\s\S]*?\s*_*\s*\}\}/gi, "")
+    .replace(/\{\{\s*_*\s*remembers?[\s\S]*$/gi, "")
+    .replace(/\{\{\s*_*\s*(?:paus|resum)(?:e[sd]?|ing)?\s*_*\s*\}\}/gi, "")
+    .replace(/\{\{\s*_*\s*(?:paus|resum)(?:e[sd]?|ing)?\s*_*\s*$/gi, "")
     // A departure STATE page rides the closing turn as a hidden HTML comment; the engine
     // strips it from the stored text, and this keeps it out of the streaming preview too.
     .replace(/<!-- state:[\s\S]*?-->/g, "")

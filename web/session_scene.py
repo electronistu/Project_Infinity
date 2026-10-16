@@ -12,10 +12,7 @@ if str(REPO_ROOT) not in sys.path:
 from .eras import render_era_text
 from .gm_view import _trim_legend
 from .scenes import current_scene_place, known_npc_names, known_scene_places, mark_place_dead
-from .places import (
-    KNOWN_PLACES_EMPTY_TEXT, KNOWN_PLACES_HEADER, KNOWN_PLACES_HEADER_TEXT, _primed_places,
-    _scene_key, format_known_places
-)
+from .places import _scene_key, name_key, places_feed
 from .player_file import _jump_reset_note, _sheet_body
 from .protocol import (
     CARRY_NOTE, DEVICE_CLOSES, DEVICE_DECLARES, DEVICE_FIRES, ERA_STATE_ASK, HELP_TEXT,
@@ -24,13 +21,6 @@ from .protocol import (
 from .session_base import OUTPUT_DIR
 from .stats import build_stats
 import device
-
-KNOWN_PLACES_EMPTY = (
-    "KNOWN PLACES: none recorded yet. On entering a place, declare "
-    "its `kingdom`, `area` and `place` path and request its seed with "
-    "`establishing` (a short, people-free description) together with the "
-    "action image."
-)
 
 
 class SceneMixin:
@@ -64,6 +54,9 @@ class SceneMixin:
         except Exception:  # noqa: BLE001 - never fail a session over the place tree
             places = []
         self._primed = places
+        # The live ordering stamp starts ABOVE every stamp loaded from disk, so a place the GM
+        # touches this session always outranks one that was merely loaded.
+        self._place_tick = max((int(p.get("used") or 0) for p in places), default=0)
         self._dead_perm = {}
         for p in places:
             self._dead_perm[(str(p.get("era") or ""), _scene_key(p.get("place")))] = {
@@ -75,7 +68,8 @@ class SceneMixin:
         except Exception:  # noqa: BLE001 - never fail a session over the caption
             self._current_place = None
         try:
-            self._cast_names = known_npc_names(self.base_dir / OUTPUT_DIR, self.active_name or "")
+            self._cast_names = {name_key(n) for n in
+                               known_npc_names(self.base_dir / OUTPUT_DIR, self.active_name or "")}
         except Exception:  # noqa: BLE001
             self._cast_names = set()
         # Identity is learned from the era's places so the on-stage echo works from the
@@ -186,12 +180,34 @@ class SceneMixin:
                           "era_name": "" if self.classic else device.era_label(self.era)})
 
     def _places_body(self) -> str:
-        primed = _primed_places(self._primed)
-        if self.scene_images:
-            return (KNOWN_PLACES_EMPTY if not primed
-                    else KNOWN_PLACES_HEADER + "\n" + format_known_places(primed))
-        return (KNOWN_PLACES_EMPTY_TEXT if not primed
-                else KNOWN_PLACES_HEADER_TEXT + "\n" + format_known_places(primed))
+        """The KNOWN PLACES message: the current area, the marked line, the other areas."""
+        return places_feed(self._primed, self._current_place, self.scene_images)
+
+    def _next_place_tick(self) -> int:
+        """The live ordering stamp for the place list, one step past the last.
+
+        Seeded in `_reload_era_scene_state` ABOVE every stamp loaded from disk, so a place the
+        GM touches this session outranks one that was merely loaded, and two touches in the same
+        second still order strictly (the manifest's own timestamps are second-resolution)."""
+        self._place_tick += 1
+        return self._place_tick
+
+    def _refresh_places_block(self) -> None:
+        """Rewrite the places message in place when what it says has changed.
+
+        The block is scoped to where the GM is, so a move must move it -- but only a move the
+        rendered text would show does any work, and the message sits LAST in the fixed prefix,
+        so a rewrite invalidates the prompt cache from there on and nothing earlier.
+        """
+        at = self._places_at
+        if at is None or not (0 <= at < len(self.messages)):
+            return
+        entry = self.messages[at]
+        if entry.get("role") != "system":
+            return
+        body = self._places_body()
+        if entry.get("content") != body:
+            self.messages[at] = {"role": "system", "content": body}
 
     def _era_opening(self, resumed: bool = False) -> str:
         """The lines the GM is handed with an era: which situation this is, where the Traveller
@@ -313,10 +329,10 @@ class SceneMixin:
         # The landing place when one was picked; an area alone keeps the caption to the area; else
         # None -- the GM declares the exact place below.
         if landing:
-            self._current_place = {"era": self.era, **landing}
+            self._set_current_place(landing.get("kingdom", ""), landing.get("area", ""),
+                                    landing.get("place"))
         elif chosen_area:
-            self._current_place = {"era": self.era, "kingdom": "", "area": chosen_area,
-                                   "place": []}
+            self._set_current_place("", chosen_area, [])
         else:
             self._current_place = None
         # `_compact` throws the sheet away with the rest, so rebuild it from the live DB first.

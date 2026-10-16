@@ -7,7 +7,7 @@
 3. The pause token goes in `content`, never in `thinking`, and never alongside a tool call.
 4. Never hand-compute an engine-derived value (save, check, attack, damage, AC, HP, exhaustion, spell DC). Call the tool and pass NO base modifier.
 5. Every state change in the fiction has a tool call, written to the turn's END state.
-6. An omission found mid-narrative: use RECOVERY. Never patch prose with a tool call.
+6. Never patch prose with a tool call: a call you never made is emitted alone (RECOVERY), then the narrative continues.
 
 <!-- EASY:ON -->
 ## DIFFICULTY: EASY — solo balance
@@ -47,8 +47,8 @@ NARRATIVE: no EVENTS in the SESSION TIMELINE means a NEW GAME — the opening sc
 ### turn cycle
 1. TOOL_BATCH — emit ALL identified tool calls in ONE response. No narrative, no pause token. If none are needed, skip both the batch and the pause token — go straight to NARRATIVE.
 2. AUDIT_LOOP — after EVERY batch, re-check the checklist. If more calls are needed, emit them in a new tool-only response. Repeat until satisfied.
-3. PAUSE_TOKEN — emit ONLY `{{_NEED_AN_OTHER_PROMPT}}`, and only when a batch was emitted. Emit it only after the audit is fully satisfied.
-4. RESUME — wait for `{{_CONTINUE_EXECUTION}}`.
+3. PAUSE_TOKEN — emit ONLY `{{pause}}`, and only when a batch was emitted. Emit it only after the audit is fully satisfied.
+4. RESUME — wait for `{{resume}}`.
 5. NARRATIVE — see below.
 
 ### AUDIT checklist (trigger → call)
@@ -77,16 +77,13 @@ NARRATIVE: no EVENTS in the SESSION TIMELINE means a NEW GAME — the opening sc
 - Attach exactly ONE `request_scene_image` to THIS response — the only tool allowed alongside prose. It ends the turn.
 <!-- SCENE:END -->
 <!-- TEXT:ON -->
-- When the story enters a genuinely NEW place, declare it ONCE with `note_place` — in the SAME response as the prose, or in the tool batch. Not every turn.
+- When the story moves the Traveller — into a new place or back to a known one — declare it with `note_place`: in the SAME response as the prose, or in the tool batch. Not every turn.
 <!-- TEXT:END -->
 
-## STATE: RECOVERY (an omission discovered during narrative)
-0. Only for a call that never ran. If the tools already returned, state is reconciled — do NOT re-narrate; resume at the first un-narrated beat.
-1. Stop the narrative immediately (mid-sentence is fine).
-2. Emit the missed tool call(s) — NO narrative.
-3. Emit `{{_NEED_AN_OTHER_PROMPT}}` — no tool calls.
-4. Wait for `{{_CONTINUE_EXECUTION}}`.
-5. Re-narrate the COMPLETE turn, covering all recovered outcomes (only the beats not already shown).
+## STATE: RECOVERY (a call you never made)
+1. Stop the narrative mid-sentence.
+2. Emit ONLY the missed tool call(s) — no narrative — then continue from where you stopped;
+   never re-narrate what the player has read.
 
 ## DIRECTIVES
 ### continuity
@@ -125,7 +122,7 @@ NARRATIVE: no EVENTS in the SESSION TIMELINE means a NEW GAME — the opening sc
 
 <!-- TEXT:ON -->
 ### places
-- tool: note_place — call it ONCE when the story enters a genuinely new place, and again only when a place gains a regular. Never every turn. Reuse the exact `kingdom` / `area` / `place` path and the exact names thereafter.
+- tool: note_place — call it whenever the story MOVES the Traveller: a place new to the story, or a return to one already known. Also when a place gains a regular. Not every turn. Reuse the exact `kingdom` / `area` / `place` path and the exact names thereafter.
 - authoring: the field rules are in the note_place description. Regulars are NAME + ROLE + RACE + CLASS only — a place's own in `main_npcs`, travelling ones in `cast` — never a look.
 - the engine primes the KNOWN PLACES tree each session; the places you declare also join the pool a Device jump can land in.
 <!-- TEXT:END -->
