@@ -3,7 +3,10 @@
 import unittest
 
 from web.tests.dice import harness as H
+
+from rules import state
 import skills
+from rules.sheet import _passive_scores
 
 
 class SkillMapTest(unittest.TestCase):
@@ -108,8 +111,8 @@ class PassiveScoreTest(H.EngineCase):
     player_factory = staticmethod(H.fighter_l5)  # Perception +4, Insight +1, Investigation +0
 
     def test_passive_scores_are_ten_plus_modifier(self):
-        cursor = H.ds.DB_CONNECTION.cursor()
-        self.assertEqual(H.ds._passive_scores(cursor),
+        cursor = state.DB_CONNECTION.cursor()
+        self.assertEqual(_passive_scores(cursor),
                          {"perception": 14, "investigation": 10, "insight": 11})
 
     def test_dump_exposes_the_passive_block(self):

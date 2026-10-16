@@ -16,7 +16,9 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO))
 
-from web.engine import COMBAT_HOLD_MESSAGE, COMBAT_TOOLS, GameSession  # noqa: E402
+from web.engine import GameSession  # noqa: E402
+from web.session_turn import COMBAT_TOOLS  # noqa: E402
+from web.protocol import COMBAT_HOLD_MESSAGE  # noqa: E402
 import device as device_mod  # noqa: E402
 
 RESULTS = []

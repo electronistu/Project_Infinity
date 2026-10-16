@@ -19,9 +19,8 @@ sys.path.insert(0, str(REPO))
 
 import device as device_mod  # noqa: E402
 
-from web.engine import (  # noqa: E402
-    DEV_NOTE_HEADER, ENGINE_ONLY_TOOLS, GameSession, filter_tools,
-)
+from web.engine import GameSession  # noqa: E402
+from web.protocol import DEV_NOTE_HEADER, ENGINE_ONLY_TOOLS, filter_tools  # noqa: E402
 
 RESULTS = []
 

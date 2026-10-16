@@ -59,7 +59,7 @@ def _counter():
 def _render_protocol(text: str, scene_images: bool, mode: str | None = None) -> str:
     """Reuse the engine's renderer so the count never drifts from production."""
     try:
-        from web.engine import MODE_TIME_TRAVELER, render_protocol
+        from web.protocol import MODE_TIME_TRAVELER, render_protocol
 
         return render_protocol(text, scene_images, "hard", mode or MODE_TIME_TRAVELER)
     except Exception:  # pragma: no cover - fallback if web deps are unavailable
@@ -99,7 +99,7 @@ def _tool_rows(count):
     Tools the GM is never offered (ENGINE_ONLY_TOOLS) are skipped: the gate measures what
     actually enters the prompt, not everything the server can serve."""
     try:
-        from web.engine import ENGINE_ONLY_TOOLS
+        from web.protocol import ENGINE_ONLY_TOOLS
     except Exception:  # pragma: no cover - the engine is importable in every real run
         ENGINE_ONLY_TOOLS = ()
     rows = []
@@ -146,7 +146,7 @@ def _synthetic_places(n: int) -> list[dict]:
 
 def known_places_block(n: int, count):
     """The awakening KNOWN PLACES message for N places (header + tree)."""
-    from web.engine import KNOWN_PLACES_HEADER, format_known_places
+    from web.places import KNOWN_PLACES_HEADER, format_known_places
     text = KNOWN_PLACES_HEADER + "\n" + format_known_places(_synthetic_places(n))
     return text, count(text)
 
@@ -172,7 +172,7 @@ _STATE_HEADER_SAMPLE = (
 def timeline_block(count):
     """The injected SESSION_TIMELINE body at its cap (MAX_TIMELINE_CHARS): the current age's
     STATE page, the chronicle and the kept entries. This is the block compaction bounds."""
-    from web.engine import MAX_TIMELINE_CHARS
+    from web.timeline import MAX_TIMELINE_CHARS
     text = _STATE_HEADER_SAMPLE
     while len(text) < MAX_TIMELINE_CHARS:
         text += _TIMELINE_SAMPLE
@@ -231,7 +231,7 @@ _COMPANIONS_SAMPLE = (
 def sheet_block(count):
     """The engine-injected CHARACTER SHEET at its worst case: a level-20 caster plus the
     maximum three companions of one world (name, identity and the capped look)."""
-    from web.engine import _sheet_body
+    from web.player_file import _sheet_body
     text = _sheet_body(_SHEET_SAMPLE) + "\n" + _COMPANIONS_SAMPLE
     return text, count(text)
 
@@ -372,7 +372,7 @@ def _metric_tool_results_gm_view(count):
     The row was declared as a runtime metric and never built; this offline proxy is what lets
     it be enforced instead of drifting unseen."""
     try:
-        from web.engine import _gm_tool_view
+        from web.gm_view import _gm_tool_view
     except Exception:
         return None
     return sum(count(_gm_tool_view(name, json.dumps(payload, ensure_ascii=True)))
@@ -387,7 +387,7 @@ def _offered_tool_tokens(rows, scene_images: bool, mode: str):
     over-stated the text-only prefix by ~1.1k tokens.
     """
     try:
-        from web.engine import filter_tools
+        from web.protocol import filter_tools
 
         offered = {t["function"]["name"] for t in filter_tools(
             [{"function": {"name": r["name"]}} for r in rows], scene_images, mode)}

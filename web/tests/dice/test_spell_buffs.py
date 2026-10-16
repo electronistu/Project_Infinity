@@ -15,6 +15,11 @@ import equipment
 
 from web.tests.dice import harness as H
 
+from rules import state
+from rules.db import _carry_get
+from rules.sheet import _derived_check, _derived_save
+from rules.spell_effects import _store_active_effect
+
 
 def buff_caster():
     return H.make_player(
@@ -39,12 +44,12 @@ class ActiveSpellBuffTest(H.EngineCase):
                                   slot_level=level)
 
     def _get(self):
-        return H.ds._carry_get(H.ds.DB_CONNECTION.cursor())
+        return _carry_get(state.DB_CONNECTION.cursor())
 
     def test_haste_doubles_speed_and_grants_dex_save_advantage(self):
         self._cast_self("Haste", 3)
         self.assertEqual(H.dbv("speed"), 60)  # 30 -> doubled
-        save = H.ds._derived_save(H.ds.DB_CONNECTION.cursor(), "dex")
+        save = _derived_save(state.DB_CONNECTION.cursor(), "dex")
         self.assertTrue(save["advantage"])
         self.assertIn("Haste", H.raw_dbv("active_effects") or [])
 
@@ -66,7 +71,7 @@ class ActiveSpellBuffTest(H.EngineCase):
 
     def test_beacon_of_hope_grants_wis_save_advantage(self):
         self._cast_self("Beacon of Hope", 3)
-        save = H.ds._derived_save(H.ds.DB_CONNECTION.cursor(), "wis")
+        save = _derived_save(state.DB_CONNECTION.cursor(), "wis")
         self.assertTrue(save["advantage"])
 
     def test_beacon_of_hope_registers_death_save_advantage(self):
@@ -77,8 +82,8 @@ class ActiveSpellBuffTest(H.EngineCase):
     def test_death_save_advantage_takes_the_higher_roll(self):
         # Beacon of Hope is concentration, so it ends at 0 HP (SRD: incapacitated). The death-save
         # advantage mechanism is exercised with a non-concentration effect instead.
-        cursor = H.ds.DB_CONNECTION.cursor()
-        H.ds._store_active_effect(cursor, "Blessing", "save_advantage", "death_saves", "death")
+        cursor = state.DB_CONNECTION.cursor()
+        _store_active_effect(cursor, "Blessing", "save_advantage", "death_saves", "death")
         H.ds.modify_player_numeric(key="current_hit_points", delta=-100)  # to 0
         with H.fixed_rolls([5, 15]):  # disadvantage would keep 5; advantage takes 15
             r = H.ds.make_death_save()
@@ -99,7 +104,7 @@ class ActiveSpellBuffTest(H.EngineCase):
 
     def test_pass_without_trace_grants_a_stealth_bonus(self):
         self._cast_self("Pass Without Trace", 2)
-        chk = H.ds._derived_check(H.ds.DB_CONNECTION.cursor(), "Stealth")
+        chk = _derived_check(state.DB_CONNECTION.cursor(), "Stealth")
         self.assertGreaterEqual(chk["item_bonus"], 10)
         self.assertTrue(any("+10" in s for s in chk["item_sources"]))
 

@@ -23,10 +23,11 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO))
 
-from web.engine import (  # noqa: E402
+from web.gm_view import (  # noqa: E402
     _GM_VIEW_KEEP, _GM_VIEW_DROP, _GM_VIEW_FULL, _GM_VIEW_ALWAYS_DROP,
-    _gm_tool_view, filter_tools, MODE_CLASSIC, MODE_TIME_TRAVELER,
+    _gm_tool_view,
 )
+from web.protocol import filter_tools, MODE_CLASSIC, MODE_TIME_TRAVELER  # noqa: E402
 
 RESULTS = []
 

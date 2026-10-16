@@ -17,6 +17,13 @@ if str(REPO) not in sys.path:
 import equipment  # noqa: E402
 from web.tests.dice import harness as H  # noqa: E402
 
+from rules import state
+from rules.db import _db_val, _effective_stats, _effective_prof_bonus, _equipment_block
+from rules.consts import WORN_KINDS
+from rules.combat import _player_registry_entry
+from rules.items import _inventory_entry, _is_worn_slot
+from rules.sheet import _carry_block
+
 
 def item(name, **fields):
     return {"name": name, **fields}
@@ -45,9 +52,8 @@ class EffectNormalizationTest(unittest.TestCase):
         self.assertEqual((bonus["ability"], bonus["value"], bonus["max"]), ("str", 2, 20))
 
     def test_worn_kinds_include_belt(self):
-        import dice_server as ds
-        self.assertIn("belt", ds.WORN_KINDS)
-        self.assertTrue(ds._is_worn_slot("Belt of Giant Strength", {"kind": "belt"}))
+        self.assertIn("belt", WORN_KINDS)
+        self.assertTrue(_is_worn_slot("Belt of Giant Strength", {"kind": "belt"}))
 
     def test_flat_ability_sugar_and_explicit_effects_normalize_identically(self):
         # The flat set_*/_bonus/_bonus_max fields are hidden from the PROMPT schema
@@ -74,7 +80,7 @@ class AbilityScoreItemTest(unittest.TestCase):
                           attuned=["Amulet of Health", "Belt of Dwarvenkind"])
         with H.load(p):
             # 18 + 2 capped at 20 -> 20, then Amulet's floor 19 -> 20.
-            self.assertEqual(H.ds._effective_stats(H.ds.DB_CONNECTION.cursor())["con"], 20)
+            self.assertEqual(_effective_stats(state.DB_CONNECTION.cursor())["con"], 20)
 
     def test_set_score_does_not_lower_a_higher_score(self):
         amulet = item("Amulet of Health", base="Amulet of Health", kind="amulet",
@@ -84,7 +90,7 @@ class AbilityScoreItemTest(unittest.TestCase):
                           equipped={"armor": None, "hands": [None, None], "worn": ["Amulet of Health"]},
                           attuned=["Amulet of Health"])
         with H.load(p):
-            self.assertEqual(H.ds._effective_stats(H.ds.DB_CONNECTION.cursor())["con"], 20)
+            self.assertEqual(_effective_stats(state.DB_CONNECTION.cursor())["con"], 20)
 
     def test_unattuned_set_score_does_nothing(self):
         amulet = item("Amulet of Health", base="Amulet of Health", kind="amulet",
@@ -92,7 +98,7 @@ class AbilityScoreItemTest(unittest.TestCase):
         p = H.make_player(inventory=[amulet],
                           equipped={"armor": None, "hands": [None, None], "worn": ["Amulet of Health"]})
         with H.load(p):
-            self.assertEqual(H.ds._effective_stats(H.ds.DB_CONNECTION.cursor())["con"], 14)
+            self.assertEqual(_effective_stats(state.DB_CONNECTION.cursor())["con"], 14)
 
     def test_belt_strength_changes_carry_capacity(self):
         belt = item("Belt of Hill Giant Strength", base="Belt of Giant Strength", kind="belt",
@@ -103,7 +109,7 @@ class AbilityScoreItemTest(unittest.TestCase):
                                     "worn": ["Belt of Hill Giant Strength"]},
                           attuned=["Belt of Hill Giant Strength"])
         with H.load(p):
-            self.assertEqual(H.ds._carry_block(H.ds.DB_CONNECTION.cursor())["capacity"], 315.0)
+            self.assertEqual(_carry_block(state.DB_CONNECTION.cursor())["capacity"], 315.0)
 
     def test_a_prompt_hidden_flat_field_is_still_accepted(self):
         # `set_str` is hidden from the PROMPT schema, but the MCP server must still accept it
@@ -146,7 +152,7 @@ class DerivedSaveTest(unittest.TestCase):
                                    ability="con", save=True)
             self.assertEqual(r["save"]["item_bonus"], 1)
             self.assertEqual(r["modifier"], 5)
-            self.assertEqual(H.ds._db_val(H.ds.DB_CONNECTION.cursor(), "armor_class"), 13)
+            self.assertEqual(_db_val(state.DB_CONNECTION.cursor(), "armor_class"), 13)
 
     def test_unattuned_ring_grants_nothing(self):
         ring = item("Ring of Protection", base="Ring of Protection", kind="ring",
@@ -157,7 +163,7 @@ class DerivedSaveTest(unittest.TestCase):
             r = H.ds.perform_check(actor="{player_name}", dc=10, check_name="Constitution save",
                                    ability="con", save=True)
             self.assertEqual(r["modifier"], 4)
-            self.assertEqual(H.ds._db_val(H.ds.DB_CONNECTION.cursor(), "armor_class"), 12)
+            self.assertEqual(_db_val(state.DB_CONNECTION.cursor(), "armor_class"), 12)
 
     def test_situational_modifier_adds_on_top(self):
         p = H.make_player()
@@ -189,7 +195,7 @@ class DerivedSaveTest(unittest.TestCase):
                           equipped={"armor": None, "hands": [None, None], "worn": ["Ring of Protection"]},
                           attuned=["Ring of Protection"])
         with H.load(p):
-            entry = H.ds._player_registry_entry(H.ds.DB_CONNECTION.cursor())
+            entry = _player_registry_entry(state.DB_CONNECTION.cursor())
             self.assertEqual(entry["saves"]["con"], 5)  # +2 ability +2 prof +1 item
 
     def test_proficiency_bonus_item_raises_save_and_spell_dc(self):
@@ -199,9 +205,9 @@ class DerivedSaveTest(unittest.TestCase):
         p["equipped"] = {"armor": None, "hands": [None, None], "worn": ["Ioun Stone of Mastery"]}
         p["attuned"] = ["Ioun Stone of Mastery"]
         with H.load(p):
-            cur = H.ds.DB_CONNECTION.cursor()
-            self.assertEqual(H.ds._effective_prof_bonus(cur), 3)
-            self.assertEqual(H.ds._db_val(cur, "spellcasting")["dc"], 14)  # 8 + 3 + 3
+            cur = state.DB_CONNECTION.cursor()
+            self.assertEqual(_effective_prof_bonus(cur), 3)
+            self.assertEqual(_db_val(cur, "spellcasting")["dc"], 14)  # 8 + 3 + 3
 
     def test_resolve_magic_derives_the_player_save(self):
         p = H.make_player()
@@ -236,11 +242,11 @@ class HitPointRecomputeTest(unittest.TestCase):
                           equipped={"armor": None, "hands": [None, None], "worn": ["Amulet of Health"]},
                           attuned=["Amulet of Health"])
         with H.load(p):
-            cur = H.ds.DB_CONNECTION.cursor()
+            cur = state.DB_CONNECTION.cursor()
             # CON 14 (+2) -> 19 (+4): +2 x 4 levels = +8
-            self.assertEqual(H.ds._db_val(cur, "total_hit_points"), 38)
-            self.assertEqual(H.ds._db_val(cur, "current_hit_points"), 38)
-            self.assertEqual(H.ds._db_val(cur, "item_hp_delta"), 8)
+            self.assertEqual(_db_val(cur, "total_hit_points"), 38)
+            self.assertEqual(_db_val(cur, "current_hit_points"), 38)
+            self.assertEqual(_db_val(cur, "item_hp_delta"), 8)
 
     def test_removing_the_item_reverses_the_hp_change(self):
         amulet = item("Amulet of Health", base="Amulet of Health", kind="amulet",
@@ -250,12 +256,12 @@ class HitPointRecomputeTest(unittest.TestCase):
                           equipped={"armor": None, "hands": [None, None], "worn": ["Amulet of Health"]},
                           attuned=["Amulet of Health"])
         with H.load(p):
-            cur = H.ds.DB_CONNECTION.cursor()
-            self.assertEqual(H.ds._db_val(cur, "total_hit_points"), 38)
+            cur = state.DB_CONNECTION.cursor()
+            self.assertEqual(_db_val(cur, "total_hit_points"), 38)
             H.ds.update_player_list(key="inventory", item="Amulet of Health", action="remove")
-            self.assertEqual(H.ds._db_val(cur, "total_hit_points"), 30)
-            self.assertEqual(H.ds._db_val(cur, "current_hit_points"), 25)
-            self.assertEqual(H.ds._db_val(cur, "item_hp_delta"), 0)
+            self.assertEqual(_db_val(cur, "total_hit_points"), 30)
+            self.assertEqual(_db_val(cur, "current_hit_points"), 25)
+            self.assertEqual(_db_val(cur, "item_hp_delta"), 0)
 
 
 class ArmourClassItemTest(unittest.TestCase):
@@ -266,8 +272,8 @@ class ArmourClassItemTest(unittest.TestCase):
                           equipped={"armor": None, "hands": [None, None], "worn": ["Robe of the Archmagi"]},
                           attuned=["Robe of the Archmagi"])
         with H.load(p):
-            cur = H.ds.DB_CONNECTION.cursor()
-            self.assertEqual(H.ds._db_val(cur, "armor_class"), 17)  # 15 + DEX 2
+            cur = state.DB_CONNECTION.cursor()
+            self.assertEqual(_db_val(cur, "armor_class"), 17)  # 15 + DEX 2
 
     def test_conditional_ac_bonus_needs_no_armour_or_shield(self):
         bracers = item("Bracers of Defense", base="Bracers of Defense", kind="bracers",
@@ -277,7 +283,7 @@ class ArmourClassItemTest(unittest.TestCase):
                           equipped={"armor": None, "hands": [None, None], "worn": ["Bracers of Defense"]},
                           attuned=["Bracers of Defense"])
         with H.load(p):
-            self.assertEqual(H.ds._db_val(H.ds.DB_CONNECTION.cursor(), "armor_class"), 14)  # 10+2+2
+            self.assertEqual(_db_val(state.DB_CONNECTION.cursor(), "armor_class"), 14)  # 10+2+2
 
     def test_conditional_ac_bonus_withheld_with_armour(self):
         bracers = item("Bracers of Defense", base="Bracers of Defense", kind="bracers",
@@ -290,7 +296,7 @@ class ArmourClassItemTest(unittest.TestCase):
                           attuned=["Bracers of Defense"])
         with H.load(p):
             # Leather 11 + DEX 2 = 13; the bracers grant nothing while armoured.
-            self.assertEqual(H.ds._db_val(H.ds.DB_CONNECTION.cursor(), "armor_class"), 13)
+            self.assertEqual(_db_val(state.DB_CONNECTION.cursor(), "armor_class"), 13)
 
 
 class UnmodelledEffectTest(unittest.TestCase):
@@ -301,7 +307,7 @@ class UnmodelledEffectTest(unittest.TestCase):
                           equipped={"armor": None, "hands": [None, None], "worn": ["Ring of Regeneration"]},
                           attuned=["Ring of Regeneration"])
         with H.load(p):
-            block = H.ds._equipment_block(H.ds.DB_CONNECTION.cursor())
+            block = _equipment_block(state.DB_CONNECTION.cursor())
             self.assertEqual(block["unmodelled_effects"][0]["type"], "regeneration")
             self.assertEqual(block["unmodelled_effects"][0]["reason"], "not_yet_applied")
             self.assertTrue(any(w["code"] == "unmodelled_effect" for w in block["warnings"]))
@@ -313,9 +319,9 @@ class UnmodelledEffectTest(unittest.TestCase):
                           equipped={"armor": None, "hands": [None, None], "worn": ["Strange Ring"]},
                           attuned=["Strange Ring"])
         with H.load(p):
-            cur = H.ds.DB_CONNECTION.cursor()
-            self.assertEqual(H.ds._db_val(cur, "armor_class"), 12)  # bonus NOT applied
-            self.assertEqual(H.ds._equipment_block(cur)["unmodelled_effects"][0]["reason"],
+            cur = state.DB_CONNECTION.cursor()
+            self.assertEqual(_db_val(cur, "armor_class"), 12)  # bonus NOT applied
+            self.assertEqual(_equipment_block(cur)["unmodelled_effects"][0]["reason"],
                              "unknown_predicate")
 
 
@@ -328,7 +334,7 @@ class UpdatePlayerListAuthoringTest(unittest.TestCase):
                 base="Amulet of Health", kind="amulet", set_con=19, save_bonus=1, attunement=True,
                 effects=[{"type": "ability_set", "ability": "con", "value": 19}])
             self.assertTrue(r["success"])
-            entry = H.ds._inventory_entry(H.ds._db_val(H.ds.DB_CONNECTION.cursor(), "inventory", []),
+            entry = _inventory_entry(_db_val(state.DB_CONNECTION.cursor(), "inventory", []),
                                           "Amulet of Health")
             self.assertEqual(entry["set_con"], 19)
             self.assertEqual(entry["save_bonus"], 1)

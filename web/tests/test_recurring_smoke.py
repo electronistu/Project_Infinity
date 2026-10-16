@@ -24,7 +24,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO))
 
-from web.engine import GameSession, _gm_tool_view  # noqa: E402
+from web.engine import GameSession  # noqa: E402
+from web.gm_view import _gm_tool_view  # noqa: E402
 from web.tests.dice import harness as H  # noqa: E402
 
 RESULTS = []

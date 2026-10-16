@@ -73,6 +73,9 @@ def call_for(spell: dict) -> dict:
     elif is_save:
         kwargs["target_name"] = TARGET
         kwargs["target_current_hp"] = 100
+        # A save target needs its save bonus; the engine refuses an unregistered target with
+        # no value rather than rolling the save at a fabricated +0.
+        kwargs["target_save_modifier"] = 0
     elif spell.get("instant_kill"):
         kwargs["target_name"] = TARGET
         kwargs["target_current_hp"] = 10

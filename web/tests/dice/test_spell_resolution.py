@@ -10,6 +10,9 @@ import unittest
 
 from web.tests.dice import harness as H
 
+from rules import state
+from rules.combat import _advance_turn
+
 
 GOBLIN = {
     "name": "Goblin", "hp": 7, "ac": 15, "initiative_modifier": 2, "challenge_rating": 0.25,
@@ -69,7 +72,7 @@ class TargetsNeverDroppedTest(H.EngineCase):
         self.assertEqual(len(r["targets"]), 2)
         self.assertEqual([t["damage"] for t in r["targets"]], [6, 6])
         self.assertEqual([t["remaining_hp"] for t in r["targets"]], [1, 1])
-        self.assertEqual(H.ds._COMBAT_REGISTRY["Goblin A"]["current_hp"], 1)
+        self.assertEqual(state._COMBAT_REGISTRY["Goblin A"]["current_hp"], 1)
 
     def test_automatic_spell_with_targets_names_them_without_mechanics(self):
         r = H.ds.resolve_magic(spell_name="Mage Armor", actor="Senna",
@@ -149,7 +152,7 @@ class ChainLightningIncidentTest(H.EngineCase):
         self.assertIn("Corporal Gao DEX Save", r["narrative_format"])
         final = {e["name"]: e for e in r["registry_summary"]}
         self.assertEqual(final["Corporal Gao"]["hp"], "0/22")
-        self.assertEqual(H.ds._COMBAT_REGISTRY, {})   # the last hostile fell: the fight is over
+        self.assertEqual(state._COMBAT_REGISTRY, {})   # the last hostile fell: the fight is over
 
 
 class RecurringSaveTest(H.EngineCase):
@@ -177,8 +180,8 @@ class RecurringSaveTest(H.EngineCase):
         r = self._cast_pk()
         self.assertEqual(r["condition"], "Frightened")
         self.assertEqual(r["recurring_registered"], ["Gao"])
-        self.assertEqual(H.ds._COMBAT_REGISTRY["Gao"]["current_hp"], 25)  # no damage yet
-        self.assertEqual(len(H.ds._COMBAT_REGISTRY["Gao"]["recurring"]), 1)
+        self.assertEqual(state._COMBAT_REGISTRY["Gao"]["current_hp"], 25)  # no damage yet
+        self.assertEqual(len(state._COMBAT_REGISTRY["Gao"]["recurring"]), 1)
 
     def test_repeat_save_fires_on_the_target_turn(self):
         self._register()
@@ -190,7 +193,7 @@ class RecurringSaveTest(H.EngineCase):
         self.assertEqual(r["recurring"][0]["damage"], 40)
         self.assertEqual(r["recurring"][0]["remaining_hp"], 0)
         self.assertTrue(r["recurring"][0]["killed"])
-        self.assertEqual(H.ds._COMBAT_REGISTRY, {})   # consumed on the kill; the fight is over
+        self.assertEqual(state._COMBAT_REGISTRY, {})   # consumed on the kill; the fight is over
 
     def test_a_skipped_turn_still_fires_when_the_cursor_passes_it(self):
         self._register(extra=[
@@ -200,12 +203,12 @@ class RecurringSaveTest(H.EngineCase):
                           "damage_modifier": 1, "damage_type": "piercing"}]},
         ])
         self._cast_pk()
-        before = H.ds._COMBAT_REGISTRY["Gao"]["current_hp"]
+        before = state._COMBAT_REGISTRY["Gao"]["current_hp"]
         # Gao's turn is skipped; the Trooper acts next and the cursor passes Gao.
         with H.fixed_rolls([1, 10, 10, 10, 10, 1]):
             r = H.ds.resolve_attack(actor="Trooper", attack="Spear", target_name="Power",
                                     is_npc_attack=True)
-        self.assertLess(H.ds._COMBAT_REGISTRY["Gao"]["current_hp"], before)
+        self.assertLess(state._COMBAT_REGISTRY["Gao"]["current_hp"], before)
         self.assertTrue(any(x["name"] == "Gao" for x in r["recurring"]))
 
     def test_perform_check_advances_the_cursor(self):
@@ -216,12 +219,12 @@ class RecurringSaveTest(H.EngineCase):
                           "damage_modifier": 1, "damage_type": "piercing"}]},
         ])
         self._cast_pk()
-        before = H.ds._COMBAT_REGISTRY["Gao"]["current_hp"]
+        before = state._COMBAT_REGISTRY["Gao"]["current_hp"]
         # The Trooper's turn is advanced with a check; the cursor passes Gao.
         with H.fixed_rolls([15, 1, 10, 10, 10, 10]):
             r = H.ds.perform_check(actor="Trooper", dc=10, check_name="Athletics", ability="str")
         self.assertTrue(any(x["name"] == "Gao" for x in r.get("recurring", [])))
-        self.assertLess(H.ds._COMBAT_REGISTRY["Gao"]["current_hp"], before)
+        self.assertLess(state._COMBAT_REGISTRY["Gao"]["current_hp"], before)
 
     def test_multiattack_does_not_double_roll(self):
         self._register()
@@ -229,12 +232,12 @@ class RecurringSaveTest(H.EngineCase):
         with H.fixed_rolls([1, 4, 4, 4, 4]):
             H.ds.resolve_attack(actor="Gao", attack="Spear", target_name="Power",
                                 is_npc_attack=True)
-        hp_after_first = H.ds._COMBAT_REGISTRY["Gao"]["current_hp"]
+        hp_after_first = state._COMBAT_REGISTRY["Gao"]["current_hp"]
         with H.fixed_rolls([1, 4, 4, 4, 4]):
             second = H.ds.resolve_attack(actor="Gao", attack="Spear", target_name="Power",
                                           is_npc_attack=True)
         self.assertNotIn("recurring", second)  # same turn: no second repeat save
-        self.assertEqual(H.ds._COMBAT_REGISTRY["Gao"]["current_hp"], hp_after_first)
+        self.assertEqual(state._COMBAT_REGISTRY["Gao"]["current_hp"], hp_after_first)
 
     def test_flesh_to_stone_ladder_petrifies_after_three_failures(self):
         self._register()
@@ -243,11 +246,11 @@ class RecurringSaveTest(H.EngineCase):
                                        targets=[{"name": "Gao"}])
         self.assertEqual(first["condition"], "Restrained")
         for _ in range(3):
-            H.ds._advance_turn("Power")          # wrap the round back to the top
+            _advance_turn("Power")          # wrap the round back to the top
             with H.fixed_rolls([1]):             # end-of-turn CON save fails three times
-                H.ds._advance_turn("Gao")
-        self.assertIn("petrified", H.ds._COMBAT_REGISTRY["Gao"]["conditions"])
-        self.assertTrue(H.ds._COMBAT_REGISTRY["Gao"]["recurring"][0]["locked"])
+                _advance_turn("Gao")
+        self.assertIn("petrified", state._COMBAT_REGISTRY["Gao"]["conditions"])
+        self.assertTrue(state._COMBAT_REGISTRY["Gao"]["recurring"][0]["locked"])
 
     def test_contagion_lands_on_a_hit_and_starts_its_ladder(self):
         self._register()
@@ -426,7 +429,7 @@ class EyebiteVariantTest(H.EngineCase):
 
     def test_damage_wakes_an_asleep_target_and_reports_it(self):
         self._cast("asleep")
-        entry = H.ds._COMBAT_REGISTRY["Goblin"]
+        entry = state._COMBAT_REGISTRY["Goblin"]
         self.assertIn("unconscious", entry["conditions"])
         self.assertEqual(entry["conditions_end_on_damage"], ["unconscious"])
         with H.fixed_rolls([10, 4]):  # 10 + 7 vs AC 15 hits; 1d6 bludgeoning
@@ -443,7 +446,7 @@ class EyebiteVariantTest(H.EngineCase):
         with H.fixed_rolls([1]):
             r = H.ds.update_combatant(name="Goblin", hp_delta=-2)
         self.assertEqual([w["name"] for w in r["conditions_woke"]], ["Goblin"])
-        self.assertNotIn("unconscious", H.ds._COMBAT_REGISTRY["Goblin"]["conditions"])
+        self.assertNotIn("unconscious", state._COMBAT_REGISTRY["Goblin"]["conditions"])
 
     def test_omitted_variant_keeps_the_generic_condition(self):
         with H.fixed_rolls([15, 6]):
@@ -468,7 +471,7 @@ class SleepWakeOnDamageTest(H.EngineCase):
                                       targets=[{"name": "Goblin"}])
         self.assertEqual(cast["condition"], "Unconscious")
         self.assertEqual(cast["conditions_applied"], ["Goblin"])
-        self.assertEqual(H.ds._COMBAT_REGISTRY["Goblin"]["conditions_end_on_damage"],
+        self.assertEqual(state._COMBAT_REGISTRY["Goblin"]["conditions_end_on_damage"],
                          ["unconscious"])
         with H.fixed_rolls([10, 4]):  # hit vs AC 5; 1d6 bludgeoning
             hit = H.ds.resolve_attack(actor="Senna", attack_modifier=5, damage_dice="1d6",
@@ -499,7 +502,7 @@ class SleepWakeOnDamageTest(H.EngineCase):
                                       targets=[{"name": "Senna", "current_hp": 13}])
         self.assertEqual(cast["conditions_applied"], ["Senna"])
         self.assertIn("unconscious", H.raw_dbv("conditions") or [])
-        self.assertEqual(H.ds._SHEET_WAKE_CONDITIONS.get("Senna"), {"unconscious"})
+        self.assertEqual(state._SHEET_WAKE_CONDITIONS.get("Senna"), {"unconscious"})
         with H.fixed_rolls([15, 4]):  # NPC hit on the player: 15 + 5 vs AC 13
             hit = H.ds.resolve_attack(actor="Goblin", attack_modifier=5, damage_dice="1d6",
                                       damage_type="slashing", target_ac=13,
@@ -507,7 +510,7 @@ class SleepWakeOnDamageTest(H.EngineCase):
                                       is_npc_attack=True)
         self.assertEqual([w["name"] for w in hit["conditions_woke"]], ["Senna"])
         self.assertNotIn("unconscious", H.raw_dbv("conditions") or [])
-        self.assertNotIn("Senna", H.ds._SHEET_WAKE_CONDITIONS)
+        self.assertNotIn("Senna", state._SHEET_WAKE_CONDITIONS)
 
 
 class MaintainSpellTest(H.EngineCase):
@@ -603,7 +606,7 @@ class SpellAttributionTest(H.EngineCase):
             r = H.ds.resolve_magic(actor="Evil Mage", spell_name="Sleep",
                                    target_name="Sleeper", spell_save_dc=13, is_npc_vs_npc=True)
         self.assertEqual(r["condition_targets"], ["Sleeper"])
-        self.assertIn("unconscious", H.ds._COMBAT_REGISTRY["Sleeper"]["conditions"])
+        self.assertIn("unconscious", state._COMBAT_REGISTRY["Sleeper"]["conditions"])
         self.assertIn("Sleeper: Affected \u2014 Unconscious", r["narrative_format"])
 
     def test_single_target_sleep_leaves_a_target_over_the_pool_unaffected(self):
@@ -614,7 +617,7 @@ class SpellAttributionTest(H.EngineCase):
             r = H.ds.resolve_magic(actor="Evil Mage", spell_name="Sleep",
                                    target_name="Ogre", spell_save_dc=13, is_npc_vs_npc=True)
         self.assertIsNone(r.get("condition_targets"))
-        self.assertEqual(H.ds._COMBAT_REGISTRY["Ogre"].get("conditions"), [])
+        self.assertEqual(state._COMBAT_REGISTRY["Ogre"].get("conditions"), [])
         self.assertIn("Unaffected \u2014 HP exceeds remaining pool", r["narrative_format"])
 
 
@@ -643,14 +646,14 @@ class AutomaticSpellTest(H.EngineCase):
                                targets=[{"name": "Preda"}])
         # Trapped is not in CONDITION_EFFECTS: named, but never engine-applied.
         self.assertNotIn("conditions_applied", r)
-        self.assertEqual(H.ds._COMBAT_REGISTRY["Preda"].get("conditions"), [])
+        self.assertEqual(state._COMBAT_REGISTRY["Preda"].get("conditions"), [])
 
     def test_an_engine_condition_is_applied_to_a_target(self):
         self._register("Preda")
         r = H.ds.resolve_magic(actor="Mage", spell_name="Power Word Stun", target_name="Preda",
                                is_npc_vs_npc=True)
         self.assertEqual(r["conditions_applied"], ["Preda"])
-        self.assertIn("stunned", H.ds._COMBAT_REGISTRY["Preda"]["conditions"])
+        self.assertIn("stunned", state._COMBAT_REGISTRY["Preda"]["conditions"])
 
     def test_a_self_buff_applies_its_engine_condition(self):
         r = H.ds.resolve_magic(spell_name="Invisibility", slot_level=2)
@@ -663,6 +666,76 @@ class AutomaticSpellTest(H.EngineCase):
         r = H.ds.resolve_magic(actor="Mage", spell_name="Antimagic Field", is_npc_vs_npc=True,
                                targets=[{"name": "A"}, {"name": "B"}])
         self.assertIn("casts Antimagic Field \u2192 A, B", r["narrative_format"])
+
+
+def pw_killer_l20():
+    """A level-20 wizard who knows Power Word Kill -- the engine's one instant-kill spell."""
+    return H.make_player(
+        name="Killer", character_class="Wizard", race="Human", background="Sage",
+        level=20, xp=355000, proficiency_bonus=6, armor_class=15,
+        total_hit_points=100, current_hit_points=100, hit_dice_count=20, hit_dice_size=6,
+        stats={"str": 10, "dex": 14, "con": 14, "int": 20, "wis": 12, "cha": 10},
+        spellcasting={
+            "ability": "intelligence", "dc": 19, "attack_modifier": 11,
+            "cantrips": [], "spells_known": [],
+            "spellbook": ["Power Word Kill"],
+            "spells_prepared": [{"name": "Power Word Kill"}],
+            "slots": {"9": 1},
+        },
+        inventory=["Spellbook", "Component Pouch"],
+    )
+
+
+class InstantKillTest(H.EngineCase):
+    """Power Word Kill (SRD 5.1): an HP-threshold instant death the engine resolves and reports.
+
+    At or below the spell's 100-HP threshold the target dies through the same kill / HP / CR-XP
+    path a normal hit uses; above it the spell has no effect; an unknown target HP is refused.
+    """
+
+    player_factory = staticmethod(pw_killer_l20)
+
+    def _register(self, name, hp, cr=6):
+        with H.fixed_rolls([15, 6]):
+            H.ds.register_combatants([{"name": name, "hp": hp, "ac": 15,
+                                       "initiative_modifier": 2, "role": "hostile",
+                                       "challenge_rating": cr}])
+
+    def test_target_at_or_below_threshold_dies(self):
+        self._register("Grunt", 7)
+        r = H.ds.resolve_magic(spell_name="Power Word Kill", target_name="Grunt")
+        self.assertTrue(r["success"])
+        self.assertTrue(r["instant_kill"])
+        self.assertTrue(r["target_killed"])
+        self.assertEqual(r["target_remaining_hp"], 0)
+        final = {e["name"]: e for e in r["registry_summary"]}
+        self.assertEqual(final["Grunt"]["hp"], "0/7")
+        self.assertIn("Grunt HP: 0/7 (KILLED)", r["narrative_format"])
+        self.assertEqual(r["xp_awarded"], 2300)             # CR 6, a normal kill's award
+        self.assertIn("XP Awarded: 2300", r["narrative_format"])
+
+    def test_target_above_threshold_is_untouched(self):
+        self._register("Ogre", 101)
+        r = H.ds.resolve_magic(spell_name="Power Word Kill", target_name="Ogre")
+        self.assertTrue(r["success"])
+        self.assertFalse(r["instant_kill"])
+        self.assertIsNone(r["target_killed"])
+        self.assertEqual(r["damage_total"], 0)
+        self.assertEqual(state._COMBAT_REGISTRY["Ogre"]["current_hp"], 101)
+        self.assertIn("no effect", r["narrative_format"])
+        self.assertIn("more than 100 hit points", r["narrative_format"])
+
+    def test_unknown_target_hp_is_refused(self):
+        r = H.ds.resolve_magic(spell_name="Power Word Kill", target_name="Ghost")
+        self.assertFalse(r["success"])
+        self.assertEqual(r["error"], "instant_kill_hp_unknown")
+        self.assertIn("hit points", r["reason"])
+        self.assertIn("gm_instruction", r)
+
+    def test_registry_hp_is_used_when_not_passed(self):
+        self._register("Wounded", 96)
+        r = H.ds.resolve_magic(spell_name="Power Word Kill", target_name="Wounded")
+        self.assertTrue(r["target_killed"])
 
 
 if __name__ == "__main__":

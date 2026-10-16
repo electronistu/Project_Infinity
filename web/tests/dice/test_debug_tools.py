@@ -11,28 +11,30 @@ import unittest
 
 from web.tests.dice import harness as H
 
+from rules import state
+
 
 class DebugToolsDisabled(H.EngineCase):
     player_factory = staticmethod(H.make_player)
 
     def test_set_field_is_refused_without_debug(self):
-        old = H.ds.DEBUG_MODE
-        H.ds.DEBUG_MODE = False
+        old = state.DEBUG_MODE
+        state.DEBUG_MODE = False
         try:
             out = H.ds.debug_set_field("level", "9")
         finally:
-            H.ds.DEBUG_MODE = old
+            state.DEBUG_MODE = old
         self.assertFalse(out.get("success"))
         self.assertIn("developer mode", out.get("error", ""))
         self.assertEqual(H.raw_dbv("level"), 1)  # untouched
 
     def test_device_is_refused_without_debug(self):
-        old = H.ds.DEBUG_MODE
-        H.ds.DEBUG_MODE = False
+        old = state.DEBUG_MODE
+        state.DEBUG_MODE = False
         try:
             out = H.ds.debug_device(["Escapement"])
         finally:
-            H.ds.DEBUG_MODE = old
+            state.DEBUG_MODE = old
         self.assertFalse(out.get("success"))
         self.assertIn("developer mode", out.get("error", ""))
 
@@ -42,11 +44,11 @@ class DebugSetField(H.EngineCase):
 
     def setUp(self):
         super().setUp()
-        self._old = H.ds.DEBUG_MODE
-        H.ds.DEBUG_MODE = True
+        self._old = state.DEBUG_MODE
+        state.DEBUG_MODE = True
 
     def tearDown(self):
-        H.ds.DEBUG_MODE = self._old
+        state.DEBUG_MODE = self._old
         super().tearDown()
 
     def test_number_is_written_as_json_not_a_string(self):
@@ -84,11 +86,11 @@ class DebugDevice(H.EngineCase):
 
     def setUp(self):
         super().setUp()
-        self._old = H.ds.DEBUG_MODE
-        H.ds.DEBUG_MODE = True
+        self._old = state.DEBUG_MODE
+        state.DEBUG_MODE = True
 
     def tearDown(self):
-        H.ds.DEBUG_MODE = self._old
+        state.DEBUG_MODE = self._old
         super().tearDown()
 
     def _inv(self):

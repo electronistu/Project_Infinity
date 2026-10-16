@@ -17,9 +17,12 @@ sys.path.insert(0, str(REPO))
 from PIL import Image as PILImage  # noqa: E402
 
 from web.images import (  # noqa: E402
-    ImageService, SceneService, known_scene_places, known_scene_locations, known_npc_names,
-    live_scene_manifest, discard_scene_manifest,
+    ImageService,
     _gear_line, _veterancy_line, appearance_override,
+)
+from web.scenes import (  # noqa: E402
+    SceneService, known_scene_places, known_scene_locations, known_npc_names,
+    live_scene_manifest, discard_scene_manifest,
 )
 
 RESULTS = []

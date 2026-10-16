@@ -1,4 +1,4 @@
-"""level_up.py tables + apply_level_up through dice_server."""
+"""level_up.py tables + apply_level_up, exercised against a loaded engine DB."""
 
 import json
 import unittest
@@ -21,7 +21,7 @@ class ApplyLevelUpTest(unittest.TestCase):
 
     def test_fighter_5_to_6_gains_hp_and_hit_die(self):
         with H.fixed_rolls([6]):
-            changes, summary = H.ds.apply_level_up("Fighter", 5, 6, self._data())
+            changes, summary = level_up.apply_level_up("Fighter", 5, 6, self._data())
         self.assertEqual(changes["level"], "6")
         self.assertEqual(changes["hit_dice_count"], "6")
         self.assertEqual(changes["total_hit_points"], "52")  # 44 + 6 (d10) + 2 CON
@@ -36,7 +36,7 @@ class ApplyLevelUpTest(unittest.TestCase):
                                      "slots": {"1": 4, "2": 3}}),
         )
         with H.fixed_rolls([3]):
-            changes, _ = H.ds.apply_level_up("Wizard", 4, 5, data)
+            changes, _ = level_up.apply_level_up("Wizard", 4, 5, data)
         self.assertEqual(changes["level"], "5")
         self.assertEqual(json.loads(changes["spellcasting"])["slots"]["3"], 2)
 

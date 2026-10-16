@@ -17,7 +17,9 @@ from forge.config_loader import load_config  # noqa: E402
 from forge.character_creator import create_debug_character  # noqa: E402
 from forge.formatter import get_player_json  # noqa: E402
 from web.creation import CreationBridge, _run_creation  # noqa: E402
-from web.engine import render_protocol, _player_difficulty, _gm_tool_view  # noqa: E402
+from web.protocol import render_protocol  # noqa: E402
+from web.player_file import _player_difficulty  # noqa: E402
+from web.gm_view import _gm_tool_view  # noqa: E402
 
 RESULTS = []
 OUTPUT = REPO / "output"

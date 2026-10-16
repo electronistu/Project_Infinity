@@ -15,4 +15,4 @@ __pycache__/
 .env
 
 # Generated character images / seed images (cached assets)
-output/images/
+output

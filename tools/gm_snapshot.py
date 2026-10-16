@@ -70,7 +70,7 @@ def _git_head() -> str:
 def cmd_input(args) -> int:
     out = Path(args.out) if args.out else INPUT_DIR
     out.mkdir(parents=True, exist_ok=True)
-    label, count = tb._counter()
+    label, count, _exact = tb._counter()
 
     proto_text = (REPO / "GameMaster_MCP.md").read_text(encoding="utf-8")
     proto = {

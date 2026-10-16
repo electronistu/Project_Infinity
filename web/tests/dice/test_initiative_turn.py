@@ -13,6 +13,9 @@ import unittest
 
 from web.tests.dice import harness as H
 
+from rules import state
+from rules.combat import _advance_turn, _attach_roster, _combat_next_actor, _combat_turn_order, _combat_turn_state
+
 
 GOBLIN = {"name": "Goblin", "hp": 7, "ac": 15, "initiative_modifier": 2, "role": "hostile"}
 SCOUT = {"name": "Scout", "hp": 12, "ac": 14, "initiative_modifier": 0, "role": "ally"}
@@ -36,8 +39,8 @@ class InitiativeTurnTest(H.EngineCase):
 
     def test_attach_roster_adds_summary_and_cursor(self):
         self._register()
-        H.ds._advance_turn("Borin")
-        r = H.ds._attach_roster({"success": True})
+        _advance_turn("Borin")
+        r = _attach_roster({"success": True})
         self.assertIn("registry_summary", r)
         self.assertEqual(r["combat_turn"],
                          {"round": 1, "actor": "Borin", "next": "Scout",
@@ -47,7 +50,7 @@ class InitiativeTurnTest(H.EngineCase):
 
     def test_neutrals_are_excluded_from_the_turn_order(self):
         self._register()
-        order = H.ds._combat_turn_order()
+        order = _combat_turn_order()
         self.assertNotIn("Merchant", order)
         self.assertIn("Goblin", order)
         self.assertIn("Borin", order)
@@ -55,61 +58,61 @@ class InitiativeTurnTest(H.EngineCase):
     def test_next_is_the_successor_and_the_round_wraps(self):
         self._register()
         # turn order (neutrals aside): Goblin 17, Borin 12, Scout 5.
-        H.ds._advance_turn("Borin")          # Borin acted; Scout is next, same round
-        self.assertEqual(H.ds._combat_turn_state(),
+        _advance_turn("Borin")          # Borin acted; Scout is next, same round
+        self.assertEqual(_combat_turn_state(),
                          {"round": 1, "actor": "Borin", "next": "Scout",
                           "skipped": ["Goblin"]})
-        H.ds._advance_turn("Scout")          # Scout acted; the round wraps to Goblin
-        self.assertEqual(H.ds._combat_turn_state(),
+        _advance_turn("Scout")          # Scout acted; the round wraps to Goblin
+        self.assertEqual(_combat_turn_state(),
                          {"round": 2, "actor": "Scout", "next": "Goblin", "skipped": []})
 
     def test_the_next_actor_skips_the_killed(self):
         self._register()
-        H.ds._advance_turn("Borin")
+        _advance_turn("Borin")
         # Kill Scout (next in line): the marker walks past the corpse and wraps to Goblin.
-        H.ds._COMBAT_REGISTRY["Scout"]["current_hp"] = 0
-        H.ds._COMBAT_REGISTRY["Scout"]["killed"] = True
-        self.assertEqual(H.ds._combat_turn_state()["next"], "Goblin")
-        self.assertEqual(H.ds._combat_turn_state()["round"], 2)
+        state._COMBAT_REGISTRY["Scout"]["current_hp"] = 0
+        state._COMBAT_REGISTRY["Scout"]["killed"] = True
+        self.assertEqual(_combat_turn_state()["next"], "Goblin")
+        self.assertEqual(_combat_turn_state()["round"], 2)
 
     def test_the_next_actor_skips_the_fled(self):
         self._register()
-        H.ds._advance_turn("Borin")
-        H.ds._COMBAT_REGISTRY["Scout"]["status"] = "fled"
-        self.assertEqual(H.ds._combat_turn_state()["next"], "Goblin")
+        _advance_turn("Borin")
+        state._COMBAT_REGISTRY["Scout"]["status"] = "fled"
+        self.assertEqual(_combat_turn_state()["next"], "Goblin")
 
     def test_a_neutral_acting_never_advances_the_cursor(self):
         self._register()
-        H.ds._advance_turn("Borin")
-        H.ds._advance_turn("Merchant")
-        self.assertEqual(H.ds._combat_turn_state(),
+        _advance_turn("Borin")
+        _advance_turn("Merchant")
+        self.assertEqual(_combat_turn_state(),
                          {"round": 1, "actor": "Borin", "next": "Scout",
                           "skipped": ["Goblin"]})
 
     def test_all_out_leaves_no_next(self):
         self._register()
         for name in ("Goblin", "Borin", "Scout"):
-            H.ds._COMBAT_REGISTRY[name]["killed"] = True
-        state = H.ds._combat_turn_state()
-        self.assertEqual(state["next"], "")
+            state._COMBAT_REGISTRY[name]["killed"] = True
+        turn = _combat_turn_state()
+        self.assertEqual(turn["next"], "")
 
     def test_end_combat_clears_the_cursor(self):
         self._register()
-        H.ds._advance_turn("Borin")
+        _advance_turn("Borin")
         H.ds.end_combat()
-        self.assertEqual(H.ds._combat_turn_state(),
+        self.assertEqual(_combat_turn_state(),
                          {"round": 0, "actor": "", "next": "", "skipped": []})
 
     def test_an_arrival_resyncs_the_cursor(self):
         self._register()                     # turn order: Goblin 17, Borin 12, Scout 5
-        H.ds._advance_turn("Borin")          # the cursor is on Borin
+        _advance_turn("Borin")          # the cursor is on Borin
         with H.fixed_rolls([20]):
             H.ds.register_combatants(
                 [{"name": "Late", "hp": 5, "ac": 12, "initiative_modifier": 0}],
                 add_to_existing=True)
         # Late rolled 20 and now leads the order; the cursor still tracks Borin.
-        self.assertEqual(H.ds._COMBAT_ACTOR, "Borin")
-        self.assertEqual(H.ds._combat_next_actor()[1], "Scout")
+        self.assertEqual(state._COMBAT_ACTOR, "Borin")
+        self.assertEqual(_combat_next_actor()[1], "Scout")
 
 
 if __name__ == "__main__":

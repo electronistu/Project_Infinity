@@ -6,9 +6,10 @@ Runs, in order:
   2. the SRD spell-stat gate    (``tools/spell_stats_gate.py``)
   3. the spell-coverage gate    (``tools/spell_coverage_gate.py``)
   4. the token-budget gate      (``tools/token_budget.py --gate``)
-  5. the dice engine suite      (``web/tests/dice``)
-  6. every web suite            (``web/tests/test_*.py``)
-  7. ``node --check`` on the client  (skipped when node is absent)
+  5. the GM-input snapshot      (``tools/gm_snapshot.py input``, into a temp dir)
+  6. the dice engine suite      (``web/tests/dice``)
+  7. every web suite            (``web/tests/test_*.py``)
+  8. ``node --check`` on the client  (skipped when node is absent)
 
 Exit code 0 only when every step passed. This is the project's CI: one command,
 one exit code.
@@ -28,12 +29,13 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 PY = sys.executable
 CLIENT_JS = "web/static/app.js"
-ALL_STEPS = ("srd", "spellstats", "spellcov", "budget", "dice", "web", "node")
+ALL_STEPS = ("srd", "spellstats", "spellcov", "budget", "snapshot", "dice", "web", "node")
 
 
 def _run(cmd: list[str]) -> subprocess.CompletedProcess:
@@ -78,6 +80,21 @@ def step_budget() -> tuple[bool, str, str]:
     return ok, detail, proc.stdout + proc.stderr
 
 
+def step_snapshot() -> tuple[bool, str, str]:
+    # The GM-input snapshot tool (`input` is deterministic, no model call). It writes files,
+    # so it runs into a temp dir and the repo (and the user's gm_baseline) stays untouched.
+    out = Path(tempfile.mkdtemp(prefix="gm_input_"))
+    try:
+        proc = _run([PY, "tools/gm_snapshot.py", "input", "--out", str(out)])
+        wrote = (out / "manifest.json").exists() and (out / "tools.json").exists()
+        ok = proc.returncode == 0 and wrote
+        detail = "input snapshot written" if ok else (
+            _last_line(proc.stderr) or _last_line(proc.stdout) or "no snapshot written")
+        return ok, detail, proc.stdout + proc.stderr
+    finally:
+        shutil.rmtree(out, ignore_errors=True)
+
+
 def step_dice() -> tuple[bool, str, str]:
     proc = _run([PY, "-m", "unittest", "discover", "-s", "web/tests/dice", "-t", "."])
     ok = proc.returncode == 0
@@ -110,7 +127,8 @@ def step_node() -> tuple[bool, str, str]:
 
 
 STEPS = {"srd": step_srd, "spellstats": step_spellstats, "spellcov": step_spellcov,
-         "budget": step_budget, "dice": step_dice, "web": step_web, "node": step_node}
+         "budget": step_budget, "snapshot": step_snapshot, "dice": step_dice,
+         "web": step_web, "node": step_node}
 
 
 def main() -> int:

@@ -12,6 +12,8 @@ import unittest
 
 from web.tests.dice import harness as H
 
+from rules import state
+
 
 MAERA = {
     "description": "a grey-braided dwarf woman in a leather apron",
@@ -31,9 +33,9 @@ class PlayerFieldTest(H.EngineCase):
     player_factory = staticmethod(H.fighter_l5)
 
     def _set_era(self, era):
-        cur = H.ds.DB_CONNECTION.cursor()
+        cur = state.DB_CONNECTION.cursor()
         cur.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", ("era", era))
-        H.ds.DB_CONNECTION.commit()
+        state.DB_CONNECTION.commit()
 
     # ── the shape ───────────────────────────────────────────────────────────────
 

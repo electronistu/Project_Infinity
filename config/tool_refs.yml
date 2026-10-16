@@ -35,7 +35,8 @@ resolve_magic: |
 
   - Cantrips, rituals, scrolls and NPC attacks consume no slot.
   - Multi-target AoE: damage rolled ONCE, an individual save each, one slot; HP from the
-    registry; XP from all kills.
+    registry; XP from all kills. A target with no current_hp/save_modifier that is not
+    registered is REFUSED, never resolved against a guessed 0 HP / +0 save.
   - HP-pool spells: targets ascending by HP, pool drained in order.
   - Extra damage dice are NOT doubled on a crit.
   - Player temp HP drains before real HP (is_npc_attack). Player resistance/immunity/

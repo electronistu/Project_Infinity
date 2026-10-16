@@ -13,6 +13,9 @@ import unittest
 
 from web.tests.dice import harness as H
 
+from rules import state
+from rules.combat import _companions_store, _in_active_combat, _save_companions
+
 
 MAERA = {
     "description": "a grey-braided dwarf woman in a leather apron",
@@ -37,9 +40,9 @@ class CompanionTest(H.EngineCase):
     player_factory = staticmethod(H.fighter_l5)
 
     def _set_era(self, era):
-        cur = H.ds.DB_CONNECTION.cursor()
+        cur = state.DB_CONNECTION.cursor()
         cur.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)", ("era", era))
-        H.ds.DB_CONNECTION.commit()
+        state.DB_CONNECTION.commit()
 
     def _register(self, npcs, rolls=None):
         with H.fixed_rolls(rolls or ([15] + [6] * len(npcs))):
@@ -83,12 +86,12 @@ class CompanionTest(H.EngineCase):
 
     def test_a_sheet_stored_before_the_rename_still_registers(self):
         # A sheet written when the field was called `traits` keeps them as advantages.
-        cur = H.ds.DB_CONNECTION.cursor()
-        H.ds._save_companions(cur, {"maera": {
+        cur = state.DB_CONNECTION.cursor()
+        _save_companions(cur, {"maera": {
             "name": "Maera", "ac": 15, "max_hp": 38, "traits": ["Sneak Attack 2d6."]}})
         with H.fixed_rolls([10, 6]):
             r = H.ds.register_combatants([{"name": "Maera"}])
-        self.assertEqual(H.ds._COMBAT_REGISTRY["Maera"]["traits"], ["Sneak Attack 2d6."])
+        self.assertEqual(state._COMBAT_REGISTRY["Maera"]["traits"], ["Sneak Attack 2d6."])
         self.assertIn("Sneak Attack", r["companions"][0]["line"])
 
     def test_re_declaring_a_name_updates_it(self):
@@ -149,7 +152,7 @@ class CompanionTest(H.EngineCase):
         H.ds.register_companion("Maera", MAERA)
         r = self._register([{"name": "Maera"}, GOBLIN])
         self.assertTrue(r["success"])
-        entry = H.ds._COMBAT_REGISTRY["Maera"]
+        entry = state._COMBAT_REGISTRY["Maera"]
         self.assertEqual(entry["role"], "ally")
         self.assertEqual(entry["current_hp"], 38)   # default: full
         self.assertEqual(entry["max_hp"], 38)
@@ -164,13 +167,13 @@ class CompanionTest(H.EngineCase):
     def test_an_hp_in_the_registration_is_the_current_hp(self):
         H.ds.register_companion("Maera", MAERA)
         self._register([{"name": "Maera", "hp": 17}, GOBLIN])
-        self.assertEqual(H.ds._COMBAT_REGISTRY["Maera"]["current_hp"], 17)
-        self.assertEqual(H.ds._COMBAT_REGISTRY["Maera"]["max_hp"], 38)
+        self.assertEqual(state._COMBAT_REGISTRY["Maera"]["current_hp"], 17)
+        self.assertEqual(state._COMBAT_REGISTRY["Maera"]["max_hp"], 38)
 
     def test_an_explicit_block_is_never_shadowed(self):
         H.ds.register_companion("Maera", MAERA)
         self._register([{"name": "Maera", "hp": 9, "ac": 12, "initiative_modifier": 1}])
-        entry = H.ds._COMBAT_REGISTRY["Maera"]
+        entry = state._COMBAT_REGISTRY["Maera"]
         self.assertEqual((entry["ac"], entry["current_hp"]), (12, 9))
 
     def test_a_name_alone_that_is_no_companion_is_refused(self):
@@ -184,7 +187,7 @@ class CompanionTest(H.EngineCase):
         self._set_era("wallachia")                       # the Device carried her
         r = self._register([{"name": "Maera"}])
         self.assertTrue(r["success"])
-        self.assertEqual(H.ds._COMBAT_REGISTRY["Maera"]["max_hp"], 38)
+        self.assertEqual(state._COMBAT_REGISTRY["Maera"]["max_hp"], 38)
 
     def test_a_companion_can_join_an_existing_fight(self):
         H.ds.register_companion("Maera", MAERA)
@@ -192,13 +195,13 @@ class CompanionTest(H.EngineCase):
         with H.fixed_rolls([11]):
             r = H.ds.register_combatants([{"name": "Maera"}], add_to_existing=True)
         self.assertTrue(r["success"])
-        self.assertEqual(H.ds._COMBAT_REGISTRY["Maera"]["current_hp"], 38)
+        self.assertEqual(state._COMBAT_REGISTRY["Maera"]["current_hp"], 38)
 
     def test_a_companion_never_keeps_combat_alive(self):
         H.ds.register_companion("Maera", MAERA)
         self._register([{"name": "Maera"}, GOBLIN])
         H.ds.update_combatant("Goblin", hp_delta=-99)
-        self.assertFalse(H.ds._in_active_combat())
+        self.assertFalse(_in_active_combat())
 
     # ── persistence ───────────────────────────────────────────────────────────
 
@@ -207,8 +210,8 @@ class CompanionTest(H.EngineCase):
         rows = H.ds.dump_player_save_state()
         self.assertIn("companions", rows)
         with H.load(rows):
-            cursor = H.ds.DB_CONNECTION.cursor()
-            store = H.ds._companions_store(cursor)
+            cursor = state.DB_CONNECTION.cursor()
+            store = _companions_store(cursor)
             self.assertEqual(store["maera"]["max_hp"], 38)
             self.assertEqual(store["maera"]["description"], MAERA["description"])
 
@@ -217,7 +220,7 @@ class CompanionTest(H.EngineCase):
             "egypt": {"maera": {"name": "Maera", "ac": 15, "max_hp": 38}},
             "tang": {"su lian": {"name": "Su Lian", "ac": 13, "max_hp": 22}}}}
         with H.load(legacy):
-            store = H.ds._companions_store(H.ds.DB_CONNECTION.cursor())
+            store = _companions_store(state.DB_CONNECTION.cursor())
             self.assertEqual(sorted(store), ["maera", "su lian"])
             self.assertEqual(store["maera"]["max_hp"], 38)
 
@@ -283,8 +286,8 @@ class CompanionCheckTest(H.EngineCase):
         self.assertEqual(r["modifier"], 4)
 
     def test_no_stats_falls_back_to_the_given_modifier(self):
-        cur = H.ds.DB_CONNECTION.cursor()
-        H.ds._save_companions(cur, {"maera": {
+        cur = state.DB_CONNECTION.cursor()
+        _save_companions(cur, {"maera": {
             "name": "Maera", "ac": 15, "max_hp": 38}})
         with H.fixed_rolls([10]):
             r = H.ds.perform_check(actor="Maera", dc=15, check_name="Stealth", modifier=4)
@@ -292,10 +295,10 @@ class CompanionCheckTest(H.EngineCase):
         self.assertEqual(r["total"], 14)
 
     def test_her_check_works_in_any_age(self):
-        cur = H.ds.DB_CONNECTION.cursor()
+        cur = state.DB_CONNECTION.cursor()
         cur.execute("INSERT OR REPLACE INTO player (key, value) VALUES (?, ?)",
                     ("era", "wallachia"))
-        H.ds.DB_CONNECTION.commit()
+        state.DB_CONNECTION.commit()
         with H.fixed_rolls([10]):
             r = H.ds.perform_check(actor="Maera", dc=15, check_name="Stealth")
         self.assertEqual(r["modifier"], 6)          # DEX +3, proficient +3

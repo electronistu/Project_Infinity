@@ -8,15 +8,19 @@ import asyncio
 import json
 import sys
 import tempfile
+import threading
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO))
 
-from web.engine import (  # noqa: E402
-    GameSession, filter_tools, render_protocol, format_known_places, _gm_tool_view,
-    _primed_places, PLACE_TREE_CAP,
-    MAX_RESUME_ROUNDS,
+from web.engine import GameSession  # noqa: E402
+from web.protocol import filter_tools, render_protocol, MAX_RESUME_ROUNDS  # noqa: E402
+from web.places import format_known_places, _primed_places, PLACE_TREE_CAP  # noqa: E402
+from web.gm_view import _gm_tool_view  # noqa: E402
+from web.scenes import (  # noqa: E402
+    SceneService, commit_scene_manifest, current_scene_place, discard_scene_manifest,
+    known_scene_places, live_scene_manifest, mutate_scene_manifest, _SCENE_LOCK,
 )
 
 RESULTS = []
@@ -947,6 +951,103 @@ async def main() -> bool:
         and "sheets" not in gs_combat.messages[-1]["content"]
         and "narrative_format" not in gs_combat.messages[-1]["content"],
         gs_combat.messages[-1]["content"])
+
+    # ── the live registry's write path: one lock, one generation (B4) ─────────
+    # Two threads write the live registry: the engine, and the server's per-event worker
+    # (`_persist_place_note`, on `asyncio.to_thread`). So the read-modify-write is one locked
+    # step, and a worker that outlived its session is refused rather than republishing its
+    # copy of the registry into the next session's.
+    with tempfile.TemporaryDirectory() as td:
+        import web.server as server_mod
+        from web.server import _persist_place_note  # the worker's entry point
+
+        out = Path(td) / "output"
+        svc = SceneService(out)
+        manifest_path = out / "images" / "race" / "scenes" / "manifest.json"
+        wharf = ["Ropehaven Wharf", "Warehouse Nine"]
+        lantern = ["The Drowned Lantern"]
+
+        def saved_places() -> list[list[str]]:
+            data = json.loads(manifest_path.read_text(encoding="utf-8"))
+            return [e["place"] for e in data["seeds"].values()]
+
+        class _Session:  # only what the server's place-note writer touches
+            def __init__(self, generation):
+                self.active_name = "race"
+                self.scene_generation = generation
+
+        def note(place) -> dict:
+            return {"era": "", "kingdom": "London", "area": "Wapping", "place": place,
+                    "main_npcs": [{"name": "Bess", "role": "the lamp-lighter"}], "cast": []}
+
+        def persist(session, evt) -> None:
+            """`_persist_place_note` exactly as the websocket pump runs it, on this temp save."""
+            real_service = server_mod.scene_service
+            server_mod.scene_service = svc
+            try:
+                _persist_place_note(session, evt)
+            finally:
+                server_mod.scene_service = real_service
+
+        # The normal path: a place declared mid-session is live at once, on disk on Save.
+        gen = discard_scene_manifest(out, "race")  # the session starts
+        rec("the session boundary hands out a registry write ticket", isinstance(gen, int), str(gen))
+        persist(_Session(gen), note(wharf))
+        rec("a place declared mid-session is live in the registry",
+            [p["place"] for p in known_scene_places(out, "race")] == [wharf],
+            str(known_scene_places(out, "race")))
+        rec("... and reaches disk only on Save", not manifest_path.exists())
+        commit_scene_manifest(out, "race")
+        rec("... where the Save writes it into the manifest",
+            manifest_path.exists() and saved_places() == [wharf])
+
+        # B4's interleaving, deterministically: the worker reads the live registry, the player
+        # Saves, the session ends, and only THEN does the worker write its captured copy back.
+        captured = live_scene_manifest(out, "race")  # the worker's read, while the session lived
+        discard_scene_manifest(out, "race")          # the session ends without saving again
+        persist(_Session(gen), note(lantern))        # ... and the late worker writes
+        late = svc.record_place("race", kingdom="London", area="Wapping", place=lantern,
+                                generation=gen)
+        rec("a writer whose session has ended is refused, with a clear result",
+            late.get("stale") is True and late.get("recorded") is False, str(late))
+        gen2 = discard_scene_manifest(out, "race")   # the next session starts
+        rec("... so nothing leaks into the next session's registry",
+            [p["place"] for p in known_scene_places(out, "race")] == [wharf],
+            str(known_scene_places(out, "race")))
+        rec("... nor into the current place the registry points at",
+            (current_scene_place(out, "race") or {}).get("place") == wharf,
+            str(current_scene_place(out, "race")))
+        rec("... and the manifest the Save wrote is untouched (the stale copy is not the live one)",
+            saved_places() == [wharf] and captured is not live_scene_manifest(out, "race"))
+
+        # The same declaration, from the live session, is accepted -- and stays memory-only.
+        now = svc.record_place("race", kingdom="London", area="Wapping", place=lantern,
+                               generation=gen2)
+        rec("... while a declaration from the live session is recorded",
+            now.get("recorded") is True
+            and [p["place"] for p in known_scene_places(out, "race")] == [wharf, lantern],
+            str(now))
+        rec("... as memory-only until the next Save", saved_places() == [wharf])
+
+        # The entry point holds the lock across the whole read-modify-write: no second writer
+        # (the engine, or another worker) can interleave with it.
+        started, release = threading.Event(), threading.Event()
+
+        def slow(data):
+            started.set()
+            release.wait(5)
+            return {"ok": True}
+
+        worker = threading.Thread(target=lambda: mutate_scene_manifest(out, "race", slow))
+        worker.start()
+        running = started.wait(5)
+        free = running and _SCENE_LOCK.acquire(blocking=False)
+        rec("the mutate entry point holds the scene lock across the read-modify-write",
+            running and free is False, f"running={running} free={free}")
+        if free:  # only if the probe took it
+            _SCENE_LOCK.release()
+        release.set()
+        worker.join(5)
 
     return all(RESULTS)
 

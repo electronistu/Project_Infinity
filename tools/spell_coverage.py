@@ -63,6 +63,8 @@ def _shape(spell: dict) -> str:
     if spell.get("temporary_hp"):
         tags.append("temp_hp")
     if spell.get("instant_kill"):
+        # A real engine mechanic since Power Word Kill was wired (`_resolve_instant_kill`): an
+        # HP-threshold instant death, not a GM-adjudicated tag.
         tags.append("instant_kill")
     if spell.get("no_damage"):
         tags.append("no_damage")

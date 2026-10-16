@@ -20,9 +20,9 @@ REPO = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO))
 
 from web.icons import IconService, family_for_model  # noqa: E402
-from web.images import (  # noqa: E402
-    GeminiImageBackend, ImageError, LocalImageBackend, build_local_graph, colour_contrast,
-    detail_within, load_workflow, subject_similarity,
+from web.imageassets import colour_contrast, detail_within, subject_similarity  # noqa: E402
+from web.backends import (  # noqa: E402
+    GeminiImageBackend, ImageError, LocalImageBackend, build_local_graph, load_workflow,
 )
 
 RESULTS = []

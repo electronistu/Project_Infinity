@@ -18,7 +18,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import re
 import time
 import zlib
@@ -29,20 +28,26 @@ try:
 except ImportError:  # pragma: no cover
     yaml = None
 
-from .images import (  # noqa: E402
+from .backends import (  # noqa: E402
     ImageBackend,
     ImageBackendHolder,
     ImageError,
     _backend_from_config,
+)
+from .images import _load_config  # noqa: E402
+from .imageassets import (  # noqa: E402
     _hex_rgb,
-    _load_config,
     colour_contrast,
     detail_within,
-    downscale_image,
+    drop_stale,
+    first_existing,
     fit_to_frame,
-    image_mime,
+    read_json_dict,
+    slugify,
     sniff_image,
     subject_similarity,
+    write_bytes_atomic,
+    write_json_atomic,
 )
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -104,7 +109,7 @@ ARMOR = (
 )
 # Non-specific weapon proficiencies.
 WEAPON_CATEGORIES = ("Simple Weapons", "Martial Weapons")
-# Vehicles are handled explicitly because `_norm`/`slugify_key` strip the
+# Vehicles are handled explicitly because `_norm`/`slugify` strip the
 # parenthetical, which would collapse land and water onto one key.
 VEHICLE_TOOLS = {"land": "Vehicles (Land)", "water": "Vehicles (Water)"}
 # Category keys get a representative subject (the generic per-kind template
@@ -148,20 +153,10 @@ STAT_ICONS = {
 _PARENS = re.compile(r"\([^)]*\)")
 _POSSESSIVE = re.compile(r"['\u2019]s\b")
 _NUMBER = re.compile(r"\b[+-]?\d+\b")
-_NON_ALNUM = re.compile(r"[^a-z0-9]+")
 _NON_WORD = re.compile(r"[^a-z0-9 ]+")
 _SPACES = re.compile(r"\s+")
 
 _CONFIG_CACHE: dict[str, object] = {}
-_PORTRAIT_EXTS = ("png", "jpg", "webp")
-
-
-def slugify_key(name) -> str:
-    """A stable, lowercase asset slug ('Sleight of Hand' -> 'sleight-of-hand')."""
-    text = _PARENS.sub(" ", str(name or "").lower())
-    text = _POSSESSIVE.sub(" ", text)
-    text = _NUMBER.sub(" ", text)
-    return _NON_ALNUM.sub("-", text).strip("-")
 
 
 def _norm(name) -> str:
@@ -291,7 +286,7 @@ def _fallback_key(category: str, label) -> str | None:
     text = str(label or "").strip()
     if not text or _NON_ICON.search(text):
         return None
-    return f"{category}/{slugify_key(text)}"
+    return f"{category}/{slugify(text)}"
 
 
 _QTY_WORDS = {"a", "an", "one", "two", "three", "four", "five", "six", "seven",
@@ -382,7 +377,7 @@ def item_catalog() -> dict:
     for name in starting_item_names():
         if _is_covered_by_category(name):
             continue
-        out.setdefault(slugify_key(name), name)
+        out.setdefault(slugify(name), name)
     _CONFIG_CACHE[cache_key] = out
     return out
 
@@ -422,22 +417,22 @@ def icon_key_for(category: str, name, detail: str = "") -> str | None:
 
     if cat == "skill":
         canon = _match_vocab(_VOCAB["skill"], label)
-        return f"skill/{slugify_key(canon)}" if canon else _fallback_key("skill", label)
+        return f"skill/{slugify(canon)}" if canon else _fallback_key("skill", label)
     if cat == "language":
         canon = _match_vocab(_VOCAB["language"], label)
-        return f"language/{slugify_key(canon)}" if canon else _fallback_key("language", label)
+        return f"language/{slugify(canon)}" if canon else _fallback_key("language", label)
     if cat == "school":
         canon = _match_vocab(_VOCAB["school"], label)
-        return f"school/{slugify_key(canon)}" if canon else _fallback_key("school", label)
+        return f"school/{slugify(canon)}" if canon else _fallback_key("school", label)
     if cat == "damage":
         canon = _match_vocab(_VOCAB["damage"], label)
-        return f"damage/{slugify_key(canon)}" if canon else _fallback_key("damage", label)
+        return f"damage/{slugify(canon)}" if canon else _fallback_key("damage", label)
     if cat == "condition":
         canon = _match_vocab(_VOCAB["condition"], label)
-        return f"condition/{slugify_key(canon)}" if canon else _fallback_key("condition", label)
+        return f"condition/{slugify(canon)}" if canon else _fallback_key("condition", label)
     if cat == "armor":
         canon = _match_vocab(_VOCAB["armor"], label)
-        return f"armor/{slugify_key(canon)}" if canon else _fallback_key("armor", label)
+        return f"armor/{slugify(canon)}" if canon else _fallback_key("armor", label)
     if cat == "tool":
         # Vehicles keep their land/water distinction (the normaliser strips it).
         low = label.lower()
@@ -445,39 +440,39 @@ def icon_key_for(category: str, name, detail: str = "") -> str | None:
             kind = "water" if "water" in low else "land"
             return f"tool/vehicles-{kind}"
         canon = _match_vocab(_VOCAB["tool"], label)
-        return f"tool/{slugify_key(canon)}" if canon else _fallback_key("tool", label)
+        return f"tool/{slugify(canon)}" if canon else _fallback_key("tool", label)
     if cat == "weapon":
         canon = _match_vocab(_weapon_index(), label)
         if not canon:
             canon = _match_vocab(_VOCAB["weapon_category"], label)
-        return f"weapon/{slugify_key(canon)}" if canon else _fallback_key("weapon", label)
+        return f"weapon/{slugify(canon)}" if canon else _fallback_key("weapon", label)
     if cat == "spell":
         spell = _match_vocab(_spell_index(), label)
         if not spell:
             # Homebrew spell: a per-item key, generated on the fly when the
             # player has icon generation enabled.
             return _fallback_key("spell", label)
-        return f"spell/{slugify_key(spell['name'])}"
+        return f"spell/{slugify(spell['name'])}"
     if cat == "feature":
         canon = _match_vocab(_feature_index(), label)
         if not canon:
             # Homebrew / GM-added trait: per-item key.
             return _fallback_key("feature", label)
-        return f"feature/{slugify_key(canon)}"
+        return f"feature/{slugify(canon)}"
     if cat == "faction":
         canon = _match_vocab(_VOCAB["faction"], label)
-        return f"faction/{slugify_key(canon)}" if canon else _fallback_key("faction", label)
+        return f"faction/{slugify(canon)}" if canon else _fallback_key("faction", label)
     if cat == "ability":
         canon = _match_vocab(_VOCAB["ability"], label)
-        return f"ability/{slugify_key(canon)}" if canon else None
+        return f"ability/{slugify(canon)}" if canon else None
     if cat == "save":
         canon = _match_vocab(_VOCAB["save"], label)
-        return f"save/{slugify_key(canon)}" if canon else None
+        return f"save/{slugify(canon)}" if canon else None
     if cat == "kingdom":
-        return f"kingdom/{slugify_key(label)}"
+        return f"kingdom/{slugify(label)}"
     if cat in _CATEGORY_INDEX:
         canon = _match_vocab(_name_index(_CATEGORY_INDEX[cat]), label)
-        return f"{cat}/{slugify_key(canon)}" if canon else _fallback_key(cat, label)
+        return f"{cat}/{slugify(canon)}" if canon else _fallback_key(cat, label)
     if cat in ("inventory", "consumable", "item"):
         for candidate in (label, _clean_starting_name(label)):
             if not candidate:
@@ -487,15 +482,15 @@ def icon_key_for(category: str, name, detail: str = "") -> str | None:
                 return f"item/{curated}"
             weapon = _exact_vocab(_weapon_index(), candidate)
             if weapon:
-                return f"weapon/{slugify_key(weapon)}"
+                return f"weapon/{slugify(weapon)}"
             armor = _exact_vocab(_VOCAB["armor"], candidate)
             if armor:
-                return f"armor/{slugify_key(armor)}"
+                return f"armor/{slugify(armor)}"
             tool = _exact_vocab(_VOCAB["tool"], candidate)
             if tool:
-                return f"tool/{slugify_key(tool)}"
+                return f"tool/{slugify(tool)}"
         # Not a shared item: a per-item key, generated later at runtime.
-        return f"item/{slugify_key(label)}"
+        return f"item/{slugify(label)}"
     return None
 
 
@@ -610,11 +605,7 @@ class IconService(ImageBackendHolder):
 
     def icon_path(self, kind: str, slug: str) -> Path:
         directory = self.icon_dir(kind)
-        for ext in _PORTRAIT_EXTS:
-            candidate = directory / f"{slug}.{ext}"
-            if candidate.exists():
-                return candidate
-        return directory / f"{slug}.png"
+        return first_existing(directory, slug) or directory / f"{slug}.png"
 
     def manifest_path(self) -> Path:
         return self.family_dir() / "manifest.json"
@@ -626,26 +617,13 @@ class IconService(ImageBackendHolder):
     def _read_manifest(self) -> dict:
         if self._manifest is not None:
             return self._manifest
-        path = self.manifest_path()
-        data: dict = {}
-        if path.exists():
-            try:
-                loaded = json.loads(path.read_text(encoding="utf-8"))
-                if isinstance(loaded, dict):
-                    data = loaded
-            except (OSError, json.JSONDecodeError):
-                data = {}
+        data = read_json_dict(self.manifest_path())
         data.setdefault("icons", {})
         self._manifest = data
         return data
 
     def _write_manifest(self) -> None:
-        path = self.manifest_path()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(self._read_manifest(), indent=2, ensure_ascii=False),
-                       encoding="utf-8")
-        os.replace(tmp, path)
+        write_json_atomic(self.manifest_path(), self._read_manifest())
 
     def has(self, kind: str, slug: str) -> bool:
         return self.icon_path(kind, slug).exists()
@@ -671,7 +649,7 @@ class IconService(ImageBackendHolder):
 
     def prompt_for(self, kind: str, name: str, detail: str = "") -> str:
         low = str(name or "").lower()
-        key = self.key(slugify_key(kind), slugify_key(name))
+        key = self.key(slugify(kind), slugify(name))
         if "vehicle" in low:
             key = f"tool/vehicles-{'water' if 'water' in low else 'land'}"
         if key in _CATEGORY_PROMPTS:
@@ -696,8 +674,8 @@ class IconService(ImageBackendHolder):
 
     def ensure(self, kind: str, slug: str, name: str, detail: str = "",
                force: bool = False, model: str | None = None) -> dict:
-        kind = slugify_key(kind)
-        slug = slugify_key(slug)
+        kind = slugify(kind)
+        slug = slugify(slug)
         effective = model or self.model
         if family_for_model(effective) != self.family:
             effective = self.model  # a model from another family never writes into this store
@@ -725,14 +703,8 @@ class IconService(ImageBackendHolder):
             raw, check, repair = self._check_and_repair(backend, raw, prompt, recipe)
         ext, mime = sniff_image(raw) or ("png", "image/png")
         target = self.icon_dir(kind) / f"{slug}.{ext}"
-        for other in _PORTRAIT_EXTS:
-            stale = self.icon_dir(kind) / f"{slug}.{other}"
-            if other != ext and stale.exists():
-                stale.unlink()
-        target.parent.mkdir(parents=True, exist_ok=True)
-        tmp = target.with_suffix(target.suffix + ".tmp")
-        tmp.write_bytes(raw)
-        os.replace(tmp, target)
+        drop_stale(self.icon_dir(kind), slug, ext)
+        write_bytes_atomic(target, raw)
 
         manifest["icons"][key] = {
             "kind": kind, "slug": slug, "name": str(name), "file": target.name,
@@ -833,7 +805,7 @@ def all_icon_keys() -> dict[str, str]:
     out: dict[str, str] = {}
 
     def add(kind: str, name: str):
-        key = f"{kind}/{slugify_key(name)}"
+        key = f"{kind}/{slugify(name)}"
         out.setdefault(key, name)
 
     for name in SKILLS:

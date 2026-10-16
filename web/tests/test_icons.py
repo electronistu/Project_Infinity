@@ -16,9 +16,9 @@ sys.path.insert(0, str(REPO))
 from PIL import Image  # noqa: E402
 
 from web.icons import (  # noqa: E402
-    IconService, all_icon_keys, family_for_model, icon_key_for, slugify_key, _config,
+    IconService, all_icon_keys, family_for_model, icon_key_for, _config,
 )
-from web.images import fit_to_frame  # noqa: E402
+from web.imageassets import fit_to_frame, slugify  # noqa: E402
 
 RESULTS = []
 _PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 32  # opaque bytes; Pillow will refuse to resize it
@@ -30,7 +30,7 @@ def rec(name, cond, detail=""):
 
 
 def main() -> bool:
-    rec("slug strips possessives/quantities", slugify_key("Vellin Cray's Signet Ring (+1)") == "vellin-cray-signet-ring")
+    rec("slug strips possessives/quantities", slugify("Vellin Cray's Signet Ring (+1)") == "vellin-cray-signet-ring")
 
     rec("weapon proficiency canonicalises", icon_key_for("weapon", "Light crossbows") == "weapon/light-crossbow")
 

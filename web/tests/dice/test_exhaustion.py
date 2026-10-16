@@ -4,12 +4,16 @@ import unittest
 
 from web.tests.dice import harness as H
 
+from rules import state
+from rules.combat import _player_registry_entry
+from rules.sheet import _exhaustion_effects
+
 
 class ExhaustionLevelTest(H.EngineCase):
     player_factory = staticmethod(H.fighter_l5)  # 44 HP, speed 30
 
     def _eff(self):
-        return H.ds._exhaustion_effects(H.dbv("exhaustion", 0))
+        return _exhaustion_effects(H.dbv("exhaustion", 0))
 
     def test_level_1_imposes_check_disadvantage_only(self):
         H.ds.modify_exhaustion(1)
@@ -20,7 +24,7 @@ class ExhaustionLevelTest(H.EngineCase):
 
     def test_level_2_halves_speed(self):
         H.ds.modify_exhaustion(2)
-        entry = H.ds._player_registry_entry(H.ds.DB_CONNECTION.cursor())
+        entry = _player_registry_entry(state.DB_CONNECTION.cursor())
         self.assertEqual(entry["speed"], 15)
 
     def test_level_3_disadvantages_attacks_and_saves(self):
@@ -38,7 +42,7 @@ class ExhaustionLevelTest(H.EngineCase):
 
     def test_level_5_sets_speed_zero(self):
         H.ds.modify_exhaustion(5)
-        entry = H.ds._player_registry_entry(H.ds.DB_CONNECTION.cursor())
+        entry = _player_registry_entry(state.DB_CONNECTION.cursor())
         self.assertEqual(entry["speed"], 0)
 
     def test_level_6_is_death(self):
@@ -74,7 +78,7 @@ class ExhaustionDisadvantageTest(H.EngineCase):
         H.ds.modify_exhaustion(3)
         with H.fixed_rolls([10, 10, 5]):
             r = H.ds.resolve_attack(actor="Borin", attack_modifier=5, damage_dice="1d8",
-                                    target_name="Dummy", damage_type="slashing")
+                                    target_ac=10, target_name="Dummy", damage_type="slashing")
         self.assertTrue(r["disadvantage"])
 
     def test_no_disadvantage_at_level_0(self):
@@ -113,7 +117,7 @@ class ExhaustionSourceTest(H.EngineCase):
         H.ds.register_combatants([])
         H.ds.update_combatant(name="Borin", conditions_add=["exhaustion"])
         self.assertIsNone(H.dbv("exhaustion"))
-        self.assertNotIn("exhaustion", H.ds._COMBAT_REGISTRY["Borin"]["conditions"])
+        self.assertNotIn("exhaustion", state._COMBAT_REGISTRY["Borin"]["conditions"])
 
 
 if __name__ == "__main__":

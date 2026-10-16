@@ -16,7 +16,9 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO))
 
-from web.engine import ENGINE_ONLY_TOOLS, GameSession, _sheet_body  # noqa: E402
+from web.engine import GameSession  # noqa: E402
+from web.protocol import ENGINE_ONLY_TOOLS  # noqa: E402
+from web.player_file import _sheet_body  # noqa: E402
 
 RESULTS = []
 

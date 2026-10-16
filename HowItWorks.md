@@ -89,7 +89,7 @@ The mode costs nothing when it is not in play: the protocol is marker-gated and 
 
 ## Storyline image continuity
 
-**Images are recommended.** The place-and-NPC tree the GM sees, and the places a Time Traveler may aim at (an area the save has stood in, then up to 12 places inside it), are kept in **both modes**: with images on they are read from the scene manifest the illustrator writes; with images off the GM declares each new place once with `note_place` and the engine keeps the same registry (a place with no picture). You choose the age, then the area and the place once you have stood there; only the new-character start is random. Images add the portrait and the per-turn illustration.
+**Images are recommended.** The place-and-NPC tree the GM sees, and the places a Time Traveler may aim at (an area the save has stood in, then up to 12 places inside it), are kept in **both modes**: with images on they are read from the scene manifest the illustrator writes; with images off the GM declares each new place once with `note_place` and the engine keeps the same registry (a place with no picture). That registry lives in memory for the **session** and reaches the save only when you save: a session that ends without saving leaves the save's places exactly as they were. You choose the age, then the area and the place once you have stood there; only the new-character start is random. Images add the portrait and the per-turn illustration.
 
 - **A place has an address** — `kingdom → area → place path` (realm → settlement → district → spot → nested rooms, any depth), named once and reused exactly.
 - **There are no preset landings** — the age's file carries no arrival list. When you release the Device into an age you have not stood in, the Game Master chooses where the Traveller lands and declares it (`note_place` in text mode; the scene call carries it with images on). Once you have stood somewhere, its **area** joins the picker, and up to **12 places inside it**; each joint is optional — name the age, or an area you have stood in, or the exact place, and whatever you leave out the Game Master chooses (an area alone means *land them somewhere in it*). The arrival string is always the Game Master's declared place, and a resumed save connects it to the place its manifest already holds.
@@ -132,7 +132,7 @@ venv\Scripts\python.exe -m pip install -r requirements-dev.txt   # tiktoken, onc
 venv\Scripts\python.exe tools\verify.py
 ```
 
-`tools/verify.py` is the whole gate in one command and exits non-zero on the first failure. Seven steps, in order:
+`tools/verify.py` is the whole gate in one command and exits non-zero on the first failure. Eight steps, in order:
 
 | Step | What it asserts |
 | --- | --- |
@@ -140,6 +140,7 @@ venv\Scripts\python.exe tools\verify.py
 | `spellstats` | `tools/spell_stats_gate.py` — every spell's **numbers** (level, resolution, save, damage, upcast, school, concentration, ritual, healing) match the frozen SRD 5.1 table |
 | `spellcov` | `tools/spell_coverage_gate.py` — every spell, `condition` string and `buffs` field is **classified** (a real mechanic or a named GM-adjudicated tag) |
 | `budget` | `tools/token_budget.py --gate` — the static-prefix ceilings in `tools/budgets.yml` |
+| `snapshot` | `tools/gm_snapshot.py input` — the GM-input snapshot tool still runs (into a temp dir, so the repo stays clean) |
 | `dice` | The dice engine suite, `web/tests/dice/` |
 | `web` | Every web suite, `web/tests/test_*.py` (no network, no GPU) |
 | `node` | `node --check` on `web/static/app.js` |
@@ -174,11 +175,11 @@ See [`tools/srd/README.md`](tools/srd/README.md) for what each list is and what 
 
 ## What the engine decides, what the Game Master decides
 
-The engine owns the **mechanical skeleton**: attack rolls, saves, damage, hit points, the thirteen conditions and their generic effects, resistance/immunity/vulnerability, concentration, death saves, exhaustion, upcast scaling, active buffs and recurring saves. Everything below is the Game Master's call by design — not an accident, and not a gap the code is hiding.
+The engine owns the **mechanical skeleton**: attack rolls, saves, damage, hit points, the thirteen conditions and their generic effects, resistance/immunity/vulnerability, concentration, death saves, exhaustion, upcast scaling, active buffs, recurring saves and HP-threshold instant death. Everything below is the Game Master's call by design — not an accident, and not a gap the code is hiding.
 
 - **Condition effects with no generic rule.** 27 condition tags across 31 spells apply a state the engine cannot resolve on its own, so the GM runs the effect and passes `advantage`/`disadvantage` or applies results. Control and removal (`Banished`, `Bound`, `Trapped`, `Possessed`, `Time Stopped`, `Magic Suppressed`, …), transformation (`Polymorphed`, `Gaseous`, `Levitating`), rider debuffs (`Weakened`, `Slowed`, `Outlined`, `Confused`, `Feebleminded`, `Cursed`, `Diseased`) and meta effects (`Spell Interrupted`, `Teleported`, `Altered Memories`, `Illusory Duplicates`, `Varies by symbol type`). A few of these already run a partial engine rule (Slow, Confusion and Contagion run their repeating save; Ray of Enfeeblement runs its post-hit save) — the GM owns only the condition's own effect.
 - **Effects with no engine consumer.** Mind Blank's divination immunity, Haste's extra action, Expeditious Retreat's bonus-action Dash, and Jump's tripled distance. Action economy is not tracked at all.
-- **Purely narrative spells.** 144 of the 319 resolve as automatic with no roll and no condition or buff — cantrips and utility from Detect Magic to Wish. The engine validates the slot and records the cast; the effect is the fiction.
+- **Purely narrative spells.** 143 of the 319 resolve as automatic with no roll, no condition, no buff and no HP-threshold kill — cantrips and utility from Detect Magic to Wish. The engine validates the slot and records the cast; the effect is the fiction. (**Power Word Kill** is not one of these: its 100-HP-threshold instant death is engine-resolved — the target dies outright through the normal kill, HP and CR-XP path, or the spell has no effect. An unknown target HP is refused, never guessed.)
 - **Timing.** There is no clock: spell durations (1 minute / 1 hour / 24 hours / until dispelled), the expiry of a concentration, and the action to shake or slap a sleeping creature awake are all the GM's to end with `update_combatant` / `update_player_list`.
 - **Action economy and reactions.** Bonus-action casts, reactions (Shield, Counterspell, Hellish Rebuke) and Haste's extra action. The engine resolves the spell, not whether the actor still had the action to spend.
 - **Initiative and turns.** The engine rolls the initiative, sorts the order and tracks an informational cursor — the last actor, the **next in line** and the round — which the client's combat bar shows. It does not enforce the sequence: which combatant acts when (a foe that acts out of turn, a turn the GM lets slide) is the Game Master's call.

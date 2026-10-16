@@ -9,6 +9,10 @@ import unittest
 
 from web.tests.dice import harness as H
 
+from rules import state
+from rules.db import _db_val
+from rules.combat import _in_active_combat, _npc_attack_is_ranged, _registry_summary_list
+
 
 GOBLIN = {
     "name": "Goblin", "hp": 7, "ac": 15, "initiative_modifier": 2, "challenge_rating": 0.25,
@@ -44,7 +48,7 @@ class CombatantTest(H.EngineCase):
 
     def test_full_stat_block_is_stored_and_summarized(self):
         r = self._register([GOBLIN])
-        entry = H.ds._COMBAT_REGISTRY["Goblin"]
+        entry = state._COMBAT_REGISTRY["Goblin"]
         self.assertEqual(entry["saves"]["dex"], 2)
         self.assertEqual(entry["role"], "hostile")
         self.assertEqual(entry["attacks"][0]["name"], "Scimitar")
@@ -54,7 +58,7 @@ class CombatantTest(H.EngineCase):
 
     def test_player_entry_derives_saves_speed_and_role(self):
         self._register([GOBLIN])
-        player = H.ds._COMBAT_REGISTRY["Borin"]
+        player = state._COMBAT_REGISTRY["Borin"]
         # STR 18 (+4) proficient (+3), CON 14 (+2) proficient (+3), DEX 14 (+2)
         self.assertEqual(player["saves"], {"str": 7, "dex": 2, "con": 5, "int": 0, "wis": 1, "cha": -1})
         self.assertEqual(player["role"], "ally")
@@ -66,7 +70,7 @@ class CombatantTest(H.EngineCase):
         npc = {"name": "Marek Voss", "hp": 22, "ac": 13, "initiative_modifier": 2,
                "challenge_rating": 1, "role": "hostile", "traits": "Sneak Attack 2d6."}
         r = self._register([npc])
-        self.assertEqual(H.ds._COMBAT_REGISTRY["Marek Voss"]["traits"], ["Sneak Attack 2d6."])
+        self.assertEqual(state._COMBAT_REGISTRY["Marek Voss"]["traits"], ["Sneak Attack 2d6."])
         sheet = next(s for s in r["sheets"] if s["name"] == "Marek Voss")["lines"]
         self.assertIn("  Traits: Sneak Attack 2d6.", sheet)
         self.assertNotIn("S; n; e", "\n".join(sheet))
@@ -76,7 +80,7 @@ class CombatantTest(H.EngineCase):
                "damage_resistances": "fire", "condition_immunities": "poisoned",
                "conditions": "Prone"}
         self._register([npc])
-        entry = H.ds._COMBAT_REGISTRY["Emberling"]
+        entry = state._COMBAT_REGISTRY["Emberling"]
         self.assertEqual(entry["damage_resistances"], ["fire"])
         self.assertEqual(entry["condition_immunities"], ["poisoned"])
         self.assertEqual(entry["conditions"], ["prone"])
@@ -85,7 +89,7 @@ class CombatantTest(H.EngineCase):
         npc = {"name": "Brute", "hp": 10, "ac": 12, "initiative_modifier": 0,
                "traits": ["Pack Tactics", "Keen Smell"]}
         r = self._register([npc])
-        self.assertEqual(H.ds._COMBAT_REGISTRY["Brute"]["traits"], ["Pack Tactics", "Keen Smell"])
+        self.assertEqual(state._COMBAT_REGISTRY["Brute"]["traits"], ["Pack Tactics", "Keen Smell"])
         sheet = next(s for s in r["sheets"] if s["name"] == "Brute")["lines"]
         self.assertIn("  Traits: Pack Tactics; Keen Smell", sheet)
 
@@ -95,7 +99,7 @@ class CombatantTest(H.EngineCase):
                             "damage_modifier": 3, "damage_type": "piercing",
                             "properties": "Finesse, Light"}]}
         r = self._register([npc])
-        self.assertEqual(H.ds._COMBAT_REGISTRY["Duellist"]["attacks"][0]["properties"],
+        self.assertEqual(state._COMBAT_REGISTRY["Duellist"]["attacks"][0]["properties"],
                          ["Finesse, Light"])
         sheet = "\n".join(next(s for s in r["sheets"] if s["name"] == "Duellist")["lines"])
         self.assertIn("Finesse, Light", sheet)
@@ -103,15 +107,15 @@ class CombatantTest(H.EngineCase):
 
     def test_string_ammunition_property_is_detected_as_ranged(self):
         # Before the fix a string property was split into characters and never matched.
-        self.assertTrue(H.ds._npc_attack_is_ranged({"properties": "Ammunition"}))
-        self.assertFalse(H.ds._npc_attack_is_ranged({"properties": "Finesse"}))
+        self.assertTrue(_npc_attack_is_ranged({"properties": "Ammunition"}))
+        self.assertFalse(_npc_attack_is_ranged({"properties": "Finesse"}))
 
     def test_bare_dict_attacks_are_accepted(self):
         npc = {"name": "Solo", "hp": 10, "ac": 12, "initiative_modifier": 0,
                "attacks": {"name": "Club", "attack_bonus": 3, "damage_dice": "1d4",
                            "damage_type": "bludgeoning"}}
         r = self._register([npc])
-        self.assertEqual(len(H.ds._COMBAT_REGISTRY["Solo"]["attacks"]), 1)
+        self.assertEqual(len(state._COMBAT_REGISTRY["Solo"]["attacks"]), 1)
         sheet = "\n".join(next(s for s in r["sheets"] if s["name"] == "Solo")["lines"])
         self.assertIn("Club", sheet)
 
@@ -157,15 +161,15 @@ class NpcAttackTest(H.EngineCase):
         # The roster (and so the combat bar) must read the live value, not the snapshot.
         with H.fixed_rolls([15, 6, 7]):
             H.ds.register_combatants([GOBLIN])
-        before = next(e for e in H.ds._registry_summary_list() if e["is_player"])
+        before = next(e for e in _registry_summary_list() if e["is_player"])
         self.assertEqual(before["hp"], "44/44")
         with H.fixed_rolls([15, 4]):  # 15 + 4 = 19 vs AC 17, hit; 1d6 (4) + 2 = 6 damage
             r = H.ds.resolve_attack(actor="Goblin", attack="Scimitar", target_name="Borin",
                                     is_npc_attack=True)
         self.assertTrue(r["success"], str(r))
-        db_hp = int(H.ds._db_val(H.ds.DB_CONNECTION.cursor(), "current_hit_points", 0))
+        db_hp = int(_db_val(state.DB_CONNECTION.cursor(), "current_hit_points", 0))
         self.assertEqual(db_hp, 38)
-        after = next(e for e in H.ds._registry_summary_list() if e["is_player"])
+        after = next(e for e in _registry_summary_list() if e["is_player"])
         self.assertEqual(after["hp"], f"{db_hp}/44")
         self.assertNotEqual(after["hp"], before["hp"])
 
@@ -177,10 +181,10 @@ class NpcAttackTest(H.EngineCase):
         with H.fixed_rolls([15, 6, 7]) as calls:  # player (15), then ONE roll for the group (6)
             r = H.ds.register_combatants([wardens])
         self.assertEqual(len(calls), 2, calls)  # the player and the group, not each warden
-        self.assertEqual(set(H.ds._COMBAT_REGISTRY),
+        self.assertEqual(set(state._COMBAT_REGISTRY),
                          {"Borin", "Market Warden 1", "Market Warden 2"})
-        one = H.ds._COMBAT_REGISTRY["Market Warden 1"]
-        two = H.ds._COMBAT_REGISTRY["Market Warden 2"]
+        one = state._COMBAT_REGISTRY["Market Warden 1"]
+        two = state._COMBAT_REGISTRY["Market Warden 2"]
         self.assertEqual((one["ac"], one["current_hp"]), (13, 11))       # the shared sheet
         self.assertEqual(one["attacks"][0]["name"], "Cudgel")
         self.assertEqual(one["initiative_total"], two["initiative_total"])  # they act together
@@ -195,7 +199,7 @@ class NpcAttackTest(H.EngineCase):
                    "initiative_modifier": 1, "role": "hostile"}
         with H.fixed_rolls([15, 6, 7, 8]):
             H.ds.register_combatants([boss, wardens])
-        self.assertEqual(set(H.ds._COMBAT_REGISTRY),
+        self.assertEqual(set(state._COMBAT_REGISTRY),
                          {"Borin", "Bahram", "Market Warden 1", "Market Warden 2"})
 
     def test_a_names_group_is_validated_loudly(self):
@@ -376,7 +380,7 @@ class UpdateCombatantTest(H.EngineCase):
         final = {e["name"]: e for e in r["registry_summary"]}
         self.assertTrue(final["Goblin"]["killed"])
         # The last hostile fell: the fight is over and the registry is emptied behind the result.
-        self.assertEqual(H.ds._COMBAT_REGISTRY, {})
+        self.assertEqual(state._COMBAT_REGISTRY, {})
 
     def test_player_hp_is_not_edited_here(self):
         with H.fixed_rolls([15, 6, 7]):
@@ -429,15 +433,15 @@ class EndCombatTest(H.EngineCase):
 
     def test_end_combat_clears_the_registry(self):
         self._register([GOBLIN])
-        self.assertTrue(H.ds._in_active_combat())
+        self.assertTrue(_in_active_combat())
         r = H.ds.end_combat()
         self.assertTrue(r["success"])
         self.assertEqual(r["registry_summary"], [])
-        self.assertEqual(H.ds._COMBAT_REGISTRY, {})
-        self.assertFalse(H.ds._in_active_combat())
+        self.assertEqual(state._COMBAT_REGISTRY, {})
+        self.assertFalse(_in_active_combat())
 
     def test_end_combat_with_no_fight_is_harmless(self):
-        self.assertFalse(H.ds._in_active_combat())
+        self.assertFalse(_in_active_combat())
         r = H.ds.end_combat()
         self.assertTrue(r["success"])
         self.assertEqual(r["registry_summary"], [])

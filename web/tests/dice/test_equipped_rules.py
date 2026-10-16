@@ -10,6 +10,9 @@ import unittest
 import equipment
 from web.tests.dice import harness as H
 
+from rules import state
+from rules.items import _derive_weapon_attack
+
 
 STATS = {"str": 16, "dex": 14, "con": 14, "int": 10, "wis": 12, "cha": 8}
 
@@ -30,7 +33,7 @@ def fighter(**overrides):
 
 
 def in_combat():
-    H.ds._COMBAT_REGISTRY = {"Goblin": {"is_player": False, "killed": False}}
+    state._COMBAT_REGISTRY = {"Goblin": {"is_player": False, "killed": False}}
 
 
 class HeavyArmorDexterityTest(unittest.TestCase):
@@ -98,7 +101,7 @@ class MagicWeaponProficiencyTest(unittest.TestCase):
             equipped={"armor": None, "hands": ["Dagger +1", None]},
         )
         with H.load(payload):
-            info = H.ds._derive_weapon_attack(H.ds.DB_CONNECTION.cursor(), "Dagger +1",
+            info = _derive_weapon_attack(state.DB_CONNECTION.cursor(), "Dagger +1",
                                               H.dbv("inventory"))
             self.assertTrue(info["proficient"], "the +1 name must not lose proficiency")
             # Finesse takes the better of STR 16 (+3) / DEX 14 (+2) = +3, prof +2, +1 magic.
@@ -113,7 +116,7 @@ class MagicWeaponProficiencyTest(unittest.TestCase):
             equipped={"armor": None, "hands": ["Storm's Edge", None]},
         )
         with H.load(payload):
-            info = H.ds._derive_weapon_attack(H.ds.DB_CONNECTION.cursor(), "Storm's Edge",
+            info = _derive_weapon_attack(state.DB_CONNECTION.cursor(), "Storm's Edge",
                                               H.dbv("inventory"))
             self.assertTrue(info["proficient"])
             self.assertEqual(info["attack_modifier"], 3 + 2 + 1)
@@ -402,7 +405,7 @@ class DonDoffTest(unittest.TestCase):
 
     def test_a_dead_registry_is_not_combat(self):
         with H.load(fighter()):
-            H.ds._COMBAT_REGISTRY = {"Goblin": {"is_player": False, "killed": True}}
+            state._COMBAT_REGISTRY = {"Goblin": {"is_player": False, "killed": True}}
             self.assertTrue(H.ds.equip_item("Plate Armor")["success"])
 
 

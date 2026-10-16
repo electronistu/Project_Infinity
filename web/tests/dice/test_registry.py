@@ -4,6 +4,9 @@ import unittest
 
 from web.tests.dice import harness as H
 
+from rules import state
+from rules.combat import _in_active_combat, _registry_hp
+
 NPCS = [
     {"name": "Goblin", "hp": 7, "ac": 15, "initiative_modifier": 2, "challenge_rating": 0.25},
     {"name": "Ogre", "hp": 59, "ac": 11, "initiative_modifier": -1, "challenge_rating": 2},
@@ -53,22 +56,22 @@ class RegistryTest(H.EngineCase):
             a = H.ds.resolve_attack(actor="Borin", attack_modifier=7, target_ac=15,
                                     damage_dice="1d8", damage_modifier=4, target_name="Goblin")
         self.assertTrue(a["target_killed"])
-        self.assertEqual(H.ds._registry_hp("Goblin"), 0)
+        self.assertEqual(_registry_hp("Goblin"), 0)
 
     def test_add_to_existing_preserves_hp_and_rolls_initiative(self):
         self._register(npcs=OGRE_ONLY, rolls=[10])
         with H.fixed_rolls([15, 7]):
             H.ds.resolve_attack(actor="Borin", attack_modifier=7, target_ac=11,
                                 damage_dice="1d8", damage_modifier=4, target_name="Ogre")
-        hp_before = H.ds._registry_hp("Ogre")
+        hp_before = _registry_hp("Ogre")
         with H.fixed_rolls([1]):
             r = H.ds.register_combatants([{"name": "Wolf", "hp": 11, "ac": 13,
                                            "initiative_modifier": 2}], add_to_existing=True)
         self.assertTrue(r["success"])
-        self.assertEqual(H.ds._registry_hp("Ogre"), hp_before)
-        self.assertEqual(H.ds._registry_hp("Wolf"), 11)
+        self.assertEqual(_registry_hp("Ogre"), hp_before)
+        self.assertEqual(_registry_hp("Wolf"), 11)
         # The arrival rolls and joins the order (1 + 2 = 3), instead of sitting at 0.
-        self.assertEqual(H.ds._COMBAT_REGISTRY["Wolf"]["initiative_total"], 3)
+        self.assertEqual(state._COMBAT_REGISTRY["Wolf"]["initiative_total"], 3)
         self.assertIn("Wolf", r["initiative_order"])
         self.assertEqual(r["initiative_order"], ["Borin", "Ogre", "Wolf"])
 
@@ -78,7 +81,7 @@ class RegistryTest(H.EngineCase):
             H.ds.resolve_attack(actor="Borin", attack_modifier=7, target_ac=15,
                                 damage_dice="1d8", damage_modifier=4, target_name="Goblin")
         self._register()  # no add_to_existing
-        self.assertEqual(H.ds._registry_hp("Goblin"), 7)  # back to full
+        self.assertEqual(_registry_hp("Goblin"), 7)  # back to full
 
     def test_register_narrative_is_minimal_and_sheets_are_structured(self):
         with H.fixed_rolls([15, 6, 7]):
@@ -129,16 +132,16 @@ class RegistryTest(H.EngineCase):
 
     def test_a_living_hostile_is_in_combat(self):
         self._register(OGRE_ONLY, rolls=[10])
-        self.assertTrue(H.ds._in_active_combat())
+        self.assertTrue(_in_active_combat())
 
     def test_killing_the_last_hostile_ends_combat(self):
         self._register(OGRE_ONLY, rolls=[10])
         r = H.ds.update_combatant("Ogre", hp_delta=-99)
         self.assertEqual(r["hp"], "0/59")
-        self.assertFalse(H.ds._in_active_combat())
+        self.assertFalse(_in_active_combat())
         # The fight is over: the registry is emptied behind the result that ended it, so an
         # ally's HP cannot leak into the next fight -- the GM declares it afresh.
-        self.assertEqual(H.ds._COMBAT_REGISTRY, {})
+        self.assertEqual(state._COMBAT_REGISTRY, {})
 
     def test_status_fled_takes_a_hostile_out_of_combat(self):
         self._register(OGRE_ONLY, rolls=[10])
@@ -146,25 +149,25 @@ class RegistryTest(H.EngineCase):
         self.assertTrue(r["success"])
         self.assertEqual(r["status"], "fled")
         self.assertIn("fled the fight", r["narrative_format"])
-        self.assertFalse(H.ds._in_active_combat())
+        self.assertFalse(_in_active_combat())
 
     def test_surrendering_the_last_hostile_ends_the_fight(self):
         self._register(OGRE_ONLY, rolls=[10])
         r = H.ds.update_combatant("Ogre", status="surrendered")
         self.assertTrue(r["success"])
         self.assertIn("surrendered", r["narrative_format"])
-        self.assertFalse(H.ds._in_active_combat())
+        self.assertFalse(_in_active_combat())
         # The registry is fight state: the fight is over, so it is emptied. A foe that returns
         # later is registered afresh instead of being flipped back to `active`.
-        self.assertEqual(H.ds._COMBAT_REGISTRY, {})
+        self.assertEqual(state._COMBAT_REGISTRY, {})
 
     def test_invalid_status_is_refused_and_changes_nothing(self):
         self._register(OGRE_ONLY, rolls=[10])
         r = H.ds.update_combatant("Ogre", status="panicked")
         self.assertFalse(r["success"])
         self.assertEqual(r["error"], "invalid_status")
-        self.assertTrue(H.ds._in_active_combat())
-        self.assertEqual(H.ds._COMBAT_REGISTRY["Ogre"]["status"], "active")
+        self.assertTrue(_in_active_combat())
+        self.assertEqual(state._COMBAT_REGISTRY["Ogre"]["status"], "active")
 
     def test_allies_and_neutrals_never_keep_combat_on(self):
         with H.fixed_rolls([10, 11, 12]):
@@ -174,7 +177,7 @@ class RegistryTest(H.EngineCase):
                 {"name": "Merchant", "hp": 9, "ac": 10, "initiative_modifier": 0,
                  "role": "neutral"},
             ])
-        self.assertFalse(H.ds._in_active_combat())
+        self.assertFalse(_in_active_combat())
 
     def test_registry_summary_carries_killed_and_status(self):
         self._register(OGRE_ONLY, rolls=[10])
@@ -190,7 +193,7 @@ class RegistryTest(H.EngineCase):
         r = H.ds.update_combatant("Borin", status="fled")
         self.assertTrue(r["success"])
         self.assertIn("Player status is not tracked", r.get("note") or "")
-        self.assertTrue(H.ds._in_active_combat())  # the Ogre is still fighting
+        self.assertTrue(_in_active_combat())  # the Ogre is still fighting
 
 
 if __name__ == "__main__":

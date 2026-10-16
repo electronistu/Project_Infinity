@@ -1,8 +1,8 @@
 """Shared fixtures and deterministic-roll helpers for the dice_server tests.
 
 The engine (`dice_server.py`) keeps its state in module globals:
-  - `DB_CONNECTION`  : in-memory SQLite, (re)built by `init_player_db(path)`
-  - `_COMBAT_REGISTRY`: the active battle registry
+  - `rules.state.DB_CONNECTION`  : in-memory SQLite, (re)built by `init_player_db(path)`
+  - `rules.state._COMBAT_REGISTRY`: the active battle registry
 
 Every test must start from a clean player DB and an empty registry — use the
 `load()` context manager. Rolls use `random.randint`; use `fixed_rolls()` /
@@ -24,6 +24,9 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 import dice_server as ds  # noqa: E402
+
+from rules import state
+from rules.db import init_player_db
 
 
 # ── player fixtures ───────────────────────────────────────────────────────
@@ -188,18 +191,18 @@ def rogue_l1():
 @contextlib.contextmanager
 def load(payload):
     """Install `payload` as the engine's in-memory player DB; clean up after."""
-    ds.DB_CONNECTION = None
-    ds._COMBAT_REGISTRY = {}
+    state.DB_CONNECTION = None
+    state.registry_clear()
     fd, path = tempfile.mkstemp(suffix=".player")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             json.dump(payload, fh)
-        status = ds.init_player_db(path)
+        status = init_player_db(path)
         assert status.startswith("Database initialized"), status
         yield payload
     finally:
-        ds.DB_CONNECTION = None
-        ds._COMBAT_REGISTRY = {}
+        state.DB_CONNECTION = None
+        state.registry_clear()
         try:
             os.unlink(path)
         except OSError:
@@ -221,9 +224,9 @@ def raw_dbv(key, default=None):
     `dump_player_db` scopes `reputation` to the era the save is in, so a test
     that asserts the stored shape has to read the row itself.
     """
-    if ds.DB_CONNECTION is None:
+    if state.DB_CONNECTION is None:
         return default
-    cur = ds.DB_CONNECTION.cursor()
+    cur = state.DB_CONNECTION.cursor()
     cur.execute("SELECT value FROM player WHERE key = ?", (key,))
     row = cur.fetchone()
     if row is None:

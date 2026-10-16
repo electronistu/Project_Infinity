@@ -30,9 +30,12 @@ from pydantic import BaseModel
 from .creation import CreationManager
 from .icons import (  # noqa: E402
     DEFAULT_FAMILY, KNOWN_FAMILIES, IconService, all_icon_keys, family_for_model,
-    safe_family, slugify_key, spell_detail,
+    safe_family, spell_detail,
 )
-from .images import ImageError, ImageService, SceneService, discard_scene_manifest, image_mime
+from .imageassets import image_mime, slugify  # noqa: E402
+from .backends import ImageError
+from .images import ImageService
+from .scenes import SceneService, discard_scene_manifest
 from .eras import START_ERA, render_era_text  # noqa: E402
 from .models import (
     DEFAULT_ICON_MODEL,
@@ -373,7 +376,7 @@ async def generate_icons(body: IconsBody):
         raw = str(item.key or "")
         kind, sep, slug = raw.partition("/")
         kind, slug = kind.strip(), slug.strip()
-        if not sep or kind not in _ICON_KINDS or slug != slugify_key(slug) or not slug:
+        if not sep or kind not in _ICON_KINDS or slug != slugify(slug) or not slug:
             continue
         _add(kind, slug, item.name, item.detail)
 
@@ -415,9 +418,9 @@ async def generate_icons(body: IconsBody):
 
 @app.get("/api/icons/{family}/{kind}/{slug}")
 async def get_icon(family: str, kind: str, slug: str):
-    from .icons import slugify_key  # local import keeps the module graph light
+    from .imageassets import slugify  # local import keeps the module graph light
     name = _icon_family_or_400(family)
-    if kind != slugify_key(kind) or slug != slugify_key(slug) or not kind or not slug:
+    if kind != slugify(kind) or slug != slugify(slug) or not kind or not slug:
         raise HTTPException(status_code=400, detail="invalid icon key")
     path = _icon_service(name).icon_path(kind, slug)
     if not path.exists():
@@ -550,6 +553,9 @@ async def generate_scene(body: SceneBody):
                 # The era is the session's, never the client's: the GM never passes it
                 # and a request cannot move the save to another era (manifest v8).
                 era=getattr(session, "era", "") or START_ERA,
+                # The session's registry write ticket: a request that outlived its session
+                # (this runs on a worker thread) is refused instead of republishing its places.
+                generation=getattr(session, "scene_generation", None),
             )
         except ImageError as exc:
             raise HTTPException(status_code=exc.status, detail=str(exc))
@@ -624,7 +630,11 @@ async def delete_session(sid: str):
 
 
 def _persist_place_note(session, evt: dict) -> None:
-    """Persist a text-only `note_place` into the scene manifest (the single writer)."""
+    """Persist a text-only `note_place` into the scene manifest (the single writer).
+
+    Runs on a worker thread, so it may outlive its session: the session's registry generation
+    makes the write a no-op once that session has ended (its places must not leak into the
+    next session's registry)."""
     stem = getattr(session, "active_name", "") or ""
     if not stem:
         return
@@ -637,6 +647,7 @@ def _persist_place_note(session, evt: dict) -> None:
             place=evt.get("place") or [],
             main_npcs=evt.get("main_npcs") or [],
             cast=evt.get("cast") or [],
+            generation=getattr(session, "scene_generation", None),
         )
     except Exception:  # noqa: BLE001 - never sink the turn over a place note
         pass

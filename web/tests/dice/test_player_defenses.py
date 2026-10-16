@@ -11,6 +11,14 @@ if str(REPO) not in sys.path:
 import equipment  # noqa: E402
 from web.tests.dice import harness as H  # noqa: E402
 
+from rules import state
+from rules.db import _db_val, _item_effect_state, _carry_get, _db_set
+from rules.combat import _player_registry_entry
+from rules.conditions import _apply_player_damage_modifiers
+from rules.items import _derive_weapon_attack
+from rules.sheet import _carry_block
+from rules.vitals import _apply_combat_condition
+
 
 def item(name, **fields):
     return {"name": name, **fields}
@@ -29,27 +37,27 @@ class PlayerDefenseTest(unittest.TestCase):
         p = H.make_player(inventory=[resist, immune],
                           equipped=equipped(worn=["Ring of Fire Resistance", "Brooch of Shielding"]))
         with H.load(p):
-            cur = H.ds.DB_CONNECTION.cursor()
-            self.assertEqual(H.ds._apply_player_damage_modifiers(cur, 20, "fire")[0], 10)
-            self.assertEqual(H.ds._apply_player_damage_modifiers(cur, 20, "force")[0], 0)
-            self.assertEqual(H.ds._apply_player_damage_modifiers(cur, 20, "cold")[0], 20)
+            cur = state.DB_CONNECTION.cursor()
+            self.assertEqual(_apply_player_damage_modifiers(cur, 20, "fire")[0], 10)
+            self.assertEqual(_apply_player_damage_modifiers(cur, 20, "force")[0], 0)
+            self.assertEqual(_apply_player_damage_modifiers(cur, 20, "cold")[0], 20)
 
     def test_spell_resistance_buff_applies(self):
         p = H.make_player()
         with H.load(p):
-            cur = H.ds.DB_CONNECTION.cursor()
-            H.ds._db_set(cur, "_active_buff_data", {"Protection from Energy": [
+            cur = state.DB_CONNECTION.cursor()
+            _db_set(cur, "_active_buff_data", {"Protection from Energy": [
                 {"kind": "resistance", "field": "damage_resistance", "value": "fire"}]})
-            H.ds._db_set(cur, "active_effects", ["Protection from Energy"])
-            H.ds.DB_CONNECTION.commit()
-            self.assertEqual(H.ds._apply_player_damage_modifiers(cur, 12, "fire")[0], 6)
-            self.assertIn("fire", equipment.defense_state(H.ds._carry_get(cur))["damage_resistances"])
+            _db_set(cur, "active_effects", ["Protection from Energy"])
+            state.DB_CONNECTION.commit()
+            self.assertEqual(_apply_player_damage_modifiers(cur, 12, "fire")[0], 6)
+            self.assertIn("fire", equipment.defense_state(_carry_get(cur))["damage_resistances"])
 
     def test_petrified_player_resists_all_damage(self):
         p = H.make_player(conditions=["petrified"])
         with H.load(p):
-            cur = H.ds.DB_CONNECTION.cursor()
-            self.assertEqual(H.ds._apply_player_damage_modifiers(cur, 12, "slashing")[0], 6)
+            cur = state.DB_CONNECTION.cursor()
+            self.assertEqual(_apply_player_damage_modifiers(cur, 12, "slashing")[0], 6)
 
     def test_condition_immunity_blocks_a_condition(self):
         periapt = item("Periapt of Proof against Poison", kind="worn",
@@ -57,9 +65,9 @@ class PlayerDefenseTest(unittest.TestCase):
         p = H.make_player(inventory=[periapt],
                           equipped=equipped(worn=["Periapt of Proof against Poison"]))
         with H.load(p):
-            cur = H.ds.DB_CONNECTION.cursor()
-            status, _reason = H.ds._apply_combat_condition(
-                cur, H.ds._db_val(cur, "name", "Player"), "poisoned")
+            cur = state.DB_CONNECTION.cursor()
+            status, _reason = _apply_combat_condition(
+                cur, _db_val(cur, "name", "Player"), "poisoned")
             self.assertEqual(status, "immune")
 
     def test_npc_attack_on_player_goes_through_resistance(self):
@@ -84,7 +92,7 @@ class SpeedTest(unittest.TestCase):
                           equipped=equipped(worn=["Boots of Striding and Springing"]),
                           attuned=["Boots of Striding and Springing"])
         with H.load(p):
-            carry = H.ds._carry_block(H.ds.DB_CONNECTION.cursor())
+            carry = _carry_block(state.DB_CONNECTION.cursor())
             self.assertEqual(carry["speed"], 30)
             self.assertEqual(carry["speeds"].get("swim"), 40)
 
@@ -95,7 +103,7 @@ class SpeedTest(unittest.TestCase):
                           speed=30, inventory=[boots, "Chain Mail"],
                           equipped=equipped(worn=["Boots of Striding and Springing"]))
         with H.load(p):
-            carry = H.ds._carry_block(H.ds.DB_CONNECTION.cursor())
+            carry = _carry_block(state.DB_CONNECTION.cursor())
             self.assertEqual(carry["speed_penalty"], 0)
             self.assertEqual(carry["speed"], 30)
 
@@ -108,10 +116,10 @@ class HitPointEffectTest(unittest.TestCase):
                           inventory=[axe], equipped=equipped(worn=["Berserker Axe"]),
                           attuned=["Berserker Axe"])
         with H.load(p):
-            cur = H.ds.DB_CONNECTION.cursor()
-            self.assertEqual(H.ds._db_val(cur, "total_hit_points"), 34)
+            cur = state.DB_CONNECTION.cursor()
+            self.assertEqual(_db_val(cur, "total_hit_points"), 34)
             H.ds.update_player_list(key="inventory", item="Berserker Axe", action="remove")
-            self.assertEqual(H.ds._db_val(cur, "total_hit_points"), 30)
+            self.assertEqual(_db_val(cur, "total_hit_points"), 30)
 
     def test_hit_die_healing_multiplier_state(self):
         periapt = item("Periapt of Wound Closure", kind="worn", attunement=True,
@@ -119,7 +127,7 @@ class HitPointEffectTest(unittest.TestCase):
         p = H.make_player(inventory=[periapt], equipped=equipped(worn=["Periapt of Wound Closure"]),
                           attuned=["Periapt of Wound Closure"])
         with H.load(p):
-            self.assertEqual(H.ds._item_effect_state(H.ds.DB_CONNECTION.cursor())
+            self.assertEqual(_item_effect_state(state.DB_CONNECTION.cursor())
                              ["hit_die_healing_multiplier"], 2.0)
 
 
@@ -154,11 +162,11 @@ class CheckDiceAndSkillTest(unittest.TestCase):
     def test_spell_save_dice_are_added(self):
         p = H.make_player()
         with H.load(p), H.rolls_always(4):
-            cur = H.ds.DB_CONNECTION.cursor()
-            H.ds._db_set(cur, "_active_buff_data", {"Bless": [
+            cur = state.DB_CONNECTION.cursor()
+            _db_set(cur, "_active_buff_data", {"Bless": [
                 {"kind": "dice", "field": "saving_throws", "value": "+1d4"}]})
-            H.ds._db_set(cur, "active_effects", ["Bless"])
-            H.ds.DB_CONNECTION.commit()
+            _db_set(cur, "active_effects", ["Bless"])
+            state.DB_CONNECTION.commit()
             r = H.ds.perform_check(actor="{player_name}", dc=10, check_name="Constitution save",
                                    ability="con", save=True)
             self.assertEqual(r["dice_bonus"], 4)
@@ -191,8 +199,8 @@ class ProficiencyAndPropertyTest(unittest.TestCase):
                           equipped=equipped(hands=[None, None], worn=["Bracers of Archery"]),
                           attuned=["Bracers of Archery"])
         with H.load(p):
-            info = H.ds._derive_weapon_attack(H.ds.DB_CONNECTION.cursor(), "Longbow",
-                                              H.ds._db_val(H.ds.DB_CONNECTION.cursor(), "inventory", []))
+            info = _derive_weapon_attack(state.DB_CONNECTION.cursor(), "Longbow",
+                                              _db_val(state.DB_CONNECTION.cursor(), "inventory", []))
             self.assertTrue(info["proficient"])
 
     def test_sun_blade_grants_finesse(self):
@@ -201,7 +209,7 @@ class ProficiencyAndPropertyTest(unittest.TestCase):
         p = H.make_player(stats={"str": 8, "dex": 16, "con": 14, "int": 10, "wis": 12, "cha": 8},
                           inventory=[blade], equipped=equipped(hands=["Sun Blade", None]))
         with H.load(p):
-            info = H.ds._derive_weapon_attack(H.ds.DB_CONNECTION.cursor(), "Sun Blade", [blade])
+            info = _derive_weapon_attack(state.DB_CONNECTION.cursor(), "Sun Blade", [blade])
             self.assertEqual(info["ability"], "dexterity")
             self.assertTrue(any("finesse" in str(prop).lower() for prop in info["properties"]))
 
@@ -212,7 +220,7 @@ class InitiativeTest(unittest.TestCase):
                      effects=[{"type": "initiative", "bonus": 2, "advantage": True}])
         p = H.make_player(inventory=[stone], equipped=equipped(worn=["Stone of Initiative"]))
         with H.load(p):
-            entry = H.ds._player_registry_entry(H.ds.DB_CONNECTION.cursor())
+            entry = _player_registry_entry(state.DB_CONNECTION.cursor())
             self.assertEqual(entry["initiative_modifier"], 4)  # DEX +2, +2 item
             self.assertTrue(entry["initiative_advantage"])
 

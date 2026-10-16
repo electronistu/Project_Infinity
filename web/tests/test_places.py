@@ -13,11 +13,12 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO))
 
-from web.engine import (  # noqa: E402
-    GameSession, filter_tools, render_protocol,
+from web.engine import GameSession  # noqa: E402
+from web.protocol import filter_tools, render_protocol  # noqa: E402
+from web.places import (  # noqa: E402
     KNOWN_PLACES_HEADER, KNOWN_PLACES_HEADER_TEXT, KNOWN_PLACES_EMPTY_TEXT,
 )
-from web.images import (  # noqa: E402
+from web.scenes import (  # noqa: E402
     SceneService, known_scene_places, known_npc_names, live_scene_manifest,
     commit_scene_manifest, discard_scene_manifest, current_scene_place,
 )

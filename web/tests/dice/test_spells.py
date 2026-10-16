@@ -4,6 +4,8 @@ import unittest
 
 from web.tests.dice import harness as H
 
+from rules import state
+
 
 class SpellCastingTest(H.EngineCase):
     player_factory = staticmethod(H.wizard_l3)
@@ -89,8 +91,8 @@ class AoeSpellTest(H.EngineCase):
         with H.fixed_rolls([4, 4, 4, 10, 10]):
             r = H.ds.resolve_magic(
                 spell_name="Burning Hands", actor="Senna", spell_save_dc=13, slot_level=1,
-                targets=[{"name": "A", "hp": 20, "ac": 12, "save_modifier": 0},
-                         {"name": "B", "hp": 20, "ac": 12, "save_modifier": 5}],
+                targets=[{"name": "A", "current_hp": 20, "ac": 12, "save_modifier": 0},
+                         {"name": "B", "current_hp": 20, "ac": 12, "save_modifier": 5}],
             )
         self.assertEqual(len(r["targets"]), 2)
         self.assertEqual(r["targets"][0]["damage"], 12)   # failed save
@@ -263,7 +265,7 @@ class ConditionAutoApplyTest(H.EngineCase):
                                    targets=[{"name": "Peck", "current_hp": 5},
                                             {"name": "Boss", "current_hp": 40}])
         self.assertEqual(r["conditions_applied"], ["Peck"])
-        self.assertIn("unconscious", H.ds._COMBAT_REGISTRY["Peck"]["conditions"])
+        self.assertIn("unconscious", state._COMBAT_REGISTRY["Peck"]["conditions"])
         self.assertIn("Peck", r["condition_reminder"])
         self.assertIn("Peck: Affected", r["narrative_format"])
         self.assertIn("Boss: Unaffected", r["narrative_format"])
@@ -278,7 +280,7 @@ class ConditionAutoApplyTest(H.EngineCase):
                                    targets=[{"name": "Construct", "current_hp": 5}])
         self.assertNotIn("conditions_applied", r)
         self.assertEqual(r.get("conditions_refused"), ["Construct"])
-        self.assertEqual(H.ds._COMBAT_REGISTRY["Construct"]["conditions"], [])
+        self.assertEqual(state._COMBAT_REGISTRY["Construct"]["conditions"], [])
 
 
 class LesserRestorationTest(H.EngineCase):

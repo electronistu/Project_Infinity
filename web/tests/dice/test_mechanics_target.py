@@ -4,26 +4,29 @@ import unittest
 
 from web.tests.dice import harness as H
 
+from rules import state
+from rules.sheet import _target_label, _target_suffix
+
 
 class TargetLabelTest(H.EngineCase):
     player_factory = staticmethod(H.make_player)  # name "Tester"
 
     def test_real_name_is_used_as_is(self):
-        self.assertEqual(H.ds._target_label(H.ds.DB_CONNECTION.cursor(), "Goblin"), "Goblin")
+        self.assertEqual(_target_label(state.DB_CONNECTION.cursor(), "Goblin"), "Goblin")
 
     def test_player_placeholder_resolves_to_the_sheet_name(self):
-        self.assertEqual(H.ds._target_label(H.ds.DB_CONNECTION.cursor(), "{player_name}"), "Tester")
+        self.assertEqual(_target_label(state.DB_CONNECTION.cursor(), "{player_name}"), "Tester")
 
     def test_empty_player_target_resolves_to_the_sheet_name(self):
         self.assertEqual(
-            H.ds._target_label(H.ds.DB_CONNECTION.cursor(), "", is_player_target=True), "Tester")
+            _target_label(state.DB_CONNECTION.cursor(), "", is_player_target=True), "Tester")
 
     def test_empty_non_player_target_has_no_label(self):
-        self.assertEqual(H.ds._target_label(H.ds.DB_CONNECTION.cursor(), ""), "")
-        self.assertEqual(H.ds._target_suffix(H.ds.DB_CONNECTION.cursor(), ""), "")
+        self.assertEqual(_target_label(state.DB_CONNECTION.cursor(), ""), "")
+        self.assertEqual(_target_suffix(state.DB_CONNECTION.cursor(), ""), "")
 
     def test_suffix_uses_an_arrow(self):
-        self.assertEqual(H.ds._target_suffix(H.ds.DB_CONNECTION.cursor(), "Goblin"),
+        self.assertEqual(_target_suffix(state.DB_CONNECTION.cursor(), "Goblin"),
                          " \u2192 Goblin")
 
 

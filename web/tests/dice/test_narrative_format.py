@@ -3,6 +3,7 @@
 import unittest
 
 from web.tests.dice import harness as H
+from rules.sheet import _ac_note
 
 
 class NarrativeFormatTest(H.EngineCase):
@@ -43,8 +44,8 @@ class EquipNarrativeTest(H.EngineCase):
     player_factory = staticmethod(H.fighter_l5)
 
     def test_ac_note_only_when_the_ac_changed(self):
-        self.assertEqual(H.ds._ac_note(13, 13), "")
-        self.assertEqual(H.ds._ac_note(13, 15), " — AC 13 → 15")
+        self.assertEqual(_ac_note(13, 13), "")
+        self.assertEqual(_ac_note(13, 15), " — AC 13 → 15")
 
     def test_equipping_armour_reports_the_ac_change(self):
         r = H.ds.equip_item(item="Chain Mail")

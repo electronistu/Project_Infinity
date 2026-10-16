@@ -24,7 +24,7 @@ MODEL = "deepseek-v4.1-flash:cloud"
 
 
 def unit_tests() -> bool:
-    from web.engine import _max_timeline_turn
+    from web.timeline import _max_timeline_turn
 
     ok = True
     print("  -- timeline turn parsing --")

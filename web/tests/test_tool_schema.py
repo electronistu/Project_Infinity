@@ -20,7 +20,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO))
 
-from web import engine, tool_schema  # noqa: E402
+from web import protocol, tool_schema  # noqa: E402
 
 RESULTS = []
 
@@ -68,7 +68,7 @@ def main():
         == set((raw or {}).get("properties", {}) or {}))
 
     # The engine must send exactly what the gate measures.
-    engine_params = engine._tool_schema(_Tool("update_player_list", "", raw))["function"]["parameters"]
+    engine_params = protocol._tool_schema(_Tool("update_player_list", "", raw))["function"]["parameters"]
     rec("the engine's schema drops the hidden set too (it passes the tool name)",
         not (hidden & set(engine_params.get("properties", {}) or {})))
     rec("the engine's schema equals the one token_budget measures",

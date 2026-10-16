@@ -17,7 +17,8 @@ import uvicorn  # noqa: E402
 
 from web.server import app, OUTPUT_DIR  # noqa: E402
 from web import server as server_mod  # noqa: E402
-from web.images import ImageError, known_scene_places  # noqa: E402
+from web.backends import ImageError  # noqa: E402
+from web.scenes import known_scene_places  # noqa: E402
 
 PORT = 8130
 DEL = OUTPUT_DIR / "_deltest"

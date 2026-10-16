@@ -21,10 +21,11 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO))
 
-from web.engine import (  # noqa: E402
-    MODE_CLASSIC, MODE_TIME_TRAVELER, GameSession, _player_mode, filter_tools,
-    render_protocol,
+from web.engine import GameSession  # noqa: E402
+from web.protocol import (  # noqa: E402
+    MODE_CLASSIC, MODE_TIME_TRAVELER, filter_tools, render_protocol,
 )
+from web.player_file import _player_mode  # noqa: E402
 
 RESULTS = []
 

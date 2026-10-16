@@ -12,6 +12,8 @@ import unittest
 
 from web.tests.dice import harness as H
 
+from rules import state
+
 
 class LookupTest(H.EngineCase):
     player_factory = staticmethod(H.fighter_l5)
@@ -68,17 +70,17 @@ class LookupTest(H.EngineCase):
 
     def test_a_ref_query_works_with_no_era_on_the_save(self):
         # Classic offers `lookup` for the references; that path must not need an era.
-        cur = H.ds.DB_CONNECTION.cursor()
+        cur = state.DB_CONNECTION.cursor()
         cur.execute("DELETE FROM player WHERE key = 'era'")
-        H.ds.DB_CONNECTION.commit()
+        state.DB_CONNECTION.commit()
         self.assertIn("Multi-target AoE", H.ds.lookup("ref:resolve_magic"))
 
     def test_an_era_query_with_no_era_on_the_save_is_refused(self):
         # No era on the save = the classic game. `web.eras.lookup` would otherwise fall back
         # to the first age and leak the wrong world. It must be refused, not answered.
-        cur = H.ds.DB_CONNECTION.cursor()
+        cur = state.DB_CONNECTION.cursor()
         cur.execute("DELETE FROM player WHERE key = 'era'")
-        H.ds.DB_CONNECTION.commit()
+        state.DB_CONNECTION.commit()
         out = H.ds.lookup("here")
         self.assertIn("no eras", out)
         self.assertNotIn("polities:", out)

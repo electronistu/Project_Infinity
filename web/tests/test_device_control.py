@@ -19,9 +19,34 @@ REPO = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO))
 
 import device as device_mod  # noqa: E402
-import web.engine as engine_mod  # noqa: E402
+from web import session_device as _device_mod  # noqa: E402
+from web import session_scene as _scene_mod  # noqa: E402
+from web import session_turn as _turn_mod  # noqa: E402
 
-from web.engine import GameSession, DEVICE_DECLARES  # noqa: E402
+from web.engine import GameSession  # noqa: E402
+
+
+class _Patch:
+    """The image-layer helpers the Device code calls are imported per mixin module now (the
+    split), so a patch must land on every module whose code calls the name -- engine.py no
+    longer re-exports them. `engine_mod.X = v` / `engine_mod.X` keep working through here."""
+
+    _TARGETS = {
+        "known_scene_places": (_device_mod, _scene_mod, _turn_mod),
+        "current_scene_place": (_scene_mod,),
+    }
+
+    def __getattr__(self, name):
+        return getattr(self._TARGETS[name][0], name)
+
+    def __setattr__(self, name, value):
+        for mod in self._TARGETS[name]:
+            setattr(mod, name, value)
+
+
+engine_mod = _Patch()
+
+from web.protocol import DEVICE_DECLARES  # noqa: E402
 from web.eras import render_era_index  # noqa: E402
 
 RESULTS = []

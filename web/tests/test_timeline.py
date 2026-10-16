@@ -18,11 +18,13 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO))
 
-from web import engine  # noqa: E402
-from web.engine import (  # noqa: E402
-    GameSession, _clean_state_page, _clamp_block, _entry_turn_range,
-    _extract_state, _extract_states, _split_timeline_entries, _state_has_fields,
-    load_chronicle, load_state, load_states, load_timeline,
+from web import timeline  # noqa: E402
+from web.engine import GameSession  # noqa: E402
+from web.gm_view import _clamp_block  # noqa: E402
+from web.timeline import (  # noqa: E402
+    _clean_state_page, _entry_turn_range, _extract_state, _extract_states,
+    _split_timeline_entries, _state_has_fields, load_chronicle, load_state, load_states,
+    load_timeline,
 )
 
 RESULTS = []
@@ -84,7 +86,7 @@ def unit_tests() -> bool:
     rec("_clamp_block bounds at a line boundary", len(clamped) <= 8 and not clamped.endswith("a\n"))
 
     # A state block must not affect turn numbering.
-    rec("numbering ignores the chronicle/state", engine._max_timeline_turn(kept) == 12)
+    rec("numbering ignores the chronicle/state", timeline._max_timeline_turn(kept) == 12)
     return True
 
 
@@ -94,9 +96,9 @@ def _save(gs, turn):
 
 def compaction_tests() -> bool:
     print("  -- compaction --")
-    saved_cap, saved_max = engine.MAX_TIMELINE_CHARS, engine.TIMELINE_MAX_ENTRIES
-    engine.MAX_TIMELINE_CHARS = 400
-    engine.TIMELINE_MAX_ENTRIES = 6
+    saved_cap, saved_max = timeline.MAX_TIMELINE_CHARS, timeline.TIMELINE_MAX_ENTRIES
+    timeline.MAX_TIMELINE_CHARS = 400
+    timeline.TIMELINE_MAX_ENTRIES = 6
     ok = True
     try:
         gs = _session()
@@ -125,7 +127,7 @@ def compaction_tests() -> bool:
             "Turns 1-1" not in load_timeline(gs.timeline_path))
         rec("the STATE notebook survives the fold", load_state(gs.timeline_path).startswith("**Goal**"))
         rec("turn numbering continues past the fold",
-            engine._max_timeline_turn(load_timeline(gs.timeline_path)) == 8)
+            timeline._max_timeline_turn(load_timeline(gs.timeline_path)) == 8)
         rec("one header on disk", raw.count("# Session Timeline") == 1)
         with open(gs.timeline_path + ".bak", encoding="utf-8") as f:
             backup = f.read()
@@ -176,7 +178,7 @@ def compaction_tests() -> bool:
 
         rec("no compaction under the cap keeps every entry", True)
         gs4 = _session()
-        engine.MAX_TIMELINE_CHARS = saved_cap
+        timeline.MAX_TIMELINE_CHARS = saved_cap
         for i in range(1, 4):
             _save(gs4, i)
 
@@ -187,7 +189,7 @@ def compaction_tests() -> bool:
         asyncio.run(gs4._compact_timeline("## Turns 4-4 | place | day\n**Key Events**:\n- four."))
         rec("under the cap nothing is folded", load_chronicle(gs4.timeline_path) is None and len(_entries(gs4)) == 3)
     finally:
-        engine.MAX_TIMELINE_CHARS, engine.TIMELINE_MAX_ENTRIES = saved_cap, saved_max
+        timeline.MAX_TIMELINE_CHARS, timeline.TIMELINE_MAX_ENTRIES = saved_cap, saved_max
     return ok
 
 

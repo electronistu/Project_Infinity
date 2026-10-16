@@ -76,13 +76,14 @@ class SpellKnowledgeTest(H.EngineCase):
                                         "slots": {"1": 4}})
         with H.load(p):
             r = H.ds.resolve_magic(spell_name="Sanctuary", actor="Aldric", slot_level=1,
-                                   target_name="Aldric")
+                                   target_name="Aldric", target_save_modifier=0)
             self.assertTrue(r["success"])
 
     def test_a_scroll_is_not_gated(self):
         with H.load(self._senna(prepared=["Magic Missile"])):
             r = H.ds.resolve_magic(spell_name="Fireball", actor="Senna", slot_level=3,
-                                   is_scroll=True, target_name="Goblin", target_current_hp=20)
+                                   is_scroll=True, target_name="Goblin", target_current_hp=20,
+                                   target_save_modifier=0)
             self.assertTrue(r["success"])
 
     def test_a_caster_with_no_spellcasting_row_is_not_gated(self):

@@ -7,6 +7,8 @@ must refuse a Device item (equip / attune / update) while `remove` stays allowed
 
 import unittest
 
+import device
+
 from web.tests.dice import harness as H
 
 
@@ -25,12 +27,12 @@ class DeviceAddTest(H.EngineCase):
     def test_the_four_parts_are_the_future_key(self):
         # The Device is player-controlled from the start; the four parts are the key to the
         # future (no per-part power, and no fifth part).
-        self.assertEqual(H.ds.device.part_total(), 4)
-        self.assertEqual(H.ds.device.part_names(),
+        self.assertEqual(device.part_total(), 4)
+        self.assertEqual(device.part_names(),
                          ["Escapement", "Compass Rose", "Regulator", "Mainspring"])
-        self.assertEqual(H.ds.device.canonical_part("the mainspring"), "Mainspring")
-        self.assertFalse(hasattr(H.ds.device, "POWERS"))
-        self.assertFalse(hasattr(H.ds.device, "powers"))
+        self.assertEqual(device.canonical_part("the mainspring"), "Mainspring")
+        self.assertFalse(hasattr(device, "POWERS"))
+        self.assertFalse(hasattr(device, "powers"))
 
     def test_the_observed_gm_call_is_refused(self):
         # The exact call seen in play: the GM inventing the Device with its own flavour.
@@ -55,7 +57,7 @@ class DeviceAddTest(H.EngineCase):
         r = H.ds.update_player_list(
             "inventory", "Escapement", "add", description="a cog I made up")
         self.assertTrue(r["success"])
-        entry = H.ds.device.entry_for_part(H.raw_dbv("inventory"), "Escapement")
+        entry = device.entry_for_part(H.raw_dbv("inventory"), "Escapement")
         self.assertEqual(entry["name"], "Escapement")
         self.assertEqual(entry["device_part"], "Escapement")
         self.assertEqual(entry["found_in"], "egypt")
@@ -68,13 +70,13 @@ class DeviceAddTest(H.EngineCase):
     def test_part_records_the_age_it_was_recovered_in(self):
         H.ds.set_player_field("era", "tang")
         H.ds.update_player_list("inventory", "Compass Rose", "add")
-        entry = H.ds.device.entry_for_part(H.raw_dbv("inventory"), "Compass Rose")
+        entry = device.entry_for_part(H.raw_dbv("inventory"), "Compass Rose")
         self.assertEqual(entry["found_in"], "tang")
 
     def test_part_name_is_case_insensitive(self):
         r = H.ds.update_player_list("inventory", "escapement", "add")
         self.assertTrue(r["success"])
-        self.assertIsNotNone(H.ds.device.entry_for_part(H.raw_dbv("inventory"), "Escapement"))
+        self.assertIsNotNone(device.entry_for_part(H.raw_dbv("inventory"), "Escapement"))
 
     def test_duplicate_part_is_rejected(self):
         H.ds.update_player_list("inventory", "Regulator", "add")
@@ -87,7 +89,7 @@ class DeviceAddTest(H.EngineCase):
         r = H.ds.update_player_list("inventory", "escapement", "add")
         self.assertFalse(r["success"])
         self.assertEqual(r["error"], "already_exists")
-        self.assertEqual(len(H.ds.device.recovered_parts(H.raw_dbv("inventory"))), 1)
+        self.assertEqual(len(device.recovered_parts(H.raw_dbv("inventory"))), 1)
 
     def test_part_add_returns_the_canonical_name(self):
         r = H.ds.update_player_list("inventory", "eScApEmEnT", "add")
@@ -103,8 +105,8 @@ class DeviceAddTest(H.EngineCase):
     def test_a_non_device_name_still_adds_normally(self):
         r = H.ds.update_player_list("inventory", "Cog", "add")
         self.assertTrue(r["success"])
-        self.assertIsNotNone(H.ds.device.canonical_part("Escapement"))
-        self.assertIsNone(H.ds.device.canonical_part("Cog"))
+        self.assertIsNotNone(device.canonical_part("Escapement"))
+        self.assertIsNone(device.canonical_part("Cog"))
 
 
 class DeviceVerbTest(H.EngineCase):
@@ -139,12 +141,12 @@ class DeviceVerbTest(H.EngineCase):
     def test_remove_the_device_is_allowed(self):
         r = H.ds.update_player_list("inventory", "The Device", "remove")
         self.assertTrue(r["success"])
-        self.assertFalse(H.ds.device.has_device(H.raw_dbv("inventory")))
+        self.assertFalse(device.has_device(H.raw_dbv("inventory")))
 
     def test_removing_a_part_is_allowed(self):
         r = H.ds.update_player_list("inventory", "Escapement", "remove")
         self.assertTrue(r["success"])
-        self.assertEqual(H.ds.device.recovered_parts(H.raw_dbv("inventory")), [])
+        self.assertEqual(device.recovered_parts(H.raw_dbv("inventory")), [])
 
     def test_removed_device_can_be_restored_engine_described(self):
         H.ds.update_player_list("inventory", "The Device", "remove")
@@ -152,7 +154,7 @@ class DeviceVerbTest(H.EngineCase):
                                     description="my own text")
         self.assertTrue(r["success"])
         inventory = H.raw_dbv("inventory")
-        self.assertTrue(H.ds.device.has_device(inventory))
+        self.assertTrue(device.has_device(inventory))
         entry = next(e for e in inventory if isinstance(e, dict) and e.get("device"))
         self.assertNotIn("my own text", entry["description"])
 
