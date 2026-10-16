@@ -66,6 +66,7 @@ NARRATIVE: no EVENTS in the SESSION TIMELINE means a NEW GAME — the opening sc
 - Any numeric change (gold, HP, XP) → modify_player_numeric.
 - Quest complete → award XP.
 - Every narrative event → a tool call.
+- A condition ENDS → update_combatant(conditions_remove=[…]) during combat; update_player_list(key='conditions', item=…, action='remove') outside it.
 - Item opened/read/unsealed/emptied/lit/transformed → update_player_list(action='update') with its END state.
 - Any list entry whose name/description the narrative changed → reconcile it.
 - ALL combatants (player, allies, hostiles) acted this round?
