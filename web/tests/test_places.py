@@ -17,7 +17,7 @@ from web.engine import GameSession  # noqa: E402
 from web.protocol import filter_tools, render_protocol  # noqa: E402
 from web.places import (  # noqa: E402
     KNOWN_PLACES_HEADER, KNOWN_PLACES_HEADER_TEXT, KNOWN_PLACES_EMPTY_TEXT, path_label,
-    resolve_place_path,
+    places_query, render_places_answer, resolve_place_path,
 )
 from web.scenes import (  # noqa: E402
     SceneService, known_scene_places, known_npc_names, live_scene_manifest,
@@ -469,6 +469,124 @@ async def main() -> bool:
         discard_scene_manifest(out2, "hero")  # a new session starts
         rec("... and is gone after the session restarts (it was never saved)",
             [p["area"] for p in known_scene_places(out2, "hero", ERA)] == ["Wapping"])
+
+        # ── the on-demand place record: `lookup('places')` / `lookup('places: X')` ─────
+        # The block the GM reads every turn is scoped to one area and capped: a reminder,
+        # not the record. Everything it cannot hold is served on demand from the same live
+        # tree, so a place the block cannot show is read instead of invented. Model-free:
+        # the grammar, the shapes, and the engine's interception are all asserted here.
+        limehouse = ["Ratcliffe Highway", "the opium den"]
+        record = [
+            {"kingdom": "London", "area": "Wapping", "place": PLACE, "used": 30,
+             "main_npcs": [{"name": "Maera", "role": "the harbourmaster", "race": "dwarf",
+                            "class": "rogue", "description": ""}], "dead": ["Maera"]},
+            {"kingdom": "London", "area": "Wapping", "place": ["Ropehaven Wharf", "the crane"],
+             "used": 20, "main_npcs": [], "dead": []},
+            {"kingdom": "London", "area": "Limehouse", "place": limehouse, "used": 10,
+             "main_npcs": [{"name": "Bess", "role": "the lamp-lighter", "race": "halfling",
+                            "class": "rogue", "description": ""}], "dead": []},
+            {"kingdom": "Kingdom of Eldoria", "area": "Eldoria City",
+             "place": ["Hask's Smithy", "the forge"], "used": 5, "main_npcs": [], "dead": []},
+            # A kingdom whose name is also a settlement's: the answer must label both.
+            {"kingdom": "Wapping", "area": "the old town", "place": ["the quay"],
+             "used": 1, "main_npcs": [], "dead": []},
+            # ... and one settlement name standing in two kingdoms: each labelled.
+            {"kingdom": "Paris", "area": "Wapping", "place": ["a cellar"], "used": 1,
+             "main_npcs": [], "dead": []},
+        ]
+        here = {"kingdom": "London", "area": "Wapping", "place": ["Ropehaven Wharf", "the crane"]}
+    
+        rec("the places grammar takes the bare word and a colon or space scope",
+            places_query("places") == ("map", "") and places_query("  PLACES  ") == ("map", "")
+            and places_query("places:") == ("map", "")
+            and places_query("places: the lower town") == ("scope", "the lower town")
+            and places_query("places the lower town") == ("scope", "the lower town")
+            and places_query("places: 'Wapping'") == ("scope", "Wapping"),
+            str([places_query(q) for q in
+                 ("places", "PLACES", "places:", "places: the lower town", "places X")]))
+        rec("... and never shadows the era or polity queries the same tool serves",
+            all(places_query(q) is None for q in
+                ("here", "tang", "ref:update_player_list", "Wapping", "", None)),
+            str([places_query(q) for q in ("here", "tang", "ref:update_player_list", "Wapping")]))
+    
+        atlas = render_places_answer(record, here, "places")
+        rec("the map lists every kingdom and settlement, with a count each",
+            atlas.startswith("PLACES YOU KNOW") and "- London" in atlas
+            and "- Wapping: 2 places" in atlas and "- Limehouse: 1 place" in atlas
+            and "- Kingdom of Eldoria" in atlas and "- Wapping\n    - the old town: 1 place"
+            in atlas, atlas)
+        rec("... and marks the area the story is in",
+            "- Wapping: 2 places · ← you are here" in atlas, atlas)
+    
+        area = render_places_answer(record, here, "places: Wapping")
+        rec("a settlement scope names that area's places, the current one marked",
+            'PLACES IN "Wapping" (London)' in area
+            and path_label(PLACE) in area and "Ropehaven Wharf — the crane · ← you are here" in area
+            and "Ratcliffe Highway" not in area, area)
+        rec("... and gives the regulars the identity the per-turn block cannot afford",
+            "NPC: Maera — the harbourmaster, dwarf rogue (dead)" in area, area)
+    
+        kingdom = render_places_answer(record, here, "places: london")
+        rec("a kingdom scope lists its settlements and their places",
+            'PLACES IN "London"' in kingdom and "- Wapping" in kingdom
+            and "- Limehouse" in kingdom and path_label(limehouse) in kingdom
+            and "NPC: Bess — the lamp-lighter, halfling rogue" in kingdom, kingdom)
+        article = render_places_answer(record, here, "places: the Wapping")
+        rec("a dropped article still matches (the declaration's own forgiveness)",
+            'PLACES IN "Wapping" (London)' in article
+            and "Ropehaven Wharf — the crane" in article, article)
+
+        both = render_places_answer(record, here, "places: Wapping")
+        rec("a name that is a kingdom and a settlement returns both, labelled",
+            "is both a kingdom and a settlement" in both
+            and 'PLACES IN "Wapping" — reuse' in both
+            and 'PLACES IN "Wapping" (London)' in both
+            and 'PLACES IN "Wapping" (Paris)' in both, both)
+
+        unknown = render_places_answer(record, here, "places: Atlantis")
+        rec("an unknown name returns the map instead of inventing anything",
+            'no kingdom or settlement here is called "Atlantis"' in unknown
+            and "- London" in unknown, unknown)
+        rec("no places at all says so", render_places_answer([], None, "places")
+            == "PLACES: none recorded yet.")
+        rec("a non-place query renders nothing (the caller falls through to the MCP)",
+            render_places_answer(record, here, "here") == ""
+            and render_places_answer(record, here, "ref:update_player_list") == "")
+    
+        # The engine's half: a place query is answered from the LIVE tree and never reaches
+        # the MCP server, which knows eras and polities but not where the story stands.
+        gsl = GameSession(base_dir=Path(td), model="test", scene_images=False)
+        gsl.session = _FakeMCP()
+        gsl._primed = record
+        gsl._current_place = dict(here)
+        await gsl._execute_tool({"function": {"name": "lookup",
+                                              "arguments": {"query": "places: Limehouse"}}})
+        frames = drain(gsl._evt_q)
+        served = [e for e in frames if e.get("type") == "tool_result"]
+        rec("the engine serves a place query itself (no MCP call)",
+            gsl.session.calls == [] and len(served) == 1
+            and path_label(limehouse) in str(served[0].get("text")),
+            f"{gsl.session.calls} / {served}")
+        rec("... the answer is appended as a tool result for the GM",
+            gsl.messages[-1].get("name") == "lookup"
+            and path_label(limehouse) in str(gsl.messages[-1].get("content")), str(gsl.messages[-1]))
+        await gsl._execute_tool({"function": {"name": "lookup", "arguments": {"query": "here"}}})
+        rec("... and every other lookup still reaches the MCP server",
+            [c[0] for c in gsl.session.calls] == ["lookup"]
+            and gsl.session.calls[0][1].get("query") == "here", str(gsl.session.calls))
+    
+        # ── the block says where the record is, and admits what it hides ───────
+        many = [{"kingdom": "London", "area": f"area {i}", "place": [f"place {i}"],
+                 "used": 100 - i, "main_npcs": [], "dead": []} for i in range(8)]
+        gsb = GameSession(base_dir=Path(td), model="test", scene_images=False)
+        gsb._primed = many
+        gsb._current_place = {"kingdom": "London", "area": "area 0", "place": ["place 0"]}
+        gsb.scene_images = False
+        body = gsb._places_body()
+        rec("the block names the on-demand record it cannot hold",
+            "lookup('places')" in body, body[:200])
+        rec("... and says how many areas the cap hid instead of dropping them silently",
+            "+1 more areas you have stood in" in body, body)
 
     return all(RESULTS)
 

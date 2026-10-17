@@ -5,17 +5,21 @@ import re
 # the descriptions), the current place marked, and one line naming the other areas. Built by
 # `places_feed`, which `tools/token_budget.py` calls as well, so the count cannot drift.
 # Kept terse on purpose: it sits in the always-on prefix and is rewritten in place on a move.
+# The tail of both headers is the one place the on-demand map is announced: the block is
+# capped, and this is where the GM finds itself looking when it needs a path it cannot see.
+# Said once here -- never again in the `lookup` row (one home, one phrasing).
+_LOOKUP_POINTER = "; anything not shown here: `lookup('places')`"
 KNOWN_PLACES_HEADER = (
     "KNOWN PLACES (reuse these exact kingdom / area / place paths; use a "
     "place's NPCs by NAME, never their look; a new place is seeded once with "
-    "`establishing`):"
+    "`establishing`" + _LOOKUP_POINTER + "):"
 )
 # The images-off variant: the same tree, but a new place is declared with `note_place`
 # (no seed, no establishing description).
 KNOWN_PLACES_HEADER_TEXT = (
     "KNOWN PLACES (reuse these exact kingdom / area / place paths; use a "
     "place's NPCs by NAME, never their look; a new place is declared once with "
-    "`note_place`):"
+    "`note_place`" + _LOOKUP_POINTER + "):"
 )
 
 # The place list is scoped to the CURRENT area and capped: the block is a reminder, not the
@@ -179,13 +183,16 @@ def _places_for_area(places: list[dict], kingdom: str, area: str,
     return sorted(recent[:cap], key=_area_order)
 
 
-def _area_anchors(places: list[dict], cap: int = AREA_INDEX_CAP) -> list[str]:
+def _area_anchors(places: list[dict], cap: int = AREA_INDEX_CAP) -> tuple[list[str], int]:
     """Every area the save has stood in, each with its newest place as an exact path to reuse.
 
     A move into another area needs the place NAMES, not just the area name: given only
     "Wapping", the live model invented a path for a place the save already held. One anchor
     per area (`AREA_INDEX_CAP` of them) restores exact reuse without the whole-era tree.
-    """
+
+    Returns the lines and the number of areas the cap hid. Past the cap the block SAYS so and
+    names the on-demand map: an area the GM cannot see must never become an area it forgets
+    (or invents a place in)."""
     newest: dict[str, tuple[int, str]] = {}
     for p in places:
         path = _path_of(p)
@@ -198,14 +205,19 @@ def _area_anchors(places: list[dict], cap: int = AREA_INDEX_CAP) -> list[str]:
         best = newest.get(label)
         if best is None or used > best[0]:
             newest[label] = (used, " — ".join(path))
-    ordered = sorted(newest.items(), key=lambda kv: (-kv[1][0], kv[0]))[:cap]
-    return [f"- {label}: {anchor}" for label, (_used, anchor) in ordered]
+    ordered = sorted(newest.items(), key=lambda kv: (-kv[1][0], kv[0]))
+    shown, hidden = ordered[:cap], ordered[cap:]
+    lines = [f"- {label}: {anchor}" for label, (_used, anchor) in shown]
+    if hidden:
+        lines.append(f"- +{len(hidden)} more areas you have stood in — `lookup('places')` "
+                     "lists them.")
+    return lines, len(hidden)
 
 
 def _other_areas(places: list[dict], kingdom: str, area: str,
                  cap: int = AREA_INDEX_CAP) -> list[str]:
     """`_area_anchors` for the areas other than the one the GM is in."""
-    return _area_anchors([p for p in places if not _in_area(p, kingdom, area)], cap)
+    return _area_anchors([p for p in places if not _in_area(p, kingdom, area)], cap)[0]
 
 
 def format_known_places(places: list[dict], cap: int = NPC_NAMES_PER_PLACE, here=()) -> str:
@@ -255,6 +267,167 @@ def format_known_places(places: list[dict], cap: int = NPC_NAMES_PER_PLACE, here
     return "\n".join(lines)
 
 
+# ── the on-demand record: `lookup('places')` / `lookup('places: X')` ─────────────
+#
+# The block above is a REMINDER, not the record: it shows the current area's places (capped
+# at the picker's own bound) and one anchor per other area. Everything it cannot hold -- the
+# places of a settlement the story is not in, the areas past its anchor cap, a regular's
+# role/race/class, which names are dead -- is served on demand from the same live tree the
+# block is built from, so the GM never has to invent a path it cannot see. Same registry,
+# same spellings: the block and the answer cannot disagree.
+#
+# The key is strict -- the bare word, or `places: <name>` -- because the same tool serves era
+# ids and polity names (rules/tools_player.py). No era id and no polity starts with "places",
+# so the two cannot be confused.
+PLACES_QUERY = "places"
+PLACES_MAP_HEADER = (
+    "PLACES YOU KNOW (ask `lookup('places: <settlement>')` for one settlement's places, or "
+    "`lookup('places: <kingdom>')` for a whole kingdom):"
+)
+
+
+def places_query(query) -> tuple[str, str] | None:
+    """A `lookup` query as `("map", "")` or `("scope", "<name>")`, else None.
+
+    `places` alone is the map; anything after it (a colon or a space, both tolerated) scopes
+    the answer to that kingdom or settlement. An empty scope is the map."""
+    text = " ".join(str(query or "").split())
+    head, _, rest = text.partition(" ")
+    if head.rstrip(":").lower() != PLACES_QUERY:
+        return None
+    arg = " ".join(rest.split()).lstrip(":").strip().strip("\"'").strip()
+    return ("scope", arg) if arg else ("map", "")
+
+
+def _kingdom_label(place: dict) -> str:
+    return str(place.get("kingdom") or "").strip() or "(unknown kingdom)"
+
+
+def _area_label(place: dict) -> str:
+    return str(place.get("area") or "").strip() or "(unknown settlement)"
+
+
+def _used(place: dict) -> int:
+    return int(place.get("used") or 0)
+
+
+def _area_groups(places: list[dict]) -> dict[tuple[str, str], list[dict]]:
+    """The registry grouped by (kingdom, area). A place with no path is not a place."""
+    groups: dict[tuple[str, str], list[dict]] = {}
+    for p in places:
+        if isinstance(p, dict) and _path_of(p):
+            groups.setdefault((_kingdom_label(p), _area_label(p)), []).append(p)
+    return groups
+
+
+def _areas_by_recency(groups: dict) -> list[tuple[str, str]]:
+    """The areas, the one the story stood in most recently first (name breaks ties)."""
+    newest = {k: max(_used(p) for p in items) for k, items in groups.items()}
+    return sorted(newest, key=lambda k: (-newest[k], k))
+
+
+def _regulars(place: dict) -> list[str]:
+    """A place's regulars as `Name — role, race class`, the dead marked.
+
+    This is the identity the per-turn block cannot afford (a role parenthetical costs ~3.5
+    tokens and the tree does not fit the budget), and it is exactly what the protocol asks the
+    GM to state: never a look, but always the race and the class."""
+    dead = {str(n).strip().lower() for n in (place.get("dead") or []) if str(n or "").strip()}
+    out: list[str] = []
+    for npc in (place.get("main_npcs") or []):
+        if not isinstance(npc, dict):
+            continue
+        name = str(npc.get("name") or "").strip()
+        if not name:
+            continue
+        role = str(npc.get("role") or "").strip()
+        people = " ".join(x for x in (str(npc.get("race") or "").strip(),
+                                      str(npc.get("class") or "").strip()) if x)
+        what = ", ".join(x for x in (role, people) if x) or "no role recorded"
+        out.append(f"{name} — {what}" + (" (dead)" if name.lower() in dead else ""))
+    return out
+
+
+def _place_lines(places: list[dict], here=(), indent: str = "") -> list[str]:
+    """A place's exact path, the current one marked, then one line per regular.
+
+    Tree order, so the nested rooms of one building stay together. Nothing is capped: the
+    reason to ask is to see the record."""
+    here_key = _scene_key(here) if here else ()
+    lines: list[str] = []
+    for p in sorted(places, key=_area_order):
+        path = _path_of(p)
+        line = f"{indent}- {path_label(path)}"
+        if here_key and _scene_key(path) == here_key:
+            line += " · ← you are here"
+        lines.append(line)
+        lines.extend(f"{indent}    - NPC: {regular}" for regular in _regulars(p))
+    return lines
+
+
+def _map_lines(groups: dict, current: dict | None) -> list[str]:
+    """Every kingdom, its settlements, and how many places each holds."""
+    here_area = (str((current or {}).get("kingdom") or "").strip(),
+                 str((current or {}).get("area") or "").strip())
+    lines: list[str] = []
+    for kingdom in sorted({k[0] for k in groups},
+                          key=lambda name: (-max(_used(p) for k, items in groups.items()
+                                                 if k[0] == name for p in items), name)):
+        lines.append(f"- {kingdom}")
+        for k in [k for k in _areas_by_recency(groups) if k[0] == kingdom]:
+            n = len(groups[k])
+            lines.append(f"    - {k[1]}: {n} place{'' if n == 1 else 's'}"
+                         + (" · ← you are here" if k == here_area else ""))
+    return lines
+
+
+def render_places_answer(places: list[dict], current: dict | None, query) -> str:
+    """The on-demand place record, or "" when the query is not a place query.
+
+    `places` = the map; `places: <name>` = a settlement's places, or a kingdom's settlements
+    and their places -- both, labelled, when one name is a kingdom and a settlement here. A
+    name that matches nothing returns the map, so a wrong guess teaches the right one instead
+    of inventing anything."""
+    parsed = places_query(query)
+    if parsed is None:
+        return ""
+    kind, arg = parsed
+    groups = _area_groups(places)
+    if not groups:
+        return "PLACES: none recorded yet."
+    if kind == "map" or not arg:
+        return "\n".join([PLACES_MAP_HEADER, *_map_lines(groups, current)])
+    want = _place_identity(arg)
+    by_recency = _areas_by_recency(groups)
+    kingdom_areas = [k for k in by_recency if _place_identity(k[0]) == want]
+    area_keys = [k for k in by_recency if _place_identity(k[1]) == want]
+    if not kingdom_areas and not area_keys:
+        return "\n".join([f'PLACES: no kingdom or settlement here is called "{arg}" — you know:',
+                          *_map_lines(groups, current)])
+    here_path = [str(x).strip() for x in ((current or {}).get("place") or [])]
+    here_area = (str((current or {}).get("kingdom") or "").strip(),
+                 str((current or {}).get("area") or "").strip())
+    sections: list[str] = []
+    if kingdom_areas:
+        lines = [f'PLACES IN "{kingdom_areas[0][0]}" — reuse these exact kingdom / area / '
+                 "place paths:"]
+        for k in kingdom_areas:
+            lines.append(f"- {k[1]}" + (" · ← you are here" if k == here_area else ""))
+            lines.extend(_place_lines(groups[k], here_path, indent="    "))
+        sections.append("\n".join(lines))
+    if area_keys:
+        lines = []
+        for k in area_keys:
+            lines.append(f'PLACES IN "{k[1]}" ({k[0]}) — reuse these exact kingdom / area / '
+                         "place paths:")
+            lines.extend(_place_lines(groups[k], here_path))
+        sections.append("\n".join(lines))
+    if len(sections) > 1:
+        return "\n".join([f'"{arg}" is both a kingdom and a settlement here — both:',
+                          *sections])
+    return sections[0]
+
+
 def places_feed(places: list[dict], current: dict | None, scene_images: bool) -> str:
     """The KNOWN PLACES block: the place the GM is in, its area's places, and the other areas.
 
@@ -274,7 +447,8 @@ def places_feed(places: list[dict], current: dict | None, scene_images: bool) ->
     path = [str(p).strip() for p in ((current or {}).get("place") or []) if str(p or "").strip()]
     if not (kingdom or area):
         # A landing the GM still has to choose: every area, each with one exact place to reuse.
-        return "\n".join([header, *_area_anchors(places), KNOWN_PLACES_CHOOSE])
+        anchors, _hidden = _area_anchors(places)
+        return "\n".join([header, *anchors, KNOWN_PLACES_CHOOSE])
     body: list[str] = []
     in_area = _places_for_area(places, kingdom, area)
     if in_area:

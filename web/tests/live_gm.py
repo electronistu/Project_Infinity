@@ -23,6 +23,13 @@ What it checks (and nothing else -- the GM's gameplay competence is the player's
     `web.server._persist_place_note`; images mode emits exactly one `scene_request` per
     narrative turn, attached to the prose (`kind == "story"`, never the engine's `auto`
     fallback), carrying the recorded address, `time_of_day` and `weather`.
+  * the ON-DEMAND PLACE RECORD, per mode and model-free: `lookup('places')`, a settlement
+    scope and a kingdom scope are answered by the ENGINE from the live registry (never by the
+    MCP server), in the registry's own spellings, with the regulars' role/race/class and the
+    dead marks the per-turn block drops, and an unknown name returns the map; one scenario
+    (`other_area_old`) moves into a settlement's place the block does NOT show -- a place the
+    area's anchor line does not name -- and whether the GM asks for the map first is recorded
+    as a habit, never failed.
 
 No image is ever generated: nothing consumes `scene_request` in-process, and
 `SceneService.generate` -- the seam `web/backends.py` documents for stubs -- is replaced with
@@ -62,7 +69,7 @@ sys.path.insert(0, str(REPO))
 
 from web.engine import GameSession  # noqa: E402
 from web.models import MODELS, gemini_thinking_level, resolve_model  # noqa: E402
-from web.places import _scene_key  # noqa: E402
+from web.places import _scene_key, path_label, places_query  # noqa: E402
 from web.protocol import (  # noqa: E402
     AWAKENING_RESUME, DEFAULT_CONTEXT_WINDOW, NARRATIVE_PHASE_TOOLS, PAUSE_MARKER_RE,
     PLACE_TOOL, REMEMBERS_RE, RESUME_GUARD_NUDGE, RESUME_MARKER_RE, SCENE_TOOL,
@@ -70,7 +77,7 @@ from web.protocol import (  # noqa: E402
 )
 from web.scenes import (  # noqa: E402
     SceneService, commit_scene_manifest, current_scene_place, discard_scene_manifest,
-    known_scene_places,
+    known_scene_places, live_scene_manifest,
 )
 
 OUT = REPO / "output"
@@ -86,24 +93,35 @@ COURT = ["the princely court", "the great hall"]
 GUARD = ["the princely court", "the guard room"]
 NESTED = ["the princely court", "the great hall", "the prince's antechamber"]
 LANTERN = ["the Drowned Lantern", "the common room"]
+# A second place in the lower town, OLDER than the inn (see the stamps in `build_fixture`),
+# so the block's anchor line for that settlement names the inn: the toll house is a place the
+# GM cannot see unless it asks for the map. That is what `other_area_old` is for.
+TOLL = ["the toll house", "the counting room"]
 REGISTRY = [
     (KINGDOM, SETTLEMENT, NESTED, []),
     (KINGDOM, SETTLEMENT, GUARD, [{"name": "Captain Ilie", "role": "the captain of the guard",
                                    "race": "half-orc", "class": "fighter"}]),
+    # Order matters twice over: the toll house must come BEFORE the inn (so the inn is the
+    # lower town's newest place, i.e. its anchor), and the place the save last stood in must
+    # be the FINAL write -- `record_place` sets the manifest's `current` from it.
+    (KINGDOM, LOWER_TOWN, TOLL, [{"name": "Mihai", "role": "the toll-keeper",
+                                  "race": "human", "class": "rogue"}]),
     (KINGDOM, LOWER_TOWN, LANTERN, []),
-    # LAST: `record_place` sets the manifest's `current` pointer, so the place the save last
-    # stood in must be the final write.
     (KINGDOM, SETTLEMENT, COURT, [{"name": "Steward Radu", "role": "the prince's steward",
                                   "race": "human", "class": "rogue"}]),
 ]
 
 # The script, in order. `expect` = the registry path the declaration must reuse, `new` = a
-# turn that moves to a place the registry does not hold, `stay` = a turn that must NOT move.
+# turn that moves to a place the registry does not hold, `stay` = a turn that must NOT move,
+# `unseen` = a move to a registry place the block does not show (the habit check).
 SCENARIOS = [
     {"id": "stay", "expect": "stay",
      "text": "I stay where I am and ask the steward who paid for the wine."},
+    {"id": "other_area_old", "expect": "unseen",
+     "text": "I take my leave of the court and walk down into the lower town, to the toll "
+             "house by the river gate, to hear what the boatmen have paid."},
     {"id": "return", "expect": GUARD,
-     "text": "I take my leave of the great hall and go back down to the guard room, where "
+     "text": "I take my leave and go back up to the princely court, to the guard room, where "
              "Captain Ilie is holding the prisoner."},
     {"id": "new", "expect": "new",
      "text": "I take the servants' stair down beneath the court, into the cellar where the "
@@ -168,6 +186,14 @@ def build_fixture(stem: str, images: bool) -> Path:
     svc = SceneService(output_dir=OUT)
     for kingdom, area, path, npcs in REGISTRY:
         svc.record_place(stem, era=ERA, kingdom=kingdom, area=area, place=path, main_npcs=npcs)
+    # Pin the LRU stamps: recorded inside one second they would tie, and the block's ANCHOR
+    # line per area -- the line that keeps the model from inventing a path -- is chosen by the
+    # newest stamp. Index order is age, so the toll house stays older than the inn and the
+    # anchor for the lower town is the inn, leaving the toll house invisible to the GM.
+    manifest = live_scene_manifest(OUT, stem)
+    stamps = {_scene_key(path): 1000 + i for i, (_k, _a, path, _n) in enumerate(REGISTRY)}
+    for entry in (manifest.get("seeds") or {}).values():
+        entry["used"] = stamps.get(_scene_key(entry.get("place")), entry.get("used"))
     if images:
         seed_pictures(stem)
     # `session.start()` drops the live manifest and reloads it from disk: commit, or the
@@ -438,6 +464,21 @@ def check_place(record: dict, session, scenario: dict) -> None:
             str((session._current_place or {}).get("area") or "") == SETTLEMENT,
             str(session._current_place))
         return
+    if expect == "unseen":
+        # A registry place in another settlement that the block does NOT show: its area's
+        # anchor line names the inn, so the path can only come from the on-demand map (or
+        # the GM's own memory). Whether it asked is a HABIT -- this file's calibration is
+        # that habits are recorded, never failed; the engine's half (the map is served, in
+        # the registry's spellings) is asserted model-free in `check_places_lookup`.
+        asked = [f for f in record["frames"]
+                 if f.get("type") == "tool_call" and f.get("name") == "lookup"
+                 and places_query((f.get("arguments") or {}).get("query")) is not None]
+        rec(f"{label}: a place the block cannot show is reused, not invented",
+            [s.strip().lower() for s in path] == [s.strip().lower() for s in TOLL],
+            f"declared={path} "
+            + ("— asked for the map first" if asked else "— no place lookup this turn"),
+            soft=True)
+        return
     saved = [str(s) for s in expect]
     rec(f"{label}: the saved spelling is reused exactly",
         [s.strip().lower() for s in path] == [s.strip().lower() for s in saved],
@@ -506,13 +547,50 @@ def check_persistence(session, turns: list[dict], ran_ids: list[str], images: bo
     after = known_scene_places(OUT, session.active_name, ERA)
     if "new" in ran_ids:
         fresh = [p for p in after if _scene_key(p["place"]) not in before_keys]
+        # The invariant, not a count: a place the registry did not hold arrives WITH its
+        # settlement. (A second fresh entry is possible -- an `other_area_old` the GM
+        # invented instead of asking for the map -- and that is recorded as a habit there.)
         rec("a move into an unrecorded place reaches the registry (the real server handler)",
-            len(fresh) == 1 and bool(str(fresh[0].get("area") or "")),
+            bool(fresh) and all(str(p.get("area") or "") for p in fresh),
             str([(p["area"], p["place"]) for p in fresh]))
     current = current_scene_place(OUT, session.active_name) or {}
     declared = [str(x) for x in evts[-1].get("place") or []]
     rec("the registry's current pointer follows the last move",
         _scene_key(current.get("place") or []) == _scene_key(declared), str(current))
+
+
+async def check_places_lookup(session, mode: str) -> None:
+    """The on-demand place record, asserted model-free (the engine's half).
+
+    A `lookup` about places is answered by the engine from the LIVE registry -- never by the
+    MCP server, which knows eras and polities but not where the story stands -- in the
+    registry's own spellings and with the identity the per-turn block drops. Whether the GM
+    ASKS for it is its own habit: recorded by `check_place`, never failed (this file's
+    calibration; a permanently red check would bury the ones that matter)."""
+    async def ask(query: str) -> str:
+        before = len(session.messages)
+        await session._execute_tool({"function": {"name": "lookup",
+                                                  "arguments": {"query": query}}})
+        return str(session.messages[before].get("content") or "")
+
+    atlas = await ask("places")
+    rec(f"{mode}: `lookup('places')` maps every settlement the save holds",
+        "PLACES YOU KNOW" in atlas and f"- {SETTLEMENT}: " in atlas
+        and f"- {LOWER_TOWN}: " in atlas, atlas)
+    area_text = await ask(f"places: {LOWER_TOWN}")
+    rec(f"{mode}: a settlement scope returns the registry's own paths",
+        path_label(TOLL) in area_text and path_label(LANTERN) in area_text, area_text)
+    rec(f"{mode}: ... with the identity the per-turn block drops (role, race, class)",
+        "Mihai — the toll-keeper, human rogue" in area_text, area_text)
+    kingdom_text = await ask(f"places: {KINGDOM}")
+    rec(f"{mode}: a kingdom scope lists its settlements and their places",
+        f"- {LOWER_TOWN}" in kingdom_text and path_label(TOLL) in kingdom_text
+        and path_label(NESTED) in kingdom_text, kingdom_text)
+    rec(f"{mode}: an unknown place name returns the map, never a guess",
+        "no kingdom or settlement here is called" in await ask("places: Atlantis"))
+    era_text = await ask("here")
+    rec(f"{mode}: every other lookup still reaches the engine's own tools",
+        bool(era_text.strip()) and "PLACES YOU KNOW" not in era_text, era_text[:60])
 
 
 def places_block(session) -> str:
@@ -558,6 +636,13 @@ async def run_mode(args, mode: str) -> list[dict]:
             check_place(record, session, scenario)
         check_surface(mode, session, drive.turns)
         check_persistence(session, drive.turns, [s["id"] for s in ran], images)
+        await check_places_lookup(session, mode)
+        pulls = [f for turn in drive.turns for f in turn["frames"]
+                 if f.get("type") == "tool_call" and f.get("name") == "lookup"
+                 and places_query((f.get("arguments") or {}).get("query")) is not None]
+        print(f"  [ info] place lookups the GM asked for: {len(pulls)}"
+              + (f" — {[str((f.get('arguments') or {}).get('query')) for f in pulls]}"
+                 if pulls else ""), flush=True)
         marker = next((ln.strip() for ln in places_block(session).splitlines()
                        if "← you are here" in ln), "")
         print(f"  [ info] KNOWN PLACES now: {marker or '(no current place line)'}", flush=True)

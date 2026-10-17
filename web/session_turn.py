@@ -3,7 +3,8 @@
 import json
 from .gm_view import _extract_legend, _gm_tool_view
 from .scenes import known_scene_places
-from .places import _people_list, _scene_key, name_key, path_label, resolve_place_path
+from .places import (_people_list, _scene_key, name_key, path_label, places_query,
+                     render_places_answer, resolve_place_path)
 from .protocol import (
     AWAKENING_RESUME, COMPANION_TOOL, MAX_RESUME_ROUNDS, MAX_THINKING_RETRIES,
     NARRATIVE_PHASE_TOOLS, NARRATIVE_RECOVERY_NUDGE, NPC_TOOL, PLACE_TOOL,
@@ -339,6 +340,11 @@ class TurnMixin:
                 args["place"] = known
         if name in _hidden_tools(self.scene_images, self.mode):
             await self._refuse_unoffered_tool(name, fn.get("id"))
+            return
+        if name == "lookup" and places_query(args.get("query")) is not None:
+            # A place query is answered here, from the live registry, and never reaches the
+            # MCP server (which knows eras and polities, not where the story stands).
+            await self._serve_places_lookup(args, fn.get("id"))
             return
         warning = self._scene_seed_warning(args) if name == SCENE_TOOL else None
         if warning is not None:
@@ -786,6 +792,23 @@ class TurnMixin:
             return
         self.arrival = label
         await self._call_tool_text("set_player_field", {"key": "arrival", "value": label})
+
+    async def _serve_places_lookup(self, args: dict, call_id=None) -> None:
+        """Answer a `lookup` about places from the live registry -- never the MCP server.
+
+        The KNOWN PLACES block the GM reads every turn is scoped to the current area and
+        capped: a reminder, not the record. Anything it cannot hold -- another settlement's
+        places, an area past its anchor cap, a regular's role/race/class, which names are
+        dead -- is answered here, rendered from the same tree the block is built from, so the
+        GM never has to invent a path it cannot see. The answer is the registry's own
+        spellings, so the declaration that follows resolves to the saved place."""
+        text = render_places_answer(self._primed, self._current_place, args.get("query"))
+        gm_text = _gm_tool_view("lookup", text)
+        await self._emit({"type": "tool_result", "name": "lookup", "text": text,
+                          "gm_text": gm_text, "is_error": False})
+        self.messages.append({"role": "tool", "content": gm_text, "name": "lookup"})
+        if self.provider == "gemini" and call_id:
+            self.messages[-1]["id"] = str(call_id)
 
     async def _emit_place_note(self, args: dict) -> None:
         """Tell the server to persist the place (the manifest's single writer)."""
