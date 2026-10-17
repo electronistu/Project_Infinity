@@ -863,6 +863,50 @@ async def main() -> bool:
         and not any("attached the illustration but wrote no prose" in (m.get("content") or "")
                     for m in gs14.messages), f"rounds={rounds14}")
 
+    # A QUIET corrective round whose only tool is `note_place` ends the turn: that round is
+    # what `_ensure_place_note` asks for, and looping there would send the model back to
+    # narrate invisibly into history (the frames would not show it, the context would). A
+    # non-quiet `note_place` batch still loops, so the model emits its `{{pause}}` first --
+    # the batch handshake is untouched.
+    gs15 = GameSession(base_dir=REPO, model="test", scene_images=False)
+    rounds15: list[int] = []
+
+    async def _exec15(tc):
+        pass
+
+    async def _stream15(label, quiet=False, gm=None):
+        rounds15.append(1)
+        if len(rounds15) == 1:
+            return ("", "", [{"function": {"name": "note_place", "arguments": {
+                "place": ["the market square", "the Stag inn"]}}}], False)
+        return ("DUPLICATE NARRATIVE", "", [], False)
+
+    gs15._execute_tool = _exec15  # type: ignore[assignment]
+    gs15._stream_assistant = _stream15  # type: ignore[assignment]
+    out15 = await gs15._chat_with_tools("turn", quiet=True)
+    rec("a quiet note_place round ends the turn (no invisible re-narration)",
+        len(rounds15) == 1 and out15 == "", f"rounds={len(rounds15)} out={out15!r}")
+
+    gs16 = GameSession(base_dir=REPO, model="test", scene_images=False)
+    rounds16: list[int] = []
+
+    async def _exec16(tc):
+        pass
+
+    async def _stream16(label, quiet=False, gm=None):
+        rounds16.append(1)
+        if len(rounds16) == 1:
+            return ("", "", [{"function": {"name": "note_place", "arguments": {
+                "place": ["the market square", "the Stag inn"]}}}], False)
+        return ("{{pause}}", "", [], False)
+
+    gs16._execute_tool = _exec16  # type: ignore[assignment]
+    gs16._stream_assistant = _stream16  # type: ignore[assignment]
+    out16 = await gs16._chat_with_tools("turn")
+    rec("... while a non-quiet note_place batch still loops for its pause token",
+        len(rounds16) == 2 and out16 == "__SYSTEM_PAUSE__",
+        f"rounds={len(rounds16)} out={out16!r}")
+
     # Tool results: the GM reads a trimmed view (new info + mechanics + errors); the
     # client keeps the full result for debugging.
     full_list = json.dumps({
@@ -895,10 +939,12 @@ async def main() -> bool:
     rec("a non-dict tool result passes through untouched",
         _gm_tool_view("equip_item", "Tool error: boom") == "Tool error: boom")
 
-    # Declarations deleted from the tool docstrings now live ONLY in these returns. If the
-    # projection ever stops carrying them, the GM loses the fact entirely -- so guard the
-    # keys. `register_companion` carries the cap + the by-name note; both refusals carry the
-    # reason and the gm_instruction that replaces the deleted "RULES" prose.
+    # `register_companion` is the ONE acknowledgement whose `note` is load-bearing: it is the
+    # only GM-facing carrier of "register the companion by name alone from now on" (the
+    # docstring does not say it). The other ack notes (place, NPCs, scene) only restate their
+    # own descriptions, so `web/gm_view.py` drops them -- see test_tool_projection.py. The
+    # refusals still carry the reason and the gm_instruction that replaces the deleted
+    # "RULES" prose.
     companion_view = json.loads(_gm_tool_view("register_companion", json.dumps({
         "success": True, "status": "declared", "name": "Su Lian", "era": "tang",
         "count": 1, "limit": 3,

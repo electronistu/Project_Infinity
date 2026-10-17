@@ -14,7 +14,7 @@ REPO = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO))
 
 from web.engine import GameSession  # noqa: E402
-from web.protocol import filter_tools, render_protocol  # noqa: E402
+from web.protocol import PLACE_ECHO_NUDGE, filter_tools, render_protocol  # noqa: E402
 from web.places import (  # noqa: E402
     KNOWN_PLACES_HEADER, KNOWN_PLACES_HEADER_TEXT, KNOWN_PLACES_EMPTY_TEXT, path_label,
     places_query, render_places_answer, resolve_place_path,
@@ -187,9 +187,13 @@ async def main() -> bool:
             str(gs._npc_people))
         rec("note_place remembers the cast name",
             "corvin hale" in gs._cast_names, str(gs._cast_names))
-        rec("the GM view is trimmed to the acknowledgement",
-            "main_npcs" in gs.messages[-1]["content"]
-            and "extra" not in gs.messages[-1]["content"], gs.messages[-1]["content"])
+        # The GM made the declaration: the ack is its acceptance and nothing else. The path,
+        # address and regulars are what it just sent; any correction rides a NOTE line AFTER
+        # the JSON (here, the cast's missing race/class), so the result is read as the JSON
+        # up to the first blank line.
+        ack = gs.messages[-1]["content"].split("\n\n", 1)[0]
+        rec("the place ack is the bare acceptance (no echo of the declaration)",
+            json.loads(ack) == {"status": "noted"}, gs.messages[-1]["content"])
 
         # The `characters` key is the model's own spelling of a name, and live 2026-10-16 it
         # keyed two declared names with an underscore (`Master_Guo` for the declared `Master
@@ -588,6 +592,177 @@ async def main() -> bool:
         rec("... and says how many areas the cap hid instead of dropping them silently",
             "+1 more areas you have stood in" in body, body)
 
+        # ── the turn's place echo: declare where you are, or the engine asks ───
+        # Text mode has no scene call to carry the place every turn, so the engine checks
+        # whether THIS turn declared and asks once (quietly) when it did not -- the one place
+        # it can close "a move the GM never declares cannot be inferred". The declaration is
+        # cheap: for a place the record holds, the address (and the spelling) come from the
+        # record, so a bare leaf is enough.
+        court = ["the market square", "the Stag inn"]
+        porch = ["the market square", "the church porch"]
+        reg = [{"kingdom": "Wallachia", "area": "Câmpulung", "place": court},
+               {"kingdom": "Wallachia", "area": "Târgoviște",
+                "place": ["the princely court", "the guard room"]}]
+        rec("a declared leaf resolves to the known full path (the mirror rule)",
+            resolve_place_path(reg, ["the Stag inn"]) == court
+            and resolve_place_path(reg, ["the guard room"])
+            == ["the princely court", "the guard room"],
+            str(resolve_place_path(reg, ["the guard room"])))
+        two_inns = [{"kingdom": "London", "area": "Wapping",
+                     "place": ["the Blue Lotus", "the common room"]},
+                    {"kingdom": "London", "area": "Limehouse",
+                     "place": ["the Drowned Lantern", "the common room"]}]
+        rec("an ambiguous leaf is never merged into one of them",
+            resolve_place_path(two_inns, ["the common room"]) is None)
+        rec("... unless exactly one match is in the area the story stands in",
+            resolve_place_path(two_inns, ["the common room"],
+                               {"kingdom": "London", "area": "Limehouse"})
+            == ["the Drowned Lantern", "the common room"])
+    
+        svc_e = SceneService(out)
+        svc_e.record_place("echo", era=ERA, kingdom="Wallachia", area="Câmpulung",
+                           place=court)
+        gse = GameSession(base_dir=Path(td), model="test", scene_images=False)
+        gse.session = _FakeMCP()
+        gse.active_name = "echo"
+        gse.era = ERA
+        gse._reload_era_scene_state()
+        drain(gse._evt_q)
+    
+        # A move to a NEW room in the same settlement, declared in full.
+        await gse._execute_tool({"function": {"name": "note_place", "arguments": {
+            "place": porch, "kingdom": "Wallachia", "area": "Câmpulung"}}})
+        evts = drain(gse._evt_q)
+        rec("a declared move records the place and publishes it",
+            (gse._current_place or {}).get("place") == porch
+            and len([e for e in evts if e.get("type") == "place_note"]) == 1
+            and any(e.get("type") == "caption" for e in evts), str(gse._current_place))
+        rec("... and satisfies the turn's place echo", len(gse._place_declarations) == 1)
+    
+        # A RETURN to a place the record holds, named by its leaf alone: the saved path and
+        # the saved address are adopted (this is what makes the per-turn echo cheap).
+        await gse._execute_tool({"function": {"name": "note_place",
+                                             "arguments": {"place": ["the Stag inn"]}}})
+        evts = drain(gse._evt_q)
+        rec("an address-less leaf for a known place adopts the saved path and address",
+            (gse._current_place or {}).get("place") == court
+            and (gse._current_place or {}).get("kingdom") == "Wallachia"
+            and (gse._current_place or {}).get("area") == "Câmpulung"
+            and len(gse._primed) == 2, str(gse._current_place))
+    
+        # Re-declaring where the story already stands: accepted, and nothing is rewritten.
+        await gse._execute_tool({"function": {"name": "note_place",
+                                             "arguments": {"place": ["the Stag inn"]}}})
+        evts = drain(gse._evt_q)
+        rec("a re-declaration of the same place writes nothing",
+            not [e for e in evts if e.get("type") in ("place_note", "caption")]
+            and gse._place_declarations[-1] == court, str(evts))
+        await gse._execute_tool({"function": {"name": "note_place", "arguments": {
+            "place": ["the Stag inn"],
+            "main_npcs": [{"name": "Stoica", "role": "the innkeeper", "race": "human",
+                           "class": "commoner"}]}}})
+        rec("... but a new regular still reaches the record",
+            any(e.get("type") == "place_note" for e in drain(gse._evt_q)))
+
+        # A FULL echo -- the whole note_place, regular included -- is inert when nothing
+        # differs: live 2026-10-17 the stay turn re-sent exactly this and the manifest was
+        # rewritten for it. A changed role, by contrast, is a real update.
+        await gse._execute_tool({"function": {"name": "note_place", "arguments": {
+            "place": ["the Stag inn"], "kingdom": "Wallachia", "area": "Câmpulung",
+            "main_npcs": [{"name": "Stoica", "role": "the innkeeper", "race": "human",
+                           "class": "commoner"}]}}})
+        evts = drain(gse._evt_q)
+        rec("repeating a known regular writes nothing (a full echo is inert)",
+            not [e for e in evts if e.get("type") in ("place_note", "caption")], str(evts))
+        await gse._execute_tool({"function": {"name": "note_place", "arguments": {
+            "place": ["the Stag inn"], "kingdom": "Wallachia", "area": "Câmpulung",
+            "main_npcs": [{"name": "Stoica", "role": "the innkeeper and the magistrate",
+                           "race": "human", "class": "commoner"}]}}})
+        rec("... while a changed role is a real update",
+            any(e.get("type") == "place_note" for e in drain(gse._evt_q)))
+
+        # A NEW room named by a bare leaf: filed in the settlement the story stands in, with a
+        # NOTE -- an address-less place would blind the caption and the block's scoping.
+        before_primed = len(gse._primed)
+        gse._place_declarations = []  # a fresh turn: nothing declared yet
+        await gse._execute_tool({"function": {"name": "note_place",
+                                             "arguments": {"place": ["the battlements"]}}})
+        evts = drain(gse._evt_q)
+        note = [m for m in gse.messages if m.get("name") == "note_place"][-1]["content"]
+        rec("a new room named by a bare leaf is filed in the settlement the story is in",
+            len(gse._primed) == before_primed + 1
+            and (gse._current_place or {}).get("area") == "Câmpulung"
+            and (gse._current_place or {}).get("place") == ["the battlements"]
+            and any(e.get("type") == "place_note" for e in evts), str(gse._current_place))
+        rec("... and the GM is told which settlement it was filed in",
+            "NOTE:" in note and "Câmpulung" in note, note[-220:])
+        rec("... so the turn's place echo is satisfied", len(gse._place_declarations) == 1)
+
+        # The corner left over: no address anywhere (not even where the story stands).
+        gse._place_declarations = []
+        gse._current_place = None
+        before_primed = len(gse._primed)
+        await gse._execute_tool({"function": {"name": "note_place",
+                                             "arguments": {"place": ["an island"]}}})
+        evts = drain(gse._evt_q)
+        refused = [e for e in evts if e.get("type") == "tool_result"]
+        rec("with no address anywhere the declaration is refused, not filed empty",
+            len(gse._primed) == before_primed
+            and not [e for e in evts if e.get("type") == "place_note"]
+            and bool(refused) and refused[0].get("is_error") is True
+            and "WARNING:" in str(refused[0].get("text")), str(refused))
+        rec("... and the turn's echo still counts as unmet (the net will ask)",
+            gse._place_declarations == [])
+    
+        # The net itself: one quiet ask, text mode only, never twice.
+        asks: list[tuple] = []
+        real_run = gse._run_role
+    
+        async def _spy_run(content, label, quiet=False):
+            asks.append((label, quiet, content))
+            return ""
+    
+        gse._run_role = _spy_run  # type: ignore[assignment]
+        gse._place_declarations = []
+        await gse._ensure_place_note()
+        rec("the net asks once, quietly, when the turn declared nothing",
+            len(asks) == 1 and asks[0][0] == "place-fix" and asks[0][1] is True
+            and PLACE_ECHO_NUDGE in str(asks[0][2]), str(asks))
+        asks.clear()
+        gse._place_declarations = [court]
+        await gse._ensure_place_note()
+        rec("... and stays silent when the turn declared exactly one", asks == [], str(asks))
+        asks.clear()
+        # TWO declarations in one turn: the engine keeps one current place and cannot tell
+        # which of them the turn ended in (live 2026-10-17: a travel turn declared the inn
+        # first and the toll-farm second, and the engine adopted the toll-farm). It asks.
+        gse._place_declarations = [porch, court]
+        await gse._ensure_place_note()
+        rec("... and asks which one the turn ENDED in when it declared several",
+            len(asks) == 1 and asks[0][0] == "place-fix"
+            and "2 places" in str(asks[0][2])
+            and path_label(porch) in str(asks[0][2])
+            and path_label(court) in str(asks[0][2]), str(asks))
+        asks.clear()
+        gse._place_declarations = []
+        gse.scene_images = True
+        await gse._ensure_place_note()
+        rec("... and never fires with images on (the scene call carries the place)",
+            asks == [], str(asks))
+        gse.scene_images = False
+        gse._run_role = real_run  # type: ignore[assignment]
+    
+        # The arrival is only written when it actually changes.
+        gsp = GameSession(base_dir=Path(td), model="test", scene_images=False)
+        gsp.session = _FakeMCP()
+        gsp.era = ERA
+        gsp.arrival = "the market square, in Câmpulung"
+        await gsp._pin_arrival(court, "Câmpulung")
+        rec("an unchanged arrival is never written twice",
+            gsp.arrival == "the market square, in Câmpulung"
+            and not [c for c in gsp.session.calls if c[0] == "set_player_field"],
+            f"{gsp.arrival} / {gsp.session.calls}")
+    
     return all(RESULTS)
 
 

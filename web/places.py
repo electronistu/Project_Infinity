@@ -98,14 +98,22 @@ def _path_of(place: dict) -> list[str]:
     return [str(s).strip() for s in (place.get("place") or []) if str(s or "").strip()]
 
 
-def resolve_place_path(places: list[dict], place) -> list[str] | None:
+def resolve_place_path(places: list[dict], place, current: dict | None = None
+                       ) -> list[str] | None:
     """The registry's own path for a declared one, when the match is unambiguous.
 
-    Case, spacing and punctuation are already forgiven by the slug; this adds the two drifts a
-    live model actually produced: a dropped article (`the Western Market` vs `Western Market`),
-    and a known place appearing as the TAIL of a longer declared path (the model nesting a
-    place the save holds under a parent it invented). Returns None when nothing matches, or
-    when two known places match equally -- a genuinely new place is never merged into one.
+    Case, spacing and punctuation are already forgiven by the slug; this adds the three drifts
+    a live model actually produced: a dropped article (`the Western Market` vs `Western
+    Market`), a known place appearing as the TAIL of a longer declared path (the model nesting
+    a place the save holds under a parent it invented), and -- since a declaration may name
+    only where the story IS (`note_place` echoes the place every turn) -- the mirror of that
+    drift, a declared path that is the tail of a known longer one (`the guard room` for `the
+    princely court / the guard room`).
+
+    A bare leaf can name a place in several settlements, so `current` (the engine's own idea
+    of where the story stands) decides when exactly one of the matches lies in that area.
+    Returns None when nothing matches, or when two known places match equally -- a genuinely
+    new place is never merged into one.
     """
     want = _identity_path(place)
     if not want:
@@ -120,6 +128,17 @@ def resolve_place_path(places: list[dict], place) -> list[str] | None:
              if keys and len(keys) < len(want) and want[-len(keys):] == keys]
     if len(tails) == 1:
         return _path_of(tails[0])
+    if len(tails) > 1:
+        return None
+    heads = [p for p, keys in known
+             if keys and len(keys) > len(want) and keys[-len(want):] == want]
+    if len(heads) == 1:
+        return _path_of(heads[0])
+    if len(heads) > 1:
+        here = (str((current or {}).get("kingdom") or ""), str((current or {}).get("area") or ""))
+        local = [p for p in heads if _in_area(p, here[0], here[1])]
+        if len(local) == 1:
+            return _path_of(local[0])
     return None
 
 

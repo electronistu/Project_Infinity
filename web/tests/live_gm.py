@@ -30,6 +30,13 @@ What it checks (and nothing else -- the GM's gameplay competence is the player's
     (`other_area_old`) moves into a settlement's place the block does NOT show -- a place the
     area's anchor line does not name -- and whether the GM asks for the map first is recorded
     as a habit, never failed.
+  * the PLACE ECHO, text mode: every action turn must END with a place declared, because the
+    engine asks for it when the GM's own rounds did not (`_ensure_place_note`, a quiet
+    corrective round -- the journal's `place-fix` label, since a quiet round leaves no round in
+    the frames). The `other_room` scenario moves WITHIN the settlement to a room the registry
+    does not hold: nothing but a declaration can record it, so it is the check that the echo
+    closes "a move the GM never declares cannot be inferred". Whether the GM declared it
+    unaided is recorded soft, as the forget-rate.
 
 No image is ever generated: nothing consumes `scene_request` in-process, and
 `SceneService.generate` -- the seam `web/backends.py` documents for stubs -- is replaced with
@@ -123,6 +130,13 @@ SCENARIOS = [
     {"id": "return", "expect": GUARD,
      "text": "I take my leave and go back up to the princely court, to the guard room, where "
              "Captain Ilie is holding the prisoner."},
+    {"id": "other_room", "expect": "unseen_room",
+     "text": "I leave Ilie to his prisoner and climb the spiral stair to the battlements "
+             "above the gate, to look out over the valley."},
+    {"id": "montage", "expect": LANTERN,
+     "text": "I come down from the battlements, take horse out of the court and ride down "
+             "through the lower town, and end the day at the Drowned Lantern with a cup in my "
+             "hand."},
     {"id": "new", "expect": "new",
      "text": "I take the servants' stair down beneath the court, into the cellar where the "
              "prince's wine is kept and the ledgers are hidden."},
@@ -278,6 +292,8 @@ class Drive:
             "journal": self.session._gm_journal[before_journal:],
             "flags": {"prose": bool(self.session._narrative_emitted_turn),
                       "scene": bool(self.session._scene_requested_turn),
+                      "place": bool(self.session._place_declarations),
+                      "places": len(self.session._place_declarations),
                       "rejected": bool(self.session._scene_rejected)},
         }
         self.turns.append(record)
@@ -325,18 +341,25 @@ def check_turn(record: dict) -> None:
     if not rounds:
         rec(f"{label}: a model round happened", False, "no assistant round in the frames")
         return
-    # A *mechanical* batch: the image call rides the narrative prose, so it is not one (the
-    # engine's own `NARRATIVE_PHASE_TOOLS` is the line).
+    labels = {str(j.get("label") or "") for j in record["journal"]}
+    # What may ride the narrative prose: the image call (images on), and -- because the TEXT
+    # block allows it in the SAME response as the prose -- the place declaration (text mode).
+    # A *mechanical* batch is a round of tools with NO prose: a prose round is the turn's
+    # narrative, and the quiet corrective round leaves no `assistant_start` at all, so its call
+    # is attributed to the prose round before it (the journal's `place-fix` label records it).
+    narrative_tools = NARRATIVE_PHASE_TOOLS | (set() if images else {PLACE_TOOL})
     batch_rounds = [i for i, r in enumerate(rounds)
-                    if any(t not in NARRATIVE_PHASE_TOOLS for t in r["tools"])]
+                    if not prose_of(r["content"])
+                    and any(t not in NARRATIVE_PHASE_TOOLS for t in r["tools"])]
     prose_rounds = [i for i, r in enumerate(rounds) if prose_of(r["content"])]
     token_rounds = [i for i, r in enumerate(rounds) if is_pause(r["content"])]
     paused = sum(1 for f in frames if f.get("type") == "paused")
 
-    # A1a -- a batch round carries tools and NO prose (the images narrative round is the one
-    # exception, and only for the single image call the protocol attaches to the prose).
+    # A1a -- a batch round carries tools and NO prose. The narrative round may carry the one
+    # image call (images on) or the place declaration (text mode, which the TEXT block allows
+    # in the same response as the prose).
     bad = [r for r in rounds if r["tools"] and prose_of(r["content"])
-           and not (images and r["tools"] == [SCENE_TOOL])]
+           and not set(r["tools"]) <= narrative_tools]
     rec(f"{label}: no prose rides a tool batch", not bad,
         str([(r["tools"], prose_of(r["content"])[:40]) for r in bad]))
 
@@ -360,21 +383,23 @@ def check_turn(record: dict) -> None:
     rec(f"{label}: the resume handshake is canonical and single",
         not guard and len(resumes) <= 1, f"nudges={[n[:30] for n in nudges]}")
 
-    # A1e -- the narrative round carries no tool call in text mode, and exactly the one image
-    # call in images mode.
+    # A1e -- the narrative round carries only what may ride it: the image call (images on), or
+    # the place declaration (text mode).
     narrative = rounds[prose_rounds[-1]] if prose_rounds else None
-    want = [SCENE_TOOL] if images else []
+    want = {SCENE_TOOL} if images else {PLACE_TOOL}
     rec(f"{label}: the narrative round carries only the image call",
-        narrative is not None and narrative["tools"] == want,
+        narrative is not None and set(narrative["tools"]) <= want,
         f"tools={narrative['tools'] if narrative else None}")
 
     # A2 -- the engine's guarantees were never needed: no corrective round, no thinking retry.
-    labels = sorted({str(j.get("label") or "") for j in record["journal"]})
-    triggers = sorted({str(j.get("trigger") or "") for j in record["journal"]})
+    # `place-fix` is NOT in that set: it is the engine's own place echo (see
+    # `_ensure_place_note`), asked for on purpose, and whether the GM needed it is recorded
+    # separately below.
+    triggers = {str(j.get("trigger") or "") for j in record["journal"]}
     rec(f"{label}: no corrective round fired (the GM never flubbed)",
-        not (set(labels) & {"narrative-fix", "scene-fix", "continue"})
-        and not (set(triggers) & {"recovery", "thinking"}),
-        f"labels={labels} triggers={triggers}")
+        not (labels & {"narrative-fix", "scene-fix", "continue"})
+        and not (triggers & {"recovery", "thinking"}),
+        f"labels={sorted(labels)} triggers={sorted(triggers)}")
     rec(f"{label}: the engine recorded the turn's prose and illustration",
         bool(flags.get("prose")) and (not images or bool(flags.get("scene")))
         and not flags.get("rejected"), str(flags))
@@ -432,24 +457,46 @@ def check_turn(record: dict) -> None:
 
 
 def declared_place(record: dict) -> list[str]:
-    """The turn's declared place path, from whichever tool this mode declares it with."""
+    """The turn's declared place, from whichever tool this mode declares it with.
+
+    The LAST declaration is the turn's end state -- the one `_current_place` keeps -- and a
+    turn that declared several is corrected by the engine's echo into re-declaring that one."""
     kind = "scene_request" if record.get("images") else "place_note"
+    declared: list[str] = []
     for f in record["frames"]:
         if f.get("type") == kind:
-            return [str(p) for p in (f.get("place") or [])]
-    return []
+            declared = [str(p) for p in (f.get("place") or [])]
+    return declared
+
+
+def declared_itself(record: dict) -> bool:
+    """Whether the GM declared the place in its own rounds (the engine did not have to ask)."""
+    return "place-fix" not in {str(j.get("label")) for j in record.get("journal") or []}
 
 
 def check_place(record: dict, session, scenario: dict) -> None:
     label, expect = f"{record.get('mode', '')} {record['label']}".strip(), scenario["expect"]
     images = bool(record.get("images"))
     path = declared_place(record)
+    if not images:
+        # The engine's place echo: every text-mode turn ends with the place declared -- in the
+        # GM's own rounds, or in the quiet round the engine asks for when it was not. This is
+        # the invariant that makes a forgotten move recoverable at all. (Whether the ASK was
+        # needed is recorded on the movement turns, where the protocol expects a declaration
+        # without it; a stay turn is expected to need it, by design.)
+        rec(f"{label}: the turn ended with a place declared (the GM's own round, or the ask)",
+            bool((record.get("flags") or {}).get("place")), str(record.get("flags")))
     if expect == "stay":
         if images:
             rec(f"{label}: the illustration stays where the story is",
                 _scene_key(path) == _scene_key(COURT), str(path))
         else:
-            rec(f"{label}: a turn that does not move declares nothing", not path, str(path))
+            # Text mode now asks for the place every turn (the engine's echo), so a stay turn
+            # declares where the story IS: what must hold is that the place did not move --
+            # and that the echo was satisfied, by the GM or by the engine's own ask.
+            rec(f"{label}: a turn that does not move keeps the place it is in",
+                _scene_key((session._current_place or {}).get("place") or []) == _scene_key(COURT),
+                f"{session._current_place} flags={record.get('flags')}")
         return
     if not path:
         rec(f"{label}: the movement was declared", False,
@@ -479,6 +526,24 @@ def check_place(record: dict, session, scenario: dict) -> None:
             + ("— asked for the map first" if asked else "— no place lookup this turn"),
             soft=True)
         return
+    if expect == "unseen_room":
+        # A move WITHIN the settlement, to a room the registry does not hold and no anchor
+        # line names: nothing but a declaration can record it (prose inference cannot: the
+        # room is new). The engine's place echo is what makes this land -- it asks for the
+        # declaration the GM narrated over, and a bare leaf is filed in the settlement the
+        # story stands in. Hard checks are the engine's half (the move landed, with an
+        # address); whether the GM declared it unaided is the habit, recorded soft.
+        before = record.get("before_place") or {}
+        after = session._current_place or {}
+        rec(f"{label}: a move the GM narrated over still lands, with its settlement",
+            bool((after or {}).get("place"))
+            and _scene_key(after.get("place")) != _scene_key(before.get("place"))
+            and str(after.get("area") or "") == SETTLEMENT,
+            f"{before.get('place')} -> {after.get('place')} / {after.get('area')!r}")
+        rec(f"{label}: ... declared in the GM's own round, not by the engine's ask",
+            declared_itself(record),
+            f"journal={[j.get('label') for j in record.get('journal') or []]}", soft=True)
+        return
     saved = [str(s) for s in expect]
     rec(f"{label}: the saved spelling is reused exactly",
         [s.strip().lower() for s in path] == [s.strip().lower() for s in saved],
@@ -486,6 +551,10 @@ def check_place(record: dict, session, scenario: dict) -> None:
     rec(f"{label}: the engine's idea of where the story is follows the move",
         _scene_key((session._current_place or {}).get("place") or []) == _scene_key(saved),
         str(session._current_place))
+    if not images:
+        rec(f"{label}: declared in the GM's own round (the engine did not have to ask)",
+            declared_itself(record),
+            f"journal={[j.get('label') for j in record.get('journal') or []]}", soft=True)
     if images:
         scene = next(f for f in record["frames"] if f.get("type") == "scene_request")
         # Not hard: the engine ignores `establishing` when the seed exists (the picture is
@@ -627,11 +696,13 @@ async def run_mode(args, mode: str) -> list[dict]:
             record["mode"] = mode
             check_turn(record)
         for scenario in ran:
+            before_place = dict(session._current_place or {})
             record = await drive.run_turn(scenario["id"], scenario["text"])
             if record is None:
                 continue
             record["images"] = images
             record["mode"] = mode
+            record["before_place"] = before_place
             check_turn(record)
             check_place(record, session, scenario)
         check_surface(mode, session, drive.turns)
@@ -705,11 +776,18 @@ def turn_summary(turn: dict) -> dict:
 
 
 def shape_line(turn: dict) -> str:
-    """The one-line shape of a turn, for the console and the report."""
+    """The one-line shape of a turn, for the console and the report.
+
+    A quiet corrective round leaves no `assistant_start`/`assistant_end`, so its tool call is
+    attributed to the round before it in the frames; the journal is what shows it happened, so
+    it is named here."""
     rounds = rounds_of(turn["frames"])
-    return " | ".join(
+    line = " | ".join(
         f"{'+'.join(r['tools']) or ('pause' if is_pause(r['content']) else 'prose')}"
         f"({len(prose_of(r['content']))}c)" for r in rounds)
+    asked = [str(j.get("label")) for j in turn.get("journal") or []
+             if str(j.get("label")) in ("place-fix", "scene-fix", "narrative-fix")]
+    return line + (f"  [engine asked: {', '.join(dict.fromkeys(asked))}]" if asked else "")
 
 
 def save_artifacts(args, provider: str, modes: list[dict], results) -> Path:

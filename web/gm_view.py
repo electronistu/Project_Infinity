@@ -38,11 +38,16 @@ _GM_VIEW_KEEP: dict[str, tuple[str, ...]] = {
                          "exhaustion", "blocked_conditions", "already_present", "note"),
     "modify_exhaustion": ("success", "exhaustion", "old", "delta", "effects", "max_hp"),
     "make_death_save": ("success", "roll", "successes", "failures", "outcome", "hp"),
-    # Acknowledgements: the GM just made the call, so only the outcome is new.
-    "request_scene_image": ("status", "note"),
-    "register_npcs": ("status", "count", "note"),
-    "register_companion": ("success", "status", "name", "count", "limit", "note"),
-    "note_place": ("status", "kingdom", "area", "place", "main_npcs", "cast", "note"),
+    # Acknowledgements: the GM just made the call, so only the outcome is new. Every field an
+    # ack carries must be something the GM does NOT already have -- the declaration echoed
+    # back is not it, and neither is a `note` that restates the tool's own description.
+    "request_scene_image": ("status",),
+    "register_npcs": ("status", "count"),
+    # The one ack `note` that is load-bearing: it is the only GM-facing carrier of "register
+    # the companion by name alone from now on" (the docstring does not say it). Guarded in
+    # web/tests/test_scenes.py -- do not drop it with the others.
+    "register_companion": ("status", "name", "count", "limit", "note"),
+    "note_place": ("status",),
 }
 # Added on failure so the GM can explain and act on a refused/wrong call.
 _GM_VIEW_ERROR_EXTRA = (

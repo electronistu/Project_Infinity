@@ -77,7 +77,7 @@ NARRATIVE: no EVENTS in the SESSION TIMELINE means a NEW GAME — the opening sc
 - Attach exactly ONE `request_scene_image` to THIS response — the only tool allowed alongside prose. It ends the turn.
 <!-- SCENE:END -->
 <!-- TEXT:ON -->
-- When the story moves the Traveller — into a new place or back to a known one — declare it with `note_place`: in the SAME response as the prose, or in the tool batch. Not every turn.
+- When the story moves the Traveller, declare the place the turn ENDS in with `note_place` — ONE per turn — in the SAME response as the prose or in the tool batch. Places passed through are narrated, not declared.
 <!-- TEXT:END -->
 
 ## STATE: RECOVERY (a call you never made)

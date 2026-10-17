@@ -73,6 +73,39 @@ NARRATIVE_RECOVERY_NUDGE = (
     "covering the mechanics already resolved. Attach one request_scene_image only if "
     "this turn has no image yet."
 )
+# Emitted at the END of a text-mode turn that declared no place: a quiet corrective round,
+# so the client sees only the `note_place` call and whatever it changes. This is text mode's
+# mirror of `_ensure_scene_image` (with images on the scene call carries the place every
+# turn), and the one place the engine can close the honest limit "a move the GM never
+# declares cannot be inferred". It never reads the prose -- a move into a room the record
+# does not hold cannot be inferred from it anyway -- it checks only whether THIS turn
+# declared, and asks. Wording matters: the question is where the Traveller IS now, which is
+# what recovers a forgotten move as well as a stale caption.
+PLACE_ECHO_NUDGE = (
+    "SYSTEM: this turn declared no place. Emit ONLY note_place, naming where the Traveller is "
+    "NOW — reuse the exact known kingdom / area / place path and do NOT repeat the place's "
+    "regulars (they are already recorded), or give the full declaration (kingdom, area, path "
+    "and any regulars) if the story moved somewhere the record does not hold. Do not narrate."
+)
+# ... and the variant for a turn that declared MORE THAN ONE place. The engine keeps ONE
+# current place and every declaration arrives before the prose, so it cannot tell which of
+# them the turn ended in -- and any pick (first, last) is arbitrary: live 2026-10-17 a travel
+# turn declared the destination first and the road second, and the engine adopted the road.
+# The model HAS the prose by the time this runs, so it is the one that can answer.
+_PLACE_ECHO_MANY = (
+    "SYSTEM: this turn declared {n} places ({names}). Emit ONLY note_place for the place the "
+    "Traveller ENDS the turn in — ONE place per turn, reusing its exact known kingdom / area / "
+    "place path and NOT repeating its regulars (they are already recorded). Do not narrate."
+)
+
+
+def place_echo_nudge(declared: list[list[str]]) -> str:
+    """The echo's ask: the turn declared no place, or more than one."""
+    if not declared:
+        return PLACE_ECHO_NUDGE
+    names = ", ".join('"' + " — ".join(str(s) for s in path) + '"'
+                      for path in declared if path)
+    return _PLACE_ECHO_MANY.format(n=len(declared), names=names)
 # A model that keeps echoing the pause token instead of narrating must not spin.
 RESUME_GUARD_NUDGE = (
     "SYSTEM: You have already paused; the engine resumed. Write the turn's narrative now."

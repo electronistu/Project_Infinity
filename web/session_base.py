@@ -102,6 +102,10 @@ class SessionBase:
         # True once narrative prose has reached the player this turn; guards against
         # asking the GM to narrate a second time (duplicate segment).
         self._narrative_emitted_turn = False
+        # The places THIS turn declared (accepted `note_place` paths): text mode has no scene
+        # call to carry the place, and `_ensure_place_note` asks when the count is not exactly
+        # one -- none at all, or several (the engine cannot tell which one the turn ended in).
+        self._place_declarations: list[list[str]] = []
         # Known seeded places: (location_slug, sublocation_slug) -> (kingdom, area). A new
         # place must supply `establishing` before its seed is accepted.
         self._scene_places: dict[tuple[str, str], tuple[str, str]] = {}
@@ -480,11 +484,13 @@ class SessionBase:
         await self._emit({"type": "busy", "value": True})
         self._scene_requested_turn = False  # at most one illustration per turn
         self._narrative_emitted_turn = False  # the turn's prose is emitted once
+        self._place_declarations = []      # the turn's place echo (see _ensure_place_note)
         self._mechanics_lines = []          # the engine-composed block is per turn
         try:
             result = await self._run_role(content, label)
             result = await self._ensure_turn_prose(result)
             await self._ensure_scene_image(result or "")
+            await self._ensure_place_note()
             self.turn_counter += 1
             await self._emit({"type": "turn_end", "text": result or "", "turn": self.turn_counter})
         finally:

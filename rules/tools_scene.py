@@ -74,7 +74,7 @@ def register_npcs(npcs: list[dict]) -> dict:
 
 
 @mcp.tool()
-def note_place(kingdom: str, area: str, place: list[str],
+def note_place(place: list[str], kingdom: str = "", area: str = "",
                main_npcs: list[dict] | None = None,
                cast: list[dict] | None = None) -> dict:
     """Remember a place (and its regulars) in the storyline when images are off.
@@ -85,7 +85,7 @@ def note_place(kingdom: str, area: str, place: list[str],
     only) each session, and pools these places with the ones it already knows.
     FIELDS:
     - place: ordered path BELOW the settlement, deepest last, at least 2 entries -- [district/neighbourhood, the exact building/room, (any room inside it, ...)]. Reuse the exact path once used.
-    - kingdom = realm; area = settlement (city/town).
+    - kingdom = realm; area = settlement (city/town). A NEW place needs both; a place the record already holds may omit them (a room's own name is enough) -- the saved address and spelling are kept.
     - main_npcs: the place's OWN regulars, [{name, role, race, class}] -- one person per entry; give race and class for each.
     - cast: recurring people NOT tied to one place (a villain, a companion), [{name, role, race, class}].
 

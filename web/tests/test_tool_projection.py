@@ -141,6 +141,35 @@ def main():
     rec("the always-drop name list still covers the originals",
         {"equipment", "current_list", "registry_summary", "narrative_format"} <= set(_GM_VIEW_ALWAYS_DROP))
 
+    print("\n-- acknowledgement tools: the outcome, never the declaration echoed back")
+    acks = {
+        "note_place": ({"status": "noted", "kingdom": "Wallachia", "area": "Câmpulung",
+                        "place": ["the market square", "the Stag inn"],
+                        "main_npcs": [], "cast": [],
+                        "note": "The place is remembered; reuse the exact path and names."},
+                       {"status"}),
+        "register_npcs": ({"status": "registered", "npcs": ["Barbu"], "count": 1,
+                           "note": "The engine stores these descriptions; use the names alone "
+                                   "from now on."},
+                          {"status", "count"}),
+        "request_scene_image": ({"status": "requested", "kingdom": "Wallachia",
+                                 "area": "Câmpulung", "place": ["a", "b"], "characters": 2,
+                                 "main_npcs": 0, "npcs": 0, "seed_requested": False,
+                                 "note": "The illustration will appear with your narrative."},
+                                {"status"}),
+    }
+    for tool, (payload, want) in acks.items():
+        view = _project(tool, payload)
+        rec(f"{tool}: the ack is its outcome only", set(view) == want, str(view))
+    # The one ack `note` that is load-bearing (register_companion's "by name alone") is
+    # guarded in test_scenes.py. A REFUSED declaration still carries its teaching fields.
+    refused = _project("note_place", {"success": False, "error": "place_address_required",
+                                      "reason": "a new place needs its settlement",
+                                      "gm_instruction": "re-send with kingdom and area"})
+    rec("... while a refused ack still carries error + reason + gm_instruction",
+        bool(refused.get("error")) and bool(refused.get("reason"))
+        and bool(refused.get("gm_instruction")), str(refused))
+
     return all(RESULTS)
 
 

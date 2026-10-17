@@ -9,7 +9,7 @@ from .protocol import (
     AWAKENING_RESUME, COMPANION_TOOL, MAX_RESUME_ROUNDS, MAX_THINKING_RETRIES,
     NARRATIVE_PHASE_TOOLS, NARRATIVE_RECOVERY_NUDGE, NPC_TOOL, PLACE_TOOL,
     PROSE_RECOVERY_NUDGE, RESUME_GUARD_NUDGE, SCENE_TOOL, _hidden_tools,
-    has_unknown_marker, is_pause, strip_markers
+    has_unknown_marker, is_pause, place_echo_nudge, strip_markers
 )
 from .session_base import OUTPUT_DIR
 
@@ -161,7 +161,14 @@ class TurnMixin:
                     # re-narrate (a duplicate segment in the client). A rejected scene
                     # call is the one case that must loop for a corrected re-call.
                     return content
-                if not self._scene_rejected and names <= NARRATIVE_PHASE_TOOLS:
+                # A tool-only round is the turn's last word when it carries only the tools the
+                # narrative phase may attach — and, in a QUIET corrective round, `note_place`
+                # too: that round exists to get the declaration the engine asked for (see
+                # `_ensure_place_note`), and looping here would send the model back to narrate
+                # invisibly into history. The batch handshake is untouched: a `note_place`
+                # batch still loops, so the model emits its `{{pause}}` and then the prose.
+                end_tools = (NARRATIVE_PHASE_TOOLS | {PLACE_TOOL}) if quiet else NARRATIVE_PHASE_TOOLS
+                if not self._scene_rejected and names <= end_tools:
                     # Tool-only accepted image call (no prose).
                     if quiet:
                         # Corrective round: the image call was the whole point and any
@@ -262,6 +269,22 @@ class TurnMixin:
             "turn": self.turn_counter,
         })
 
+    async def _ensure_place_note(self) -> None:
+        """Guarantee the turn says where the Traveller is: ONE place, so one quiet round.
+
+        Text mode's mirror of `_ensure_scene_image` -- with images on, the scene call carries
+        the place every turn -- and the one place the engine can close the honest limit "a move
+        the GM never declares cannot be inferred". It never reads the prose: a move into a room
+        the record does not hold cannot be inferred from it anyway. It checks only what THIS
+        turn declared, and asks when that is not exactly one: none (a forgotten move, a stale
+        caption) or several (the engine keeps one current place and cannot tell which of them
+        the turn ended in -- the model has the prose by now, so it can). A declaration the
+        engine refused counts as none (the GM has the refusal in its context, and this round is
+        where it corrects)."""
+        if self.scene_images or len(self._place_declarations) == 1:
+            return
+        await self._run_role(place_echo_nudge(self._place_declarations), "place-fix", quiet=True)
+
     def _match_known_place(self, narrative: str) -> tuple[str, str, list[str]]:
         """Best known (kingdom, area, place) whose path appears in the narrative."""
         text = str(narrative or "").lower()
@@ -332,12 +355,19 @@ class TurnMixin:
             raw = args.get("place")
             declared = ([str(p).strip() for p in raw if str(p or "").strip()]
                         if isinstance(raw, list) else [])
-            known = resolve_place_path(self._primed, declared)
-            if known and _scene_key(known) != _scene_key(declared):
-                self._place_note = (f'NOTE: "{path_label(declared)}" is held in the registry as '
-                                    f'"{path_label(known)}" — the saved path is used; reuse it '
-                                    "exactly.")
-                args["place"] = known
+            known = resolve_place_path(self._primed, declared, self._current_place)
+            if known:
+                # Adopt the saved spelling. The NOTE teaches; re-stating where the story
+                # already stands teaches nothing, so a repeated echo stays quiet.
+                if (_scene_key(known) != _scene_key(declared)
+                        and _scene_key((self._current_place or {}).get("place") or [])
+                        != _scene_key(known)):
+                    self._place_note = (f'NOTE: "{path_label(declared)}" is held in the '
+                                        f'registry as "{path_label(known)}" — the saved path '
+                                        "is used; reuse it exactly.")
+                    args["place"] = known
+                else:
+                    args["place"] = known
         if name in _hidden_tools(self.scene_images, self.mode):
             await self._refuse_unoffered_tool(name, fn.get("id"))
             return
@@ -346,13 +376,18 @@ class TurnMixin:
             # MCP server (which knows eras and polities, not where the story stands).
             await self._serve_places_lookup(args, fn.get("id"))
             return
-        warning = self._scene_seed_warning(args) if name == SCENE_TOOL else None
+        warning = None
+        if name == SCENE_TOOL:
+            warning = self._scene_seed_warning(args)
+        elif name == PLACE_TOOL:
+            warning = self._place_address_warning(args)
         if warning is not None:
             text, is_error = warning, True
-            self._scene_rejected = True
-            raw = args.get("place")
-            self._scene_rejected_place = ([str(p).strip() for p in raw if str(p or "").strip()]
-                                          if isinstance(raw, list) else [])
+            if name == SCENE_TOOL:
+                self._scene_rejected = True
+                raw = args.get("place")
+                self._scene_rejected_place = ([str(p).strip() for p in raw if str(p or "").strip()]
+                                              if isinstance(raw, list) else [])
         else:
             self._scene_rejected = False
             try:
@@ -368,8 +403,23 @@ class TurnMixin:
             self._remember_declared(args.get("npcs"))
         if name == COMPANION_TOOL and not is_error:
             self._remember_companion(args)
+        place_changed = False
         if name == PLACE_TOOL and not is_error:
+            before = self._current_place
+            # Asked BEFORE `_record_place_live` learns them: a regular the engine already knows
+            # exactly is not a change. Live 2026-10-17 the echo turn re-sent the whole
+            # `note_place`, regular included, on a stay turn -- and the manifest was rewritten
+            # for it. The declaration is still acknowledged and still satisfies the echo.
+            new_people = self._declares_new_people(args)
             self._record_place_live(args)
+            # The turn declared where the Traveller is: this is what `_ensure_place_note`
+            # counts. A REFUSED declaration never gets here, so the net still asks in the same
+            # turn; a second declaration in the same turn makes the count 2, which is also an
+            # ask (the engine cannot tell which of them the turn ended in).
+            filed = [str(p) for p in (args.get("place") or []) if str(p or "").strip()]
+            if filed:
+                self._place_declarations.append(filed)
+            place_changed = (not self._same_place(before, self._current_place) or new_people)
         gm_text = _gm_tool_view(name, text)
         notes: list[str] = []
         if name == SCENE_TOOL and warning is None:
@@ -452,10 +502,13 @@ class TurnMixin:
                 "turn": self.turn_counter,
             })
 
-        if name == PLACE_TOOL and not is_error:
-            await self._emit_place_note(args)
+        if name == PLACE_TOOL and not is_error and place_changed:
             # The GM's note_place is the images-off place declaration: the arrival, the caption
-            # and the primed block all follow it.
+            # and the primed block all follow it. A re-declaration of where the story already
+            # stands changes none of them -- and must not rewrite the save for it -- so the
+            # persist and the three publish steps are skipped there (`_record_place_live` has
+            # already re-stamped the live ordering).
+            await self._emit_place_note(args)
             await self._after_place_change()
 
         if name == "update_player_list":
@@ -681,7 +734,23 @@ class TurnMixin:
         area = " ".join(str(args.get("area") or "").split())
         declared_area = area
         kingdom, area = self._corrected_address(kingdom, area, place)
-        corrected = area if area != declared_area else ""
+        if not (kingdom or area):
+            # Nothing in the record names this place (a bare leaf the save has never held).
+            # An address-less place would blind the caption AND the block's scoping (`_in_area`
+            # with an empty area matches every place: the whole-era tree), so the settlement
+            # the story stands in -- the only evidence there is -- is used, and the GM is told.
+            here = self._current_place if isinstance(self._current_place, dict) else {}
+            kingdom = str(here.get("kingdom") or "")
+            area = str(here.get("area") or "")
+            if area:
+                note = (f'NOTE: "{path_label(place)}" is filed in the settlement the Traveller '
+                        f'is in ("{area}"). If it is somewhere else, re-declare it with its '
+                        "`kingdom` and `area`.")
+                self._place_note = f"{self._place_note}\n\n{note}" if self._place_note else note
+        in_record = any(_scene_key(p.get("place")) == _scene_key(place)
+                        for p in self._primed)
+        corrected = area if (area != declared_area
+                             and (declared_area or not in_record)) else ""
         # The correction must reach the manifest too (the `place_note` event is built from
         # `args`), so write it back rather than keeping it in the live session alone.
         args["kingdom"], args["area"] = kingdom, area
@@ -729,6 +798,37 @@ class TurnMixin:
                     "place is filed at the record's address; reuse its exact kingdom / area / "
                     "place path.")
             self._place_note = f"{self._place_note}\n\n{note}" if self._place_note else note
+
+    def _declares_new_people(self, args: dict) -> bool:
+        """Whether a declaration carries a regular the engine does not already know exactly.
+
+        Compared as `_npc_people` keeps them (name, role, race, class): repeating a known
+        regular is not a change, while a changed role -- or a name the map has never seen -- is.
+        Asked BEFORE `_record_place_live`, which is what teaches the map."""
+        for npc in list(args.get("main_npcs") or []) + list(args.get("cast") or []):
+            if not isinstance(npc, dict):
+                continue
+            name = " ".join(str(npc.get("name") or "").split())
+            if not name:
+                continue
+            declared = (name,
+                        " ".join(str(npc.get("role") or "").split()),
+                        " ".join(str(npc.get("race") or "").split()),
+                        " ".join(str(npc.get("class") or "").split()))
+            if self._npc_people.get(name_key(name)) != declared:
+                return True
+        return False
+
+    def _same_place(self, before, after) -> bool:
+        """Whether two `_current_place` readings name the same place at the same address.
+
+        Used to tell a RE-declaration (the turn's place echo, which changes nothing the client
+        or the save needs rewritten) from a move."""
+        if not isinstance(before, dict) or not isinstance(after, dict):
+            return False
+        return (_scene_key(before.get("place")) == _scene_key(after.get("place"))
+                and str(before.get("kingdom") or "") == str(after.get("kingdom") or "")
+                and str(before.get("area") or "") == str(after.get("area") or ""))
 
     def _set_current_place(self, kingdom: str = "", area: str = "", place=None) -> None:
         """The one writer for "where the GM is now".
@@ -790,6 +890,8 @@ class TurnMixin:
                 and label.split(",")[0].strip().lower()
                 == str(self.arrival).split(",")[0].strip().lower()):
             return
+        if label == str(self.arrival or "").strip():
+            return  # already where the story is: never write the same string again
         self.arrival = label
         await self._call_tool_text("set_player_field", {"key": "arrival", "value": label})
 
@@ -919,6 +1021,37 @@ class TurnMixin:
             "description of the place (empty and unpopulated — no people, creatures or animals), "
             "plus the same action `description`. The establishing view is generated once and is "
             "never shown to the player."
+        )
+
+    def _place_address_warning(self, args: dict) -> str | None:
+        """Reject a NEW place declared with no address and nothing to derive one from.
+
+        `kingdom` / `area` are optional once a place is known -- a declaration may name only
+        where the story stands, and the engine keeps the saved address and the saved spelling
+        -- and a bare leaf the record has never held is filed in the settlement the Traveller
+        is in, with a NOTE. What is left is the corner where there is no address anywhere: an
+        empty settlement would blind the caption and the block's scoping (an empty area matches
+        every place), so the call is refused and the result teaches it. The turn's place echo
+        still counts as unmet, so `_ensure_place_note` asks again in the same turn."""
+        raw = args.get("place")
+        place = [str(p).strip() for p in raw if str(p or "").strip()] if isinstance(raw, list) else []
+        if not place:
+            return None
+        if str(args.get("kingdom") or "").strip() or str(args.get("area") or "").strip():
+            return None
+        if resolve_place_path(self._primed, place, self._current_place):
+            return None  # a place the record holds: its address comes from there
+        kingdom, area = self._corrected_address("", "", place)
+        if kingdom or area:
+            return None  # the record's first-segment rule already names the address
+        here = self._current_place if isinstance(self._current_place, dict) else {}
+        if str(here.get("area") or "").strip():
+            return None  # filed in the settlement the story stands in (`_record_place_live`)
+        return (
+            f'WARNING: "{path_label(place)}" is not in the record and no kingdom/area was '
+            "declared, so this NEW place would be filed with no settlement at all. Call "
+            "note_place again with `kingdom` (the realm) and `area` (the settlement) — or, if "
+            "the save already holds this place, with its exact known path."
         )
 
     async def _call_tool_text(self, name: str, args: dict) -> str:
