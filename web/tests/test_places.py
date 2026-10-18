@@ -16,8 +16,8 @@ sys.path.insert(0, str(REPO))
 from web.engine import GameSession  # noqa: E402
 from web.protocol import PLACE_ECHO_NUDGE, filter_tools, render_protocol  # noqa: E402
 from web.places import (  # noqa: E402
-    KNOWN_PLACES_HEADER, KNOWN_PLACES_HEADER_TEXT, KNOWN_PLACES_EMPTY_TEXT, path_label,
-    places_query, render_places_answer, resolve_place_path,
+    KNOWN_PLACES_HEADER, KNOWN_PLACES_HEADER_TEXT, KNOWN_PLACES_EMPTY_TEXT, _npc_state,
+    _scene_key, path_label, places_query, render_places_answer, resolve_place_path,
 )
 from web.scenes import (  # noqa: E402
     SceneService, known_scene_places, known_npc_names, live_scene_manifest,
@@ -97,7 +97,7 @@ async def main() -> bool:
         rec("the place carries its regulars by name + role + race + class",
             places[0]["main_npcs"] == [{"name": "Maera", "description": "",
                                         "role": "the harbourmaster",
-                                        "race": "dwarf", "class": "rogue"}], str(places))
+                                        "race": "dwarf", "class": "rogue", "state": ""}], str(places))
         cur = current_scene_place(out, "save")
         rec("current_scene_place reports the last declared place",
             bool(cur) and cur["area"] == "Wapping" and cur["place"] == PLACE, str(cur))
@@ -351,6 +351,7 @@ async def main() -> bool:
         gsd._reload_era_scene_state()
         await gsd._execute_tool({"function": {"name": "request_scene_image", "arguments": {
             "description": "the protagonist comes back to the strongroom",
+            "establishing": "a cramped counting office, ledgers on every shelf",
             "place": ["Ropehaven Wharf", "Warehouse Nine", "counting office"]}}})
         rec("a scene call with a drifted path keeps the saved identity",
             (gsd._current_place or {}).get("place") == PLACE and not gsd._scene_rejected,
@@ -681,6 +682,82 @@ async def main() -> bool:
         rec("... while a changed role is a real update",
             any(e.get("type") == "place_note" for e in drain(gse._evt_q)))
 
+        # ── the roster is a DELTA, and a regular's state is the GM's word ──────
+        # Live 2026-10-18 a re-declaration carrying only the regular it had just met wiped
+        # the other three: a declaration adds or updates, it never removes.
+        court_entry = next(p for p in gse._primed if p["place"] == court)
+        await gse._execute_tool({"function": {"name": "note_place", "arguments": {
+            "place": ["the Stag inn"],
+            "main_npcs": [{"name": "Barbu", "role": "the ostler", "race": "human",
+                           "class": "commoner"}]}}})
+        evts = drain(gse._evt_q)
+        roster = [n["name"] for n in court_entry["main_npcs"]]
+        note = [e for e in evts if e.get("type") == "place_note"]
+        rec("a declaration ADDS a regular without losing the others",
+            "Stoica" in roster and "Barbu" in roster, str(roster))
+        rec("... and the persisted roster carries the whole list",
+            bool(note) and {n["name"] for n in note[0].get("main_npcs") or []} == set(roster),
+            str(note[0].get("main_npcs") if note else None))
+
+        await gse._execute_tool({"function": {"name": "note_place", "arguments": {
+            "place": ["the Stag inn"],
+            "main_npcs": [{"name": "Stoica", "state": "petrified"}]}}})
+        evts = drain(gse._evt_q)
+        note = [e for e in evts if e.get("type") == "place_note"]
+        stoica = next(n for n in court_entry["main_npcs"] if n["name"] == "Stoica")
+        rec("a state-only entry sets the state and keeps the identity",
+            stoica.get("state") == "petrified" and stoica.get("role")
+            and stoica.get("race") == "human" and stoica.get("class") == "commoner", str(stoica))
+        rec("... it is a real change, and earns no identity note",
+            len(note) == 1 and "race and/or class" not in gse.messages[-1]["content"],
+            gse.messages[-1]["content"])
+        rec("... the per-turn block shows it",
+            "Stoica (petrified)" in gse._places_body(), gse._places_body())
+        rec("... and the on-demand record shows it",
+            "(petrified)" in render_places_answer(gse._primed, gse._current_place,
+                                                  "places: Câmpulung"))
+
+        # `dead` is the one state the ENGINE consumes: it joins the place's death index and
+        # a later declaration cannot clear it (a death is permanent here).
+        await gse._execute_tool({"function": {"name": "note_place", "arguments": {
+            "place": ["the Stag inn"],
+            "main_npcs": [{"name": "Barbu", "state": "dead"}]}}})
+        drain(gse._evt_q)
+        rec("a declared death joins the place's death index",
+            "barbu" in court_entry["dead"], str(court_entry["dead"]))
+        await gse._execute_tool({"function": {"name": "note_place", "arguments": {
+            "place": ["the Stag inn"],
+            "main_npcs": [{"name": "Barbu", "role": "the ostler"}]}}})
+        drain(gse._evt_q)
+        rec("... and a later declaration cannot clear it",
+            next(n for n in court_entry["main_npcs"] if n["name"] == "Barbu")["state"] == "dead"
+            and "barbu" in court_entry["dead"], str(court_entry["dead"]))
+        rec("the state is capped for the block's budget",
+            len(_npc_state("x" * 60)) == 24, str(_npc_state("x" * 60)))
+
+        # Images mode has no `note_place`: the scene call carries the state there.
+        svc_i = SceneService(out)
+        square = ["Yanping Gate", "the gate square"]
+        svc_i.record_place("gate", era=ERA, kingdom="the Tang empire", area="Chang'an",
+                           place=square,
+                           main_npcs=[{"name": "Warden Gao Lian", "role": "gate warden",
+                                       "race": "human", "class": "fighter"}])
+        gss = GameSession(base_dir=Path(td), model="test", scene_images=True)
+        gss.session = _FakeMCP()
+        gss.active_name = "gate"
+        gss.era = ERA
+        gss._reload_era_scene_state()
+        drain(gss._evt_q)
+        await gss._execute_tool({"function": {"name": "request_scene_image", "arguments": {
+            "description": "the protagonist at the closing drum", "place": square,
+            "establishing": "a timber gate house, banners hanging still",
+            "main_npcs": [{"name": "Warden Gao Lian", "state": "dead"}]}}})
+        square_entry = next(p for p in gss._primed if p["place"] == square)
+        warden = next(n for n in square_entry["main_npcs"] if n["name"] == "Warden Gao Lian")
+        rec("a scene call carries a regular's state with images on (no note_place)",
+            warden.get("state") == "dead" and "warden gao lian" in square_entry["dead"]
+            and warden.get("role") == "gate warden", str(square_entry["main_npcs"]))
+
         # A NEW room named by a bare leaf: filed in the settlement the story stands in, with a
         # NOTE -- an address-less place would blind the caption and the block's scoping.
         before_primed = len(gse._primed)
@@ -749,9 +826,158 @@ async def main() -> bool:
         await gse._ensure_place_note()
         rec("... and never fires with images on (the scene call carries the place)",
             asks == [], str(asks))
+
+        # The place-less recurring people: the block shows place regulars only, so the
+        # on-demand record carries the cast as a footer (it is not redundant with the
+        # timeline -- this is the identity the engine checks declarations against).
+        gsc = GameSession(base_dir=Path(td), model="test", scene_images=False)
+        gsc.active_name = "save"
+        gsc.era = ERA
+        gsc._reload_era_scene_state()
+        footer = render_places_answer(gsc._primed, gsc._current_place, "places",
+                                      cast=gsc._cast_display.values())
+        rec("the record lists the place-less recurring people the block never shows",
+            "OTHER PEOPLE YOU KNOW:" in footer and "Corvin Hale" in footer, footer)
         gse.scene_images = False
         gse._run_role = real_run  # type: ignore[assignment]
     
+        # ── images mode: the scene call is the declaration, picture or not ────
+        stem = "images"
+        gsi = GameSession(base_dir=Path(td), model="test", scene_images=True)
+        gsi.session = _FakeMCP()
+        gsi.active_name = stem
+        gsi.era = ERA
+        gsi._reload_era_scene_state()
+        scene_args = {
+            "description": "the protagonist at the forge",
+            "kingdom": "London", "area": "Wapping",
+            "place": ["Ropehaven Wharf", "the smithy"],
+            "establishing": "a low stone smithy, cold hearth",
+            "main_npcs": [{"name": "Gorson", "role": "the smith", "race": "dwarf",
+                           "class": "fighter", "description": "a soot-stained dwarf"}],
+        }
+        await gsi._execute_tool({"function": {"name": "request_scene_image",
+                                              "arguments": dict(scene_args)}})
+        evts = drain(gsi._evt_q)
+        notes = [e for e in evts if e.get("type") == "place_note"]
+        scenes = [e for e in evts if e.get("type") == "scene_request"]
+        kinds = [e.get("type") for e in evts]
+        rec("images mode records the scene call as a place_note",
+            len(notes) == 1 and len(scenes) == 1 and notes[0]["place"] == scene_args["place"],
+            str(evts))
+        rec("... before the image request, so the browser draws into the entry",
+            kinds.index("place_note") < kinds.index("scene_request"), str(kinds))
+        rec("... and the live tree learns the place at once",
+            any(p["place"] == scene_args["place"] for p in gsi._primed)
+            and "the smithy" in gsi._places_body(), gsi._places_body())
+        for e in notes:
+            svc.record_place(stem, era=e["era"], kingdom=e["kingdom"], area=e["area"],
+                             place=e["place"], main_npcs=e["main_npcs"], cast=e["cast"])
+        entry = next((p for p in known_scene_places(out, stem, ERA)
+                      if p["place"] == scene_args["place"]), None)
+        rec("... the registry entry exists with no picture",
+            bool(entry) and entry["file"] is None and entry["seeded"] is False, str(entry))
+        rec("... and the current pointer follows the declaration",
+            (current_scene_place(out, stem) or {}).get("place") == scene_args["place"],
+            str(current_scene_place(out, stem)))
+        rec("... the roster keeps the declared look",
+            bool(entry) and entry["main_npcs"][0].get("description") == "a soot-stained dwarf",
+            str(entry["main_npcs"] if entry else None))
+        commit_scene_manifest(out, stem)
+        disk = json.loads((out / "images" / stem / "scenes" / "manifest.json")
+                          .read_text(encoding="utf-8"))
+        rec("... and a Save writes the file-less place to disk",
+            any(e.get("place") == scene_args["place"] for e in disk["seeds"].values()),
+            str(disk.get("seeds")))
+
+        gsi._scene_requested_turn = False
+        await gsi._execute_tool({"function": {"name": "request_scene_image",
+                                              "arguments": dict(scene_args)}})
+        rec("a repeated scene call writes nothing (a stay turn)",
+            not [e for e in drain(gsi._evt_q) if e.get("type") == "place_note"])
+
+        gsi._scene_requested_turn = False
+        state_change = dict(scene_args)
+        state_change["main_npcs"] = [{"name": "Gorson", "state": "dead"}]
+        await gsi._execute_tool({"function": {"name": "request_scene_image",
+                                              "arguments": state_change}})
+        state_notes = [e for e in drain(gsi._evt_q) if e.get("type") == "place_note"]
+        rec("... while a regular's state is a real change",
+            len(state_notes) == 1
+            and next(n for n in state_notes[0]["main_npcs"] if n["name"] == "Gorson")["state"]
+            == "dead",
+            str(state_notes))
+
+        gsi._scene_requested_turn = False
+        look_change = dict(scene_args)
+        look_change["main_npcs"] = [{"name": "Gorson", "role": "the smith", "race": "dwarf",
+                                     "class": "fighter",
+                                     "description": "a soot-stained dwarf with a burn scar"}]
+        await gsi._execute_tool({"function": {"name": "request_scene_image",
+                                              "arguments": look_change}})
+        look_notes = [e for e in drain(gsi._evt_q) if e.get("type") == "place_note"]
+        rec("... and a changed look is a real change too",
+            len(look_notes) == 1
+            and "burn scar" in look_notes[0]["main_npcs"][0]["description"],
+            str(look_notes))
+
+        before = dict(gsi._current_place or {})
+        gsi._scene_requested_turn = False
+        await gsi._execute_tool({"function": {"name": "request_scene_image",
+                                              "arguments": {"description": "a portrait"}}})
+        no_place = drain(gsi._evt_q)
+        rec("a portrait-only scene call leaves the current place alone",
+            before == (gsi._current_place or {})
+            and not [e for e in no_place if e.get("type") == "place_note"],
+            f"current={gsi._current_place} events={[e.get('type') for e in no_place]}")
+
+        # Known is not seeded: a file-less place still asks for `establishing`.
+        gsk = GameSession(base_dir=Path(td), model="test", scene_images=True)
+        gsk.session = _FakeMCP()
+        gsk.active_name = stem
+        gsk.era = ERA
+        gsk._reload_era_scene_state()
+        rec("a known file-less place is not treated as seeded",
+            not gsk._scene_seeded, str(gsk._scene_seeded))
+        await gsk._execute_tool({"function": {"name": "request_scene_image", "arguments": {
+            "description": "back at the smithy", "place": scene_args["place"]}}})
+        rejected = [e for e in drain(gsk._evt_q)
+                    if e.get("type") == "tool_result" and e.get("is_error")]
+        rec("... so its scene call is refused until `establishing` is supplied",
+            len(rejected) == 1 and "establishing" in rejected[0]["text"]
+            and "recorded" in rejected[0]["text"], str(rejected))
+        await gsk._execute_tool({"function": {"name": "request_scene_image", "arguments": {
+            "description": "back at the smithy", "place": scene_args["place"],
+            "establishing": "a low stone smithy, cold hearth"}}})
+        accepted = drain(gsk._evt_q)
+        rec("... and accepted once it is supplied",
+            any(e.get("type") == "scene_request" for e in accepted)
+            and _scene_key(scene_args["place"]) in gsk._scene_seeded, str(accepted))
+
+        # A real seed file flips the same place to seeded on reload.
+        live = live_scene_manifest(out, stem)
+        seed_file = "seed-smithy.png"
+        for seed in live.get("seeds", {}).values():
+            if seed.get("place") == scene_args["place"]:
+                seed["file"] = seed_file
+                seed["slug"] = "seed-smithy"
+        seed_dir = out / "images" / stem / "scenes"
+        seed_dir.mkdir(parents=True, exist_ok=True)
+        (seed_dir / seed_file).write_bytes(jpeg(80, 45))
+        reloaded = known_scene_places(out, stem, ERA)
+        seeded_entry = next((p for p in reloaded if p["place"] == scene_args["place"]), None)
+        rec("a real seed file reports seeded",
+            bool(seeded_entry) and seeded_entry["seeded"] is True
+            and seeded_entry["file"] == seed_file, str(seeded_entry))
+        gss2 = GameSession(base_dir=Path(td), model="test", scene_images=True)
+        gss2.session = _FakeMCP()
+        gss2.active_name = stem
+        gss2.era = ERA
+        gss2._reload_era_scene_state()
+        rec("... and the reloaded session treats the place as seeded",
+            any(_scene_key(p["place"]) in gss2._scene_seeded for p in gss2._primed),
+            str(gss2._scene_seeded))
+
         # The arrival is only written when it actually changes.
         gsp = GameSession(base_dir=Path(td), model="test", scene_images=False)
         gsp.session = _FakeMCP()

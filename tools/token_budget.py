@@ -145,7 +145,10 @@ def _synthetic_places(n: int, cap: int = 12) -> list[dict]:
             "area": "Eldoria City" if home else f"Zarthus City {i - cap + 1}",
             "place": [f"District {i // 3}", f"Landmark {i}"],
             "description": "",
-            "main_npcs": [{"name": f"NPC{i}A", "role": "the keeper", "description": ""},
+            # One regular carries a state: the block renders `Name (state)`, and the row must
+            # measure that worst case (a dead/petrified regular is the common one).
+            "main_npcs": [{"name": f"NPC{i}A", "role": "the keeper", "description": "",
+                           "state": "dead"},
                           {"name": f"NPC{i}B", "role": "the table-runner", "description": ""}],
             "used": n - i,
         })

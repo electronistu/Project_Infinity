@@ -106,14 +106,24 @@ class SessionBase:
         # call to carry the place, and `_ensure_place_note` asks when the count is not exactly
         # one -- none at all, or several (the engine cannot tell which one the turn ended in).
         self._place_declarations: list[list[str]] = []
-        # Known seeded places: (location_slug, sublocation_slug) -> (kingdom, area). A new
-        # place must supply `establishing` before its seed is accepted.
-        self._scene_places: dict[tuple[str, str], tuple[str, str]] = {}
+        # KNOWN places: slug path -> (kingdom, area). Identity and address only -- a place is
+        # known whether or not its picture exists. `_scene_seeded` is the subset whose hidden
+        # establishing view is on disk (or was accepted this session); a known-but-unseeded
+        # place must still supply `establishing` before its seed is accepted.
+        self._scene_places: dict[tuple[str, ...], tuple[str, str]] = {}
+        self._scene_seeded: set[tuple[str, ...]] = set()
         self._scene_rejected = False
         self._scene_rejected_place: list[str] | None = None
+        # Deaths the GM DECLARED (`state: dead`), per (era, place): one writer of death beside
+        # the combat registry. The permanent set (`_dead_perm`) and the provisional one are
+        # unioned with it for display; the index is never cleared by a declaration.
+        self._dead_declared: dict[tuple, set[str]] = {}
         # Declared NPC names (place main NPCs + the storyline cast), lowercased, and the
         # declarations buffered this turn which the server persists on the next scene call.
         self._cast_names: set[str] = set()
+        # The place-less recurring people, by identity key -> display name: the on-demand
+        # place record shows them as a footer (the per-turn block shows place regulars only).
+        self._cast_display: dict[str, str] = {}
         # Static combatant sheets (name -> rendered lines) from register_combatants, merged
         # with the live roster and sent to the client for the combatant tooltips.
         self._combat_sheets: dict[str, list[str]] = {}

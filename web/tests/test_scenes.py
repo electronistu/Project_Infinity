@@ -152,7 +152,17 @@ async def main() -> bool:
                       "npcs": [{"name": "Maera", "race": "human", "class": "rogue",
                                 "description": "a one-eared barkeep"}]},
     }})
-    scene = [e for e in drain(gs._evt_q) if e.get("type") == "scene_request"]
+    evts = drain(gs._evt_q)
+    scene = [e for e in evts if e.get("type") == "scene_request"]
+    declared = [e for e in evts if e.get("type") == "place_note"]
+    rec("the scene call declares the place through place_note",
+        len(declared) == 1 and declared[0]["place"] == ["Hask & Daughters Smithy", "the forge"]
+        and declared[0]["kingdom"] == "Kingdom of Eldoria"
+        and declared[0]["area"] == "Eldoria City", str(declared))
+    rec("... and that declaration precedes the image request",
+        [e.get("type") for e in evts].index("place_note")
+        < [e.get("type") for e in evts].index("scene_request"),
+        str([e.get("type") for e in evts]))
     rec("scene_request emitted for the GM tool",
         len(scene) == 1 and scene[0]["description"] == "a forge at dusk" and scene[0]["kind"] == "story",
         str(scene))
@@ -164,7 +174,7 @@ async def main() -> bool:
         and scene[0].get("time_of_day") == "dusk" and scene[0].get("weather") == "light rain"
         and scene[0].get("main_npcs") == [{"name": "Gorson", "role": "the smith",
                                           "race": "dwarf", "class": "fighter",
-                                          "description": "a soot-stained man"}]
+                                          "description": "a soot-stained man", "state": ""}]
         and scene[0].get("characters") == {"the smith": "hammering at the anvil"}
         and scene[0].get("npcs") == [{"name": "Maera", "race": "human", "class": "rogue",
                                       "description": "a one-eared barkeep"}])
@@ -182,7 +192,10 @@ async def main() -> bool:
                       "place": ["Hask & Daughters Smithy", "the forge"],
                       "characters": {"Gorson": "at the anvil", "three dockhands": "drinking"}},
     }})
-    results = [e for e in drain(gs._evt_q) if e.get("type") == "tool_result"]
+    repeat = drain(gs._evt_q)
+    rec("a repeated scene call (same place, same roster) declares nothing",
+        not [e for e in repeat if e.get("type") == "place_note"], str(repeat))
+    results = [e for e in repeat if e.get("type") == "tool_result"]
     note = (results[-1].get("gm_text") or "") if results else ""
     rec("the scene result echoes `on stage: Name (race class, role)` for a declared NPC",
         "on stage: Gorson (dwarf fighter, the smith)" in note, note[-160:])
@@ -305,8 +318,10 @@ async def main() -> bool:
     await gs7._execute_tool({"function": {"name": "request_scene_image", "arguments": {
         "description": "x", "place": ["Brand New Hall", "the antechamber"],
         "establishing": "a cold stone hall"}}})
+    accepted = drain(gs7._evt_q)
     rec("the same place is accepted once establishing is supplied",
-        any(e.get("type") == "scene_request" for e in drain(gs7._evt_q)))
+        any(e.get("type") == "scene_request" for e in accepted)
+        and gs7._scene_seeded, str(accepted))
     gs7._scene_requested_turn = False
     await gs7._execute_tool({"function": {"name": "request_scene_image", "arguments": {
         "description": "y", "place": ["Brand New Hall", "the antechamber"]}}})

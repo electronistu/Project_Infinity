@@ -525,7 +525,7 @@ def main() -> bool:
                 and p["description"] == "a hot forge"
                 and p["main_npcs"] == [{"name": "Gorson", "role": "the smith",
                                         "race": "human", "class": "fighter",
-                                        "description": "a burly smith"}]
+                                        "description": "a burly smith", "state": ""}]
                 for p in places), str(places))
         rec("seed_change preserved the main NPC",
             any(p["place"] == ["Hask's Smithy", "the forge"]
@@ -568,6 +568,8 @@ def main() -> bool:
             and [p["era"] for p in known_scene_places(tmp, "eratest", "wallachia")] == ["wallachia"])
         rec("known_scene_places exposes the LRU stamp",
             all(isinstance(p.get("used"), int) for p in known_scene_places(tmp, "eratest")))
+        rec("known_scene_places marks a drawn seed as seeded",
+            all(p.get("seeded") is True and p.get("file") for p in places), str(places))
 
         # a v7 manifest (no era) migrates on read, to the SAVE's era, and is not rewritten
         legacy = tmp / "images" / "legacytest" / "scenes"
@@ -663,7 +665,8 @@ def main() -> bool:
             and migrated["cast"] == {} and migrated["current"].get("place") == ["Old Place"]
             and migrated_entry.get("main_npcs") == [{"name": "",
                                                       "description": "Gorson — a burly smith",
-                                                      "role": "", "race": "", "class": ""}]
+                                                      "role": "", "race": "", "class": "",
+                                                      "state": ""}]
             and "main_npc" not in migrated_entry
             and "last_cast" not in migrated_entry, str(migrated))
         rec("migrating deletes the abandoned action files", not legacy.exists())

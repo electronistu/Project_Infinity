@@ -31,7 +31,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))  # `_scripted`, not a p
 from _scripted import response, scripted, turn  # noqa: E402
 from web.eras import playable_eras  # noqa: E402
 from web.places import _scene_key  # noqa: E402
-from web.scenes import discard_scene_manifest, known_scene_places  # noqa: E402
+from web.scenes import (current_scene_place, discard_scene_manifest,
+                        known_scene_places)  # noqa: E402
 from web.server import app  # noqa: E402
 
 try:
@@ -180,6 +181,21 @@ async def _session_one(client: httpx.AsyncClient, world: str) -> None:
                 bool(ready) and "lookup" in (ready.get("tools") or []),
                 str((ready or {}).get("tools")))
 
+            # The scene call is a declaration: with NO browser POST, the server pump still
+            # records it file-less (the picture would only add the seed later).
+            stem = Path(world).stem
+            declared = next((p for p in known_scene_places(OUTPUT, stem, saved_era)
+                             if p["place"] == SCENE_CALL["place"]), None)
+            rec("images mode records the awakening's place without a picture",
+                any(e.get("type") == "place_note" for e in sink)
+                and declared is not None and declared.get("file") is None
+                and declared.get("seeded") is False,
+                f"event={any(e.get('type') == 'place_note' for e in sink)} entry={declared}")
+            cur = current_scene_place(OUTPUT, stem) or {}
+            rec("... and the registry's current pointer follows it",
+                _scene_key(cur.get("place") or []) == _scene_key(SCENE_CALL["place"]),
+                str(cur))
+
             # 2) Action turn with a scripted tool call
             sink2: list = []
             await ws.send(json.dumps({"type": "action",
@@ -191,6 +207,9 @@ async def _session_one(client: httpx.AsyncClient, world: str) -> None:
             rec("action streamed narrative", any(e["type"] == "narrative_delta" for e in sink2))
             rec("scene_request fired for the action turn",
                 any(e.get("type") == "scene_request" for e in sink2))
+            rec("a stay turn on the same place emits no second place_note",
+                not any(e.get("type") == "place_note" for e in sink2),
+                str([e.get("type") for e in sink2]))
             rec("the turn handshake reached the client (paused)",
                 any(e.get("type") == "paused" for e in sink2),
                 str([e.get("type") for e in sink2]))

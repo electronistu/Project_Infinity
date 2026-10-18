@@ -20,7 +20,7 @@ def request_scene_image(description: str, kingdom: str = "", area: str = "",
     - time_of_day/weather: fed straight to the generator (e.g. 'dusk', 'heavy rain'); keep them out of `description`.
     - characters: dict of EVERY on-stage NPC -> their action toward the protagonist. Key = the declared NAME; never repeat a look; exact counts ('three dockhands'), never 'a few'; exclude the protagonist. A one-off extra needs no declaration (a short look in the key is used for that image only).
     - establishing: an empty, people-free, weather-free, timeless description of a NEW place (only when its seed does not exist yet).
-    - main_npcs: the place's main NPCs, only when creating the seed, [{name, role, race, class, description}] -- one person per entry; role = their function; race + class = their people and calling (the twelve SRD classes, or a plain word when none fits); description = the stable physical look only.
+    - main_npcs: the place's main NPCs, only when creating the seed or to record a regular's `state` (one short word: 'dead', 'petrified', 'gone'), [{name, role, race, class, description, state?}] -- one person per entry; role = their function; race + class = their people and calling (the twelve SRD classes, or a plain word when none fits); description = the stable physical look only.
     - npcs: recurring NPCs declared in this same call, [{name, race, class, description}]; afterwards refer to them by NAME ONLY.
     - seed_change: a PERMANENT change to the place regenerates its seed immediately.
     - mood: a short mood word for the light/atmosphere.
@@ -86,7 +86,7 @@ def note_place(place: list[str], kingdom: str = "", area: str = "",
     FIELDS:
     - place: ordered path BELOW the settlement, deepest last, at least 2 entries -- [district/neighbourhood, the exact building/room, (any room inside it, ...)]. Reuse the exact path once used.
     - kingdom = realm; area = settlement (city/town). A NEW place needs both; a place the record already holds may omit them (a room's own name is enough) -- the saved address and spelling are kept.
-    - main_npcs: the place's OWN regulars, [{name, role, race, class}] -- one person per entry; give race and class for each.
+    - main_npcs: the place's OWN regulars, [{name, role, race, class, state?}] -- one person per entry; give race and class for each. A declaration ADDS or UPDATES the people it names and never removes another; `state` is one short word for what happened to them ('dead', 'petrified', 'gone'), omitted to keep what is recorded.
     - cast: recurring people NOT tied to one place (a villain, a companion), [{name, role, race, class}].
 
     RULES:

@@ -1,8 +1,9 @@
 """The turn loop and the GM tool dispatch."""
 
 import json
+from .eras import START_ERA
 from .gm_view import _extract_legend, _gm_tool_view
-from .scenes import known_scene_places
+from .scenes import _merge_npc_lists, known_scene_places
 from .places import (_people_list, _scene_key, name_key, path_label, places_query,
                      render_places_answer, resolve_place_path)
 from .protocol import (
@@ -397,29 +398,58 @@ class TurnMixin:
             except Exception as e:  # noqa: BLE001
                 text = f"Tool error: {type(e).__name__}: {e}"
                 is_error = True
-        if name == SCENE_TOOL:
-            self._collect_declarations(args)
         if name == NPC_TOOL:
             self._remember_declared(args.get("npcs"))
         if name == COMPANION_TOOL and not is_error:
             self._remember_companion(args)
         place_changed = False
-        if name == PLACE_TOOL and not is_error:
+        raw_place = args.get("place")
+        filed = ([str(p) for p in raw_place if str(p or "").strip()]
+                 if isinstance(raw_place, list) else [])
+        if name == SCENE_TOOL:
+            # The scene call's place is a DECLARATION, recorded here like `note_place` so it no
+            # longer waits for a picture. Only the turn's FIRST accepted call applies (the
+            # engine keeps one current place); a second one is already dropped by the
+            # scene-request flag. The declarations it carries still buffer for the illustrator.
+            scene_applies = (warning is None and self.scene_images
+                             and not self._scene_requested_turn and bool(filed))
+            if scene_applies:
+                # kingdom/area are optional once a place is known: the record's first segment
+                # decides, else the deepest known ancestor supplies the settlement.
+                kingdom, area = self._corrected_address(
+                    str(args.get("kingdom") or ""), str(args.get("area") or ""), filed)
+                if not (kingdom and area):
+                    kingdom, area = self._known_address(filed, kingdom, area)
+                args["kingdom"], args["area"] = kingdom, area
+                era = self._declaration_era(scene=True)
+                # Asked BEFORE `_record_place_live` applies the delta: a roster that repeats
+                # what the place already holds is not a change and must write nothing.
+                roster_change = self._declares_roster_change(
+                    filed, args.get("main_npcs"), era=era)
+            self._collect_declarations(args)
+            if scene_applies:
+                before = self._current_place
+                self._record_place_live(args, era=era)
+                place_changed = (not self._same_place(before, self._current_place)
+                                 or roster_change)
+        if name == PLACE_TOOL and warning is None and not is_error:
             before = self._current_place
-            # Asked BEFORE `_record_place_live` learns them: a regular the engine already knows
-            # exactly is not a change. Live 2026-10-17 the echo turn re-sent the whole
-            # `note_place`, regular included, on a stay turn -- and the manifest was rewritten
-            # for it. The declaration is still acknowledged and still satisfies the echo.
-            new_people = self._declares_new_people(args)
+            # Asked BEFORE `_record_place_live` applies the delta: a declaration that repeats
+            # what the place already holds -- a regular, a field, an unchanged state -- is not
+            # a change and must write nothing. (Live 2026-10-17 an echo re-sent the whole
+            # `note_place`, regular included, on a stay turn; the save was rewritten for it.)
+            roster_change = self._declares_roster_change(
+                args.get("place"), args.get("main_npcs"), era=self._declaration_era())
+            cast_change = self._declares_new_people(args.get("cast"))
             self._record_place_live(args)
             # The turn declared where the Traveller is: this is what `_ensure_place_note`
             # counts. A REFUSED declaration never gets here, so the net still asks in the same
             # turn; a second declaration in the same turn makes the count 2, which is also an
             # ask (the engine cannot tell which of them the turn ended in).
-            filed = [str(p) for p in (args.get("place") or []) if str(p or "").strip()]
             if filed:
                 self._place_declarations.append(filed)
-            place_changed = (not self._same_place(before, self._current_place) or new_people)
+            place_changed = (not self._same_place(before, self._current_place)
+                             or roster_change or cast_change)
         gm_text = _gm_tool_view(name, text)
         notes: list[str] = []
         if name == SCENE_TOOL and warning is None:
@@ -463,24 +493,21 @@ class TurnMixin:
                                       "lines": list(self._mechanics_lines)})
         if name == SCENE_TOOL and self.scene_images and warning is None and not self._scene_requested_turn:
             self._scene_requested_turn = True
-            raw = args.get("place")
-            place = [str(p).strip() for p in raw if str(p or "").strip()] if isinstance(raw, list) else []
+            place = filed
             kingdom = str(args.get("kingdom") or "")
             area = str(args.get("area") or "")
-            # A scene call may still name the wrong area for a place the registry holds: the
-            # record decides (same rule as `note_place`).
-            kingdom, area = self._corrected_address(kingdom, area, place)
-            if str(args.get("establishing") or "") or str(args.get("seed_change") or ""):
+            if place and (str(args.get("establishing") or "")
+                          or str(args.get("seed_change") or "")):
+                # The GM supplied the establishing view: accepted for this session (the server
+                # draws it when the request arrives). The place stays unseeded ON DISK until
+                # that image exists, so a later session still asks for the GM's description.
                 self._scene_places[_scene_key(place)] = (kingdom, area)
-            if not (kingdom and area):
-                # kingdom/area are optional once a place is known: recover them from the exact
-                # path, else from the deepest known path that contains it (a new room inside a
-                # known building keeps its settlement).
-                kingdom, area = self._known_address(place, kingdom, area)
-            # The GM's scene call is the images-on place declaration: the engine now knows where
-            # the Traveller is, so the caption, the death attribution and the primed block follow.
-            self._set_current_place(kingdom, area, place)
-            await self._after_place_change()
+                self._scene_seeded.add(_scene_key(place))
+            if place_changed:
+                # Persist BEFORE the image request: the server pump awaits the write, and the
+                # browser's POST then sees the file-less entry (`ensure_scene` draws into it).
+                await self._emit_place_note(args, era=self._declaration_era(scene=True))
+                await self._after_place_change()
             # Declarations flow to the server with the image call (the single writer).
             npcs, self._pending_npcs = self._pending_npcs, []
             main_npcs = args.get("main_npcs") if isinstance(args.get("main_npcs"), list) else []
@@ -646,6 +673,7 @@ class TurnMixin:
             if not name:
                 continue
             self._cast_names.add(name_key(name))
+            self._cast_display[name_key(name)] = name
             self._pending_npcs.append({
                 "name": name,
                 "race": " ".join(str(entry.get("race") or "").split())[:40],
@@ -657,7 +685,10 @@ class TurnMixin:
         return added
 
     def _collect_declarations(self, args: dict) -> None:
-        """Declarations that ride a scene call: the `npcs` list + the place's main NPCs."""
+        """Declarations that ride a scene call: the `npcs` list + the place's main NPCs.
+
+        Buffer/remember only: applying the place and its roster is `_record_place_live`'s job
+        (both tools share it), so nothing here touches `_primed` before the change gate runs."""
         self._remember_declared(args.get("npcs"))
         main = args.get("main_npcs")
         self._remember_people(main)
@@ -720,16 +751,30 @@ class TurnMixin:
             return known_kingdom or kingdom, area
         return known_kingdom or kingdom, known_area
 
-    def _record_place_live(self, args: dict) -> None:
-        """Apply a `note_place` declaration to the live session (the tree updates at once).
+    def _declaration_era(self, scene: bool = False) -> str:
+        """The era a place declaration is filed under.
 
-        The path's identity was already resolved against the registry (`_execute_tool`); this
-        adds the address correction and keeps the live tree, the map and the arrival in step."""
+        A scene-sourced declaration must use the same era the server's `/api/scene` writer
+        uses (`session.era or START_ERA`), or a classic+images save would file one place twice:
+        file-less under no era, then seeded under the fallback era. Text mode keeps the save's
+        own convention (a classic save carries no era)."""
+        if scene:
+            return str(self.era or "") or START_ERA
+        return "" if self.classic else str(self.era or "")
+
+    def _record_place_live(self, args: dict, era: str | None = None) -> None:
+        """Apply a place declaration to the live session (the tree updates at once).
+
+        Used by both declaration tools: `note_place` (images off) and an accepted scene call
+        (images on). The path's identity was already resolved against the registry
+        (`_execute_tool`); this adds the address correction and keeps the live tree, the map,
+        the roster and the current place in step. `era` lets a scene call use the server's
+        scene-writer era instead of the text convention."""
         raw = args.get("place")
         place = [str(p).strip() for p in raw if str(p or "").strip()] if isinstance(raw, list) else []
         if not place:
             return
-        era = "" if self.classic else str(self.era or "")
+        era = self._declaration_era() if era is None else str(era or "")
         kingdom = " ".join(str(args.get("kingdom") or "").split())
         area = " ".join(str(args.get("area") or "").split())
         declared_area = area
@@ -764,6 +809,11 @@ class TurnMixin:
                 name = " ".join(str(entry.get("name") or "").split())
                 if name:
                     self._cast_names.add(name_key(name))
+        for entry in cast:
+            if isinstance(entry, dict):
+                name = " ".join(str(entry.get("name") or "").split())
+                if name:
+                    self._cast_display[name_key(name)] = name
         key = _scene_key(place)
         live = None
         for p in self._primed:
@@ -771,25 +821,40 @@ class TurnMixin:
                 live = p
                 break
         people = _people_list(main)
-        if live is None:
-            self._primed.append({"era": era, "kingdom": kingdom, "area": area,
-                                 "place": place, "description": "",
-                                 "main_npcs": people, "dead": [],
-                                 "used": self._next_place_tick()})
+        entry = live
+        if entry is None:
+            entry = {"era": era, "kingdom": kingdom, "area": area,
+                     "place": place, "description": "",
+                     "main_npcs": _merge_npc_lists([], people), "dead": [],
+                     "used": self._next_place_tick()}
+            self._note_declared_deaths(entry)
+            self._primed.append(entry)
         else:
-            live["kingdom"] = kingdom or live.get("kingdom", "")
-            live["area"] = area or live.get("area", "")
+            entry["kingdom"] = kingdom or entry.get("kingdom", "")
+            entry["area"] = area or entry.get("area", "")
             # A re-declaration is the GM saying the story MOVED here: it re-stamps the live
             # ordering, so the place just returned to is the newest one here as well (the
             # manifest re-stamps its own `used` in `record_place`).
-            live["used"] = self._next_place_tick()
+            entry["used"] = self._next_place_tick()
             if people:
-                live["main_npcs"] = people
-                # A re-declaration must not wipe liveness: keep the dead names still declared.
-                declared = {str(npc.get("name") or "").strip().lower() for npc in people}
-                live["dead"] = [n for n in (live.get("dead") or []) if str(n).lower() in declared]
+                # A DELTA, never a wipe: declared names add or update and the recorded roster
+                # stays -- live 2026-10-18 a re-declaration carrying only the regular it had
+                # just met lost the other three. A state-only entry is the whole update.
+                entry["main_npcs"] = _merge_npc_lists(entry.get("main_npcs") or [], people)
+                declared = {str(npc.get("name") or "").strip().lower()
+                            for npc in entry["main_npcs"] if isinstance(npc, dict)}
+                entry["dead"] = [n for n in (entry.get("dead") or [])
+                                 if str(n).lower() in declared]
                 self._dead_perm[(era, key)] = {n for n in self._dead_perm.get((era, key), set())
                                                if n in declared}
+                self._note_declared_deaths(entry)
+                # A declared death must show at once: the index is perm U provisional U
+                # declared, and this place just joined the third.
+                self._sync_dead_display()
+        # The event carries what the RECORD now holds, not just the delta (`record_place`
+        # applies the same merge on the manifest side).
+        if people:
+            args["main_npcs"] = [dict(npc) for npc in entry["main_npcs"]]
         # The place just declared is where the GM is now.
         self._set_current_place(kingdom, area, place)
         if corrected and corrected != declared_area:
@@ -799,13 +864,13 @@ class TurnMixin:
                     "place path.")
             self._place_note = f"{self._place_note}\n\n{note}" if self._place_note else note
 
-    def _declares_new_people(self, args: dict) -> bool:
-        """Whether a declaration carries a regular the engine does not already know exactly.
+    def _declares_new_people(self, entries) -> bool:
+        """Whether a declaration carries a person the engine does not already know exactly.
 
         Compared as `_npc_people` keeps them (name, role, race, class): repeating a known
-        regular is not a change, while a changed role -- or a name the map has never seen -- is.
-        Asked BEFORE `_record_place_live`, which is what teaches the map."""
-        for npc in list(args.get("main_npcs") or []) + list(args.get("cast") or []):
+        person is not a change, while a changed field -- or a name the map has never seen --
+        is. Used for `cast`, which only ever adds."""
+        for npc in entries or []:
             if not isinstance(npc, dict):
                 continue
             name = " ".join(str(npc.get("name") or "").split())
@@ -818,6 +883,55 @@ class TurnMixin:
             if self._npc_people.get(name_key(name)) != declared:
                 return True
         return False
+
+    def _declares_roster_change(self, place, entries, era: str | None = None) -> bool:
+        """Whether a declaration changes the PLACE's recorded roster (a name, a field, a state).
+
+        Asked BEFORE `_record_place_live` writes the delta: repeating what is already recorded
+        -- including a regular's unchanged state -- is not a change and must write nothing.
+        `description` counts: images mode can update a regular's look, and a file-less place has
+        no picture through which that update could otherwise reach the manifest."""
+        key = _scene_key(place if isinstance(place, (list, tuple)) else [place])
+        if not key:
+            return False
+        era = self._declaration_era() if era is None else str(era or "")
+        recorded: dict[str, dict] = {}
+        for p in self._primed:
+            if _scene_key(p.get("place")) == key and str(p.get("era") or "") == era:
+                recorded = {name_key(str(n.get("name") or "")): n
+                            for n in (p.get("main_npcs") or []) if isinstance(n, dict)}
+                break
+        for npc in entries or []:
+            if not isinstance(npc, dict):
+                continue
+            name = " ".join(str(npc.get("name") or "").split())
+            if not name:
+                continue
+            prior = recorded.get(name_key(name))
+            if prior is None:
+                return True
+            for field in ("role", "race", "class", "state", "description"):
+                declared = " ".join(str(npc.get(field) or "").split())
+                if declared and declared != " ".join(str(prior.get(field) or "").split()):
+                    return True
+        return False
+
+    def _note_declared_deaths(self, entry: dict) -> None:
+        """Harvest a place's declared `state: dead` regulars into this session's death index.
+
+        The GM is one writer of death, the combat registry the other; both feed
+        `_dead_declared`, which `_sync_dead_display` unions with the permanent `_dead_perm` and
+        this visit's provisional kills. The regular's own `state` is NEVER overwritten from the
+        index: it is the GM's word, and a healed NPC (a cleared provisional kill) must lose the
+        `(dead)` mark again -- which it would not if the display state had become the source."""
+        key = (str(entry.get("era") or ""), _scene_key(entry.get("place")))
+        dead = set(self._dead_declared.get(key, set()))
+        for npc in entry.get("main_npcs") or []:
+            if isinstance(npc, dict) and str(npc.get("state") or "").strip().lower() == "dead":
+                name = str(npc.get("name") or "").strip().lower()
+                if name:
+                    dead.add(name)
+        self._dead_declared[key] = dead
 
     def _same_place(self, before, after) -> bool:
         """Whether two `_current_place` readings name the same place at the same address.
@@ -904,7 +1018,8 @@ class TurnMixin:
         dead -- is answered here, rendered from the same tree the block is built from, so the
         GM never has to invent a path it cannot see. The answer is the registry's own
         spellings, so the declaration that follows resolves to the saved place."""
-        text = render_places_answer(self._primed, self._current_place, args.get("query"))
+        text = render_places_answer(self._primed, self._current_place, args.get("query"),
+                                    cast=self._cast_display.values())
         gm_text = _gm_tool_view("lookup", text)
         await self._emit({"type": "tool_result", "name": "lookup", "text": text,
                           "gm_text": gm_text, "is_error": False})
@@ -912,13 +1027,17 @@ class TurnMixin:
         if self.provider == "gemini" and call_id:
             self.messages[-1]["id"] = str(call_id)
 
-    async def _emit_place_note(self, args: dict) -> None:
-        """Tell the server to persist the place (the manifest's single writer)."""
+    async def _emit_place_note(self, args: dict, era: str | None = None) -> None:
+        """Tell the server to persist the place (the manifest's single writer).
+
+        Both modes use it: text mode's `note_place`, and an images-mode scene call whose place
+        changed. `era` is the declaring writer's era (a scene call uses the server's scene
+        convention -- see `_declaration_era`)."""
         raw = args.get("place")
         place = [str(p).strip() for p in raw if str(p or "").strip()] if isinstance(raw, list) else []
         await self._emit({
             "type": "place_note",
-            "era": "" if self.classic else str(self.era or ""),
+            "era": self._declaration_era() if era is None else str(era or ""),
             "kingdom": " ".join(str(args.get("kingdom") or "").split()),
             "area": " ".join(str(args.get("area") or "").split()),
             "place": place,
@@ -943,8 +1062,16 @@ class TurnMixin:
             name = " ".join(str(entry.get("name") or "").split())
             if not name:
                 continue
-            if not (str(entry.get("race") or "").strip() and str(entry.get("class") or "").strip()):
-                missing.append(name)
+            race = str(entry.get("race") or "").strip()
+            klass = str(entry.get("class") or "").strip()
+            if race and klass:
+                continue
+            # A state-only entry updates a regular already on record ("Huiyuan", state
+            # "petrified"): it declares no identity, so there is nothing to ask for.
+            if (str(entry.get("state") or "").strip() and not (race or klass)
+                    and name_key(name) in self._npc_people):
+                continue
+            missing.append(name)
         if not missing:
             return ""
         listed = "; ".join(f'"{n}"' for n in missing[:4])
@@ -1000,9 +1127,12 @@ class TurnMixin:
         )
 
     def _scene_seed_warning(self, args: dict) -> str | None:
-        """Reject a new-place scene call that is missing its establishing view.
+        """Reject a scene call for a place whose establishing view does not exist yet.
 
-        The GM asks for the seed once per place; re-requesting an existing seed is
+        KNOWN is not SEEDED: a declaration can be recorded (text mode, or an images-mode place
+        whose picture never arrived) with no view on disk. That place must still supply
+        `establishing`, or `ensure_scene` would invent a generic background instead of using
+        the GM's. The GM asks for the seed once per place; re-requesting an existing seed is
         harmless (the server is idempotent)."""
         if not self.scene_images:
             return None
@@ -1012,15 +1142,15 @@ class TurnMixin:
             return None  # no place -> portrait-only action, nothing to seed
         if str(args.get("establishing") or "").strip() or str(args.get("seed_change") or "").strip():
             return None
-        if _scene_key(place) in self._scene_places:
+        if _scene_key(place) in self._scene_seeded:
             return None
         where = " — ".join(place)
         return (
-            f'WARNING: no establishing view exists yet for "{where}". This is a NEW place, so '
-            "request its seed: call request_scene_image again with `establishing` = a short "
-            "description of the place (empty and unpopulated — no people, creatures or animals), "
-            "plus the same action `description`. The establishing view is generated once and is "
-            "never shown to the player."
+            f'WARNING: no establishing view exists yet for "{where}". The place is recorded, '
+            "but its seed has not been drawn, so request it: call request_scene_image again "
+            "with `establishing` = a short description of the place (empty and unpopulated — no "
+            "people, creatures or animals), plus the same action `description`. The establishing "
+            "view is generated once and is never shown to the player."
         )
 
     def _place_address_warning(self, args: dict) -> str | None:

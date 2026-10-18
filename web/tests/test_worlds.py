@@ -87,6 +87,9 @@ async def main() -> int:
             self.active_name = "_scenetest"
             self.player_path = None
 
+        async def close(self):
+            pass
+
     server_mod.manager._sessions["scenetest"] = _FakeSession()
     server_mod.manager._meta["scenetest"] = {}
     # A portrait so scene generation always has the character reference.
@@ -241,7 +244,7 @@ async def main() -> int:
                 any(p["place"] == ["Hask's Smithy", "the forge"]
                     and p["main_npcs"] == [{"name": "Gorson", "role": "the smith",
                                             "race": "dwarf", "class": "fighter",
-                                            "description": "a burly smith"}]
+                                            "description": "a burly smith", "state": ""}]
                     for p in seeded), str(seeded))
             rec("POST scene reports the NPCs it added to the cast",
                 body.get("npcs_added") == ["Maera"], str(body))

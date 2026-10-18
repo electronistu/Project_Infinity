@@ -630,11 +630,13 @@ async def delete_session(sid: str):
 
 
 def _persist_place_note(session, evt: dict) -> None:
-    """Persist a text-only `note_place` into the scene manifest (the single writer).
+    """Persist a place declaration into the scene manifest (the single writer).
 
-    Runs on a worker thread, so it may outlive its session: the session's registry generation
-    makes the write a no-op once that session has ended (its places must not leak into the
-    next session's registry)."""
+    Both modes use it: text mode's `note_place`, and an images-mode scene call whose place
+    changed (recorded file-less; the picture only adds the seed later). Runs on a worker
+    thread, so it may outlive its session: the session's registry generation makes the write a
+    no-op once that session has ended (its places must not leak into the next session's
+    registry)."""
     stem = getattr(session, "active_name", "") or ""
     if not stem:
         return

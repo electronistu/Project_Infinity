@@ -18,11 +18,12 @@ What it checks (and nothing else -- the GM's gameplay competence is the player's
   * the PLACE SURFACE, per mode: the offered tool set (`note_place` only with images off,
     `request_scene_image` + `register_npcs` only with images on); the hidden tool is never
     called and never refused; a declared move adopts the registry's EXACT saved spelling; the
-    `establishing` view is sent on the first call for a place the registry does not hold; text
-    mode declares only on movement and persists through the real server handler
-    `web.server._persist_place_note`; images mode emits exactly one `scene_request` per
-    narrative turn, attached to the prose (`kind == "story"`, never the engine's `auto`
-    fallback), carrying the recorded address, `time_of_day` and `weather`.
+    `establishing` view is sent on the first call for a place the registry does not hold; both
+    modes declare through `place_note` and persist through the real server handler
+    `web.server._persist_place_note` (images mode records the place file-less, with no browser
+    and no picture, and the picture only adds the seed later); images mode also emits exactly
+    one `scene_request` per narrative turn, attached to the prose (`kind == "story"`, never the
+    engine's `auto` fallback), carrying the recorded address, `time_of_day` and `weather`.
   * the ON-DEMAND PLACE RECORD, per mode and model-free: `lookup('places')`, a settlement
     scope and a kingdom scope are answered by the ENGINE from the live registry (never by the
     MCP server), in the registry's own spellings, with the regulars' role/race/class and the
@@ -584,7 +585,8 @@ def check_surface(mode: str, session, turns: list[dict]) -> None:
     rec(f"the hidden tool ({hidden}) is never called", hidden not in called, str(called))
     kinds = {f.get("type") for turn in turns for f in turn["frames"]}
     if images:
-        rec("images mode emits no place_note", "place_note" not in kinds, str(sorted(kinds)))
+        rec("images mode declares a place through place_note",
+            "place_note" in kinds, str(sorted(kinds)))
     else:
         rec("text mode emits no scene_request", "scene_request" not in kinds,
             str(sorted(kinds)))
@@ -594,13 +596,6 @@ def check_persistence(session, turns: list[dict], ran_ids: list[str], images: bo
     """The registry after the run: what reached it, through which writer."""
     before = known_scene_places(OUT, session.active_name, ERA)
     before_keys = {_scene_key(p["place"]) for p in before}
-    if images:
-        # No browser: nothing POSTs /api/scene, so nothing is recorded. This is the current
-        # design (see the open decision in the wiki) -- pin it so changing it is deliberate.
-        rec("images mode records no place without a browser (the current design)",
-            {_scene_key(p["place"]) for p in before} == before_keys and len(before) == len(REGISTRY),
-            f"{len(before)} entries")
-        return
     from web.server import _persist_place_note
 
     if not [i for i in ran_ids if i != "stay"]:
@@ -608,7 +603,8 @@ def check_persistence(session, turns: list[dict], ran_ids: list[str], images: bo
               flush=True)
         return
     evts = [f for turn in turns for f in turn["frames"] if f.get("type") == "place_note"]
-    rec("text mode declares a place through place_note", bool(evts), f"{len(evts)} events")
+    rec(f"{'images' if images else 'text'} mode declares a place through place_note",
+        bool(evts), f"{len(evts)} events")
     if not evts:
         return
     for evt in evts:
@@ -622,6 +618,13 @@ def check_persistence(session, turns: list[dict], ran_ids: list[str], images: bo
         rec("a move into an unrecorded place reaches the registry (the real server handler)",
             bool(fresh) and all(str(p.get("area") or "") for p in fresh),
             str([(p["area"], p["place"]) for p in fresh]))
+        if images:
+            # No browser and no POST: the declaration still reaches the registry, without a
+            # picture. The seed is drawn when an image is finally requested.
+            rec("images mode records the declaration without a browser (file-less)",
+                bool(fresh) and all(p.get("file") is None and p.get("seeded") is False
+                                    for p in fresh),
+                str([(p.get("file"), p.get("seeded")) for p in fresh]))
     current = current_scene_place(OUT, session.active_name) or {}
     declared = [str(x) for x in evts[-1].get("place") or []]
     rec("the registry's current pointer follows the last move",

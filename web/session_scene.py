@@ -11,7 +11,8 @@ if str(REPO_ROOT) not in sys.path:
 
 from .eras import render_era_text
 from .gm_view import _trim_legend
-from .scenes import current_scene_place, known_npc_names, known_scene_places, mark_place_dead
+from .scenes import (current_scene_place, known_cast_names, known_npc_names,
+                     known_scene_places, mark_place_dead)
 from .places import _scene_key, name_key, places_feed
 from .player_file import _jump_reset_note, _sheet_body
 from .protocol import (
@@ -58,10 +59,12 @@ class SceneMixin:
         # touches this session always outranks one that was merely loaded.
         self._place_tick = max((int(p.get("used") or 0) for p in places), default=0)
         self._dead_perm = {}
+        self._dead_declared = {}
         for p in places:
             self._dead_perm[(str(p.get("era") or ""), _scene_key(p.get("place")))] = {
                 str(n).strip().lower() for n in (p.get("dead") or []) if str(n or "").strip()}
         self._scene_places = {_scene_key(p["place"]): (p["kingdom"], p["area"]) for p in places}
+        self._scene_seeded = {_scene_key(p["place"]) for p in places if p.get("seeded")}
         try:
             self._current_place = current_scene_place(
                 self.base_dir / OUTPUT_DIR, self.active_name or "")
@@ -70,8 +73,12 @@ class SceneMixin:
         try:
             self._cast_names = {name_key(n) for n in
                                known_npc_names(self.base_dir / OUTPUT_DIR, self.active_name or "")}
+            self._cast_display = {name_key(n): n for n in
+                                 known_cast_names(self.base_dir / OUTPUT_DIR,
+                                                  self.active_name or "")}
         except Exception:  # noqa: BLE001
             self._cast_names = set()
+            self._cast_display = {}
         # Identity is learned from the era's places so the on-stage echo works from the
         # first tool call on. It is never primed.
         self._npc_people = {}
@@ -84,7 +91,9 @@ class SceneMixin:
         into each primed place, for `format_known_places`."""
         for p in self._primed:
             key = (str(p.get("era") or ""), _scene_key(p.get("place")))
-            dead = set(self._dead_perm.get(key, set())) | self._dead_provisional.get(key, set())
+            dead = (set(self._dead_perm.get(key, set()))
+                    | set(self._dead_provisional.get(key, set()))
+                    | set(self._dead_declared.get(key, set())))
             p["dead"] = sorted(dead)
 
     def _track_main_npc_deaths(self, summary) -> None:

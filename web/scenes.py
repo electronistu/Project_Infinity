@@ -1,10 +1,10 @@
 """The scene side: the place/NPC registry and the scene image service.
 
 `SceneService` draws a hidden establishing **seed** per place plus a visible one-shot
-**action**. Its companion registry (the seeded places and their declared NPCs) lives in
-memory until the player saves (`commit_scene_manifest`) or the session ends
-(`discard_scene_manifest`). Shared image plumbing -- the image backends, config loading
-and the prompt helpers -- lives in `web.backends` / `web.images`; this module imports
+**action**. Its companion registry (known places -- with or without a picture -- and their
+declared NPCs) lives in memory until the player saves (`commit_scene_manifest`) or the
+session ends (`discard_scene_manifest`). Shared image plumbing -- the image backends, config
+loading and the prompt helpers -- lives in `web.backends` / `web.images`; this module imports
 them, never the reverse.
 """
 
@@ -38,6 +38,9 @@ from .imageassets import (
     write_bytes_atomic,
     write_json_atomic,
 )
+# Character identity is the same key everywhere (`Master_Guo` = `Master Guo`): the roster
+# merge must not file one person twice because of a separator.
+from .places import _npc_state, name_key
 
 
 _PROTAGONIST_LINE = "The protagonist is a {race} {class}. {gear}"
@@ -64,16 +67,65 @@ _SCENE_PROTAGONIST_GUARD = (
 
 
 def _npc_fields(value) -> dict:
-    """Normalize a declared NPC to {name, description, role, race, class}. A legacy plain
-    string is a description. `race`/`class` are required of the GM but default to ''."""
+    """Normalize a declared NPC to {name, description, role, race, class, state}. A legacy
+    plain string is a description. `race`/`class` are required of the GM but default to ''."""
     if isinstance(value, dict):
         return {"name": re.sub(r"\s+", " ", str(value.get("name") or "")).strip(),
                 "description": re.sub(r"\s+", " ", str(value.get("description") or "")).strip(),
                 "role": re.sub(r"\s+", " ", str(value.get("role") or "")).strip(),
                 "race": re.sub(r"\s+", " ", str(value.get("race") or "")).strip(),
-                "class": re.sub(r"\s+", " ", str(value.get("class") or "")).strip()}
+                "class": re.sub(r"\s+", " ", str(value.get("class") or "")).strip(),
+                "state": _npc_state(value.get("state"))}
     return {"name": "", "description": re.sub(r"\s+", " ", str(value or "")).strip(),
-            "role": "", "race": "", "class": ""}
+            "role": "", "race": "", "class": "", "state": ""}
+
+
+def _merge_npc_lists(recorded, declared) -> list[dict]:
+    """A place's roster after a declaration: declared names add or update, the rest STAY.
+
+    A declaration is a DELTA. Live 2026-10-18 a re-declaration carrying only the regular it
+    had just met wiped the other three: the roster must never be lost by omission, which is
+    also what lets a one-entry `{"name": ..., "state": "petrified"}` be the whole update. A
+    field the declaration leaves empty never blanks the recorded one."""
+    merged: list[dict] = []
+    index: dict[str, int] = {}
+    for entry in recorded or []:
+        fields = _npc_fields(entry)
+        if not fields["name"]:
+            continue
+        index[name_key(fields["name"])] = len(merged)
+        merged.append(fields)
+    for entry in declared or []:
+        fields = _npc_fields(entry)
+        if not fields["name"]:
+            continue
+        at = index.get(name_key(fields["name"]))
+        if at is None:
+            index[name_key(fields["name"])] = len(merged)
+            merged.append(fields)
+            continue
+        prior = merged[at]
+        for field in ("name", "description", "role", "race", "class", "state"):
+            if fields[field]:
+                prior[field] = fields[field]
+    return merged
+
+
+def _sync_dead_states(entry: dict) -> None:
+    """Keep a seed entry's death index in step with its regulars' declared `state`.
+
+    `dead` is the engine's permanent index (a combat kill freezes into it at Save); a declared
+    `state: dead` joins it. Any other state is the GM's word for the fiction and renders as
+    given, while the index -- and so "a death is never cleared by silence" -- stays."""
+    for npc in _seed_main_npcs(entry):
+        if str(npc.get("state") or "").strip().lower() == "dead" and npc["name"]:
+            entry["dead"] = sorted({*_dead_names(entry), npc["name"].strip().lower()} - {""})
+
+
+def _merged_roster(main_npcs, prior) -> list[dict]:
+    """The roster to store for a place: the declaration as a delta over what it already holds."""
+    recorded = _seed_main_npcs(prior)
+    return _merge_npc_lists(recorded, _npc_list(main_npcs or []))
 
 
 def _npc_list(value) -> list[dict]:
@@ -377,12 +429,20 @@ def current_scene_place(output_dir, stem: str) -> dict | None:
 
 
 def known_scene_places(output_dir, stem: str, era: str | None = None) -> list[dict]:
-    """Seeded places for a save: {era, kingdom, area, place, description, main_npcs, used}.
+    """Known places for a save: {era, kingdom, area, place, description, main_npcs, used,
+    file, seeded}.
+
+    A place is KNOWN as soon as it is declared, with or without a picture; `seeded` says
+    whether its hidden establishing view exists on disk. `file` is the manifest's own field
+    (the seed's filename), or None for a file-less declaration (text mode, or an images-mode
+    place whose picture has not been drawn yet). The engine treats known-but-unseeded as still
+    needing `establishing`, so a recorded place cannot suppress the seed prompt.
 
     `era` scopes the list to one era. A place with no era -- only possible from a
     manifest written before v8, which the next write re-keys -- matches any era.
     """
     data = live_scene_manifest(output_dir, stem, era or "")
+    scenes = _scenes_dir_for(output_dir, stem)
     want_era = None if era is None else str(era).strip().lower()
     seen: set[tuple[str, str, str, tuple[str, ...]]] = set()
     out: list[dict] = []
@@ -399,13 +459,32 @@ def known_scene_places(output_dir, stem: str, era: str | None = None) -> list[di
         if not place or key in seen:
             continue
         seen.add(key)
+        file = str(entry.get("file") or "").strip()
         out.append({"era": entry_era, "kingdom": kingdom, "area": area, "place": place,
                     "description": str(entry.get("description") or "").strip(),
                     "main_npcs": _seed_main_npcs(entry),
                     "dead": _dead_names(entry),
-                    "used": int(entry.get("used") or entry.get("created") or 0)})
+                    "used": int(entry.get("used") or entry.get("created") or 0),
+                    "file": file or None,
+                    "seeded": bool(file) and (scenes / file).is_file()})
     return sorted(out, key=lambda p: (p["era"].lower(), p["kingdom"].lower(), p["area"].lower(),
                                       [s.lower() for s in p["place"]]))
+
+
+def known_cast_names(output_dir, stem: str) -> list[str]:
+    """The save's recurring people NOT tied to one place (the manifest's `cast`), by name.
+
+    The per-turn block shows place regulars only, so the on-demand record carries these as a
+    footer: the GM declared them, and must never re-describe them."""
+    data = live_scene_manifest(output_dir, stem)
+    raw = data.get("cast") if isinstance(data, dict) else None
+    names: list[str] = []
+    if isinstance(raw, dict):
+        for entry in raw.values():
+            name = _npc_fields(entry)["name"]
+            if name:
+                names.append(name)
+    return sorted(names)
 
 
 def known_npc_names(output_dir, stem: str) -> set[str]:
@@ -999,9 +1078,10 @@ class SceneService(ImageBackendHolder):
                 kingdom = str(found.get("kingdom") or "")
                 area = str(found.get("area") or "")
                 path = _place_path(found.get("place")) or path
-        # A text-only (`note_place`) entry is seed-shaped but has no image. Treat it as
-        # unseeded so enabling images draws it now -- preserving its declared main NPCs
-        # and description -- instead of treating the metadata as an already-drawn seed.
+        # A file-less declaration (text mode, or an images-mode place whose picture was never
+        # drawn) is seed-shaped but has no image. Treat it as unseeded so enabling images draws
+        # it now -- preserving its declared main NPCs and description -- instead of treating the
+        # metadata as an already-drawn seed.
         text_entry = None
         if seed is not None and self._file_bytes(stem, seed) is None:
             text_entry = seed
@@ -1010,7 +1090,7 @@ class SceneService(ImageBackendHolder):
         style_changed = seed is not None and seed.get("style") != effective_style
         if seed is None:
             label = " — ".join(path) or "an unnamed place"
-            seed_main = main_npcs if main_npcs else _seed_main_npcs(text_entry)
+            seed_main = _merged_roster(main_npcs, text_entry)
             seed_desc = establishing or str((text_entry or {}).get("description") or "")
             raw = self.generate_seed(world, kingdom, area, path,
                                      seed_desc or f"An atmospheric view of {label}.",
@@ -1029,9 +1109,16 @@ class SceneService(ImageBackendHolder):
                                      model=effective, style=effective_style)
             seed = self._store_seed(stem, manifest, kingdom, area, path,
                                     establishing or str(seed.get("description") or ""),
-                                    main_npcs if main_npcs else _seed_main_npcs(seed), raw,
+                                    _merged_roster(main_npcs, seed), raw,
                                     existing=seed, style=effective_style, era=era)
             seed_regenerated = True
+        elif main_npcs:
+            # A declaration on an EXISTING place: the roster is a delta (a new regular, or a
+            # state -- images mode has no `note_place`, so the scene call is its only carrier).
+            seed["main_npcs"] = _merged_roster(main_npcs, seed)
+
+        if seed is not None:
+            _sync_dead_states(seed)
 
         # Always draw from the place's empty establishing seed + the portrait. Chaining
         # from the previous action made the model duplicate the figures already in it.
@@ -1088,17 +1175,17 @@ class SceneService(ImageBackendHolder):
 
         return self._mutate_manifest(stem, apply, era=era, generation=generation)
 
-    # ── text-only registry (images off; no generation) ──────────────────────
+    # ── file-less declarations (text mode, or an images-mode place never drawn) ──
 
     def record_place(self, stem: str, era: str = "", kingdom: str = "", area: str = "",
                      place=None, main_npcs=None, cast=None, description: str = "",
                      generation=None) -> dict:
-        """Remember a place (and its regulars) with no image: the text-only registry.
+        """Remember a place (and its regulars) with no image: the file-less registry.
 
-        Used when storyline images are off, so the GM keeps the same place/NPC continuity
-        the manifest gives the image path. The entry is seed-shaped with `file: None`, and
-        `ensure_scene` later treats a file-less entry as unseeded and draws it. Names +
-        roles only: `cast` keeps its description empty (looks are image-only).
+        Used for a place DECLARED without a picture: text mode, and an images-mode scene call
+        whose image never arrives (no browser, no image backend). The entry is seed-shaped with
+        `file: None`, and `ensure_scene` later treats a file-less entry as unseeded and draws
+        it. Names + roles only: `cast` keeps its description empty (looks are image-only).
         `generation` is the declaring session's registry write ticket: a declaration whose
         session has already ended is refused (`{"recorded": False, "stale": True}`) instead of
         writing a place into the next session's registry.
@@ -1133,8 +1220,11 @@ class SceneService(ImageBackendHolder):
                 if description:
                     entry["description"] = str(description)
                 if main:
-                    entry["main_npcs"] = main
+                    # A declaration is a DELTA: add/update, never wipe the recorded roster (a
+                    # state-only entry is the whole update, and a wipe loses the dead marks).
+                    entry["main_npcs"] = _merge_npc_lists(_seed_main_npcs(entry), main)
                 entry["used"] = now
+            _sync_dead_states(entry)
             _prune_dead(entry)
             cast_map = manifest.setdefault("cast", {})
             added: list[str] = []

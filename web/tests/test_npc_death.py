@@ -143,19 +143,24 @@ async def main() -> bool:
         rec("after a Save + reload the dead NPC is still fed as dead",
             "Maera (dead)" in gs2._places_body(), gs2._places_body())
 
-        # ── re-declaration preserves liveness, dropping names no longer present ─
+        # ── a declaration is a DELTA: it never removes a regular or a death ──
+        # (Until 2026-10-18 the roster was REPLACED by the declaration, so re-declaring without
+        # the dead name dropped it; live play then showed a declaration carrying only the
+        # regular it had just met wiping the other three, so the roster only adds or updates.)
         svc.record_place("save", era=ERA, kingdom="London", area="Wapping", place=PLACE,
                          main_npcs=[{"name": "Bess", "role": "the lamp-lighter"}])
         after = _place_of(known_scene_places(out, "save", ERA), PLACE)
-        rec("re-declaring without the dead name drops it from `dead`",
-            after["dead"] == [], str(after))
+        rec("declaring one regular keeps the others already recorded",
+            {n["name"] for n in after["main_npcs"]} >= {"Maera", "Bess"}, str(after))
+        rec("... and keeps the dead mark (a declaration removes nothing)",
+            after["dead"] == ["maera"], str(after))
         mark_place_dead(out, "save", ERA, "London", "Wapping", PLACE, ["Bess"])
         svc.record_place("save", era=ERA, kingdom="London", area="Wapping", place=PLACE,
                          main_npcs=[{"name": "Bess", "role": "the lamp-lighter"},
                                     {"name": "the new keeper", "role": "the keeper"}])
         after = _place_of(known_scene_places(out, "save", ERA), PLACE)
-        rec("re-declaring preserves the dead flag for a surviving name",
-            after["dead"] == ["bess"], str(after))
+        rec("re-declaring preserves every dead flag",
+            after["dead"] == ["bess", "maera"], str(after))
 
         # ── a killed CAST member is not annotated (cast is the timeline's) ────
         gs3 = _session(td)
@@ -185,7 +190,8 @@ async def main() -> bool:
         rec("the session opens where the save last stood",
             (gsx._current_place or {}).get("place") == market, str(gsx._current_place))
         await gsx._execute_tool({"function": {"name": "request_scene_image", "arguments": {
-            "description": "the protagonist climbs the gantry", "place": gasworks}}})
+            "description": "the protagonist climbs the gantry", "place": gasworks,
+            "establishing": "a soot-black gasworks, iron stairs and cold retorts"}}})
         rec("a scene call in a known place moves the engine's idea of where the GM is",
             (gsx._current_place or {}).get("place") == gasworks
             and (gsx._current_place or {}).get("area") == "Wapping", str(gsx._current_place))

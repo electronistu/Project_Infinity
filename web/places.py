@@ -155,19 +155,33 @@ def name_key(value) -> str:
     return " ".join(_NAME_SEPARATORS.sub(" ", str(value or "")).split()).lower()
 
 
+# A regular's state is the GM's word for what happened to them ("dead", "petrified",
+# "gone"). One short word, because it rides the per-turn block; `dead` is the one value the
+# engine consumes (it feeds the death index), every other value is the fiction's.
+STATE_MAX = 24
+
+
+def _npc_state(value) -> str:
+    """A declared state, trimmed and capped for the block's budget."""
+    return " ".join(str(value or "").split())[:STATE_MAX].strip()
+
+
 def _people_list(value) -> list[dict]:
-    """Normalize a `note_place` people list to the seed shape ({name, role, race, class},
-    empty look)."""
+    """Normalize a declared people list to the seed shape ({name, description, role, race,
+    class, state}). The look is kept: a scene call's `main_npcs` carry it (the image prompt
+    needs it), while `note_place` carries none and gets an empty description."""
     out: list[dict] = []
     for entry in value or []:
         if not isinstance(entry, dict):
             continue
         name = " ".join(str(entry.get("name") or "").split())
         if name:
-            out.append({"name": name, "description": "",
+            out.append({"name": name,
+                        "description": " ".join(str(entry.get("description") or "").split()),
                         "role": " ".join(str(entry.get("role") or "").split()),
                         "race": " ".join(str(entry.get("race") or "").split()),
-                        "class": " ".join(str(entry.get("class") or "").split())})
+                        "class": " ".join(str(entry.get("class") or "").split()),
+                        "state": _npc_state(entry.get("state"))})
     return out
 
 
@@ -273,13 +287,20 @@ def format_known_places(places: list[dict], cap: int = NPC_NAMES_PER_PLACE, here
             lines[-1] += " · ← you are here"
         npc_labels: list[str] = []
         dead = {str(n).strip().lower() for n in (p.get("dead") or []) if str(n or "").strip()}
-        names = [str(npc.get("name") or "").strip() for npc in (p.get("main_npcs") or [])
-                 if isinstance(npc, dict)]
-        names = [n for n in names if n]
-        labels = [f"{n} (dead)" if n.lower() in dead else n for n in names]
+        labels: list[str] = []
+        for npc in (p.get("main_npcs") or []):
+            if not isinstance(npc, dict):
+                continue
+            name = str(npc.get("name") or "").strip()
+            if not name:
+                continue
+            # The engine's death index wins (a death is permanent here); any other state is
+            # the GM's word and renders as given.
+            state = "dead" if name.lower() in dead else str(npc.get("state") or "").strip()
+            labels.append(f"{name} ({state})" if state else name)
         npc_labels.extend(labels[:cap])
-        if len(names) > cap:
-            npc_labels.append(f"+{len(names) - cap}")
+        if len(labels) > cap:
+            npc_labels.append(f"+{len(labels) - cap}")
         if npc_labels:
             label = "NPC" if len(npc_labels) == 1 else "NPCs"
             lines[-1] += f" · {label}: " + ", ".join(npc_labels)
@@ -363,7 +384,8 @@ def _regulars(place: dict) -> list[str]:
         people = " ".join(x for x in (str(npc.get("race") or "").strip(),
                                       str(npc.get("class") or "").strip()) if x)
         what = ", ".join(x for x in (role, people) if x) or "no role recorded"
-        out.append(f"{name} — {what}" + (" (dead)" if name.lower() in dead else ""))
+        state = "dead" if name.lower() in dead else str(npc.get("state") or "").strip()
+        out.append(f"{name} — {what}" + (f" ({state})" if state else ""))
     return out
 
 
@@ -400,29 +422,36 @@ def _map_lines(groups: dict, current: dict | None) -> list[str]:
     return lines
 
 
-def render_places_answer(places: list[dict], current: dict | None, query) -> str:
+def _cast_footer(cast) -> list[str]:
+    """The recurring people the block never shows: place-less by definition."""
+    names = [str(n).strip() for n in (cast or []) if str(n or "").strip()]
+    return [f"OTHER PEOPLE YOU KNOW: {', '.join(names)}"] if names else []
+
+
+def render_places_answer(places: list[dict], current: dict | None, query, cast=()) -> str:
     """The on-demand place record, or "" when the query is not a place query.
 
     `places` = the map; `places: <name>` = a settlement's places, or a kingdom's settlements
     and their places -- both, labelled, when one name is a kingdom and a settlement here. A
     name that matches nothing returns the map, so a wrong guess teaches the right one instead
-    of inventing anything."""
+    of inventing anything. `cast` is the place-less recurring people, shown as a footer."""
     parsed = places_query(query)
     if parsed is None:
         return ""
     kind, arg = parsed
     groups = _area_groups(places)
     if not groups:
-        return "PLACES: none recorded yet."
+        return "\n".join(["PLACES: none recorded yet.", *_cast_footer(cast)])
     if kind == "map" or not arg:
-        return "\n".join([PLACES_MAP_HEADER, *_map_lines(groups, current)])
+        return "\n".join([PLACES_MAP_HEADER, *_map_lines(groups, current),
+                           *_cast_footer(cast)])
     want = _place_identity(arg)
     by_recency = _areas_by_recency(groups)
     kingdom_areas = [k for k in by_recency if _place_identity(k[0]) == want]
     area_keys = [k for k in by_recency if _place_identity(k[1]) == want]
     if not kingdom_areas and not area_keys:
         return "\n".join([f'PLACES: no kingdom or settlement here is called "{arg}" — you know:',
-                          *_map_lines(groups, current)])
+                          *_map_lines(groups, current), *_cast_footer(cast)])
     here_path = [str(x).strip() for x in ((current or {}).get("place") or [])]
     here_area = (str((current or {}).get("kingdom") or "").strip(),
                  str((current or {}).get("area") or "").strip())
@@ -443,8 +472,8 @@ def render_places_answer(places: list[dict], current: dict | None, query) -> str
         sections.append("\n".join(lines))
     if len(sections) > 1:
         return "\n".join([f'"{arg}" is both a kingdom and a settlement here — both:',
-                          *sections])
-    return sections[0]
+                          *sections, *_cast_footer(cast)])
+    return "\n".join([sections[0], *_cast_footer(cast)])
 
 
 def places_feed(places: list[dict], current: dict | None, scene_images: bool) -> str:
