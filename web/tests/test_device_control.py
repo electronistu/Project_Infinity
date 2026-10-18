@@ -324,8 +324,9 @@ def main():
         "the west market" in landing_block and "the stalls · ← you are here" in landing_block,
         landing_block[-200:])
     picked_text = "".join(str(m.get("content") or "") for m in picked.messages)
-    rec("... and the GM is told the place, not sent to choose one",
-        f"You arrive at {picked.arrival}." in picked_text
+    rec("... and the GM is told the exact place, not sent to choose one",
+        "You arrive at the west market — the stalls, in Chang'an." in picked_text
+        and "The Device has put the Traveller exactly here" in picked_text
         and "choose where the Traveller lands" not in picked_text)
 
     # -- the area alone: the GM chooses inside it -------------------------------
@@ -414,10 +415,15 @@ def main():
     rec("... the move is ONE turn, with both departure captures off",
         same.turn_calls == [("jump", {"capture_legend": False, "capture_state": False})],
         str(same.turn_calls))
+    landing_notes = [e for e in events if e.get("type") == "place_note"]
+    rec("... the chosen landing reaches the manifest before the GM speaks",
+        landing_notes and landing_notes[0].get("place") == ["The quarry", "the working face"],
+        str(landing_notes[:1]))
     rec("... the GM is told it is the same session and the people react",
         "SITUATION: DEVICE MOVE" in same_text
         and "same session and the same story" in same_text
-        and "You arrive at The quarry, in Giza." in same_text, same_text[-300:])
+        and "You arrive at The quarry — the working face, in Giza." in same_text
+        and "The Device has put the Traveller exactly here" in same_text, same_text[-300:])
 
     same_ward = _session(era="egypt")
     same_ward.active_name = "save"
@@ -433,7 +439,7 @@ def main():
     rec("a same-age ward-only release lands in the ward and leaves the spot to the GM",
         same_ward.arrival == "Ward A, in Giza"
         and same_ward._current_place.get("place") == []
-        and "Ward A ward of Giza" in ward_text,
+        and "You arrive in Ward A, in Giza; choose the exact place inside it." in ward_text,
         f"{same_ward.arrival} / {same_ward._current_place}")
 
     same_any = _session(era="egypt")
@@ -448,6 +454,76 @@ def main():
     same_fight._in_combat = True
     asyncio.run(same_fight._device_release({"era": "egypt"}))
     rec("a same-age release is refused in combat too", same_fight.turn_calls == [])
+
+    # -- a chosen landing is authoritative for the jump turn --------------------
+    print("\n-- the chosen landing cannot be replaced")
+    landing = {"kingdom": "Egypt", "area": "Giza",
+               "place": ["The quarry", "the working face"]}
+    known = {"kingdom": "Egypt", "area": "Giza",
+             "place": ["The quarry", "the market square"]}
+    sibling = ["The quarry", "the shuttered lane"]
+    descendant = ["The quarry", "the working face", "the shaft"]
+
+    def _locked_session():
+        gs = _session(era="egypt")
+        gs.scene_images = False  # note_place is the offered declaration in text mode
+        gs._primed = [
+            dict(landing, era="egypt", main_npcs=[], dead=[], used=10),
+            dict(known, era="egypt", main_npcs=[], dead=[], used=9),
+        ]
+        gs._current_place = dict(landing, era="egypt")
+        gs.arrival = "The quarry, in Giza"
+        gs._landing_lock = dict(landing)
+        return gs
+
+    blocked = _locked_session()
+    asyncio.run(blocked._execute_tool({"function": {"name": "note_place", "arguments": {
+        "place": sibling, "kingdom": "Egypt", "area": "Giza", "main_npcs": []}}}))
+    sibling_events = [e for e in _drain(blocked) if e.get("type") == "place_note"]
+    blocked_text = str(blocked.messages[-1].get("content") or "")
+    rec("a new sibling on a locked landing is persisted but does not move the Traveller",
+        blocked._current_place.get("place") == landing["place"]
+        and blocked._place_blocked_now is True and blocked._landing_blocked is True
+        and any(p.get("place") == sibling for p in blocked._primed)
+        and any(e.get("place") == sibling for e in sibling_events)
+        and "Device landed" in blocked_text, blocked_text[-200:])
+    asyncio.run(blocked._unlock_landing())
+    final_notes = [e for e in _drain(blocked) if e.get("type") == "place_note"]
+    rec("... the landing is restored, and its corrective note is the last write",
+        blocked._current_place.get("place") == landing["place"]
+        and blocked._landing_lock is None and blocked._landing_blocked is False
+        and final_notes and final_notes[-1].get("place") == landing["place"],
+        str(final_notes[-1].get("place") if final_notes else None))
+
+    moved = _locked_session()
+    moved._record_place_live({"place": known["place"], "kingdom": "Egypt", "area": "Giza"})
+    rec("a place the registry already holds is a real move, and it stands",
+        moved._current_place.get("place") == known["place"]
+        and moved._place_blocked_now is False)
+
+    inside = _locked_session()
+    inside._record_place_live({"place": descendant, "kingdom": "Egypt", "area": "Giza"})
+    rec("a room inside the landing is a real move, and it stands",
+        inside._current_place.get("place") == descendant
+        and inside._place_blocked_now is False)
+
+    echo = _locked_session()
+    echo_calls = []
+
+    async def _no_echo(*a, **k):
+        echo_calls.append(a)
+
+    echo._run_role = _no_echo
+    asyncio.run(echo._ensure_place_note())
+    rec("a locked landing needs no text-mode place echo", echo_calls == [])
+
+    queued = _session(era="egypt")
+    asyncio.run(queued.submit_device("release", "tang", "Chang'an", "", "West Market"))
+    queued_cmd = queued._cmd_q.get_nowait()
+    rec("the queue/WS path keeps the chosen ward",
+        queued_cmd.get("group") == "West Market"
+        and queued_cmd.get("era") == "tang" and queued_cmd.get("place") == "",
+        str(queued_cmd))
 
     # -- the GM's declaration is the arrival ------------------------------------
     print("\n-- the GM's declaration is the arrival")

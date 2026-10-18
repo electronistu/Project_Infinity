@@ -13,7 +13,7 @@ from .eras import render_era_text
 from .gm_view import _trim_legend
 from .scenes import (current_scene_place, known_cast_names, known_cast_people,
                      known_npc_names, known_scene_places, mark_place_dead)
-from .places import _scene_key, name_key, places_feed
+from .places import _scene_key, name_key, path_label, places_feed
 from .player_file import _jump_reset_note, _sheet_body
 from .protocol import (
     CARRY_NOTE, DEVICE_CLOSES, DEVICE_DECLARES, DEVICE_FIRES, DEVICE_MOVES, ERA_STATE_ASK,
@@ -370,9 +370,9 @@ class SceneMixin:
         # The new age's caption now (era only when the GM still has to choose the landing).
         await self._emit_caption()
         if landing:
-            landing_line = f"You arrive at {self.arrival}."
+            landing_line = self._landing_line(landing)
         elif ward:
-            landing_line = (f"You arrive in the {ward['group']} ward of {chosen_area}; "
+            landing_line = (f"You arrive in {ward['group']}, in {chosen_area}; "
                             "choose the exact place inside it.")
         elif chosen_area:
             landing_line = f"You arrive in {chosen_area}; choose the exact place inside it."
@@ -392,8 +392,60 @@ class SceneMixin:
         # with a holding line -- "I'll consult the era first." -- which stalled the turn.
         if not self.classic:
             jump = f"{jump}\n\n{JUMP_ERA_LABEL}\n{render_era_text(self.era)}"
-        await self._run_turn(jump, "jump")
+        if landing:
+            # The player chose the exact landing: it is authoritative for this turn, and it
+            # reaches the manifest before the GM says a word. A declaration that invents a
+            # sibling is corrected right after the turn (`_unlock_landing`).
+            self._landing_lock = dict(landing)
+            self._landing_blocked = False
+        try:
+            if landing:
+                await self._emit_place_note(self._landing_args(landing), era=self.era)
+            await self._run_turn(jump, "jump")
+        finally:
+            await self._unlock_landing()
         await self._emit({"type": "cadence", **self._device_state()})
+
+    def _landing_line(self, landing: dict) -> str:
+        """The exact place the player chose, in the prompt's arrival line.
+
+        The stored arrival stays the short label (`Ward, in Settlement`) -- that is what a
+        resumed save and the visited pool expect -- but the GM must be told the WHOLE path it
+        was sent to, or it invents the exact room (live 2026-10-18: a same-age release to a
+        chosen leaf produced "You arrive at the Western Market" and a new sibling room).
+        """
+        path = path_label(landing.get("place"))
+        area = str(landing.get("area") or "").strip()
+        where = f"{path}, in {area}" if path and area else (path or area)
+        return (f"You arrive at {where}. The Device has put the Traveller exactly here: "
+                "narrate THIS place and do not move them.")
+
+    async def _unlock_landing(self) -> None:
+        """Restore a chosen landing a declaration tried to replace, then clear the lock.
+
+        A KNOWN place or a room inside/around the landing is a real move and stands; a new
+        sibling the GM invented is kept in the registry (its roster included) but cannot move
+        the Traveller. The corrective `place_note` puts the manifest's `current` back on the
+        landing, after the declared place's own write.
+        """
+        lock = self._landing_lock
+        try:
+            if lock is not None and self._landing_blocked:
+                self._set_current_place(lock.get("kingdom", ""), lock.get("area", ""),
+                                        lock.get("place"))
+                await self._after_place_change()
+                await self._emit_place_note(self._landing_args(lock), era=self.era)
+        finally:
+            self._landing_lock = None
+            self._landing_blocked = False
+
+    def _landing_args(self, landing: dict) -> dict:
+        """The landing as a `place_note`: an address-only write (empty roster is a delta)."""
+        return {"kingdom": str(landing.get("kingdom") or ""),
+                "area": str(landing.get("area") or ""),
+                "place": [str(p).strip() for p in (landing.get("place") or [])
+                          if str(p or "").strip()],
+                "main_npcs": [], "cast": []}
 
     async def _move_within_era(self, area: str = "", group: str = "",
                                place: str = "") -> None:
@@ -435,9 +487,9 @@ class SceneMixin:
             await self._emit_caption()
             self._refresh_places_block()
         if landing:
-            landing_line = f"You arrive at {self.arrival}."
+            landing_line = self._landing_line(landing)
         elif ward:
-            landing_line = (f"You arrive in the {ward['group']} ward of {chosen_area}; "
+            landing_line = (f"You arrive in {ward['group']}, in {chosen_area}; "
                             "choose the exact place inside it.")
         elif chosen_area:
             landing_line = f"You arrive in {chosen_area}; choose the exact place inside it."
@@ -449,9 +501,19 @@ class SceneMixin:
         if not landing and not self.classic and not self.scene_images:
             # Text mode has no scene call to carry the place, so the move itself must declare it.
             move = f"{move}\n\n{DEVICE_DECLARES}"
+        if landing:
+            # The chosen landing is authoritative for this turn and reaches the manifest
+            # before the GM narrates; a sibling invention is recorded but corrected at once.
+            self._landing_lock = dict(landing)
+            self._landing_blocked = False
         # The session continues: no compaction, no age memory, no spell reset. A stray
         # `{{remembers}}` / STATE block is stripped and discarded by these capture flags.
-        await self._run_turn(move, "jump", capture_legend=False, capture_state=False)
+        try:
+            if landing:
+                await self._emit_place_note(self._landing_args(landing), era=self.era)
+            await self._run_turn(move, "jump", capture_legend=False, capture_state=False)
+        finally:
+            await self._unlock_landing()
         await self._emit({"type": "cadence", **self._device_state()})
 
     async def _handle_slash(self, command: str) -> None:

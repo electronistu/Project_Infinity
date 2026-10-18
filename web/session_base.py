@@ -162,6 +162,11 @@ class SessionBase:
         # but must never register one (the age is not being left).
         self._capture_legend = True
         self._capture_state = True
+        # A Device landing the player chose is authoritative for that jump turn: a new place
+        # declaration cannot replace it. `_place_blocked_now` is per-declaration.
+        self._landing_lock: dict | None = None
+        self._landing_blocked = False
+        self._place_blocked_now = False
         # Injected in tests so the "random" era is reproducible.
         self._rng = random.Random()
         # Where the always-on era messages live, so a jump can rewrite them in place
@@ -258,9 +263,9 @@ class SessionBase:
         await self._cmd_q.put({"type": "save"})
 
     async def submit_device(self, action: str, era: str = "", area: str = "",
-                            place: str = "") -> None:
-        await self._cmd_q.put({"type": "device", "action": action,
-                               "era": era, "area": area, "place": place})
+                            place: str = "", group: str = "") -> None:
+        await self._cmd_q.put({"type": "device", "action": action, "era": era,
+                               "area": area, "group": group, "place": place})
 
     async def submit_dev(self, cmd: dict) -> None:
         """A developer-mode command (state edit, Device control, GM-inspector watch).

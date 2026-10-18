@@ -282,6 +282,8 @@ class TurnMixin:
         the turn ended in -- the model has the prose by now, so it can). A declaration the
         engine refused counts as none (the GM has the refusal in its context, and this round is
         where it corrects)."""
+        if self._landing_lock is not None:
+            return  # the engine chose the landing; the GM does not have to declare it
         if self.scene_images or len(self._place_declarations) == 1:
             return
         await self._run_role(place_echo_nudge(self._place_declarations), "place-fix", quiet=True)
@@ -430,8 +432,10 @@ class TurnMixin:
             if scene_applies:
                 before = self._current_place
                 self._record_place_live(args, era=era)
+                # A blocked declaration is still a change to PERSIST (its place and roster),
+                # even though it did not move `_current_place`.
                 place_changed = (not self._same_place(before, self._current_place)
-                                 or roster_change)
+                                 or roster_change or self._place_blocked_now)
         if name == PLACE_TOOL and warning is None and not is_error:
             before = self._current_place
             # Asked BEFORE `_record_place_live` applies the delta: a declaration that repeats
@@ -449,7 +453,7 @@ class TurnMixin:
             if filed:
                 self._place_declarations.append(filed)
             place_changed = (not self._same_place(before, self._current_place)
-                             or roster_change or cast_change)
+                             or roster_change or cast_change or self._place_blocked_now)
         gm_text = _gm_tool_view(name, text)
         notes: list[str] = []
         if name == SCENE_TOOL and warning is None:
@@ -508,6 +512,13 @@ class TurnMixin:
                 # browser's POST then sees the file-less entry (`ensure_scene` draws into it).
                 await self._emit_place_note(args, era=self._declaration_era(scene=True))
                 await self._after_place_change()
+            if self._place_blocked_now and self._landing_lock:
+                # The image follows the Device's landing, never the invented sibling.
+                lock = self._landing_lock
+                place = [str(p).strip() for p in (lock.get("place") or [])
+                         if str(p or "").strip()]
+                kingdom = str(lock.get("kingdom") or "")
+                area = str(lock.get("area") or "")
             # Declarations flow to the server with the image call (the single writer).
             npcs, self._pending_npcs = self._pending_npcs, []
             main_npcs = args.get("main_npcs") if isinstance(args.get("main_npcs"), list) else []
@@ -775,6 +786,7 @@ class TurnMixin:
         place = [str(p).strip() for p in raw if str(p or "").strip()] if isinstance(raw, list) else []
         if not place:
             return
+        self._place_blocked_now = False
         era = self._declaration_era() if era is None else str(era or "")
         kingdom = " ".join(str(args.get("kingdom") or "").split())
         area = " ".join(str(args.get("area") or "").split())
@@ -816,6 +828,27 @@ class TurnMixin:
                 if name:
                     self._cast_display[name_key(name)] = name
         key = _scene_key(place)
+        # The Device's chosen landing is authoritative for its turn. A KNOWN place (a real
+        # move/return) or a room inside/around the landing may move the Traveller; a NEW
+        # sibling the GM invented is recorded (roster included) but cannot replace the
+        # landing. `_unlock_landing` restores it and the manifest's `current` after the turn.
+        lock = self._landing_lock
+        apply_current = True
+        if lock is not None and lock.get("place"):
+            lock_key = _scene_key(lock.get("place"))
+            if key != lock_key:
+                related = bool(key and lock_key) and (
+                    key[:len(lock_key)] == lock_key or lock_key[:len(key)] == key)
+                if not in_record and not related:
+                    apply_current = False
+                    self._place_blocked_now = True
+                    self._landing_blocked = True
+                    note = (f'NOTE: the Device landed the Traveller at '
+                            f'"{path_label(lock.get("place"))}"; "{path_label(place)}" is '
+                            "recorded, but it does not move them on this turn. If the turn "
+                            "moved the Traveller, declare a place the registry already holds "
+                            "or a room inside the landing.")
+                    self._place_note = f"{self._place_note}\n\n{note}" if self._place_note else note
         live = None
         for p in self._primed:
             if _scene_key(p.get("place")) == key and str(p.get("era") or "") == era:
@@ -856,8 +889,10 @@ class TurnMixin:
         # applies the same merge on the manifest side).
         if people:
             args["main_npcs"] = [dict(npc) for npc in entry["main_npcs"]]
-        # The place just declared is where the GM is now.
-        self._set_current_place(kingdom, area, place)
+        # The place just declared is where the GM is now -- unless a chosen Device landing
+        # for this turn says otherwise.
+        if apply_current:
+            self._set_current_place(kingdom, area, place)
         if corrected and corrected != declared_area:
             held = (f'not in "{declared_area}"' if declared_area else "and you declared none")
             note = (f'NOTE: "{path_label(place)}" is held in area "{corrected}", {held} — the '
