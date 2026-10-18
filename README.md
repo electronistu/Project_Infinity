@@ -89,8 +89,9 @@ Everything is cached and regenerates only when the data behind it changes.
 
 There is no countdown and no forced jump — the Device is yours to command.
 
-- **You choose when it jumps.** Open the Device, pick an age and a place, and release it. The one throw you do not choose is a brand-new character's first age.
-- **You choose where it lands.** Any historical age, and a place: the age's own destinations, or one you have already visited. **New York, the far future** is the one age the Device cannot reach until every part is found.
+- **You choose when it jumps.** Open the Device, pick an age — or the one you are already in, to move within it — then an area, a ward and a place, and release it. The one throw you do not choose is a brand-new character's first age.
+- **You choose where it lands.** Any historical age, and a place: the age's own destinations, or one you have already visited. Once an age holds more than a handful of places, its picker splits them by **ward**, so a whole city stays reachable. **New York, the far future** is the one age the Device cannot reach until every part is found.
+- **A jump within the age is a move, not a new session.** The story, the STATE page, the place tree and reputation all continue, so people remember what you did — and those who see you vanish or appear react to it. Only a crossing into another age rewrites that age's memory and resets your spells.
 - **The age you leave becomes one line.** Whatever that age saw, it remembers — permanently, and only for itself. Your story in each age carries forward as that memory, not as a transcript.
 - **Nothing is left behind.** You keep everything you are carrying through every jump, and it stays literal: a Victorian pistol is a Victorian pistol in the Old Kingdom, and people will notice.
 - **The Device answers to you from the first turn** — a broken thing of the far future in your inventory. Its **four missing parts** — the Escapement, the Compass Rose, the Regulator and the Mainspring — lie scattered, one to an age; recover them all and the Device can reach **New York, the far future**, the one age closed to it until then. When you recover one, the Game Master adds it to your pack, and it records **which age you found it in**.

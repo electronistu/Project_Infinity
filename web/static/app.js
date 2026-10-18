@@ -1648,7 +1648,14 @@ function deviceAreas(ctrl, era) {
   return (((ctrl || {}).places || {})[era] || {}).areas || [];
 }
 
-function fillDeviceArea(areaSel, placeSel, note, ctrl, era, locked, refreshRelease) {
+function deviceGroups(ctrl, era, areaName) {
+  // The chosen area's top-level wards, newest first: [{group, places: [labels]}].
+  const area = deviceAreas(ctrl, era).find((a) => a.area === areaName);
+  return (area && area.groups) || [];
+}
+
+function fillDeviceArea(areaSel, groupSel, placeSel, note, ctrl, era, locked,
+                        refreshRelease) {
   // The age's visited areas; a blank choice lets the Game Master pick anywhere in the age.
   const areas = deviceAreas(ctrl, era);
   areaSel.innerHTML = "";
@@ -1668,17 +1675,47 @@ function fillDeviceArea(areaSel, placeSel, note, ctrl, era, locked, refreshRelea
       ? "" : "A new age \u2014 the Game Master chooses where you land.";
     note.hidden = !!areas.length;
   }
-  fillDevicePlace(areaSel, placeSel, ctrl, era, locked, refreshRelease);
+  fillDeviceGroups(areaSel, groupSel, placeSel, ctrl, era, locked, refreshRelease);
 }
 
-function fillDevicePlace(areaSel, placeSel, ctrl, era, locked, refreshRelease) {
-  // Up to 12 places in the chosen area; a blank choice lets the Game Master pick inside it.
-  const area = deviceAreas(ctrl, era).find((a) => a.area === areaSel.value);
-  const places = (area && area.places) || [];
+function fillDeviceGroups(areaSel, groupSel, placeSel, ctrl, era, locked, refreshRelease) {
+  // A city is offered one ward at a time (the same 12-place bound one level down); a village
+  // with a single group keeps today's two-joint area -> place flow.
+  const groups = deviceGroups(ctrl, era, areaSel.value);
+  const useWards = groups.length > 1;
+  groupSel.innerHTML = "";
+  groupSel.style.display = useWards ? "" : "none";
+  groupSel.disabled = locked || !useWards;
+  if (useWards) {
+    const any = document.createElement("option");
+    any.value = "";
+    any.textContent = "anywhere in this area \u2014 the Game Master chooses";
+    groupSel.appendChild(any);
+    groups.forEach((g) => {
+      const o = document.createElement("option");
+      o.value = g.group;
+      o.textContent = g.group || "elsewhere in this area";
+      groupSel.appendChild(o);
+    });
+  }
+  fillDevicePlace(areaSel, groupSel, placeSel, ctrl, era, locked, refreshRelease);
+}
+
+function fillDevicePlace(areaSel, groupSel, placeSel, ctrl, era, locked, refreshRelease) {
+  // Up to 12 places in the chosen area (or ward); a blank choice lets the Game Master pick.
+  const groups = deviceGroups(ctrl, era, areaSel.value);
+  const useWards = groups.length > 1;
+  const ward = useWards ? groupSel.value : "";
+  const chosen = useWards
+    ? (ward ? groups.find((g) => g.group === ward) : null)
+    : groups[0];
+  const places = (chosen && chosen.places) || [];
   placeSel.innerHTML = "";
   const any = document.createElement("option");
   any.value = "";
-  any.textContent = "anywhere in this area \u2014 the Game Master chooses";
+  any.textContent = ward
+    ? "anywhere in this ward \u2014 the Game Master chooses"
+    : "anywhere in this area \u2014 the Game Master chooses";
   placeSel.appendChild(any);
   places.forEach((p) => {
     const o = document.createElement("option");
@@ -1686,7 +1723,8 @@ function fillDevicePlace(areaSel, placeSel, ctrl, era, locked, refreshRelease) {
     o.textContent = p;
     placeSel.appendChild(o);
   });
-  placeSel.disabled = locked || !places.length;
+  // With a ward joint showing, a place is only offered after a ward is picked.
+  placeSel.disabled = locked || (useWards && !ward) || !places.length;
   if (refreshRelease) refreshRelease();
 }
 
@@ -1708,6 +1746,7 @@ function deviceActionRow(dev, ctrl) {
   // The player names the age, the area and the place; none of them fires the Device.
   let eraSel = null;
   let areaSel = null;
+  let groupSel = null;
   let placeSel = null;
   // Re-read the chosen controls on every change (or the button would send the values from the
   // moment the card was first drawn).
@@ -1727,7 +1766,8 @@ function deviceActionRow(dev, ctrl) {
     options.forEach((e) => {
       const o = document.createElement("option");
       o.value = e.id;
-      o.textContent = e.locked ? `${e.name} (locked)` : e.name;
+      o.textContent = e.locked ? `${e.name} (locked)`
+        : (e.current ? `${e.name} (you are here)` : e.name);
       o.disabled = !!e.locked;
       eraSel.appendChild(o);
     });
@@ -1740,6 +1780,11 @@ function deviceActionRow(dev, ctrl) {
       areaSel.className = "device-area";
       areaSel.disabled = true;
       wrap.appendChild(areaSel);
+      groupSel = document.createElement("select");
+      groupSel.className = "device-ward";
+      groupSel.disabled = true;
+      groupSel.style.display = "none";
+      wrap.appendChild(groupSel);
       placeSel = document.createElement("select");
       placeSel.className = "device-place";
       placeSel.disabled = true;
@@ -1751,6 +1796,9 @@ function deviceActionRow(dev, ctrl) {
         if (!eraSel.value) {
           areaSel.innerHTML = "";
           areaSel.disabled = true;
+          groupSel.innerHTML = "";
+          groupSel.disabled = true;
+          groupSel.style.display = "none";
           placeSel.innerHTML = "";
           placeSel.disabled = true;
           areaNote.textContent = "Choose an age.";
@@ -1758,12 +1806,15 @@ function deviceActionRow(dev, ctrl) {
           refreshRelease();
           return;
         }
-        fillDeviceArea(areaSel, placeSel, areaNote, c, eraSel.value, locked, refreshRelease);
+        fillDeviceArea(areaSel, groupSel, placeSel, areaNote, c, eraSel.value, locked,
+                       refreshRelease);
       };
       refillAreas();
       eraSel.addEventListener("change", refillAreas);
       areaSel.addEventListener("change", () =>
-        fillDevicePlace(areaSel, placeSel, c, eraSel.value, locked, refreshRelease));
+        fillDeviceGroups(areaSel, groupSel, placeSel, c, eraSel.value, locked, refreshRelease));
+      groupSel.addEventListener("change", () =>
+        fillDevicePlace(areaSel, groupSel, placeSel, c, eraSel.value, locked, refreshRelease));
     }
   }
 
@@ -1776,6 +1827,7 @@ function deviceActionRow(dev, ctrl) {
 
   if (ab.release) {
     const currentArea = () => (areaSel && !areaSel.disabled) ? areaSel.value : "";
+    const currentGroup = () => (groupSel && !groupSel.disabled) ? groupSel.value : "";
     const currentPlace = () => (placeSel && !placeSel.disabled) ? placeSel.value : "";
     const releaseBtn = btn("release the Device", () => {
       if (!eraSel || !eraSel.value) return;  // an age must be chosen
@@ -1783,9 +1835,10 @@ function deviceActionRow(dev, ctrl) {
         type: "device", action: "release",
         era: eraSel.value,
         area: currentArea(),
+        group: currentGroup(),
         place: currentPlace() });
     }, true);
-    // Area and place are optional; only the age gates the release.
+    // Area, ward and place are optional; only the age gates the release.
     refreshRelease = () => { releaseBtn.disabled = locked || !eraSel || !eraSel.value; };
     refreshRelease();
     wrap.appendChild(releaseBtn);

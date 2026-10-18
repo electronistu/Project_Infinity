@@ -10,6 +10,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from .eras import origin_eras, playable_eras
+from .places import group_identity, place_group
 from .scenes import known_scene_places
 from .player_file import _arrival_candidates, _split_journey
 from .protocol import COMBAT_HOLD_MESSAGE, PLACE_MENU_RECENT
@@ -30,12 +31,17 @@ class DeviceMixin:
     def _era_allowed(self, era: str) -> bool:
         """Whether the Device may name this age as a destination.
 
-        Any other playable age -- ahead or behind; there is no dead end at the last age. The
-        future is the one exception: it is unreachable until every part is held.
+        The age the Traveller stands in is a destination too: a release then moves them
+        within it (the same session, not an age crossing). Any other playable age is legal --
+        ahead or behind; there is no dead end at the last age. The future is the one
+        exception: it is unreachable until every part is held, but standing in it is always
+        legal.
         """
         era = str(era or "").strip().lower()
-        if not era or era == str(self.era or "").strip().lower():
+        if not era:
             return False
+        if era == str(self.era or "").strip().lower():
+            return True
         if era not in playable_eras():
             return False
         if era == self._future_era() and not self._future_unlocked():
@@ -57,19 +63,22 @@ class DeviceMixin:
         if not wanted:
             return False
         area = " ".join(str(area or "").split()).lower()
-        for a, places in self._visited_by_area(era):
+        for a, groups in self._visited_by_area(era):
             if area and a.lower() != area:
                 continue
-            if any(self._place_option_label(p.get("place")).lower() == wanted for p in places):
+            if any(self._place_option_label(p.get("place")).lower() == wanted
+                   for g in groups for p in g["places"]):
                 return True
         return False
 
     async def _device_release(self, cmd: dict) -> None:
         """Fire the Device: jump now, to the chosen age and (optionally) an area and place.
 
-        A deliberate jump is refused in combat. The age must be another reachable one. The area
-        and the place are both optional: name just the age, or an area you have stood in, or the
-        exact place -- whatever you leave out, the Game Master chooses.
+        A deliberate release is refused in combat. The age may be another reachable one, or
+        the one the Traveller stands in -- then the Device moves them within it and the
+        session continues. The area, ward and place are all optional: name just the age, an
+        area you have stood in, one of its wards, or the exact place -- whatever you leave out,
+        the Game Master chooses.
         """
         if self._in_combat:
             await self._emit({"type": "notice", "title": "The Device",
@@ -77,6 +86,7 @@ class DeviceMixin:
             return
         era = str(cmd.get("era") or "").strip().lower()
         area = self._clean_place(cmd.get("area"))
+        group = self._clean_place(cmd.get("group"))
         place = self._clean_place(cmd.get("place"))
         if not self._era_allowed(era):
             await self._device_refuse()
@@ -91,7 +101,15 @@ class DeviceMixin:
                               "text": "Choose one of the places you have already visited there, "
                                       "or none and the Game Master chooses."})
             return
-        await self._close_and_jump(era, area, place)
+        if group and not place and not self._group_allowed(era, area, group):
+            await self._emit({"type": "notice", "title": "The Device",
+                              "text": "Choose a ward you have already stood in, or none and "
+                                      "the Game Master chooses."})
+            return
+        if era == str(self.era or "").strip().lower():
+            await self._move_within_era(area, group, place)
+        else:
+            await self._close_and_jump(era, area, place, group)
 
     async def _device_refuse(self) -> None:
         await self._emit({"type": "notice", "title": "The Device",
@@ -108,6 +126,49 @@ class DeviceMixin:
         return [e for e in playable_eras()
                 if e != self.era and not (e == future and not self._future_unlocked())]
 
+    def _destination_eras(self) -> list[str]:
+        """The player's destination menu: this age first (a move within it), then the reachable
+        others."""
+        current = str(self.era or "").strip().lower()
+        return ([current] if current else []) + [e for e in self._reachable_eras()
+                                                 if e != current]
+
+    def _group_allowed(self, era: str, area: str, group: str) -> bool:
+        """Whether an area of `era` holds a top-level place (ward) with this picker label."""
+        wanted = " ".join(str(group or "").split()).lower()
+        if not wanted:
+            return False
+        area = " ".join(str(area or "").split()).lower()
+        for a, groups in self._visited_by_area(era):
+            if area and a.lower() != area:
+                continue
+            if any(group_identity(g["group"]) == group_identity(wanted) for g in groups):
+                return True
+        return False
+
+    def _group_landing(self, era: str, area: str, group: str) -> dict | None:
+        """A named ward as a landing: its area/kingdom and exact label, or None.
+
+        The player may name a ward without a place; the engine lands them in that ward's
+        settlement and hands the Game Master the exact place to choose. The newest place in
+        the group supplies the address (never re-invented)."""
+        wanted = " ".join(str(group or "").split()).lower()
+        if not wanted:
+            return None
+        area = " ".join(str(area or "").split()).lower()
+        for a, groups in self._visited_by_area(era):
+            if area and a.lower() != area:
+                continue
+            for g in groups:
+                if (group_identity(g["group"]) != group_identity(wanted)
+                        or not g["places"]):
+                    continue
+                p = g["places"][0]
+                return {"group": g["group"],
+                        "area": " ".join(str(p.get("area") or "").split()),
+                        "kingdom": " ".join(str(p.get("kingdom") or "").split())}
+        return None
+
     def _all_other_eras(self) -> list[str]:
         """Every playable era but the one the Traveller is standing in (the destination menu).
 
@@ -117,8 +178,10 @@ class DeviceMixin:
     def _era_options(self, eras: list[str]) -> list[dict]:
         future = self._future_era()
         locked = bool(future) and not self._future_unlocked()
+        current = str(self.era or "").strip().lower()
         return [{"id": e, "name": device.era_label(e),
-                 "locked": e == future and locked} for e in eras]
+                 "locked": e == future and locked and e != current,
+                 "current": e == current} for e in eras]
 
     def _device_state(self) -> dict:
         """Everything the Device panel needs to draw its controls."""
@@ -140,7 +203,7 @@ class DeviceMixin:
             "future_era": future,
             "future_name": device.era_label(future) if future else "",
             "future_locked": bool(future) and not self._future_unlocked(),
-            "era_options": self._era_options(self._all_other_eras()),
+            "era_options": self._era_options(self._destination_eras()),
             "era_names": {e: device.era_label(e) for e in playable_eras()},
             "all_eras": self._era_options(self._all_other_eras()),
             "places": self._place_options() if live else {},
@@ -182,25 +245,38 @@ class DeviceMixin:
         return out[:limit] if limit else out
 
     def _visited_by_area(self, era: str) -> list[tuple[str, list[dict]]]:
-        """The save's visited places in `era`, grouped by area, newest areas first.
+        """The save's visited places in `era`, grouped by area and then by top-level ward.
 
-        Each area keeps at most `PLACE_MENU_RECENT` places (newest first), so a city the
-        Traveller walked all over cannot crowd another out of the picker."""
+        Each area keeps its newest groups, and each group at most `PLACE_MENU_RECENT` places
+        (newest first), so a city the Traveller walked all over cannot crowd another out of
+        the picker -- the same bound the GM's block keeps, one level down. A one-segment
+        legacy path has no ward and joins the area's own `""` group."""
         try:
             places = known_scene_places(self.base_dir / OUTPUT_DIR, self.active_name or "", era)
         except Exception:  # noqa: BLE001 - never fail a jump over the place tree
             places = []
         places = sorted(places, key=lambda p: int(p.get("used") or 0), reverse=True)
-        grouped: dict[str, list[dict]] = {}
+        grouped: dict[str, dict[str, dict]] = {}
         order: list[str] = []
         for p in places:
             area = " ".join(str(p.get("area") or "").split())
             if area not in grouped:
-                grouped[area] = []
+                grouped[area] = {}
                 order.append(area)
-            if len(grouped[area]) < PLACE_MENU_RECENT:
-                grouped[area].append(p)
-        return [(area, grouped[area]) for area in order]
+            key = place_group(p)
+            bucket = grouped[area].setdefault(key, {"group": "", "places": []})
+            if not bucket["group"]:
+                path = [str(s).strip() for s in (p.get("place") or [])
+                        if str(s or "").strip()]
+                bucket["group"] = path[0] if len(path) >= 2 else ""
+            if len(bucket["places"]) < PLACE_MENU_RECENT:
+                bucket["places"].append(p)
+        return [(area, list(grouped[area].values())) for area in order]
+
+    def _place_labels(self, groups: list[dict]) -> list[str]:
+        """Every offered place label in an area's groups, groups newest-first."""
+        return [self._place_option_label(p.get("place"))
+                for g in groups for p in g["places"]]
 
     def _place_option_label(self, place) -> str:
         """A place's picker label: its full path, joined ('Western Market — the wine-shop')."""
@@ -208,17 +284,23 @@ class DeviceMixin:
         return " — ".join(str(s).strip() for s in path if str(s or "").strip())
 
     def _place_options(self) -> dict:
-        """{era id: {"areas": [{"area": name, "places": [labels]}]}} for every reachable era.
+        """{era id: {"areas": [{"area", "places", "groups"}]}} for every destination era.
 
-        The picker has two joints: an **area** the save has stood in, then up to
-        `PLACE_MENU_RECENT` places inside it (newest first). An age with none is new to the
-        Traveller -- the Game Master chooses the landing. The age they stand in is never a
-        destination."""
+        The picker has three joints: an **area** the save has stood in, the top-level
+        **ward** the path starts with, then up to `PLACE_MENU_RECENT` places in that ward
+        (newest first). `places` is the flat list the release matcher and older clients use;
+        `groups` is what the UI draws the ward joint from. An age with none is new to the
+        Traveller -- the Game Master chooses the landing. The age they stand in IS a
+        destination: it moves them within it."""
         out: dict = {}
-        for era in self._reachable_eras():
+        for era in self._destination_eras():
             areas = [{"area": area,
-                      "places": [self._place_option_label(p.get("place")) for p in places]}
-                     for area, places in self._visited_by_area(era)]
+                      "places": self._place_labels(groups),
+                      "groups": [{"group": g["group"],
+                                  "places": [self._place_option_label(p.get("place"))
+                                             for p in g["places"]]}
+                                 for g in groups]}
+                     for area, groups in self._visited_by_area(era)]
             out[era] = {"areas": areas}
         return out
 
@@ -231,17 +313,19 @@ class DeviceMixin:
         if not wanted:
             return None
         area = " ".join(str(area or "").split()).lower()
-        for a, places in self._visited_by_area(era):
+        for a, groups in self._visited_by_area(era):
             if area and a.lower() != area:
                 continue
-            for p in places:
-                if self._place_option_label(p.get("place")).lower() != wanted:
-                    continue
-                path = [str(s).strip() for s in (p.get("place") or []) if str(s or "").strip()]
-                if not path:
-                    continue
-                return {"kingdom": str(p.get("kingdom") or "").strip(),
-                        "area": str(p.get("area") or "").strip(), "place": path}
+            for g in groups:
+                for p in g["places"]:
+                    if self._place_option_label(p.get("place")).lower() != wanted:
+                        continue
+                    path = [str(s).strip() for s in (p.get("place") or [])
+                            if str(s or "").strip()]
+                    if not path:
+                        continue
+                    return {"kingdom": str(p.get("kingdom") or "").strip(),
+                            "area": str(p.get("area") or "").strip(), "place": path}
         return None
 
     def _arrival_label(self, place, area: str) -> str:

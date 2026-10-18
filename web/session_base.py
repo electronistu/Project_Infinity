@@ -158,6 +158,10 @@ class SessionBase:
         # The GM's memory line for the age it is leaving, captured from `{{remembers: ...}}`
         # on the closing turn; `_jump` prefers it over the config template and clears it.
         self._pending_legend: str = ""
+        # Per-turn capture flags: a same-age move strips a stray `{{remembers}}` / STATE block
+        # but must never register one (the age is not being left).
+        self._capture_legend = True
+        self._capture_state = True
         # Injected in tests so the "random" era is reproducible.
         self._rng = random.Random()
         # Where the always-on era messages live, so a jump can rewrite them in place
@@ -521,15 +525,21 @@ class SessionBase:
         finally:
             self.busy = False
 
-    async def _run_turn(self, content: str, label: str) -> None:
+    async def _run_turn(self, content: str, label: str, *,
+                        capture_legend: bool = True, capture_state: bool = True) -> None:
         """One GM turn: the prose, at most one illustration, then the turn counter.
 
-        Used for the player's turns and for the Device's jump -- a turn nobody asked for."""
+        Used for the player's turns and for the Device's jump -- a turn nobody asked for.
+        `capture_legend` / `capture_state` govern the two departure markers for the WHOLE
+        turn, including its recovery rounds: a same-age move strips them but never registers
+        them (the age is not being left)."""
         await self._emit({"type": "busy", "value": True})
         self._scene_requested_turn = False  # at most one illustration per turn
         self._narrative_emitted_turn = False  # the turn's prose is emitted once
         self._place_declarations = []      # the turn's place echo (see _ensure_place_note)
         self._mechanics_lines = []          # the engine-composed block is per turn
+        previous = (self._capture_legend, self._capture_state)
+        self._capture_legend, self._capture_state = capture_legend, capture_state
         try:
             result = await self._run_role(content, label)
             result = await self._ensure_turn_prose(result)
@@ -538,6 +548,7 @@ class SessionBase:
             self.turn_counter += 1
             await self._emit({"type": "turn_end", "text": result or "", "turn": self.turn_counter})
         finally:
+            self._capture_legend, self._capture_state = previous
             await self._emit({"type": "busy", "value": False})
 
     async def _handle_action(self, text: str) -> None:

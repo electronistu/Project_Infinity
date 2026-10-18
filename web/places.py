@@ -46,6 +46,11 @@ KNOWN_PLACES_EMPTY = (
 # The block's optional tail: the other areas the save has stood in, each with one exact place
 # path to reuse, and the one case where there is no current place -- a landing to choose.
 KNOWN_PLACES_OTHER_AREAS = "OTHER AREAS YOU KNOW (declare one of these places to move there):"
+# A crowded area (more places than the cap) is sub-scoped by the first path segment -- the
+# ward / building every place is filed under -- and the unseen groups plus the other areas
+# share one anchor budget.
+KNOWN_PLACES_ELSEWHERE = ("OTHER PLACES YOU KNOW (declare one of these exact paths to move "
+                          "there):")
 KNOWN_PLACES_CHOOSE = ("NO PLACE YET — choose where the Traveller lands, or reuse one of the "
                        "places above, declaring its exact kingdom / area / place path.")
 
@@ -98,6 +103,35 @@ def path_label(place) -> str:
 def _path_of(place: dict) -> list[str]:
     """A registry entry's path, trimmed."""
     return [str(s).strip() for s in (place.get("place") or []) if str(s or "").strip()]
+
+
+def path_group(path) -> str:
+    """The top-level group a path sits in: the first segment's identity, or "".
+
+    The tool contract already mandates at least two entries (`[district/neighbourhood, the
+    exact building/room, ...]`), so the first segment is the ward / top-level place a crowd
+    can be split by. A one-segment legacy path has no group and stays in the area's own cap.
+    """
+    path = [str(p).strip() for p in (path or []) if str(p or "").strip()]
+    return _place_identity(path[0]) if len(path) >= 2 else ""
+
+
+def place_group(place: dict) -> str:
+    """`path_group` for a registry entry."""
+    return path_group(_path_of(place))
+
+
+def group_identity(label) -> str:
+    """A ward's display label as its matching key (`Ward A` == `the ward a`)."""
+    return _place_identity(label)
+
+
+def _place_anchor(place: dict) -> str:
+    """One hidden group's newest place as an exact reusable line."""
+    path = _path_of(place)
+    if len(path) >= 2:
+        return "- " + path[0] + ": " + " — ".join(path[1:])
+    return "- " + " — ".join(path)
 
 
 def resolve_place_path(places: list[dict], place, current: dict | None = None
@@ -218,17 +252,19 @@ def _places_for_area(places: list[dict], kingdom: str, area: str,
     return sorted(recent[:cap], key=_area_order)
 
 
-def _area_anchors(places: list[dict], cap: int = AREA_INDEX_CAP) -> tuple[list[str], int]:
+def _area_anchor_entries(places: list[dict], cap: int = AREA_INDEX_CAP
+                         ) -> tuple[list[str], int, list[dict]]:
     """Every area the save has stood in, each with its newest place as an exact path to reuse.
 
     A move into another area needs the place NAMES, not just the area name: given only
     "Wapping", the live model invented a path for a place the save already held. One anchor
     per area (`AREA_INDEX_CAP` of them) restores exact reuse without the whole-era tree.
 
-    Returns the lines and the number of areas the cap hid. Past the cap the block SAYS so and
-    names the on-demand map: an area the GM cannot see must never become an area it forgets
-    (or invents a place in)."""
-    newest: dict[str, tuple[int, str]] = {}
+    Returns the lines, the number of areas the cap hid, and the chosen entries (newest per
+    area) so a caller can count what the lines actually name. Past the cap the block SAYS so
+    and names the on-demand map: an area the GM cannot see must never become an area it
+    forgets (or invents a place in)."""
+    newest: dict[str, tuple[int, str, dict]] = {}
     for p in places:
         path = _path_of(p)
         if not path:
@@ -239,14 +275,20 @@ def _area_anchors(places: list[dict], cap: int = AREA_INDEX_CAP) -> tuple[list[s
         used = int(p.get("used") or 0)
         best = newest.get(label)
         if best is None or used > best[0]:
-            newest[label] = (used, " — ".join(path))
+            newest[label] = (used, " — ".join(path), p)
     ordered = sorted(newest.items(), key=lambda kv: (-kv[1][0], kv[0]))
     shown, hidden = ordered[:cap], ordered[cap:]
-    lines = [f"- {label}: {anchor}" for label, (_used, anchor) in shown]
+    lines = [f"- {label}: {anchor}" for label, (_used, anchor, _entry) in shown]
     if hidden:
         lines.append(f"- +{len(hidden)} more areas you have stood in — `lookup('places')` "
                      "lists them.")
-    return lines, len(hidden)
+    return lines, len(hidden), [entry for _label, (_used, _anchor, entry) in shown]
+
+
+def _area_anchors(places: list[dict], cap: int = AREA_INDEX_CAP) -> tuple[list[str], int]:
+    """`_area_anchor_entries` without the entries (the non-crowded block's shape)."""
+    lines, hidden, _entries = _area_anchor_entries(places, cap)
+    return lines, hidden
 
 
 def _other_areas(places: list[dict], kingdom: str, area: str,
@@ -485,6 +527,78 @@ def render_places_answer(places: list[dict], current: dict | None, query, cast=(
     return "\n".join([sections[0], *_cast_footer(cast)])
 
 
+def _crowded_body(places: list[dict], kingdom: str, area: str, path: list[str]) -> list[str]:
+    """The block for an area holding more places than the cap.
+
+    The current top-level group (ward / building) is shown first and cannot be crowded out;
+    the remaining slots go to the newest places elsewhere in the area. Every group with no
+    shown place, and every other area, contributes one exact anchor path; the shared
+    `AREA_INDEX_CAP` keeps the section bounded, and the `+N` line names the on-demand record
+    for whatever neither the tree nor an anchor names. Nothing is dropped silently.
+    """
+    here_key = _scene_key(path)
+    here_group = path_group(path)
+    area_places = [p for p in places if _in_area(p, kingdom, area) and _path_of(p)]
+
+    def rank(p):
+        return (-int(p.get("used") or 0), *_area_order(p))
+
+    own = sorted((p for p in area_places if place_group(p) == here_group), key=rank)
+    shown = own[:PLACE_TREE_CAP]
+    shown_keys = {_scene_key(p.get("place")) for p in shown}
+    if here_key and here_key not in shown_keys:
+        current = next((p for p in area_places
+                        if _scene_key(p.get("place")) == here_key), None)
+        if current is not None:
+            shown = [current] + [p for p in shown
+                                 if _scene_key(p.get("place")) != here_key][:PLACE_TREE_CAP - 1]
+            shown_keys.add(here_key)
+    for p in sorted((p for p in area_places if _scene_key(p.get("place")) not in shown_keys),
+                    key=rank):
+        if len(shown) >= PLACE_TREE_CAP:
+            break
+        shown.append(p)
+        shown_keys.add(_scene_key(p.get("place")))
+    shown = sorted(shown, key=_area_order)
+
+    named = set(shown_keys)
+    anchor_lines, _hidden_areas, anchor_entries = _area_anchor_entries(
+        [p for p in places if not _in_area(p, kingdom, area)])
+    anchors = anchor_lines[:len(anchor_entries)]
+    for p in anchor_entries:
+        named.add(_scene_key(p.get("place")))
+
+    shown_groups = {place_group(p) for p in shown}
+    hidden_groups: dict[str, dict] = {}
+    for p in sorted(area_places, key=rank):
+        group = place_group(p)
+        if group in shown_groups:
+            continue
+        hidden_groups.setdefault(group, p)
+    for p in hidden_groups.values():
+        if len(anchors) >= AREA_INDEX_CAP:
+            break
+        anchors.append(_place_anchor(p))
+        named.add(_scene_key(p.get("place")))
+
+    hidden_places = [p for p in places
+                     if _path_of(p) and _scene_key(p.get("place")) not in named]
+    body: list[str] = []
+    if shown:
+        body.append(format_known_places(shown, here=path))
+    else:
+        body.append(f"- {kingdom or '(unknown kingdom)'}\n"
+                    f"    - {area or '(unknown settlement)'}")
+    if path and here_key not in shown_keys:
+        body.append(f"{' ' * 8}- {path_label(path)} · ← you are here (not recorded yet)")
+    if anchors:
+        body.append("\n".join([KNOWN_PLACES_ELSEWHERE, *anchors]))
+    if hidden_places:
+        body.append(f"- +{len(hidden_places)} more places you have stood in — "
+                    "`lookup('places')` lists them.")
+    return body
+
+
 def places_feed(places: list[dict], current: dict | None, scene_images: bool) -> str:
     """The KNOWN PLACES block: the place the GM is in, its area's places, and the other areas.
 
@@ -506,6 +620,11 @@ def places_feed(places: list[dict], current: dict | None, scene_images: bool) ->
         # A landing the GM still has to choose: every area, each with one exact place to reuse.
         anchors, _hidden = _area_anchors(places)
         return "\n".join([header, *anchors, KNOWN_PLACES_CHOOSE])
+    area_places = [p for p in places if _in_area(p, kingdom, area)]
+    if len(area_places) > PLACE_TREE_CAP:
+        # A city that is an entire era (Chang'an) or a settlement walked all over: split by
+        # its top-level places rather than dropping the 13th onward.
+        return "\n".join([header, *_crowded_body(places, kingdom, area, path)])
     body: list[str] = []
     in_area = _places_for_area(places, kingdom, area)
     if in_area:

@@ -180,6 +180,17 @@ async def _session_one(client: httpx.AsyncClient, world: str) -> None:
             rec("ready lists the generic lookup tool",
                 bool(ready) and "lookup" in (ready.get("tools") or []),
                 str((ready or {}).get("tools")))
+            cadence = (ready or {}).get("cadence") or {}
+            era_opts = cadence.get("era_options") or []
+            rec("the Device menu names the age the Traveller is in",
+                any(o.get("id") == saved_era and o.get("current") for o in era_opts),
+                str(era_opts))
+            rec("... and offers that age's places, grouped by ward",
+                saved_era in (cadence.get("places") or {})
+                and all("groups" in a for a in
+                        ((cadence.get("places") or {}).get(saved_era) or {}).get("areas")
+                        or []),
+                str((cadence.get("places") or {}).get(saved_era))[:200])
 
             # The scene call is a declaration: with NO browser POST, the server pump still
             # records it file-less (the picture would only add the seed later).

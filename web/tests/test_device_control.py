@@ -120,7 +120,10 @@ def _drain(gs):
 
 def _stub_turns(gs):
     """Replace the GM turn with a bookkeeping stub: this suite is about the Device state."""
-    async def _run_turn(content, label):
+    gs.turn_calls = []
+
+    async def _run_turn(content, label, **kwargs):
+        gs.turn_calls.append((label, kwargs))
         gs.messages.append({"role": "user", "content": content})
         gs.turn_counter += 1
         await gs._emit({"type": "turn_end", "text": "", "turn": gs.turn_counter})
@@ -170,7 +173,13 @@ def main():
     print("\n-- the destination: any age but the future")
     rec("any other historical age is a legal destination",
         all(gs._era_allowed(e) for e in ("tang", "wallachia", "victorian")))
-    rec("the age it stands in is not", gs._era_allowed(gs.era) is False)
+    rec("the age it stands in is a destination too (a move within it)",
+        gs._era_allowed(gs.era) is True)
+    rec("... and the destination menu names it first",
+        gs._destination_eras()[0] == gs.era and "tang" in gs._destination_eras(),
+        str(gs._destination_eras()[:2]))
+    rec("... while the dev menu still lists only the other ages",
+        gs.era not in gs._all_other_eras(), str(gs._all_other_eras()))
     rec("the future is locked with fewer than four parts",
         gs._era_allowed("future") is False and gs._future_unlocked() is False)
     rec("the future is not a reachable destination yet",
@@ -199,8 +208,11 @@ def main():
     # -- the place menu: age -> area -> up to 12 places --------------------------
     print("\n-- the place menu: age, area, then places")
     menu = _session(era="egypt")._place_options()
-    rec("the menu is scoped to the reachable eras",
-        "egypt" not in menu and "future" not in menu and "tang" in menu, str(sorted(menu)))
+    rec("the menu includes the current age and every reachable other age",
+        "egypt" in menu and "future" not in menu and "tang" in menu, str(sorted(menu)))
+    rec("... and the current age is marked in the era options",
+        [o for o in gs._era_options(gs._destination_eras()) if o["id"] == gs.era][0]["current"]
+        is True)
     rec("an era offers no preset arrivals -- only areas and their places",
         "arrivals" not in menu["tang"] and isinstance(menu["tang"]["areas"], list),
         str(menu["tang"]))
@@ -233,6 +245,38 @@ def main():
         isinstance(landing, dict) and landing.get("place") == ["West 19"]
         and landing.get("area") == "Chang'an" and landing.get("kingdom") == "Tang",
         str(landing))
+
+    # -- the ward joint: a big city is offered one ward at a time ---------------
+    print("\n-- the ward joint")
+    wards = ([{"place": ["Ward A", f"Room {i}"], "area": "Chang'an", "kingdom": "Tang",
+               "used": 100 - i, "era": "tang"} for i in range(20)]
+             + [{"place": ["Ward B", "the inn"], "area": "Chang'an", "kingdom": "Tang",
+                 "used": 50, "era": "tang"}])
+    engine_mod.known_scene_places = lambda *a, **k: wards
+    try:
+        gsw = _session(era="egypt")
+        gsw.active_name = "save"
+        area = gsw._place_options()["tang"]["areas"][0]
+        groups = area["groups"]
+        first_ok = gsw._place_allowed("tang", "Chang'an", "Ward A — Room 11")
+        first_over = gsw._place_allowed("tang", "Chang'an", "Ward A — Room 12")
+        ward_ok = gsw._group_allowed("tang", "Chang'an", "Ward B")
+        ward_landing = gsw._group_landing("tang", "Chang'an", "Ward B")
+        landing_room = gsw._landing_place("tang", "Chang'an", "Ward A — Room 0")
+    finally:
+        engine_mod.known_scene_places = orig_known
+    rec("a crowded area is split into its wards, 12 places each",
+        [g["group"] for g in groups] == ["Ward A", "Ward B"]
+        and [len(g["places"]) for g in groups] == [12, 1]
+        and len(area["places"]) == 13, str(groups)[:160])
+    rec("... the 12th place in a ward is selectable and the 13th is not",
+        first_ok is True and first_over is False)
+    rec("... a ward is a legal destination on its own",
+        ward_ok is True and isinstance(ward_landing, dict)
+        and ward_landing.get("area") == "Chang'an"
+        and ward_landing.get("group") == "Ward B", str(ward_landing))
+    rec("... and a place in a ward resolves normally",
+        isinstance(landing_room, dict) and landing_room.get("place") == ["Ward A", "Room 0"])
 
     # -- the release jumps: an age alone, or an age and a visited place ---------
     print("\n-- release fires the jump")
@@ -334,6 +378,76 @@ def main():
     no_era = _session(era="egypt")
     asyncio.run(no_era._device_release({"area": "Chang'an", "place": "whatever"}))
     rec("a release with no era is refused", no_era.era == "egypt")
+
+    # -- a release into the current age is a MOVE, not a crossing --------------
+    print("\n-- a release into the current age is a move")
+    same = _session(era="egypt")
+    same.active_name = "save"
+    same.messages.append({"role": "user", "content": "EARLIER-SCENE-MARKER"})
+    before_count = len(same.messages)
+    engine_mod.known_scene_places = lambda *a, **k: [
+        {"place": ["The quarry", "the working face"], "area": "Giza", "kingdom": "Egypt",
+         "used": 10, "era": "egypt"}]
+    try:
+        asyncio.run(same._device_release(
+            {"era": "egypt", "area": "Giza", "place": "The quarry — the working face"}))
+    finally:
+        engine_mod.known_scene_places = orig_known
+    same_text = "".join(str(m.get("content") or "") for m in same.messages)
+    events = _drain(same)
+    rec("a same-age release moves without changing the age",
+        same.era == "egypt" and same.arrival == "The quarry, in Giza", same.arrival)
+    rec("... the history is kept (no compaction)",
+        any(m.get("content") == "EARLIER-SCENE-MARKER" for m in same.messages)
+        and len(same.messages) > before_count, f"{before_count} -> {len(same.messages)}")
+    rec("... the age's memory is not registered or shown",
+        not same._legends and not same._pending_legend
+        and not any(e.get("title") == "The Age Remembers" for e in events),
+        str(same._legends))
+    rec("... no era write, no journey append, no spell reset",
+        not any(n == "set_player_field" and a.get("key") == "era"
+                for n, a in same.session.calls)
+        and not any(n == "set_player_field" and a.get("key") == "journey"
+                    for n, a in same.session.calls)
+        and not any(n == "device_jump_reset" for n, _a in same.session.calls),
+        str(same.session.calls))
+    rec("... the move is ONE turn, with both departure captures off",
+        same.turn_calls == [("jump", {"capture_legend": False, "capture_state": False})],
+        str(same.turn_calls))
+    rec("... the GM is told it is the same session and the people react",
+        "SITUATION: DEVICE MOVE" in same_text
+        and "same session and the same story" in same_text
+        and "You arrive at The quarry, in Giza." in same_text, same_text[-300:])
+
+    same_ward = _session(era="egypt")
+    same_ward.active_name = "save"
+    engine_mod.known_scene_places = lambda *a, **k: [
+        {"place": ["Ward A", "the inn"], "area": "Giza", "kingdom": "Egypt",
+         "used": 10, "era": "egypt"}]
+    try:
+        asyncio.run(same_ward._device_release(
+            {"era": "egypt", "area": "Giza", "group": "Ward A"}))
+    finally:
+        engine_mod.known_scene_places = orig_known
+    ward_text = "".join(str(m.get("content") or "") for m in same_ward.messages)
+    rec("a same-age ward-only release lands in the ward and leaves the spot to the GM",
+        same_ward.arrival == "Ward A, in Giza"
+        and same_ward._current_place.get("place") == []
+        and "Ward A ward of Giza" in ward_text,
+        f"{same_ward.arrival} / {same_ward._current_place}")
+
+    same_any = _session(era="egypt")
+    same_any.active_name = "save"
+    asyncio.run(same_any._device_release({"era": "egypt"}))
+    any_text = "".join(str(m.get("content") or "") for m in same_any.messages)
+    rec("a same-age release with no landing asks the GM to choose one in this age",
+        "Choose where the Traveller appears in this age." in any_text
+        and same_any._current_place is None, any_text[-200:])
+
+    same_fight = _session(era="egypt")
+    same_fight._in_combat = True
+    asyncio.run(same_fight._device_release({"era": "egypt"}))
+    rec("a same-age release is refused in combat too", same_fight.turn_calls == [])
 
     # -- the GM's declaration is the arrival ------------------------------------
     print("\n-- the GM's declaration is the arrival")

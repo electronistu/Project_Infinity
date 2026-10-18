@@ -392,6 +392,26 @@ DEVICE_FIRES = (
     "this hour, and whether anyone notices a stranger appear."
 )
 
+# A release into the age the Traveller is already in: a MOVE, not an age crossing. The session,
+# its history, the STATE page, the places tree and reputation all continue -- nothing is
+# compacted and no age memory is registered -- so the people can react to what came before.
+SITUATION_DEVICE_MOVE = (
+    "SITUATION: DEVICE MOVE — the Traveller has used the Device to move within {era}; the "
+    "same story continues. This is not an age crossing and not a session start."
+)
+DEVICE_MOVES = (
+    "The Device fires within the same age. The Traveller vanishes from where they stood and "
+    "appears elsewhere.\n\n"
+    "{arrival}\n\n"
+    "Everything before this stands: this is the same session and the same story. Anyone who "
+    "saw the Traveller leave or arrive reacts to it -- the Device is not subtle -- and people "
+    "who know them remember what they said and did. Word travels only by the age's own "
+    "channels: a witness, gossip, reputation. Nothing is translated and nothing is left "
+    "behind; your companions come with you.\n\n"
+    "Narrate the arrival -- the place at this hour, who is there, and how they take a person "
+    "appearing out of nowhere."
+)
+
 # Text mode only (no scene call carries the place): a landing must declare its place, reusing the
 # known path when it already exists, so the engine pins the arrival to the place the GM used.
 DEVICE_DECLARES = (

@@ -132,18 +132,26 @@ def _public(row):
 def _synthetic_places(n: int, cap: int = 12) -> list[dict]:
     """N representative places for the KNOWN PLACES measure.
 
-    The CURRENT area holds the cap and no more (the feed's worst case), and every further
-    place gets its OWN area: past `AREA_INDEX_CAP` other areas the block is bounded by the
-    anchor cap, so a measurement built this way exercises it. `used` runs newest-first, so
-    the cap keeps the first `cap` places.
+    The CURRENT area holds MORE than the cap, split across top-level groups so the crowded
+    path is measured: `cap` shown places (one per group, so every group header renders), `cap`
+    more hidden groups in the same area, and one place in each other area. The other areas
+    fill the shared anchor budget first; the hidden groups are what the `+N` line counts.
+    `used` runs newest-first, so the cap keeps the first `cap` places.
     """
     out = []
     for i in range(n):
-        home = i < cap
+        if i < cap:
+            kingdom, area, group = "Eldoria", "Eldoria City", f"District {i}"
+        elif i < 2 * cap:
+            kingdom, area = "Eldoria", "Eldoria City"
+            group = f"Hidden District {i - cap}"
+        else:
+            j = i - 2 * cap
+            kingdom, area, group = f"Zarthus {j + 1}", f"Zarthus City {j + 1}", "District 0"
         out.append({
-            "kingdom": "Eldoria" if home else f"Zarthus {i - cap + 1}",
-            "area": "Eldoria City" if home else f"Zarthus City {i - cap + 1}",
-            "place": [f"District {i // 3}", f"Landmark {i}"],
+            "kingdom": kingdom,
+            "area": area,
+            "place": [group, f"Landmark {i}"],
             "description": "",
             # One regular carries a state, and both carry a role/race/class: the block renders
             # `Name — role, race class (state)`, and the row must measure that worst case.
@@ -263,10 +271,10 @@ def check_gate_ready(exact: bool) -> tuple[bool, str]:
 
 
 def _metric_place_tree(count):
-    """KNOWN PLACES at its worst case -- the area cap AND the anchor cap -- or None."""
+    """KNOWN PLACES at its worst case -- the crowded area, 12 shown and 6 anchors -- or None."""
     try:
         from web.places import AREA_INDEX_CAP, PLACE_TREE_CAP
-        _, tokens = known_places_block(PLACE_TREE_CAP + AREA_INDEX_CAP, count)
+        _, tokens = known_places_block(2 * PLACE_TREE_CAP + AREA_INDEX_CAP, count)
         return tokens
     except Exception:
         return None

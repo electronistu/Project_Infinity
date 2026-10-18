@@ -16,8 +16,9 @@ from .scenes import (current_scene_place, known_cast_names, known_cast_people,
 from .places import _scene_key, name_key, places_feed
 from .player_file import _jump_reset_note, _sheet_body
 from .protocol import (
-    CARRY_NOTE, DEVICE_CLOSES, DEVICE_DECLARES, DEVICE_FIRES, ERA_STATE_ASK, HELP_TEXT,
-    JUMP_ERA_LABEL, LEGEND_RECOVERY_NUDGE, SITUATION_JUMP, SITUATION_NEW, SITUATION_RESUME
+    CARRY_NOTE, DEVICE_CLOSES, DEVICE_DECLARES, DEVICE_FIRES, DEVICE_MOVES, ERA_STATE_ASK,
+    HELP_TEXT, JUMP_ERA_LABEL, LEGEND_RECOVERY_NUDGE, SITUATION_DEVICE_MOVE, SITUATION_JUMP,
+    SITUATION_NEW, SITUATION_RESUME
 )
 from .session_base import OUTPUT_DIR
 from .stats import build_stats
@@ -277,24 +278,28 @@ class SceneMixin:
                 return
             await self._run_role(LEGEND_RECOVERY_NUDGE, "legend-fix", quiet=True)
 
-    async def _close_and_jump(self, era: str, area: str = "", arrival: str = "") -> None:
+    async def _close_and_jump(self, era: str, area: str = "", arrival: str = "",
+                              group: str = "") -> None:
         """A player-driven jump: one closing turn first, so the GM can say what the age keeps.
 
         An automatic jump is warned ahead and the memory line rides its last turn; a jump the
-        Traveller triggers has no such turn, so the engine manufactures one. `area` and `arrival`
-        are what the player named (both "" when they left it to the GM). The STATE ask comes
-        first, because the memory marker must stay the last thing in the turn.
+        Traveller triggers has no such turn, so the engine manufactures one. `area`, `group`
+        (a ward) and `arrival` (a place) are what the player named (all "" when they left it
+        to the GM). The STATE ask comes first, because the memory marker must stay the last
+        thing in the turn.
         """
         ask = (ERA_STATE_ASK.format(era=self.era) + "\n\n"
                + DEVICE_CLOSES.format(name=device.era_label(era)))
         await self._run_turn(ask, "closing")
-        await self._jump(to_era=era, area=area, arrival=arrival)
+        await self._jump(to_era=era, area=area, arrival=arrival, group=group)
 
-    async def _jump(self, to_era: str | None = None, area: str = "", arrival: str = "") -> None:
+    async def _jump(self, to_era: str | None = None, area: str = "", arrival: str = "",
+                    group: str = "") -> None:
         """The Device fires: a new age, and the place the Traveller lands in.
 
-        `to_era` is the destination the player chose. `area` is one they have stood in and
-        `arrival` a place inside it -- either may be "", and whatever is left out the GM chooses."""
+        `to_era` is the destination the player chose. `area` is one they have stood in,
+        `group` a ward inside it and `arrival` a place inside that -- any may be "", and
+        whatever is left out the GM chooses."""
         old = self.era
         # The memory line is the compaction output, so it has to be known BEFORE the era is
         # thrown away: the GM wrote it on the closing turn, and one quiet round forces a line
@@ -322,9 +327,13 @@ class SceneMixin:
         # The landing: a visited place the player picked (in an area they named), or None -- the
         # address is resolved from the save's own registry, never re-invented.
         landing = self._landing_place(self.era, area, arrival)
+        ward = self._group_landing(self.era, area, group) if group and not landing else None
         chosen_area = self._clean_place(area)
         if landing:
             self.arrival = self._arrival_label(landing.get("place"), landing.get("area"))
+        elif ward:
+            chosen_area = ward["area"]
+            self.arrival = self._arrival_label([ward["group"]], ward["area"])
         elif chosen_area:
             # The area alone: the GM chooses the exact place, but inside the area they named.
             self.arrival = chosen_area
@@ -348,8 +357,8 @@ class SceneMixin:
         if landing:
             self._set_current_place(landing.get("kingdom", ""), landing.get("area", ""),
                                     landing.get("place"))
-        elif chosen_area:
-            self._set_current_place("", chosen_area, [])
+        elif ward or chosen_area:
+            self._set_current_place(ward["kingdom"] if ward else "", chosen_area, [])
         else:
             self._current_place = None
         # `_compact` throws the sheet away with the rest, so rebuild it from the live DB first.
@@ -362,6 +371,9 @@ class SceneMixin:
         await self._emit_caption()
         if landing:
             landing_line = f"You arrive at {self.arrival}."
+        elif ward:
+            landing_line = (f"You arrive in the {ward['group']} ward of {chosen_area}; "
+                            "choose the exact place inside it.")
         elif chosen_area:
             landing_line = f"You arrive in {chosen_area}; choose the exact place inside it."
         else:
@@ -381,6 +393,65 @@ class SceneMixin:
         if not self.classic:
             jump = f"{jump}\n\n{JUMP_ERA_LABEL}\n{render_era_text(self.era)}"
         await self._run_turn(jump, "jump")
+        await self._emit({"type": "cadence", **self._device_state()})
+
+    async def _move_within_era(self, area: str = "", group: str = "",
+                               place: str = "") -> None:
+        """A release into the age the Traveller is already in: a move, not an age crossing.
+
+        Nothing is compacted and no age memory is captured: the session, its history, the
+        STATE page, the places tree and reputation all continue, so the people can react to
+        what came before. The Device only changes where the Traveller stands; the one turn it
+        runs narrates the disappearance and the arrival.
+        """
+        landing = self._landing_place(self.era, area, place)
+        ward = self._group_landing(self.era, area, group) if group and not landing else None
+        chosen_area = self._clean_place(area)
+        if landing:
+            self.arrival = self._arrival_label(landing.get("place"), landing.get("area"))
+            chosen_area = landing.get("area") or chosen_area
+        elif ward:
+            chosen_area = ward["area"]
+            self.arrival = self._arrival_label([ward["group"]], ward["area"])
+        elif chosen_area:
+            self.arrival = chosen_area
+        else:
+            self.arrival = ""
+        await self._call_tool_text("set_player_field", {"key": "arrival",
+                                                          "value": self.arrival})
+        if landing:
+            self._set_current_place(landing.get("kingdom", ""), landing.get("area", ""),
+                                    landing.get("place"))
+        elif ward or chosen_area:
+            self._set_current_place(ward["kingdom"] if ward else "", chosen_area, [])
+        else:
+            self._current_place = None
+        # Publish the new place. A landing pins the arrival through `_after_place_change`;
+        # a ward/area alone keeps the sharper arrival written above (the pin would degrade
+        # "Ward A, in Giza" to the bare settlement), so it only redraws the caption/block.
+        if landing:
+            await self._after_place_change()
+        else:
+            await self._emit_caption()
+            self._refresh_places_block()
+        if landing:
+            landing_line = f"You arrive at {self.arrival}."
+        elif ward:
+            landing_line = (f"You arrive in the {ward['group']} ward of {chosen_area}; "
+                            "choose the exact place inside it.")
+        elif chosen_area:
+            landing_line = f"You arrive in {chosen_area}; choose the exact place inside it."
+        else:
+            landing_line = "Choose where the Traveller appears in this age."
+        situation = SITUATION_DEVICE_MOVE.format(
+            era=device.era_label(self.era) or self.era)
+        move = f"{situation}\n\n{DEVICE_MOVES.format(arrival=landing_line)}"
+        if not landing and not self.classic and not self.scene_images:
+            # Text mode has no scene call to carry the place, so the move itself must declare it.
+            move = f"{move}\n\n{DEVICE_DECLARES}"
+        # The session continues: no compaction, no age memory, no spell reset. A stray
+        # `{{remembers}}` / STATE block is stripped and discarded by these capture flags.
+        await self._run_turn(move, "jump", capture_legend=False, capture_state=False)
         await self._emit({"type": "cadence", **self._device_state()})
 
     async def _handle_slash(self, command: str) -> None:

@@ -95,11 +95,11 @@ class TurnMixin:
         # The closing turn's memory line rides the prose in a hidden marker; never let it
         # reach the client or the stored history as text.
         legend, content = _extract_legend(content)
-        if legend:
+        if legend and self._capture_legend:
             self._pending_legend = legend
         # A departure STATE page rides the closing turn the same way, and is stripped here
         # rather than at the jump so it can never reach the client.
-        content = self._capture_state_pages(content)
+        content = self._capture_state_pages(content, store=self._capture_state)
         # A narrative has reached the player this turn; never ask for it again. This must test
         # the CLEANED text: a marker is emitted as *content*, so a bare `{{pause}}` used to mark
         # a turn as narrated that had no prose at all -- which defeated the narrative guarantee

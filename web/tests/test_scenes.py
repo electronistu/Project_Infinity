@@ -20,7 +20,8 @@ from web.protocol import (  # noqa: E402
     MAX_RESUME_ROUNDS,
 )
 from web.places import (  # noqa: E402
-    format_known_places, places_feed, _places_for_area, PLACE_TREE_CAP,
+    AREA_INDEX_CAP, KNOWN_PLACES_ELSEWHERE, format_known_places, places_feed,
+    _places_for_area, PLACE_TREE_CAP,
 )
 from web.gm_view import _extract_legend, _gm_tool_view  # noqa: E402
 from web.scenes import (  # noqa: E402
@@ -133,6 +134,31 @@ async def main() -> bool:
     rec("an undeclared current place says so",
         "(not recorded yet)" in places_feed(
             many, {"kingdom": "K", "area": "A", "place": ["a room never declared"]}, False))
+
+    # A crowded area (a whole city that is an entire era, e.g. Chang'an) is sub-scoped by
+    # its top-level place: the current ward cannot be crowded out, and every unseen ward is
+    # named by one exact path.
+    crowded = [{"kingdom": "Tang", "area": "Chang'an",
+                "place": [f"Ward {i}", f"Room {i}"], "main_npcs": [], "used": 100 - i}
+               for i in range(20)]
+    crowded_here = {"kingdom": "Tang", "area": "Chang'an", "place": ["Ward 0", "Room 0"]}
+    feed_crowded = places_feed(crowded, crowded_here, False)
+    rec("a crowded area shows its current ward first and anchors each unseen ward",
+        "Ward 0\n            - Room 0 · ← you are here" in feed_crowded
+        and "- Ward 12: Room 12" in feed_crowded
+        and "+2 more places you have stood in" in feed_crowded, feed_crowded[-300:])
+    rec("... the 12 shown + 6 anchors bound still holds",
+        feed_crowded.count("Room ") == 18, str(feed_crowded.count("Room ")))
+    rec("... an unseen ward's anchor keeps the registry's exact spelling",
+        "- Ward 12: Room 12" in feed_crowded and "- ward 12" not in feed_crowded)
+    with_city = crowded + [{"kingdom": "Tang", "area": "Luoyang",
+                            "place": ["East Market", "the inn"], "main_npcs": [], "used": 200}]
+    feed_city = places_feed(with_city, crowded_here, False)
+    anchor_block = feed_city.split(KNOWN_PLACES_ELSEWHERE)[1].split("\n- +")[0]
+    anchor_lines = [ln for ln in anchor_block.splitlines() if ln.startswith("- ")]
+    rec("... and another area shares the same six-line anchor budget",
+        "Tang — Luoyang: East Market — the inn" in feed_city
+        and len(anchor_lines) == AREA_INDEX_CAP, f"{len(anchor_lines)} anchors")
 
     gs = GameSession(base_dir=REPO, model="test", scene_images=True)
     gs.session = _FakeMCP()
@@ -543,6 +569,42 @@ async def main() -> bool:
         str(legend[:40]))
     legend_p, cleaned_p = _extract_legend("{{remembers: <one or a few sentences>}}")
     rec("a placeholder echo is rejected", legend_p == "" and "<" not in cleaned_p)
+
+    # A same-age move strips a stray memory/STATE block but never registers it; a real
+    # departure still captures both. The flags cover the whole turn, recovery rounds included.
+    memory2 = "The age remembers a stranger who vanished and returned."
+    state_block = "<!-- state:egypt -->\n**Goal**: find the tomb\n<!-- /state:egypt -->"
+
+    def _stream_with(text):
+        async def _gen(messages, tools):
+            yield {"type": "narrative_delta", "text": text}
+            yield {"type": "done", "prompt_eval_count": 0}
+        return _gen
+
+    gs_move = GameSession(base_dir=REPO, model="test", scene_images=True)
+    gs_move.era = "egypt"
+    gs_move._stream = _stream_with(
+        f"You step out of the air.\n{{{{remembers: {memory2}}}}}\n{state_block}")
+    previous = (gs_move._capture_legend, gs_move._capture_state)
+    gs_move._capture_legend = gs_move._capture_state = False
+    try:
+        out_move = (await gs_move._stream_assistant("jump"))[0]
+    finally:
+        gs_move._capture_legend, gs_move._capture_state = previous
+    rec("a same-age move strips a stray memory/STATE block without registering it",
+        gs_move._pending_legend == "" and gs_move._pending_era_state is None
+        and "remembers" not in out_move and "state:egypt" not in out_move
+        and out_move.strip() == "You step out of the air.", repr(out_move))
+
+    gs_dep = GameSession(base_dir=REPO, model="test", scene_images=True)
+    gs_dep.era = "egypt"
+    gs_dep._stream = _stream_with(
+        f"The world folds shut.\n{{{{remembers: {memory2}}}}}\n{state_block}")
+    out_dep = (await gs_dep._stream_assistant("closing"))[0]
+    rec("... while a real departure still captures both",
+        gs_dep._pending_legend == memory2
+        and gs_dep._pending_era_state is not None
+        and "remembers" not in out_dep and "state:egypt" not in out_dep, repr(out_dep))
 
     # The residue guard's payoff through the real loop: a round whose only text is an
     # unrecognized marker is not prose, so the turn still earns its recovery round.

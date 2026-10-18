@@ -232,13 +232,14 @@ class SaveMixin:
             self._era_states[self.era] = self._state
             self._state = ""
 
-    def _capture_state_pages(self, text: str) -> str:
+    def _capture_state_pages(self, text: str, store: bool = True) -> str:
         """Capture a STATE page the GM wrote into a narrative turn and strip it, so it can
-        never reach the client. Only the departure ask writes one there: the age being left."""
+        never reach the client. Only a departure asks for one; `store=False` strips a stray
+        page from a same-age move without registering it."""
         if self.classic:
             return text
         pages, cleaned = _extract_states(text, [self.era])
-        if pages.get(self.era):
+        if store and pages.get(self.era):
             self._pending_era_state = (self.era,
                                        _clamp_block(pages[self.era], MAX_STATE_CHARS))
         return cleaned
