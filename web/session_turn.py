@@ -4,8 +4,8 @@ import json
 from .eras import START_ERA, era_display
 from .gm_view import _extract_legend, _gm_tool_view
 from .scenes import _merge_npc_lists, known_cast_people, known_scene_places
-from .places import (_people_list, _scene_key, name_key, npc_query, path_label,
-                     places_query, render_npc_answer, render_places_answer,
+from .places import (_people_list, _scene_key, move_placements, name_key, npc_query,
+                     path_label, places_query, render_npc_answer, render_places_answer,
                      resolve_place_path)
 from .protocol import (
     AWAKENING_RESUME, COMPANION_TOOL, MAX_RESUME_ROUNDS, MAX_THINKING_RETRIES,
@@ -928,9 +928,17 @@ class TurnMixin:
         # The correction must reach the manifest too (the `place_note` event is built from
         # `args`), so write it back rather than keeping it in the live session alone.
         args["kingdom"], args["area"] = kingdom, area
+        key = _scene_key(place)
         main = args.get("main_npcs") if isinstance(args.get("main_npcs"), list) else []
         cast = args.get("cast") if isinstance(args.get("cast"), list) else []
-        self._scene_places[_scene_key(place)] = (kingdom, area)
+        self._scene_places[key] = (kingdom, area)
+        # A declaration is a PLACEMENT: a person named here is recorded here and nowhere else,
+        # so a regular recorded at another place moves (this also repairs a duplicate). Runs
+        # BEFORE `_remember_people` so a state-only entry is enriched with the identity the
+        # record already holds.
+        moved = self._apply_people_moves(main, era, place)
+        if moved:
+            args["moved"] = moved
         self._remember_people(main)
         self._remember_people(cast)
         for entry in list(main) + list(cast):
@@ -943,7 +951,6 @@ class TurnMixin:
                 name = " ".join(str(entry.get("name") or "").split())
                 if name:
                     self._cast_display[name_key(name)] = name
-        key = _scene_key(place)
         # The Device's chosen landing is authoritative for its turn. A KNOWN place (a real
         # move/return) or a room inside/around the landing may move the Traveller; a NEW
         # sibling the GM invented is recorded (roster included) but cannot replace the
@@ -979,6 +986,9 @@ class TurnMixin:
                      "used": self._next_place_tick()}
             self._note_declared_deaths(entry)
             self._primed.append(entry)
+            # A declared death joins the death index at once, like an existing place's (a
+            # moved regular's `state: dead` must show here too, not only in the roster).
+            self._sync_dead_display()
         else:
             entry["kingdom"] = kingdom or entry.get("kingdom", "")
             entry["area"] = area or entry.get("area", "")
@@ -1015,6 +1025,87 @@ class TurnMixin:
                     "place is filed at the record's address; reuse its exact kingdom / area / "
                     "place path.")
             self._place_note = f"{self._place_note}\n\n{note}" if self._place_note else note
+
+    def _apply_people_moves(self, entries, era: str, place) -> list[dict]:
+        """Make a declaration a PLACEMENT: a regular recorded elsewhere moves here.
+
+        Returns the `moved` payload for the `place_note` event -- the server removes the same
+        names from those manifest entries -- and tells the GM, in the tool result, what moved
+        and from where. A person is recorded at one place at a time, so a base change (a
+        regular leaving its house for the inn) is just the next declaration.
+
+        The declared entries are enriched IN PLACE from the recorded person: a state-only
+        declaration carries the recorded role / race / class / description / state along, so a
+        move never loses identity and a death is not cleared by omission.
+
+        Ambiguous matches (the same name in several places, with nothing to tell the people
+        apart) move nothing and say what would disambiguate them."""
+        drops: dict[int, tuple[dict, set[str]]] = {}
+        moved: dict[tuple, dict] = {}
+        ambiguous: list[str] = []
+        for npc in entries:
+            if not isinstance(npc, dict):
+                continue
+            name = " ".join(str(npc.get("name") or "").split())
+            if not name:
+                continue
+            hits = move_placements(self._primed, npc, exclude=place, era=era)
+            if hits is None:
+                ambiguous.append(name)
+                continue
+            if not hits:
+                continue
+            source = hits[0][1]
+            for field in ("description", "role", "race", "class", "state"):
+                if (not str(npc.get(field) or "").strip()
+                        and str(source.get(field) or "").strip()):
+                    npc[field] = source[field]
+            nk = name_key(name)
+            for old, _recorded in hits:
+                entry, names = drops.setdefault(id(old), (old, set()))
+                names.add(nk)
+                old_key = (str(entry.get("era") or ""), _scene_key(entry.get("place")))
+                slot = moved.setdefault(old_key, {
+                    "era": str(entry.get("era") or ""),
+                    "kingdom": str(entry.get("kingdom") or ""),
+                    "area": str(entry.get("area") or ""),
+                    "place": [str(p) for p in (entry.get("place") or [])],
+                    "names": []})
+                if name not in slot["names"]:
+                    slot["names"].append(name)
+        if ambiguous:
+            names = ", ".join(ambiguous[:4])
+            more = f" (+{len(ambiguous) - 4} more)" if len(ambiguous) > 4 else ""
+            note = (f"NOTE: I did not move {names}{more}: each is recorded in more than one "
+                    "place and the declaration does not tell them apart. Give `race` and "
+                    "`class` (or the role) to say which person you mean.")
+            self._place_note = f"{self._place_note}\n\n{note}" if self._place_note else note
+        if not drops:
+            return []
+        for entry, names in drops.values():
+            entry["main_npcs"] = [
+                n for n in (entry.get("main_npcs") or [])
+                if not isinstance(n, dict) or name_key(n.get("name")) not in names]
+            old_key = (str(entry.get("era") or ""), _scene_key(entry.get("place")))
+            for table in (self._dead_perm, self._dead_provisional, self._dead_declared):
+                if old_key in table:
+                    table[old_key] = {n for n in table[old_key] if name_key(n) not in names}
+        self._sync_dead_display()
+        lines: list[str] = []
+        slots = list(moved.values())
+        for slot in slots[:3]:
+            where = path_label(slot["place"])
+            if slot["area"]:
+                where = f"{where} ({slot['area']})"
+            lines.append(f'NOTE: {", ".join(slot["names"])} moved here from "{where}" — no '
+                         "longer listed there.")
+        if len(slots) > 3:
+            lines.append(f"NOTE: +{len(slots) - 3} more places no longer list a person you "
+                         "named here.")
+        if lines:
+            text = "\n".join(lines)
+            self._place_note = f"{self._place_note}\n\n{text}" if self._place_note else text
+        return slots
 
     def _declares_new_people(self, entries) -> bool:
         """Whether a declaration carries a person the engine does not already know exactly.
@@ -1066,6 +1157,14 @@ class TurnMixin:
                 declared = " ".join(str(npc.get(field) or "").split())
                 if declared and declared != " ".join(str(prior.get(field) or "").split()):
                     return True
+        # A person recorded at ANOTHER place makes this declaration a MOVE, even when the
+        # target's roster already matches (a duplicate from an older session): the old entry
+        # must be repaired and persisted, or the engine would keep two placements.
+        for npc in entries or []:
+            if not isinstance(npc, dict) or not name_key(npc.get("name")):
+                continue
+            if move_placements(self._primed, npc, exclude=key, era=era):
+                return True
         return False
 
     def _note_declared_deaths(self, entry: dict) -> None:
@@ -1219,6 +1318,9 @@ class TurnMixin:
             "place": place,
             "main_npcs": args.get("main_npcs") if isinstance(args.get("main_npcs"), list) else [],
             "cast": args.get("cast") if isinstance(args.get("cast"), list) else [],
+            # A declaration is a placement: the names this move takes from those places must
+            # leave the manifest there too (`record_place` applies the removal).
+            "moved": args.get("moved") if isinstance(args.get("moved"), list) else [],
             "turn": self.turn_counter,
         })
 

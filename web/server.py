@@ -652,6 +652,7 @@ def _persist_place_note(session, evt: dict) -> None:
             place=evt.get("place") or [],
             main_npcs=evt.get("main_npcs") or [],
             cast=evt.get("cast") or [],
+            moved=evt.get("moved") or [],
             generation=getattr(session, "scene_generation", None),
         )
     except Exception:  # noqa: BLE001 - never sink the turn over a place note

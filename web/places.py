@@ -222,6 +222,69 @@ def _people_list(value) -> list[dict]:
     return out
 
 
+def _word(value) -> str:
+    """A field as compared: whitespace-folded and case-folded."""
+    return " ".join(str(value or "").split()).casefold()
+
+
+def same_person(declared: dict, recorded: dict) -> bool:
+    """Whether two regular records are the same person (the name is matched separately).
+
+    `race` and `class` are a VETO: when both records carry one and it differs, these are two
+    different people and neither moves. Role is deliberately NOT a veto -- a role changes with
+    the story ("boyar's widow" -> "fugitive") -- so it is only a tie-break. A field missing on
+    either side never vetoes; the declared field is filled from the record when it is empty."""
+    for field in ("race", "class"):
+        declared_field, recorded_field = _word(declared.get(field)), _word(recorded.get(field))
+        if declared_field and recorded_field and declared_field != recorded_field:
+            return False
+    return True
+
+
+def move_placements(places, npc, exclude=(), era=None) -> list[tuple[dict, dict]] | None:
+    """Where a declared regular is recorded ELSEWHERE, or None when the match is ambiguous.
+
+    A declaration is a PLACEMENT: a person named as a regular of a place is recorded there and
+    nowhere else, so the same person recorded at another place moves here (an NPC can change
+    base -- a rare but real turn of the story, and the same rule that repairs a duplicate).
+
+    Candidates are the same `name_key` in the same era, excluding the declared place, with the
+    `same_person` identity veto. A declared role that matches exactly one candidate picks it (a
+    role is a tie-break, never a veto). Past that:
+    - one candidate -> it moves;
+    - several, and the declaration carries race AND class -> all surviving candidates move
+      (indistinguishable records of one person; the declaration is the newest placement);
+    - several without race+class -> None, nothing moves (the `resolve_place_path` precedent:
+      ambiguous -> no merge), so the caller can tell the GM what would disambiguate it."""
+    key = name_key((npc or {}).get("name"))
+    if not key:
+        return []
+    exclude_key = _scene_key(exclude) if exclude else ()
+    out: list[tuple[dict, dict]] = []
+    for p in places or []:
+        if era is not None and str(p.get("era") or "") != str(era or ""):
+            continue
+        path = _path_of(p)
+        if not path or (exclude_key and _scene_key(path) == exclude_key):
+            continue
+        for other in p.get("main_npcs") or []:
+            if (isinstance(other, dict) and name_key(other.get("name")) == key
+                    and same_person(npc or {}, other)):
+                out.append((p, other))
+    if not out:
+        return out
+    role = _word((npc or {}).get("role"))
+    if role:
+        exact = [hit for hit in out if _word(hit[1].get("role")) == role]
+        if len(exact) == 1:
+            return exact
+    if len(out) == 1:
+        return out
+    if _word((npc or {}).get("race")) and _word((npc or {}).get("class")):
+        return out
+    return None
+
+
 def _area_order(place: dict):
     """Tree order: kingdom, then area, then the place path."""
     return (str(place.get("kingdom") or "").lower(), str(place.get("area") or "").lower(),

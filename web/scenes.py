@@ -1209,13 +1209,16 @@ class SceneService(ImageBackendHolder):
 
     def record_place(self, stem: str, era: str = "", kingdom: str = "", area: str = "",
                      place=None, main_npcs=None, cast=None, description: str = "",
-                     generation=None) -> dict:
+                     moved=None, generation=None) -> dict:
         """Remember a place (and its regulars) with no image: the file-less registry.
 
         Used for a place DECLARED without a picture: text mode, and an images-mode scene call
         whose image never arrives (no browser, no image backend). The entry is seed-shaped with
         `file: None`, and `ensure_scene` later treats a file-less entry as unseeded and draws
         it. Names + roles only: `cast` keeps its description empty (looks are image-only).
+        `moved` is the engine's placement payload -- [{era, kingdom, area, place, names}] --
+        naming the places a declared regular just left, so this single mutate removes them
+        there too (a person is recorded at one place at a time).
         `generation` is the declaring session's registry write ticket: a declaration whose
         session has already ended is refused (`{"recorded": False, "stale": True}`) instead of
         writing a place into the next session's registry.
@@ -1254,6 +1257,25 @@ class SceneService(ImageBackendHolder):
                     # state-only entry is the whole update, and a wipe loses the dead marks).
                     entry["main_npcs"] = _merge_npc_lists(_seed_main_npcs(entry), main)
                 entry["used"] = now
+            # A declaration is a PLACEMENT: the regulars it takes from other places leave
+            # those entries, with their dead marks (`_prune_dead`). The old entries keep
+            # their file/slug/description and their `used` stamp: the place did not move.
+            for move in moved or []:
+                if not isinstance(move, dict):
+                    continue
+                old_path = _place_path(move.get("place"))
+                old_key = self._key(str(move.get("kingdom") or ""),
+                                    str(move.get("area") or ""), old_path,
+                                    str(move.get("era") or ""))
+                if not old_path or old_key == key:
+                    continue
+                old = seeds.get(old_key)
+                if old is None:
+                    continue
+                drop = {name_key(str(n)) for n in (move.get("names") or [])}
+                old["main_npcs"] = [n for n in _seed_main_npcs(old)
+                                    if name_key(n.get("name")) not in drop]
+                _prune_dead(old)
             _sync_dead_states(entry)
             _prune_dead(entry)
             cast_map = manifest.setdefault("cast", {})

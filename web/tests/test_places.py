@@ -870,6 +870,147 @@ async def main() -> bool:
             warden.get("state") == "dead" and "warden gao lian" in square_entry["dead"]
             and warden.get("role") == "gate warden", str(square_entry["main_npcs"]))
 
+        # ── a declaration is a PLACEMENT: a regular moves, it is not duplicated ──────
+        # Live 2026-10-18: Smaranda and Dobre were declared dead at the lodge wall while the
+        # house in the trees still listed them alive -- the tree AND `lookup('npc:')` showed
+        # two contradictory placements of one person.
+        ridge = ["the beech ridge above the graveyard", "the house in the trees"]
+        wall = ["the beech ridge above the graveyard", "the ground outside the lodge wall"]
+        smaranda = {"name": "Smaranda", "role": "boyar's widow, keeper of the lodge",
+                    "race": "human", "class": "hedge-witch"}
+        dobre = {"name": "Dobre", "role": "gate-servant and dog-keeper",
+                 "race": "human", "class": "Commoner"}
+        svc_m = SceneService(out)
+        svc_m.record_place("move", era="wallachia", kingdom="Wallachia", area="Valea Seacă",
+                           place=ridge, main_npcs=[smaranda, dobre])
+        gsm = GameSession(base_dir=Path(td), model="test", scene_images=False)
+        gsm.session = _FakeMCP()
+        gsm.active_name = "move"
+        gsm.era = "wallachia"
+        gsm._reload_era_scene_state()
+        drain(gsm._evt_q)
+        await gsm._execute_tool({"function": {"name": "note_place", "arguments": {
+            "kingdom": "Wallachia", "area": "Valea Seacă", "place": wall,
+            "main_npcs": [dict(smaranda, state="dead"), dict(dobre, state="dead")]}}})
+        evts = drain(gsm._evt_q)
+        ridge_entry = next(p for p in gsm._primed if p["place"] == ridge)
+        wall_entry = next(p for p in gsm._primed if p["place"] == wall)
+        note = gsm.messages[-1]["content"]
+        rec("a regular declared at another place MOVES there",
+            ridge_entry["main_npcs"] == []
+            and {n["name"] for n in wall_entry["main_npcs"]} == {"Smaranda", "Dobre"},
+            str(gsm._primed))
+        rec("... the old place's death index goes with the roster",
+            not ridge_entry["dead"], str(ridge_entry["dead"]))
+        rec("... the tree shows one placement per person",
+            gsm._places_body().count("Smaranda") == 1, gsm._places_body())
+        rec("... and the on-demand person record does too",
+            render_npc_answer(gsm._primed, gsm._current_place,
+                              "npc: Smaranda").count("NPC:") == 1,
+            render_npc_answer(gsm._primed, gsm._current_place, "npc: Smaranda"))
+        rec("... and the GM is told where the person came from",
+            "moved here from" in note and "the house in the trees" in note, note[-260:])
+        moved_evt = [e for e in evts if e.get("type") == "place_note"]
+        rec("... the event carries the removal for the manifest",
+            bool(moved_evt) and bool(moved_evt[0].get("moved"))
+            and moved_evt[0]["moved"][0]["place"] == ridge
+            and set(moved_evt[0]["moved"][0]["names"]) == {"Smaranda", "Dobre"},
+            str(moved_evt))
+
+        await gsm._execute_tool({"function": {"name": "note_place", "arguments": {
+            "kingdom": "Wallachia", "area": "Valea Seacă", "place": wall,
+            "main_npcs": [dict(smaranda, state="dead"), dict(dobre, state="dead")]}}})
+        rec("re-declaring the target after a move writes nothing",
+            not [e for e in drain(gsm._evt_q) if e.get("type") == "place_note"])
+
+        # A state-less declaration at a NEW place carries the recorded identity AND the death.
+        chapel = ["the beech ridge above the graveyard", "the chapel"]
+        await gsm._execute_tool({"function": {"name": "note_place", "arguments": {
+            "kingdom": "Wallachia", "area": "Valea Seacă", "place": chapel,
+            "main_npcs": [{"name": "Smaranda"}]}}})
+        drain(gsm._evt_q)
+        chapel_entry = next(p for p in gsm._primed if p["place"] == chapel)
+        carried = next(n for n in chapel_entry["main_npcs"] if n["name"] == "Smaranda")
+        rec("a name-only declaration carries the recorded identity to the new place",
+            carried["role"] == smaranda["role"] and carried["race"] == "human"
+            and carried["class"] == "hedge-witch", str(carried))
+        rec("... and the recorded death is not cleared by omission",
+            carried.get("state") == "dead" and "smaranda" in chapel_entry["dead"],
+            str(chapel_entry))
+
+        # Ambiguity: the same name in two places, a declaration with nothing to tell them
+        # apart -> nothing moves, and the GM is told what would. A matching role picks one;
+        # a contradictory race/class is a different person and moves neither.
+        mill = ["the lower town", "the mill"]
+        ford = ["the lower town", "the ford"]
+        svc_a = SceneService(out)
+        svc_a.record_place("amb", era="wallachia", kingdom="Wallachia", area="Valea Seacă",
+                           place=mill, main_npcs=[{"name": "Ion", "role": "the miller",
+                                                   "race": "human", "class": "commoner"}])
+        svc_a.record_place("amb", era="wallachia", kingdom="Wallachia", area="Valea Seacă",
+                           place=ford, main_npcs=[{"name": "Ion", "role": "the ferryman",
+                                                   "race": "human", "class": "commoner"}])
+        gsa = GameSession(base_dir=Path(td), model="test", scene_images=False)
+        gsa.session = _FakeMCP()
+        gsa.active_name = "amb"
+        gsa.era = "wallachia"
+        gsa._reload_era_scene_state()
+        drain(gsa._evt_q)
+        tavern = ["the lower town", "the tavern"]
+        await gsa._execute_tool({"function": {"name": "note_place", "arguments": {
+            "kingdom": "Wallachia", "area": "Valea Seacă", "place": tavern,
+            "main_npcs": [{"name": "Ion", "state": "gone"}]}}})
+        mill_entry = next(p for p in gsa._primed if p["place"] == mill)
+        ford_entry = next(p for p in gsa._primed if p["place"] == ford)
+        rec("a name-only declaration with two placements moves neither",
+            len(mill_entry["main_npcs"]) == 1 and len(ford_entry["main_npcs"]) == 1,
+            str(gsa._primed))
+        rec("... and the GM is told what would disambiguate it",
+            "did not move Ion" in gsa.messages[-1]["content"], gsa.messages[-1]["content"])
+        await gsa._execute_tool({"function": {"name": "note_place", "arguments": {
+            "kingdom": "Wallachia", "area": "Valea Seacă", "place": tavern,
+            "main_npcs": [{"name": "Ion", "role": "the miller"}]}}})
+        tavern_entry = next(p for p in gsa._primed if p["place"] == tavern)
+        ion = next(n for n in tavern_entry["main_npcs"] if n["name"] == "Ion")
+        rec("... while a role that matches exactly one candidate picks it",
+            mill_entry["main_npcs"] == [] and len(ford_entry["main_npcs"]) == 1,
+            str(gsa._primed))
+        rec("... and the moved identity comes along",
+            ion.get("class") == "commoner" and ion.get("race") == "human", str(ion))
+        bridge = ["the lower town", "the bridge"]
+        await gsa._execute_tool({"function": {"name": "note_place", "arguments": {
+            "kingdom": "Wallachia", "area": "Valea Seacă", "place": bridge,
+            "main_npcs": [{"name": "Ion", "race": "human", "class": "fighter"}]}}})
+        rec("a contradictory class is a different person: nothing moves",
+            [n["name"] for n in ford_entry["main_npcs"]] == ["Ion"],
+            str(ford_entry["main_npcs"]))
+
+        # A duplicate already at the declared place (an older session) is still a MOVE: the
+        # change gate must fire, or the other placement outlives every declaration.
+        svc_d = SceneService(out)
+        svc_d.record_place("dup", era="wallachia", kingdom="Wallachia", area="Valea Seacă",
+                           place=mill, main_npcs=[{"name": "Mihai", "role": "the cooper",
+                                                   "race": "human", "class": "commoner"}])
+        svc_d.record_place("dup", era="wallachia", kingdom="Wallachia", area="Valea Seacă",
+                           place=ford, main_npcs=[{"name": "Mihai", "role": "the cooper",
+                                                   "race": "human", "class": "commoner"}])
+        gsd = GameSession(base_dir=Path(td), model="test", scene_images=False)
+        gsd.session = _FakeMCP()
+        gsd.active_name = "dup"
+        gsd.era = "wallachia"
+        gsd._reload_era_scene_state()
+        drain(gsd._evt_q)
+        await gsd._execute_tool({"function": {"name": "note_place", "arguments": {
+            "kingdom": "Wallachia", "area": "Valea Seacă", "place": ford,
+            "main_npcs": [{"name": "Mihai", "role": "the cooper",
+                           "race": "human", "class": "commoner"}]}}})
+        evts = drain(gsd._evt_q)
+        mill_dup = next(p for p in gsd._primed if p["place"] == mill)
+        rec("a duplicate already at the declared place is still repaired",
+            mill_dup["main_npcs"] == []
+            and any(e.get("type") == "place_note" and e.get("moved") for e in evts),
+            str(mill_dup["main_npcs"]))
+
         # A NEW room named by a bare leaf: filed in the settlement the story stands in, with a
         # NOTE -- an address-less place would blind the caption and the block's scoping.
         before_primed = len(gse._primed)

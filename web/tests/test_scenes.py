@@ -1307,6 +1307,71 @@ async def main() -> bool:
         release.set()
         worker.join(5)
 
+    # ── a declaration is a PLACEMENT: the old manifest entry loses the person ─────────
+    # The engine sends the places a declared regular left with the `place_note` event; the
+    # single manifest writer removes them there too, so a Save cannot resurrect the duplicate.
+    with tempfile.TemporaryDirectory() as td:
+        import web.server as server_mod
+        from web.server import _persist_place_note
+
+        out = Path(td) / "output"
+        svc = SceneService(out)
+        stem = "placement"
+        house = ["Valea Seacă", "the house in the trees"]
+        wall = ["Valea Seacă", "the ground outside the lodge wall"]
+        person = {"name": "Smaranda", "role": "the keeper", "race": "human",
+                  "class": "hedge-witch"}
+        svc.record_place(stem, era="wallachia", kingdom="Wallachia", area="Valea Seacă",
+                         place=house, main_npcs=[person])
+        live = live_scene_manifest(out, stem)
+        old_key = next(iter(live["seeds"]))
+        live["seeds"][old_key]["file"] = "seed-house.png"
+        live["seeds"][old_key]["slug"] = "seed-house"
+        live["seeds"][old_key]["dead"] = ["smaranda"]
+        used_before = live["seeds"][old_key]["used"]
+
+        class _Session:  # only what the server's place-note writer touches
+            active_name = stem
+            scene_generation = None
+
+        move = {"era": "wallachia", "kingdom": "Wallachia", "area": "Valea Seacă",
+                "place": house, "names": ["Smaranda"]}
+        evt = {"era": "wallachia", "kingdom": "Wallachia", "area": "Valea Seacă",
+               "place": wall,
+               "main_npcs": [dict(person, state="dead")], "cast": [], "moved": [move]}
+        real_service = server_mod.scene_service
+        server_mod.scene_service = svc
+        try:
+            _persist_place_note(_Session(), evt)
+        finally:
+            server_mod.scene_service = real_service
+
+        house_now = next(p for p in known_scene_places(out, stem, "wallachia")
+                         if p["place"] == house)
+        wall_now = next(p for p in known_scene_places(out, stem, "wallachia")
+                        if p["place"] == wall)
+        raw = live_scene_manifest(out, stem)["seeds"][old_key]
+        rec("the event's `moved` removes the regular from the old manifest entry",
+            house_now["main_npcs"] == []
+            and [n["name"] for n in wall_now["main_npcs"]] == ["Smaranda"],
+            str(house_now["main_npcs"]))
+        rec("... with its dead mark (the person is not there to be dead)",
+            raw["dead"] == [] and house_now["dead"] == [], str(raw["dead"]))
+        rec("... while the old place keeps its picture and its stamp",
+            raw.get("file") == "seed-house.png" and raw.get("used") == used_before, str(raw))
+        rec("... and the declared place carries the death",
+            "smaranda" in wall_now["dead"], str(wall_now["dead"]))
+
+        # A self-referencing or unknown move entry is inert: never empty the roster the same
+        # write just filled, and never fail over a place the manifest does not hold.
+        svc.record_place(stem, era="wallachia", kingdom="Wallachia", area="Valea Seacă",
+                         place=wall,
+                         moved=[dict(move, place=wall), dict(move, place=["nowhere"])])
+        wall_final = next(p for p in known_scene_places(out, stem, "wallachia")
+                          if p["place"] == wall)
+        rec("a self-referencing or unknown move entry is inert",
+            [n["name"] for n in wall_final["main_npcs"]] == ["Smaranda"], str(wall_final))
+
     # ── era scoping: a place belongs to ONE age (the Device picker, the GM's tree) ─────
     with tempfile.TemporaryDirectory() as td:
         out = Path(td) / "output"
