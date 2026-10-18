@@ -28,7 +28,8 @@ from .spell_effects import _consume_buff_charge
 from .spell_knowledge import _has_spellbook_item, _needs_spellbook, get_max_prepared_spells
 from .vitals import (
     _apply_exhaustion_change, _apply_hp_change, _clear_death_saves, _end_concentration,
-    _end_transient_effects, _reset_death_saves
+    _end_transient_effects, _mark_player_dead, _player_dead, _player_stable,
+    _stabilize_death_saves
 )
 
 @mcp.tool()
@@ -65,6 +66,16 @@ def rest(rest_type: str, prepared_spells: list[str] | None = None) -> dict:
         hd_size = int(_db_val(cursor, "hit_dice_size", 8))
         total_hp = int(_db_val(cursor, "total_hit_points", 1))
         current_hp = int(_db_val(cursor, "current_hit_points", 0))
+
+        # A dead character cannot rest, and a short rest is not a revive at 0 HP.
+        if _player_dead(cursor):
+            return _action_failure(
+                "The character is dead.", "Rest \u2014 impossible; the character is dead.")
+        if current_hp <= 0:
+            return _action_failure(
+                "Cannot rest at 0 HP. The character is dying, stable or unconscious \u2014 "
+                "heal them first.",
+                "Rest \u2014 impossible while at 0 HP")
 
         con_mod = _ability_mod(_effective_stats(cursor).get("con", 10))
 
@@ -179,11 +190,6 @@ def rest(rest_type: str, prepared_spells: list[str] | None = None) -> dict:
             hints = [h for h in hints if h is not None]
 
         elif rest_type == "long":
-            if current_hp <= 0:
-                return _action_failure(
-                    "Cannot benefit from a long rest with 0 HP. The character must be stabilized first.",
-                    "Long rest — impossible while at 0 HP")
-
             _db_set(cursor, "current_hit_points", str(total_hp))
             changes["hp"] = {"old": current_hp, "new": total_hp,
                              "healing_applied": total_hp - current_hp, "max_hp": total_hp,
@@ -356,7 +362,7 @@ def modify_exhaustion(delta: int, reason: str | None = None) -> dict:
             bits.append(f"HP maximum halved ({change['max_hp']})")
         if bits:
             parts.append("\u2014 " + ", ".join(bits))
-    return {
+    result = {
         "success": True,
         "exhaustion": change["new"],
         "old": change["old"],
@@ -365,6 +371,10 @@ def modify_exhaustion(delta: int, reason: str | None = None) -> dict:
         "max_hp": change["max_hp"],
         "narrative_format": " ".join(parts),
     }
+    if change.get("dead"):
+        result["dead"] = True
+        result["death_cause"] = change.get("death_cause") or "exhaustion level 6"
+    return result
 
 
 @mcp.tool()
@@ -383,12 +393,22 @@ def make_death_save() -> dict:
         return {"success": False, "error": "Database not initialized."}
     cursor = state.DB_CONNECTION.cursor()
     current_hp = int(_db_val(cursor, "current_hit_points", 0) or 0)
+    if _player_dead(cursor):
+        return {"success": False, "error": "already_dead", "dead": True,
+                "death_cause": str(_db_val(cursor, "death_cause", "") or ""),
+                "reason": "The character is dead."}
+    if _player_stable(cursor):
+        return {"success": False, "error": "stable", "stable": True, "current_hp": 0,
+                "reason": "The character is stable and unconscious; no death save is needed."}
     if current_hp > 0:
         return {"success": False, "error": "not_dying",
                 "reason": "The character is not at 0 HP \u2014 no death save is needed."}
     if int(_db_val(cursor, "death_save_failures", 0) or 0) >= 3:
-        return {"success": False, "error": "already_dead",
-                "reason": "The character already has three death-save failures."}
+        # A legacy/inconsistent row: three failures is death even without the old latch.
+        _mark_player_dead(cursor, "third death save failure")
+        return {"success": False, "error": "already_dead", "dead": True,
+                "death_cause": "third death save failure",
+                "reason": "The character is dead."}
     successes = int(_db_val(cursor, "death_save_successes", 0) or 0)
     failures = int(_db_val(cursor, "death_save_failures", 0) or 0)
     roll = random.randint(1, 20)
@@ -411,19 +431,23 @@ def make_death_save() -> dict:
     _db_set(cursor, "death_save_successes", str(successes))
     _db_set(cursor, "death_save_failures", str(failures))
     state.DB_CONNECTION.commit()
+    result = {"success": True, "roll": roll, "successes": successes,
+              "failures": failures}
     if failures >= 3:
         _end_concentration(cursor, reason="death")
-        outcome = "dead"
+        _mark_player_dead(cursor, "third death save failure")
+        result.update({"outcome": "dead", "dead": True,
+                       "death_cause": "third death save failure"})
         narrative = f"Death save: {roll} \u2014 third failure. The character is dead."
     elif successes >= 3:
-        _reset_death_saves(cursor)
-        outcome = "stable"
+        _stabilize_death_saves(cursor)
+        result.update({"outcome": "stable", "stable": True})
         narrative = f"Death save: {roll} \u2014 third success. The character is stable."
     else:
-        outcome = "success" if roll >= 10 else "failure"
+        result["outcome"] = "success" if roll >= 10 else "failure"
         narrative = f"Death save: {roll} \u2014 {successes} successes, {failures} failures."
-    return {"success": True, "roll": roll, "successes": successes, "failures": failures,
-            "outcome": outcome, "narrative_format": narrative}
+    result["narrative_format"] = narrative
+    return result
 
 
 @mcp.tool()

@@ -10,7 +10,7 @@ from .places import (_people_list, _scene_key, name_key, npc_query, path_label,
 from .protocol import (
     AWAKENING_RESUME, COMPANION_TOOL, MAX_RESUME_ROUNDS, MAX_THINKING_RETRIES,
     NARRATIVE_PHASE_TOOLS, NARRATIVE_RECOVERY_NUDGE, NPC_TOOL, PLACE_TOOL,
-    PROSE_RECOVERY_NUDGE, RESUME_GUARD_NUDGE, SCENE_TOOL, _hidden_tools,
+    PROSE_RECOVERY_NUDGE, RESUME_GUARD_NUDGE, SCENE_TOOL, STATE_ZERO_HP, _hidden_tools,
     has_unknown_marker, is_pause, place_echo_nudge, strip_markers
 )
 from .session_base import OUTPUT_DIR
@@ -35,6 +35,8 @@ class TurnMixin:
         gm = {"round": 0, "trigger": "start"}
         while True:
             result = await self._chat_with_tools(label, quiet=quiet, gm=gm)
+            if result == "__SYSTEM_DEAD__":
+                return result
             if result == "__SYSTEM_PAUSE__":
                 await self._emit({"type": "paused"})
                 resumes += 1
@@ -160,6 +162,15 @@ class TurnMixin:
                 self._scene_rejected = False
                 for tc in tool_calls:
                     await self._execute_tool(tc)
+                    if self._dead:
+                        break  # the fatal result ends the run: no further tool, no next round
+                if self._dead:
+                    return "__SYSTEM_DEAD__"
+                # The 0 HP note rides AFTER the whole tool batch, never between tool results
+                # (strict providers require the results to stay contiguous).
+                if self._pending_zero_note:
+                    self._pending_zero_note = False
+                    self.messages.append({"role": "user", "content": STATE_ZERO_HP})
                 names = {(tc.get("function") or {}).get("name") for tc in tool_calls}
                 if content and not self._scene_rejected:
                     # The turn's narrative is delivered; the engine composes any
@@ -505,6 +516,7 @@ class TurnMixin:
         # Gemini 3.x). Ollama has no call ids, so it never sees this key.
         if self.provider == "gemini" and fn.get("id"):
             self.messages[-1]["id"] = str(fn.get("id"))
+        self._note_player_state(text)
         # The engine composes the turn's Mechanics block from narrative_format; the client
         # shows it where the GM placed the {{_MECHANICS}} token.
         mech = self._collect_mechanics(text)
@@ -593,6 +605,76 @@ class TurnMixin:
         if isinstance(payload, dict) and payload.get("key") == "inventory":
             await self._refresh_device()
             await self._emit({"type": "cadence", **self._device_state()})
+
+    def _note_player_state(self, text: str) -> None:
+        """Read a tool result's player HP/death marker.
+
+        On the first drop to 0 HP in a turn it appends the STATE note once, so the GM knows
+        a heal must be a tool call. It also latches death from any lethal player result --
+        the marker rides top level (`modify_player_numeric`) or inside the player's
+        `hp_change` (`resolve_attack` / `resolve_magic`).
+        """
+        try:
+            payload = json.loads(text)
+        except (json.JSONDecodeError, TypeError):
+            return
+        if not isinstance(payload, dict):
+            return
+
+        def _hp(obj):
+            if not isinstance(obj, dict):
+                return None
+            if obj.get("key") == "current_hit_points" and "new_value" in obj:
+                try:
+                    return int(obj["new_value"])
+                except (TypeError, ValueError):
+                    return None
+            return None
+
+        cause = str(payload.get("death_cause") or "")
+        dead = payload.get("dead") is True or payload.get("outcome") == "dead"
+        hp = _hp(payload)
+
+        nested = payload.get("hp_change")
+        nested_hp = _hp(nested)
+        if nested_hp is not None:
+            hp = nested_hp
+        if isinstance(nested, dict):
+            if nested.get("dead") is True:
+                dead = True
+            cause = str(nested.get("death_cause") or cause)
+
+        targets = payload.get("targets")
+        if isinstance(targets, list):
+            for target in targets:
+                if not isinstance(target, dict):
+                    continue
+                hp_change = target.get("hp_change")
+                target_hp = _hp(hp_change)
+                if target_hp is not None:
+                    hp = target_hp
+                if isinstance(hp_change, dict):
+                    if hp_change.get("dead") is True:
+                        dead = True
+                    cause = str(hp_change.get("death_cause") or cause)
+
+        if dead:
+            self._dead = True
+            self._stable = False
+            self._at_zero = True
+            if cause:
+                self._death_cause = cause
+            return
+        if hp is None:
+            return
+        if hp > 0:
+            self._at_zero = False
+            self._stable = False
+            self._dying_noted = False
+            self._pending_zero_note = False
+        elif not self._dying_noted:
+            self._dying_noted = True
+            self._pending_zero_note = True
 
     def _collect_mechanics(self, text: str) -> list[str]:
         """The narrative_format lines from a tool result, for the engine-composed block."""

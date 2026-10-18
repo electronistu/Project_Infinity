@@ -48,13 +48,26 @@ class ExhaustionLevelTest(H.EngineCase):
     def test_level_6_is_death(self):
         r = H.ds.modify_exhaustion(6)
         self.assertTrue(r["effects"]["dead"])
+        self.assertTrue(r["dead"])
+        self.assertEqual(r["death_cause"], "exhaustion level 6")
         self.assertEqual(r["exhaustion"], 6)
         self.assertIn("dead", r["narrative_format"])
         self.assertEqual(H.dbv("current_hit_points"), 0)
+        self.assertEqual(H.dbv("dead"), 1)
+
+    def test_level_6_is_permanent(self):
+        H.ds.modify_exhaustion(6)
+        H.ds.modify_exhaustion(-1)  # lowering the level does not revive
+        self.assertEqual(H.dbv("dead"), 1)
+        self.assertEqual(H.dbv("current_hit_points"), 0)
+        r = H.ds.modify_player_numeric("current_hit_points", 10)
+        self.assertFalse(r["success"])
+        self.assertEqual(r["error"], "dead")
 
     def test_clamped_between_0_and_6(self):
         self.assertEqual(H.ds.modify_exhaustion(99)["exhaustion"], 6)
         self.assertEqual(H.ds.modify_exhaustion(-99)["exhaustion"], 0)
+        self.assertEqual(H.dbv("dead"), 1)  # the latch survives the clamp
 
 
 class ExhaustionDisadvantageTest(H.EngineCase):

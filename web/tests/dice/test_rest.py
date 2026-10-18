@@ -45,11 +45,19 @@ class LongRestTest(H.EngineCase):
         self.assertEqual(H.dbv("armor_class"), 13)  # buff reverted
 
     def test_long_rest_rejected_at_zero_hp(self):
+        # -999 is massive damage: instant death, and death is the refusal.
         H.ds.modify_player_numeric("current_hit_points", -999)
         r = H.ds.rest("long")
         self.assertFalse(r["success"])
+        self.assertIn("dead", r["error"])
+        self.assertIn("dead", r["narrative_format"])
+
+    def test_long_rest_rejected_at_zero_hp_without_instant_death(self):
+        H.ds.modify_player_numeric("current_hit_points", -13)  # exactly 0
+        r = H.ds.rest("long")
+        self.assertFalse(r["success"])
         self.assertIn("0 HP", r["error"])
-        self.assertIn("Long rest — impossible while at 0 HP", r["narrative_format"])
+        self.assertIn("0 HP", r["narrative_format"])
 
     def test_long_rest_replaces_prepared_spells(self):
         r = H.ds.rest("long", prepared_spells=["Shield", "Sleep"])

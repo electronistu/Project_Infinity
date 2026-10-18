@@ -80,9 +80,17 @@ class DeviceMixin:
         area you have stood in, one of its wards, or the exact place -- whatever you leave out,
         the Game Master chooses.
         """
+        if self._dead:
+            await self._emit({"type": "notice", "title": "The Device",
+                              "text": "The character is dead."})
+            return
         if self._in_combat:
             await self._emit({"type": "notice", "title": "The Device",
                               "text": COMBAT_HOLD_MESSAGE})
+            return
+        if await self._player_at_zero_hp():
+            await self._emit({"type": "notice", "title": "The Device",
+                              "text": "You are in no state to use the Device."})
             return
         era = str(cmd.get("era") or "").strip().lower()
         area = self._clean_place(cmd.get("area"))

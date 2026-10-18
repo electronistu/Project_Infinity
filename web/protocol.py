@@ -311,7 +311,8 @@ def render_protocol(text: str, scene_images: bool, difficulty: str = "hard",
 # The `debug_*` tools are the developer's levers (dev mode only); the GM is never offered
 # them, and they no-op unless the dice server was started with `--debug`.
 ENGINE_ONLY_TOOLS = ("set_player_field", "dump_player_save_state",
-                     "debug_set_field", "debug_device", "dump_player_db", "device_jump_reset")
+                     "debug_set_field", "debug_device", "dump_player_db", "device_jump_reset",
+                     "make_death_save")
 
 # The one system message a dev Apply leaves for the GM, so the next turn narrates against
 # the state the developer just set instead of a stale sheet.
@@ -451,6 +452,27 @@ SITUATION_RESUME = ("SITUATION: SESSION RESUMED — the story continues from the
                     "not a new landing and not a new game.")
 SITUATION_JUMP = ("SITUATION: DEVICE JUMP — the Traveller has crossed into {new}; the same story "
                   "continues. This is not a new game and not a session start.")
+
+# Death is engine-owned. These are RUNTIME lines, injected only on the turn the Traveller
+# drops to 0 HP and on the player turns while dying or stable -- never part of the always-on
+# prefix. They tell the GM what the state means and that a heal must be a tool call; prose
+# alone changes nothing, and the engine's gate rolls the save.
+STATE_ZERO_HP = (
+    "STATE: The character is at 0 HP and unconscious. If an NPC or companion revives them, "
+    "apply the healing with a tool NOW — modify_player_numeric(key='current_hit_points', "
+    "delta=N) or a healing spell. A narrated potion or spell alone changes nothing; while HP "
+    "is 0 the engine rolls a death save at the start of the next player turn."
+)
+SITUATION_DEATH_SAVE = (
+    "SITUATION: DEATH SAVE — {result}. The character is at 0 HP and unconscious; they cannot "
+    "act. If an NPC revives them, apply the healing with a tool now; that stops the next roll, "
+    "not the one just made. A narrated heal alone leaves the state at 0 HP and the engine rolls "
+    "again next turn."
+)
+SITUATION_STABLE = (
+    "SITUATION: STABLE — the character is at 0 HP, unconscious and stable; no death save this "
+    "turn. They cannot act. Apply any heal with a tool; they remain unconscious until HP > 0."
+)
 
 # The session-start rules ride the message that carries the era/world file, never the always-on
 # protocol: they are read on the two occasions a file arrives (a session start, and a Device

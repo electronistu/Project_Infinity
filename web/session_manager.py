@@ -188,6 +188,10 @@ class SessionManager:
             "alive": bool(session.alive),
             "connected": self._conns.get(sid, 0) > 0,
             "busy": bool(getattr(session, "busy", False)),
+            "dead": bool(getattr(session, "dead", False)),
+            "stable": bool(getattr(session, "stable", False)),
+            "dying": bool(getattr(session, "dying", False)),
+            "death_cause": getattr(session, "_death_cause", "") or "",
         }
 
     async def remove(self, sid: str) -> None:

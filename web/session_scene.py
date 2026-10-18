@@ -307,6 +307,16 @@ class SceneMixin:
             db = json.loads(text)
         except Exception:  # noqa: BLE001 - a missing sheet must never sink a session
             return ""
+        if isinstance(db, dict):
+            # A hand-edited save can carry the latch or 0 HP; the opening must not run
+            # a normal scene over it (see `_run`).
+            self._dead = str(db.get("dead", 0)).strip().lower() in ("1", "true")
+            self._stable = str(db.get("stable", 0)).strip().lower() in ("1", "true")
+            try:
+                self._at_zero = int(db.get("current_hit_points") or 0) <= 0
+            except (TypeError, ValueError):
+                self._at_zero = False
+            self._death_cause = str(db.get("death_cause") or "")
         block = _sheet_body(db) if isinstance(db, dict) else ""
         if not block:
             return ""

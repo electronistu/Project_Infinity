@@ -160,6 +160,18 @@
     </div>
   </div>
 
+  <div id="death-overlay" class="overlay hidden" role="dialog" aria-modal="true"
+       aria-labelledby="death-title">
+    <div class="dialog-card death-card">
+      <h1 id="death-title">You have died.</h1>
+      <p id="death-cause" class="muted"></p>
+      <div class="dialog-actions">
+        <button id="death-load" class="primary" type="button">Load game</button>
+        <button id="death-home" class="ghost" type="button">Back to home menu</button>
+      </div>
+    </div>
+  </div>
+
   <div id="load-overlay" class="overlay hidden">
     <div class="dialog-card">
       <div class="wizard-head">

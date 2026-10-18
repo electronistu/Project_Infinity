@@ -81,6 +81,9 @@ class SaveMixin:
     async def _save_to_active(self, timeline_entry=None):
         if self.session is None or not self.player_path:
             return None
+        # Death is never written to disk: the .player stays the last living checkpoint.
+        if self._dead:
+            return None
         try:
             db_data = await self._collect_player_save()
             self._write_player_atomic(db_data, self.player_path)
@@ -459,6 +462,14 @@ class SaveMixin:
         no registry, while the timeline summary described an unfinished fight -- on reload the
         two disagree and the fight cannot be resumed.
         """
+        if self._dead:
+            await self._emit({"type": "save_refused", "reason": "dead",
+                              "text": "The character is dead. Load a save or return home."})
+            return
+        if await self._player_at_zero_hp():
+            await self._emit({"type": "save_refused", "reason": "dying",
+                              "text": "The character is at 0 HP. Heal them before saving."})
+            return
         if self._in_combat:
             await self._emit({"type": "save_refused", "reason": "combat",
                               "text": COMBAT_HOLD_MESSAGE})

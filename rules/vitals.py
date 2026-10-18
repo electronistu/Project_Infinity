@@ -35,10 +35,13 @@ def _apply_exhaustion_change(cursor, delta, reason=None) -> dict:
     if new >= EXHAUSTION_MAX:
         _db_set(cursor, "current_hit_points", "0")
         _end_concentration(cursor, reason="exhaustion 6")
+        _mark_player_dead(cursor, "exhaustion level 6")
         state.DB_CONNECTION.commit()
     max_hp = _recompute_exhaustion_hp(cursor)
     return {"old": old, "new": new, "delta": new - old, "max_hp": max_hp,
-            "effects": _exhaustion_effects(new), "reason": reason}
+            "effects": _exhaustion_effects(new), "reason": reason,
+            "dead": _player_dead(cursor),
+            "death_cause": str(_db_val(cursor, "death_cause", "") or "")}
 
 
 # ── concentration (SRD 5.1) ───────────────────────────────────────────────
@@ -134,21 +137,52 @@ def _concentration_save(cursor, damage, source="damage") -> dict | None:
 
 # ── death saving throws (SRD 5.1) ─────────────────────────────────────────
 
+def _player_dead(cursor) -> bool:
+    """The permanent death latch: once set, no heal, rest or save can undo it."""
+    return str(_db_val(cursor, "dead", 0)).strip().lower() in ("1", "true")
+
+
+def _player_stable(cursor) -> bool:
+    """Stable at 0 HP: unconscious, but no further death saves until damage or a heal."""
+    return str(_db_val(cursor, "stable", 0)).strip().lower() in ("1", "true")
+
+
+def _mark_player_dead(cursor, cause="") -> None:
+    """Set the permanent latch. Idempotent; called after concentration is ended."""
+    _db_set(cursor, "dead", 1)
+    _db_set(cursor, "stable", 0)
+    if cause:
+        _db_set(cursor, "death_cause", str(cause))
+    state.DB_CONNECTION.commit()
+
+
 def _reset_death_saves(cursor):
+    """Counters zero, not stable: the start of a fresh dying episode."""
     _db_set(cursor, "death_save_successes", "0")
     _db_set(cursor, "death_save_failures", "0")
+    _db_set(cursor, "stable", 0)
+    state.DB_CONNECTION.commit()
+
+
+def _stabilize_death_saves(cursor):
+    """Three successes: the character is stable at 0 HP and makes no more death saves."""
+    _db_set(cursor, "death_save_successes", "0")
+    _db_set(cursor, "death_save_failures", "0")
+    _db_set(cursor, "stable", 1)
     state.DB_CONNECTION.commit()
 
 
 def _clear_death_saves(cursor):
     if int(_db_val(cursor, "death_save_successes", 0) or 0) or \
-            int(_db_val(cursor, "death_save_failures", 0) or 0):
+            int(_db_val(cursor, "death_save_failures", 0) or 0) or _player_stable(cursor):
         _reset_death_saves(cursor)
 
 
 def _add_death_save_failure(cursor, count=1) -> int:
     failures = min(3, int(_db_val(cursor, "death_save_failures", 0) or 0) + count)
     _db_set(cursor, "death_save_failures", str(failures))
+    # Damage at 0 HP ends a stable state: the character is dying again.
+    _db_set(cursor, "stable", 0)
     state.DB_CONNECTION.commit()
     return failures
 
@@ -157,6 +191,22 @@ def _apply_hp_change(cursor, delta):
     current_hp = int(_db_val(cursor, "current_hit_points", 0))
     total_hp = int(_db_val(cursor, "total_hit_points", 1))
     thp = int(_db_val(cursor, "temporary_hit_points", 0))
+
+    # Death is a latch, not a counter. No later heal, damage or buff revert may move HP.
+    if _player_dead(cursor):
+        return {
+            "success": False,
+            "error": "dead",
+            "dead": True,
+            "death_cause": str(_db_val(cursor, "death_cause", "") or ""),
+            "key": "current_hit_points",
+            "old_value": current_hp,
+            "new_value": current_hp,
+            "delta": 0,
+            "hp_status": _format_hp_status(current_hp, total_hp),
+            "max_hp": total_hp,
+            "message": "The character is dead. Healing cannot revive them.",
+        }
 
     thp_absorbed = 0
     effect_expired = ""
@@ -237,8 +287,10 @@ def _apply_hp_change(cursor, delta):
             overshoot = max(0, -(current_hp + original_delta))
             if overshoot >= total_hp:
                 _end_concentration(cursor, reason="instant death")
+                _mark_player_dead(cursor, "massive damage")
                 result["status"] = "Dead"
                 result["dead"] = True
+                result["death_cause"] = "massive damage"
                 result["instant_death"] = True
                 result["message"] = (
                     f"Massive damage! {result['hp_status']}. Instant death — "
@@ -258,8 +310,10 @@ def _apply_hp_change(cursor, delta):
             result["death_save_failures"] = failures
             if failures >= 3:
                 _end_concentration(cursor, reason="death")
+                _mark_player_dead(cursor, "third death save failure")
                 result["status"] = "Dead"
                 result["dead"] = True
+                result["death_cause"] = "third death save failure"
                 result["message"] = (f"Damage at 0 HP — third death-save failure. "
                                      f"{result['hp_status']}. The character is dead.")
             else:

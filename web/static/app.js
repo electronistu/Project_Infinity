@@ -11,6 +11,10 @@ const state = {
   turn: 0,
   busy: false,
   saving: false,                        // a save is in flight: lock send/save/load/end + the Device
+  dead: false,                          // permanent death: the overlay owns the table
+  deadCause: "",
+  dying: false,                         // 0 HP, still making death saves
+  stable: false,                        // 0 HP, unconscious, no further saves
   connected: false,
   ready: false,
   connEpoch: 0,          // bumped whenever a socket or reconnect loop is abandoned
@@ -2062,16 +2066,49 @@ function initSheetResize() {
   });
 }
 
+function idleStatus() {
+  if (state.dead) return "You have died.";
+  if (state.busy) return "GM is thinking…";
+  if (state.dying) return "Unconscious — death saves";
+  if (state.stable) return "Stable — unconscious at 0 HP";
+  if (state.ready) return "Awaiting your action";
+  return "Loading…";
+}
+
+function showDeath(evt) {
+  state.dead = true;
+  state.dying = false;
+  state.stable = false;
+  state.deadCause = (evt && evt.cause) || "The character is dead.";
+  const cause = $("death-cause");
+  if (cause) cause.textContent = state.deadCause;
+  $("death-overlay").classList.remove("hidden");
+  hideTooltip();
+  setStatus("You have died.");
+  updateComposer();
+  const load = $("death-load");
+  if (load && !state.saving) load.focus();
+}
+
+function hideDeath() {
+  state.dead = false;
+  state.deadCause = "";
+  const overlay = $("death-overlay");
+  if (overlay) overlay.classList.add("hidden");
+}
+
 function updateComposer() {
-  const enabled = state.connected && state.ready && !state.busy && !state.saving;
+  const enabled = state.connected && state.ready && !state.busy && !state.saving
+    && !state.dead;
   input.disabled = !enabled;
   sendBtn.disabled = !enabled;
-  $("refresh-stats").disabled = !(state.connected && state.ready);
+  $("refresh-stats").disabled = !(state.connected && state.ready) || state.dead;
   // Save, Load and End stay clickable mid-fight (the attempt surfaces COMBAT_HOLD_MESSAGE;
   // the engine refuses too), but a save in flight locks them: a second save, a load or an
-  // end would interleave with the one already writing.
+  // end would interleave with the one already writing. Death locks Save and the composer;
+  // Load and End remain the two exits.
   if ($("save-open")) $("save-open").disabled = !state.connected || !state.ready
-    || state.busy || state.saving;
+    || state.busy || state.saving || state.dead;
   if ($("load-open")) $("load-open").disabled = state.saving;
   $("end-session").disabled = !state.sessionId || state.saving;
 }
@@ -2082,13 +2119,14 @@ function send(msg) {
 
 /* A Device release IS a turn (the era changes), so the sheet must refresh afterwards. */
 function sendDevice(msg) {
-  if (!state.connected || !state.ready || state.busy || state.saving) return;
+  if (!state.connected || !state.ready || state.busy || state.saving
+      || state.dead || state.dying || state.stable) return;
   if (msg && msg.action === "release") state.lastCommandType = "action";
   send(msg);
 }
 
 function requestStats() {
-  if (!state.connected || !state.ready) return;
+  if (!state.connected || !state.ready || state.dead) return;
   state.lastCommandType = "stats";
   send({ type: "stats" });
 }
@@ -2096,7 +2134,7 @@ function requestStats() {
 function submitInput() {
   const text = input.value.trim();
   if (!text) return;
-  if (state.busy || state.saving) return;  // Enter can fire past a disabled field
+  if (state.busy || state.saving || state.dead) return;  // Enter can fire past a disabled field
   addPlayer(text);
   state.lastCommandType = "action";
   send({ type: "action", text });
@@ -2120,6 +2158,18 @@ function handleEvent(evt) {
       setContextUsage(0, state.contextWindow);
       state.turn = evt.turn || 0;
       updateTurn();
+      state.dead = !!evt.dead;
+      state.dying = !!evt.dying;
+      state.stable = !!evt.stable;
+      state.deadCause = evt.death_cause || "";
+      if (state.dead) {
+        state.ready = true;
+        showDeath(evt);
+      } else if (state.dying || state.stable) {
+        state.ready = true;
+        setStatus(idleStatus());
+        updateComposer();
+      }
       updateDevice(evt.cadence);
       state.deviceControl = evt.cadence || null;
       state.inCombat = !!(evt.in_combat || (evt.cadence && evt.cadence.in_combat));
@@ -2214,22 +2264,38 @@ function handleEvent(evt) {
       setStatus("synchronizing with the engine…");
       break;
 
+    case "death":
+      showDeath(evt);
+      break;
+
+    case "vitals":
+      state.dead = !!evt.dead;
+      state.dying = !!evt.dying;
+      state.stable = !!evt.stable;
+      if (evt.cause) state.deadCause = evt.cause;
+      if (state.dead) showDeath(evt);
+      else {
+        setStatus(idleStatus());
+        updateComposer();
+      }
+      break;
+
     case "awakening_end":
       appendMechanics(state.cur);
       finalizeTurnBubble();
       state.ready = true;
-      setStatus("Awaiting your action");
+      setStatus(idleStatus());
       updateComposer();
       updateDevButton();
-      requestStats();
+      if (!state.dead) requestStats();
       break;
 
     case "turn_end":
       appendMechanics(state.cur);
       finalizeTurnBubble();
       if (evt.turn != null) { state.turn = evt.turn; updateTurn(); }
-      setStatus("Awaiting your action");
-      if (state.lastCommandType === "action") requestStats();
+      setStatus(idleStatus());
+      if (state.lastCommandType === "action" && !state.dead) requestStats();
       break;
 
     case "stats":
@@ -2303,16 +2369,19 @@ function handleEvent(evt) {
 
     case "save_refused":
       addSystem(`Save: ${evt.text || "not now."}`);
-      // The engine refused (e.g. mid-fight) so no `saved` event is coming; never leave a
-      // "save & end" waiting on it. Reopen End so the player can end without saving or cancel.
-      if (state.endAfterSave) { state.endAfterSave = false; openEnd(); }
+      // The engine refused (e.g. mid-fight or dead) so no `saved` event is coming; never
+      // leave a "save & end" waiting on it. Dead goes straight home; otherwise reopen End.
+      if (state.endAfterSave) {
+        state.endAfterSave = false;
+        if (state.dead) finishEnd(); else openEnd();
+      }
       break;
 
     case "busy":
       state.busy = !!evt.value;
       updateComposer();
       renderDeviceCard();
-      setStatus(state.busy ? "GM is thinking…" : (state.ready ? "Awaiting your action" : "Loading…"));
+      setStatus(idleStatus());
       break;
 
     case "saving":
@@ -2321,8 +2390,7 @@ function handleEvent(evt) {
       state.saving = !!evt.value;
       updateComposer();
       renderDeviceCard();
-      setStatus(state.saving ? "saving the game…"
-        : state.busy ? "GM is thinking…" : (state.ready ? "Awaiting your action" : "Loading…"));
+      setStatus(state.saving ? "saving the game…" : idleStatus());
       break;
 
     case "error":
@@ -2426,8 +2494,13 @@ async function syncSessionState(epoch) {
     if (epoch !== state.connEpoch) return;
     state.busy = !!info.busy;
     state.ready = info.alive !== false;
+    state.dead = !!info.dead;
+    state.dying = !!info.dying;
+    state.stable = !!info.stable;
+    if (info.death_cause) state.deadCause = info.death_cause;
+    if (state.dead) showDeath({ cause: state.deadCause });
     updateComposer();
-    if (state.ready && !state.busy) setStatus("Awaiting your action");
+    if (state.ready && !state.busy) setStatus(idleStatus());
   } catch (e) { /* the next event or reconnect will settle it */ }
 }
 
@@ -2487,6 +2560,11 @@ async function startSession(save) {
   const data = await res.json();
   state.sessionId = data.session_id;
   state.model = data.model;
+  state.dead = false;
+  state.deadCause = "";
+  state.dying = false;
+  state.stable = false;
+  hideDeath();
   state.contextWindow = data.context_window || 0;
   state.activeSaveName = (data.world || save).replace(/\.player$/i, "");
   $("world-label").textContent = data.world || save;
@@ -2884,6 +2962,10 @@ async function regeneratePortrait() {
 
 function openSave() {
   if (!state.connected) { addError("Not connected to a session."); return; }
+  if (state.dead || state.dying || state.stable) {
+    addSystem("Save: the character is dead or at 0 HP. Load a save or heal first.");
+    return;
+  }
   if (state.inCombat) {
     addSystem(`Save: ${COMBAT_HOLD_MESSAGE}`);
     return;
@@ -2900,6 +2982,10 @@ function showSaveError(msg) { const el = $("save-error"); el.textContent = msg; 
 function confirmSave() {
   if (!state.connected) { showSaveError("Not connected."); return; }
   if (state.saving) { showSaveError("A save is already in progress."); return; }
+  if (state.dead || state.dying || state.stable) {
+    showSaveError("The character is dead or at 0 HP. Load a save or heal first.");
+    return;
+  }
   if (state.inCombat) { showSaveError(COMBAT_HOLD_MESSAGE); return; }
   send({ type: "save" });
   closeSave();
@@ -2958,7 +3044,9 @@ function renderLoadList() {
 }
 
 async function loadGame(file) {
-  if (state.sessionId && !window.confirm(`Load "${file}"? The current session will be closed.`)) return;
+  // A dead session is already over: no "current session will be closed" confirm.
+  if (state.sessionId && !state.dead
+      && !window.confirm(`Load "${file}"? The current session will be closed.`)) return;
   closeLoad();
   const wanted = confirmPortrait(file);
   try {
@@ -2988,6 +3076,7 @@ async function deleteWorld(file) {
 function openEnd() {
   if (state.saving) return;
   if (!state.sessionId) { resetToHome(); return; }
+  if (state.dead) { finishEnd(); return; }  // no save offer after death
   $("end-overlay").classList.remove("hidden");
 }
 function closeEnd() { $("end-overlay").classList.add("hidden"); }
@@ -2995,6 +3084,7 @@ function closeEnd() { $("end-overlay").classList.add("hidden"); }
 function saveAndEnd() {
   closeEnd();
   if (state.saving) return;
+  if (state.dead) { finishEnd(); return; }
   if (!state.connected) { finishEnd(); return; }
   state.endAfterSave = true;
   setStatus("saving before ending…");
@@ -3033,6 +3123,11 @@ function resetToHome() {
   state.ready = false;
   state.busy = false;
   state.saving = false;
+  state.dead = false;
+  state.deadCause = "";
+  state.dying = false;
+  state.stable = false;
+  hideDeath();
   state.activeSaveName = null;
   state.endAfterSave = false;
   state.lastStats = null;      // never generate icons for a closed character
@@ -4107,6 +4202,8 @@ async function init() {
   });
   $("save-open").addEventListener("click", openSave);
   $("load-open").addEventListener("click", openLoad);
+  $("death-load").addEventListener("click", openLoad);
+  $("death-home").addEventListener("click", finishEnd);
   $("world-delete").addEventListener("click", () => deleteWorld($("world-select").value));
   $("world-select").addEventListener("change", updateStartPortrait);
   $("model-select").addEventListener("change", updateTemperatureControl);

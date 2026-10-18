@@ -38,7 +38,6 @@ _GM_VIEW_KEEP: dict[str, tuple[str, ...]] = {
     "update_combatant": ("success", "name", "is_player", "hp", "ac", "conditions",
                          "exhaustion", "blocked_conditions", "already_present", "note"),
     "modify_exhaustion": ("success", "exhaustion", "old", "delta", "effects", "max_hp"),
-    "make_death_save": ("success", "roll", "successes", "failures", "outcome", "hp"),
     # Acknowledgements: the GM just made the call, so only the outcome is new. Every field an
     # ack carries must be something the GM does NOT already have -- the declaration echoed
     # back is not it, and neither is a `note` that restates the tool's own description.

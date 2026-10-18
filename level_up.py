@@ -257,7 +257,11 @@ def apply_level_up(character_class, old_level, new_level, player_data):
     new_total_hp = old_total_hp + total_gain
     changes['total_hit_points'] = str(new_total_hp)
     old_current_hp = int(player_data.get('current_hit_points', old_total_hp))
-    new_current_hp = min(old_current_hp + total_gain, new_total_hp)
+    # Death is a latch and 0 HP is unconscious: a level-up raises the maximum, never
+    # the current pool that would wake the character.
+    dead = str(player_data.get('dead', '')).strip().lower() in ('1', 'true')
+    new_current_hp = 0 if (dead or old_current_hp == 0) else min(
+        old_current_hp + total_gain, new_total_hp)
     changes['current_hit_points'] = str(new_current_hp)
     roll_str = ", ".join(str(r) for r in rolls)
     if levels_gained == 1:

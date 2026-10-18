@@ -1,6 +1,7 @@
 """Session construction and lifetime: the public API, the run loop, and command dispatch."""
 
 import asyncio
+import json
 import os
 import random
 import sys
@@ -20,6 +21,7 @@ from .ollama_stream import stream_chat
 from .player_file import _player_arrival, _player_difficulty, _player_era, _player_mode
 from .protocol import (
     DEFAULT_CONTEXT_WINDOW, MODE_CLASSIC, MODE_TIME_TRAVELER, SESSION_TIMELINE_HEADER,
+    SITUATION_DEATH_SAVE, SITUATION_STABLE,
     _tool_schema, filter_tools, render_protocol
 )
 from .timeline import _max_timeline_turn, load_chronicle, load_legends, load_met, load_timeline
@@ -146,6 +148,16 @@ class SessionBase:
         # narrative_format, in call order, sent to the client as the `mechanics` event.
         self._mechanics_lines: list[str] = []
         self._pending_npcs: list[dict] = []
+        # ── death ───────────────────────────────────
+        # The permanent latch and the 0 HP states. The engine owns the death-save trigger:
+        # `_death_gate` calls `make_death_save` once per player turn. `_dying_noted` makes
+        # the STATE note fire once per drop, not on every tool result at 0 HP.
+        self._dead = False
+        self._stable = False
+        self._at_zero = False
+        self._death_cause = ""
+        self._dying_noted = False
+        self._pending_zero_note = False
         # ── the Device ──────────────────────────────
         # The Device and its parts are real inventory items (engine-seeded at creation). It is
         # player-controlled from the first turn; the recovered parts are the key to the future.
@@ -335,6 +347,21 @@ class SessionBase:
         """The run loop is still attached to a live engine and can accept commands."""
         return self._task is not None and not self._task.done()
 
+    @property
+    def dead(self) -> bool:
+        """The permanent death latch: the run is over; only Load / Home remain."""
+        return bool(self._dead)
+
+    @property
+    def stable(self) -> bool:
+        """Stable at 0 HP: unconscious, but no further death saves."""
+        return bool(self._stable)
+
+    @property
+    def dying(self) -> bool:
+        """At 0 HP, not stable and not dead: the engine rolls a death save each turn."""
+        return bool(self._at_zero and not self._dead and not self._stable)
+
     # ── internals ─────────────────────────────────────────────────────────
 
     async def _emit(self, evt: dict) -> None:
@@ -474,6 +501,10 @@ class SessionBase:
                         "cadence": self._device_state(),
                         "context_window": self.context_window,
                         "turn": self.turn_counter,
+                        "dead": bool(self._dead),
+                        "stable": bool(self._stable),
+                        "dying": bool(self.dying),
+                        "death_cause": self._death_cause,
                         "tools": [t["function"]["name"] for t in self.tools_schema],
                     })
                     # The scene caption the client shows as the GM header (era + place).
@@ -490,11 +521,18 @@ class SessionBase:
                         self._mechanics_lines = []
                         self._narrative_emitted_turn = False
                         self._place_declarations = []   # the opening's place echo, as a turn
-                        awakening = await self._run_role(key_content, "awakening")
-                        awakening = await self._ensure_turn_prose(awakening)
-                        await self._ensure_scene_image(awakening or "")
-                        await self._ensure_opening_place()
-                        await self._emit({"type": "awakening_end", "text": awakening or ""})
+                        if self._dead or self._at_zero:
+                            # A save at 0 HP or dead (only possible by a hand-edited file)
+                            # never opens a normal scene: the first player turn's gate
+                            # resolves the death save, and Load/Home remain available.
+                            await self._emit_vitals()
+                            await self._emit({"type": "awakening_end", "text": ""})
+                        else:
+                            awakening = await self._run_role(key_content, "awakening")
+                            awakening = await self._ensure_turn_prose(awakening)
+                            await self._ensure_scene_image(awakening or "")
+                            await self._ensure_opening_place()
+                            await self._emit({"type": "awakening_end", "text": awakening or ""})
                     finally:
                         self.busy = False
                         await self._emit({"type": "busy", "value": False})
@@ -527,6 +565,13 @@ class SessionBase:
         self.busy = True
         try:
             kind = cmd.get("type")
+            if self._dead and kind not in ("slash", "dev", "close"):
+                if kind == "save":
+                    await self._emit({"type": "save_refused", "reason": "dead",
+                                      "text": "The character is dead. Load a save or return home."})
+                else:
+                    await self._emit(self._death_event())
+                return
             if kind == "action":
                 await self._handle_action(cmd.get("text", ""))
             elif kind == "slash":
@@ -551,24 +596,34 @@ class SessionBase:
             self.busy = False
 
     async def _run_turn(self, content: str, label: str, *,
-                        capture_legend: bool = True, capture_state: bool = True) -> None:
+                        capture_legend: bool = True, capture_state: bool = True,
+                        mechanics: list[str] | None = None) -> None:
         """One GM turn: the prose, at most one illustration, then the turn counter.
 
         Used for the player's turns and for the Device's jump -- a turn nobody asked for.
         `capture_legend` / `capture_state` govern the two departure markers for the WHOLE
         turn, including its recovery rounds: a same-age move strips them but never registers
-        them (the age is not being left)."""
+        them (the age is not being left). `mechanics` seeds the block with the engine's own
+        death-save line so the player sees the roll even when the GM makes no tool call."""
         await self._emit({"type": "busy", "value": True})
         self._scene_requested_turn = False  # at most one illustration per turn
         self._narrative_emitted_turn = False  # the turn's prose is emitted once
         self._place_declarations = []      # the turn's place echo (see _ensure_place_note)
         self._scene_rejected = False       # a rejected scene call is per turn (a crossing
         self._scene_rejected_place = None  # turn skips the corrective; the next must not inherit)
-        self._mechanics_lines = []          # the engine-composed block is per turn
+        self._mechanics_lines = list(mechanics or [])  # the engine-composed block is per turn
         previous = (self._capture_legend, self._capture_state)
         self._capture_legend, self._capture_state = capture_legend, capture_state
         try:
             result = await self._run_role(content, label)
+            # A fatal result ends the run AT the tool result: no prose recovery, no scene,
+            # no place echo and no further model call.
+            if self._dead:
+                self.turn_counter += 1
+                await self._emit({"type": "turn_end", "text": "",
+                                  "turn": self.turn_counter})
+                await self._emit(self._death_event())
+                return
             result = await self._ensure_turn_prose(result)
             await self._ensure_scene_image(result or "")
             await self._ensure_place_note()
@@ -579,9 +634,133 @@ class SessionBase:
             await self._emit({"type": "busy", "value": False})
 
     async def _handle_action(self, text: str) -> None:
-        await self._run_turn(text, "turn")
+        if self._dead:
+            await self._emit(self._death_event())
+            return
+        gate = await self._death_gate()
+        mechanics = list(gate.get("mechanics") or [])
+        if gate.get("outcome") == "dead":
+            self.turn_counter += 1
+            if mechanics:
+                await self._emit({"type": "notice", "text": "\n".join(mechanics)})
+            await self._emit({"type": "turn_end", "text": "", "turn": self.turn_counter})
+            await self._emit(self._death_event())
+            return
+        if mechanics:
+            await self._emit({"type": "mechanics", "lines": mechanics})
+        content = text
+        if gate.get("outcome") in ("dying", "stable"):
+            content = (gate["situation"] if not text
+                       else f"{gate['situation']}\n\n"
+                            f"PLAYER (not an action — the character is unconscious): {text}")
+        elif gate.get("outcome") == "revived":
+            content = (gate["situation"] if not text
+                       else f"{gate['situation']}\n\nPLAYER: {text}")
+        await self._run_turn(content, "turn", mechanics=mechanics)
         # The Device never fires on its own; the panel state is refreshed for the turn.
         await self._emit({"type": "cadence", **self._device_state()})
+
+    async def _death_gate(self) -> dict:
+        """The engine's ONE death-save roll for this player turn.
+
+        The GM never calls `make_death_save`; the gate is unconditional and the tool decides:
+        `not_dying` (alive), `stable` (no roll), `already_dead`, or one roll. This is what
+        makes a narrated potion without a healing tool unable to stop the save.
+        """
+        alive = {"outcome": "alive", "situation": "", "mechanics": []}
+        if self._dead:
+            return {"outcome": "dead", "situation": "", "mechanics": []}
+        if self.session is None:
+            return alive
+        try:
+            payload = json.loads(await self._call_tool_text("make_death_save", {}))
+        except Exception:  # noqa: BLE001 - never fail a turn over the gate
+            return alive
+        if not isinstance(payload, dict):
+            return alive
+
+        cause = str(payload.get("death_cause") or "")
+        if payload.get("dead") is True or payload.get("error") == "already_dead" \
+                or payload.get("outcome") == "dead":
+            self._dead = True
+            self._stable = False
+            self._at_zero = True
+            if cause:
+                self._death_cause = cause
+            return {"outcome": "dead", "situation": "", "mechanics": []}
+
+        if payload.get("error") == "stable":
+            # No roll: the character was already stable (stable is a state, not a counter).
+            self._at_zero = True
+            self._stable = True
+            await self._emit_vitals()
+            return {"outcome": "stable", "situation": SITUATION_STABLE, "mechanics": []}
+
+        if payload.get("error") == "not_dying":
+            was_zero = self._at_zero
+            self._at_zero = False
+            self._stable = False
+            self._dying_noted = False
+            if was_zero:
+                await self._emit_vitals()
+            return alive
+
+        outcome = str(payload.get("outcome") or "")
+        if outcome not in ("revived", "stable", "success", "failure"):
+            # A fake/degraded engine response is not a death verdict.
+            return alive
+        narrative = str(payload.get("narrative_format") or "")
+        mechanics = [narrative] if narrative else []
+        situation_result = narrative.rstrip(". ")
+        if outcome == "revived":
+            self._at_zero = False
+            self._stable = False
+            self._dying_noted = False
+            await self._emit_vitals()
+            return {"outcome": "revived",
+                    "situation": SITUATION_DEATH_SAVE.format(result=situation_result),
+                    "mechanics": mechanics}
+        if outcome == "stable":
+            # The roll that produced the third success: show it, then stable from now on.
+            self._at_zero = True
+            self._stable = True
+            self._dying_noted = True
+            await self._emit_vitals()
+            return {"outcome": "stable",
+                    "situation": SITUATION_DEATH_SAVE.format(result=situation_result),
+                    "mechanics": mechanics}
+        # success / failure: still dying at 0 HP.
+        self._at_zero = True
+        self._stable = False
+        self._dying_noted = True
+        await self._emit_vitals()
+        return {"outcome": "dying",
+                "situation": SITUATION_DEATH_SAVE.format(result=situation_result),
+                "mechanics": mechanics}
+
+    def _death_event(self) -> dict:
+        return {"type": "death", "dead": True,
+                "cause": self._death_cause or "The character is dead.",
+                "turn": self.turn_counter}
+
+    async def _emit_vitals(self) -> None:
+        await self._emit({"type": "vitals",
+                          "dying": bool(self.dying),
+                          "stable": bool(self._stable),
+                          "dead": bool(self._dead),
+                          "cause": self._death_cause})
+
+    async def _player_at_zero_hp(self) -> bool:
+        """The authoritative 0 HP check for save/Device gates."""
+        if self.session is None:
+            return bool(self._at_zero)
+        try:
+            db = json.loads(await self._call_tool_text("dump_player_db", {}))
+            if not isinstance(db, dict) or "current_hit_points" not in db:
+                return bool(self._at_zero)
+            return int(db.get("current_hit_points") or 0) <= 0
+        except (json.JSONDecodeError, TypeError, ValueError):
+            return bool(self._at_zero)
 
     async def _handle_device_command(self, cmd: dict) -> None:
         """A player-driven Device action: release it now, to a chosen age and place."""

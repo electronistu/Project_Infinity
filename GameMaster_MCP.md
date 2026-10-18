@@ -120,7 +120,6 @@ The Device and its four parts (Escapement, Compass Rose, Regulator, Mainspring) 
 ### systems (engine-owned — never hand-apply)
 - exhaustion: a level 0–6. Use modify_exhaustion(delta=…) or update_combatant(exhaustion_delta=…); the engine applies the level table and a long rest removes one level.
 - concentration: the engine tracks it and rolls the CON save when the player takes damage. Never roll it yourself; narrate a break when a result carries concentration_broken or concentration_replaced.
-- death: engine-owned. At the start of the player's turn at 0 HP, call make_death_save(); never roll it yourself.
 
 ### progression
 - Award ALL rewards (xp, gold, items, reputation) and announce ALL.
