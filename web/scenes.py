@@ -471,20 +471,26 @@ def known_scene_places(output_dir, stem: str, era: str | None = None) -> list[di
                                       [s.lower() for s in p["place"]]))
 
 
-def known_cast_names(output_dir, stem: str) -> list[str]:
-    """The save's recurring people NOT tied to one place (the manifest's `cast`), by name.
+def known_cast_people(output_dir, stem: str) -> list[dict]:
+    """The save's recurring people NOT tied to one place, with their declared identity.
 
     The per-turn block shows place regulars only, so the on-demand record carries these as a
-    footer: the GM declared them, and must never re-describe them."""
+    footer: the GM declared them, and must never re-describe or re-invent them. Returns
+    `{name, role, race, class}` in name order (no look: looks are image-only)."""
     data = live_scene_manifest(output_dir, stem)
     raw = data.get("cast") if isinstance(data, dict) else None
-    names: list[str] = []
+    people: list[dict] = []
     if isinstance(raw, dict):
         for entry in raw.values():
-            name = _npc_fields(entry)["name"]
-            if name:
-                names.append(name)
-    return sorted(names)
+            fields = _npc_fields(entry)
+            if fields["name"]:
+                people.append({k: fields[k] for k in ("name", "role", "race", "class")})
+    return sorted(people, key=lambda p: p["name"].lower())
+
+
+def known_cast_names(output_dir, stem: str) -> list[str]:
+    """The save's recurring people NOT tied to one place (the manifest's `cast`), by name."""
+    return [p["name"] for p in known_cast_people(output_dir, stem)]
 
 
 def known_npc_names(output_dir, stem: str) -> set[str]:
@@ -1232,10 +1238,14 @@ class SceneService(ImageBackendHolder):
                 if not npc["name"]:
                     continue
                 slug = slugify(npc["name"])
-                prior = cast_map.get(slug) or {}
-                cast_map[slug] = {"name": npc["name"],
-                                  "description": str(prior.get("description") or ""),
-                                  "role": npc["role"] or str(prior.get("role") or "")}
+                # A declaration is a DELTA, like the place roster: a field it names updates
+                # the cast entry, an empty field keeps what is recorded. The identity
+                # (role/race/class) is the GM's, not a look; the description stays image-only.
+                merged = _npc_fields(cast_map.get(slug) or {})
+                for field in ("name", "description", "role", "race", "class"):
+                    if npc.get(field):
+                        merged[field] = npc[field]
+                cast_map[slug] = merged
                 added.append(npc["name"])
             manifest["current"] = {"era": era, "kingdom": kingdom, "area": area,
                                    "place": path, "updated": now}

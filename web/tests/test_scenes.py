@@ -94,20 +94,21 @@ async def main() -> bool:
     rec("priming tree nests kingdom > area > place path",
         "- Kingdom of Eldoria" in tree and "    - Eldoria City" in tree
         and "        - The Drowned Lantern" in tree
-        and "            - Common Room · NPCs: Maera, the grandson" in tree
+        and "            - Common Room · NPCs: Maera — the innkeeper, the grandson — the table-runner" in tree
         and "        - Ropehaven Wharf" in tree and "            - Warehouse Nine" in tree
         and "                - the counting office" in tree
         and "- Borderlands" in tree and "    - (unknown settlement)" in tree, tree)
-    rec("the priming feeds names only, never the descriptions or the roles",
+    rec("the priming tree feeds identity, never the descriptions",
         "broad-shouldered barkeep" not in tree and "wiry young man" not in tree
         and "low-ceilinged, peat fire" not in tree and "a locked strongroom" not in tree
-        and "the innkeeper" not in tree and "the table-runner" not in tree, tree)
+        and "Maera — the innkeeper" in tree and "the grandson — the table-runner" in tree, tree)
     many = [{"kingdom": "K", "area": "A", "place": [f"Room {i}"],
              "main_npcs": [{"name": f"N{i}{j}", "role": "r"} for j in range(4)]}
             for i in range(3)]
     capped = format_known_places(many)
-    rec("at most 2 NPC names per place, with a +N count for the rest",
-        capped.count("+2") == 3 and "N00, N01" in capped and "N02" not in capped, capped)
+    rec("at most 2 NPC identities per place, with a +N count for the rest",
+        capped.count("+2") == 3 and "N00 — r" in capped and "N01 — r" in capped
+        and "N02" not in capped, capped)
     many = [{"kingdom": "K", "area": "A", "place": [f"Room {i}"], "main_npcs": [],
              "used": 100 - i} for i in range(20)]
     per_area = _places_for_area(many, "K", "A")
@@ -181,8 +182,8 @@ async def main() -> bool:
     rec("legacy caption dropped from the scene event",
         bool(scene) and "caption" not in scene[0], str(scene))
 
-    # A declared NPC's ROLE rides the scene result -- it is never primed in the tree.
-    rec("the seed's main NPC identity is remembered (not primed)",
+    # A declared NPC's identity is remembered for the declaration checks; the tree carries it.
+    rec("the seed's main NPC identity is remembered for declaration checks",
         gs._npc_people.get("gorson") == ("Gorson", "the smith", "dwarf", "fighter"),
         str(gs._npc_people))
     gs._scene_requested_turn = False
@@ -197,10 +198,12 @@ async def main() -> bool:
         not [e for e in repeat if e.get("type") == "place_note"], str(repeat))
     results = [e for e in repeat if e.get("type") == "tool_result"]
     note = (results[-1].get("gm_text") or "") if results else ""
-    rec("the scene result echoes `on stage: Name (race class, role)` for a declared NPC",
-        "on stage: Gorson (dwarf fighter, the smith)" in note, note[-160:])
-    rec("an undeclared one-off gets no role echoed (it has none)",
-        "three dockhands (" not in note, note[-160:])
+    rec("the scene result no longer echoes identity late (the tree carries it)",
+        "on stage:" not in note, note[-160:])
+    rec("... while the block carries the declared identity before the next turn",
+        "Gorson — the smith, dwarf fighter" in gs._places_body(), gs._places_body())
+    rec("an undeclared one-off is still flagged for declaration",
+        'NOTE: "three dockhands" not declared' in note, note[-160:])
 
     # The .player file is only a save snapshot (and drops active effects), so the engine
     # attaches the LIVE active effects + equipped gear to the scene event.

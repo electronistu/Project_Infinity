@@ -1,31 +1,33 @@
 import re
 
 
-# The KNOWN PLACES block: a header + the CURRENT area's place tree (names + main NPCs, never
-# the descriptions), the current place marked, and one line naming the other areas. Built by
-# `places_feed`, which `tools/token_budget.py` calls as well, so the count cannot drift.
+# The KNOWN PLACES block: a header + the CURRENT area's place tree (paths + each shown
+# regular's identity and state, never the descriptions), the current place marked, and one
+# line naming the other areas. Built by `places_feed`, which `tools/token_budget.py` calls as
+# well, so the count cannot drift.
 # Kept terse on purpose: it sits in the always-on prefix and is rewritten in place on a move.
 # The tail of both headers is the one place the on-demand map is announced: the block is
 # capped, and this is where the GM finds itself looking when it needs a path it cannot see.
 # Said once here -- never again in the `lookup` row (one home, one phrasing).
 _LOOKUP_POINTER = "; anything not shown here: `lookup('places')`"
 KNOWN_PLACES_HEADER = (
-    "KNOWN PLACES (reuse these exact kingdom / area / place paths; use a "
-    "place's NPCs by NAME, never their look; a new place is seeded once with "
-    "`establishing`" + _LOOKUP_POINTER + "):"
+    "KNOWN PLACES (reuse these exact kingdom / area / place paths; reuse a place's "
+    "NPCs by NAME and their recorded role / race / class, never their look; a new place "
+    "is seeded once with `establishing`" + _LOOKUP_POINTER + "):"
 )
 # The images-off variant: the same tree, but a new place is declared with `note_place`
 # (no seed, no establishing description).
 KNOWN_PLACES_HEADER_TEXT = (
-    "KNOWN PLACES (reuse these exact kingdom / area / place paths; use a "
-    "place's NPCs by NAME, never their look; a new place is declared once with "
-    "`note_place`" + _LOOKUP_POINTER + "):"
+    "KNOWN PLACES (reuse these exact kingdom / area / place paths; reuse a place's "
+    "NPCs by NAME and their recorded role / race / class, never their look; a new place "
+    "is declared once with `note_place`" + _LOOKUP_POINTER + "):"
 )
 
 # The place list is scoped to the CURRENT area and capped: the block is a reminder, not the
 # record. Past the cap the GM still has `lookup` and the manifest.
 PLACE_TREE_CAP = 12
-# ... and a place's NPC names are capped too, so one busy place cannot blow the ceiling.
+# ... and a place's regulars are capped too, so one busy place cannot blow the ceiling. The
+# identity is shown for the first `cap`; `+N` says the rest are in the on-demand record.
 NPC_NAMES_PER_PLACE = 2
 # The other areas the save has stood in cost one line each, so the GM can name a place in one
 # exactly when the story returns there.
@@ -253,15 +255,39 @@ def _other_areas(places: list[dict], kingdom: str, area: str,
     return _area_anchors([p for p in places if not _in_area(p, kingdom, area)], cap)[0]
 
 
+def _npc_label(npc: dict, dead: set[str], missing: str = "") -> str:
+    """One regular as `Name — role, race class (state)`.
+
+    The engine's permanent death index wins; any other state is the GM's word and renders as
+    given. `missing` is the fallback for a regular with no recorded identity (the on-demand
+    record says `no role recorded`; the per-turn tree stays quiet instead of spending tokens
+    on a placeholder)."""
+    name = str(npc.get("name") or "").strip()
+    if not name:
+        return ""
+    role = str(npc.get("role") or "").strip()
+    people = " ".join(x for x in (str(npc.get("race") or "").strip(),
+                                  str(npc.get("class") or "").strip()) if x)
+    what = ", ".join(x for x in (role, people) if x)
+    if what:
+        label = f"{name} — {what}"
+    elif missing:
+        label = f"{name} — {missing}"
+    else:
+        label = name
+    state = "dead" if name.lower() in dead else str(npc.get("state") or "").strip()
+    return f"{label} ({state})" if state else label
+
+
 def format_known_places(places: list[dict], cap: int = NPC_NAMES_PER_PLACE, here=()) -> str:
     """A kingdom -> area -> place-path tree for the primed block (any depth).
 
-    Names + at most `cap` main NPC names per place: the full establishing description is
-    deliberately omitted (it lives in the manifest, which the image pipeline reads), and
-    the NPC *roles* are dropped -- a role parenthetical costs ~3.5 tokens and cannot fit a
-    12-place tree inside the budget. A place with more names than `cap` says so
-    with `+N`, so the GM knows the place is not empty. `here` is the current place path: the
-    line it names is marked, so a drift is visible to the GM instead of silent."""
+    Each place is followed by its first `cap` regulars as `Name — role, race class (state)`;
+    the full establishing description is deliberately omitted (it lives in the manifest, which
+    the image pipeline reads) and a look is never shown. A place with more regulars than `cap`
+    says so with `+N`: the rest are in `lookup('places')`, which is uncapped. `here` is the
+    current place path: the line it names is marked, so a drift is visible to the GM instead
+    of silent."""
     here_key = _scene_key(here) if here else ()
     lines: list[str] = []
     last_k = last_a = None
@@ -285,20 +311,10 @@ def format_known_places(places: list[dict], cap: int = NPC_NAMES_PER_PLACE, here
         last_path = list(path)
         if here_key and _scene_key(path) == here_key:
             lines[-1] += " · ← you are here"
-        npc_labels: list[str] = []
         dead = {str(n).strip().lower() for n in (p.get("dead") or []) if str(n or "").strip()}
-        labels: list[str] = []
-        for npc in (p.get("main_npcs") or []):
-            if not isinstance(npc, dict):
-                continue
-            name = str(npc.get("name") or "").strip()
-            if not name:
-                continue
-            # The engine's death index wins (a death is permanent here); any other state is
-            # the GM's word and renders as given.
-            state = "dead" if name.lower() in dead else str(npc.get("state") or "").strip()
-            labels.append(f"{name} ({state})" if state else name)
-        npc_labels.extend(labels[:cap])
+        labels = [label for npc in (p.get("main_npcs") or [])
+                  if isinstance(npc, dict) and (label := _npc_label(npc, dead))]
+        npc_labels = labels[:cap]
         if len(labels) > cap:
             npc_labels.append(f"+{len(labels) - cap}")
         if npc_labels:
@@ -367,26 +383,14 @@ def _areas_by_recency(groups: dict) -> list[tuple[str, str]]:
 
 
 def _regulars(place: dict) -> list[str]:
-    """A place's regulars as `Name — role, race class`, the dead marked.
+    """A place's regulars as `Name — role, race class (state)`, in the record.
 
-    This is the identity the per-turn block cannot afford (a role parenthetical costs ~3.5
-    tokens and the tree does not fit the budget), and it is exactly what the protocol asks the
-    GM to state: never a look, but always the race and the class."""
+    The same shape the per-turn tree uses, uncapped: the record is where a regular past the
+    tree's cap, or with an identity changed this turn, is read in full."""
     dead = {str(n).strip().lower() for n in (place.get("dead") or []) if str(n or "").strip()}
-    out: list[str] = []
-    for npc in (place.get("main_npcs") or []):
-        if not isinstance(npc, dict):
-            continue
-        name = str(npc.get("name") or "").strip()
-        if not name:
-            continue
-        role = str(npc.get("role") or "").strip()
-        people = " ".join(x for x in (str(npc.get("race") or "").strip(),
-                                      str(npc.get("class") or "").strip()) if x)
-        what = ", ".join(x for x in (role, people) if x) or "no role recorded"
-        state = "dead" if name.lower() in dead else str(npc.get("state") or "").strip()
-        out.append(f"{name} — {what}" + (f" ({state})" if state else ""))
-    return out
+    return [label for npc in (place.get("main_npcs") or [])
+            if isinstance(npc, dict)
+            and (label := _npc_label(npc, dead, missing="no role recorded"))]
 
 
 def _place_lines(places: list[dict], here=(), indent: str = "") -> list[str]:
@@ -423,9 +427,13 @@ def _map_lines(groups: dict, current: dict | None) -> list[str]:
 
 
 def _cast_footer(cast) -> list[str]:
-    """The recurring people the block never shows: place-less by definition."""
-    names = [str(n).strip() for n in (cast or []) if str(n or "").strip()]
-    return [f"OTHER PEOPLE YOU KNOW: {', '.join(names)}"] if names else []
+    """The place-less recurring people, already formatted as `Name — identity`.
+
+    The block never shows them; the on-demand record is their home. Labels are built by the
+    engine (`_serve_places_lookup`) from the live identity map, so the record and the tree use
+    the same shape."""
+    labels = [str(n).strip() for n in (cast or []) if str(n or "").strip()]
+    return [f"OTHER PEOPLE YOU KNOW: {', '.join(labels)}"] if labels else []
 
 
 def render_places_answer(places: list[dict], current: dict | None, query, cast=()) -> str:
@@ -434,7 +442,8 @@ def render_places_answer(places: list[dict], current: dict | None, query, cast=(
     `places` = the map; `places: <name>` = a settlement's places, or a kingdom's settlements
     and their places -- both, labelled, when one name is a kingdom and a settlement here. A
     name that matches nothing returns the map, so a wrong guess teaches the right one instead
-    of inventing anything. `cast` is the place-less recurring people, shown as a footer."""
+    of inventing anything. `cast` is the place-less recurring people, already formatted as
+    `Name — role, race class`, shown as a footer."""
     parsed = places_query(query)
     if parsed is None:
         return ""

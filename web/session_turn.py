@@ -453,7 +453,7 @@ class TurnMixin:
         gm_text = _gm_tool_view(name, text)
         notes: list[str] = []
         if name == SCENE_TOOL and warning is None:
-            notes = [self._undeclared_note(args), self._on_stage_note(args)]
+            notes = [self._undeclared_note(args)]
         if name in (SCENE_TOOL, NPC_TOOL, PLACE_TOOL):
             notes.append(self._missing_identity_note(args))
         if self._place_note:
@@ -589,7 +589,8 @@ class TurnMixin:
         turn = payload.get("combat_turn")
         if isinstance(turn, dict):
             self._combat_turn = turn
-        # Main NPCs of the current place: a name at 0 HP is marked dead for this visit.
+        # Main NPCs of the current place: a name at 0 HP joins the dead index for this visit,
+        # whoever dealt the blow; any other state is the GM's declared word.
         self._track_main_npc_deaths(summary)
         # One hostile, living, active non-player keeps combat on. Derived here so the save
         # gate and the Device cadence share the server's truth (`_in_active_combat`); an
@@ -1014,12 +1015,12 @@ class TurnMixin:
 
         The KNOWN PLACES block the GM reads every turn is scoped to the current area and
         capped: a reminder, not the record. Anything it cannot hold -- another settlement's
-        places, an area past its anchor cap, a regular's role/race/class, which names are
-        dead -- is answered here, rendered from the same tree the block is built from, so the
-        GM never has to invent a path it cannot see. The answer is the registry's own
-        spellings, so the declaration that follows resolves to the saved place."""
+        places, an area past its anchor cap, a regular past the per-place cap, the cast's
+        identity -- is answered here, rendered from the same tree the block is built from, so
+        the GM never has to invent a path or an identity it cannot see. The answer is the
+        registry's own spellings, so the declaration that follows resolves to the saved place."""
         text = render_places_answer(self._primed, self._current_place, args.get("query"),
-                                    cast=self._cast_display.values())
+                                    cast=self._cast_labels())
         gm_text = _gm_tool_view("lookup", text)
         await self._emit({"type": "tool_result", "name": "lookup", "text": text,
                           "gm_text": gm_text, "is_error": False})
@@ -1079,29 +1080,23 @@ class TurnMixin:
         return (f"NOTE: {listed}{more} declared with no race and/or class. Give every declared "
                 "character a race and a class — never leave them human by default.")
 
-    def _on_stage_note(self, args: dict) -> str:
-        """The identity of each declared NPC the GM just put on stage.
+    def _cast_labels(self) -> list[str]:
+        """The place-less recurring people as `Name — role, race class`.
 
-        Roles/races/classes are deliberately absent from the priming tree -- they are wanted
-        when a character appears, not on every turn -- so they ride the scene result instead,
-        which costs nothing in the always-on prefix. Only names the GM itself listed, and
-        only ones with a declared identity: a one-off extra's is invented on the spot."""
-        characters = args.get("characters")
-        if not isinstance(characters, dict) or not characters or not self._npc_people:
-            return ""
+        The per-turn tree carries place regulars only; the on-demand record is where the cast's
+        identity lives (there is no late "on stage" echo). The live identity map wins; a name
+        the session has not declared yet falls back to the bare name."""
         labels: list[str] = []
-        seen: set[str] = set()
-        for key in characters:
-            key_l = name_key(key)
-            found = self._npc_people.get(key_l)
-            if not found or key_l in seen:
+        for key, name in self._cast_display.items():
+            found = self._npc_people.get(key)
+            if not found:
+                labels.append(name)
                 continue
-            seen.add(key_l)
-            name, role, race, klass = found
-            ident = " ".join(p for p in (race, klass) if p)
-            tag = ", ".join(p for p in (ident, role) if p)
-            labels.append(f"{name} ({tag})" if tag else name)
-        return ("on stage: " + ", ".join(labels)) if labels else ""
+            found_name, role, race, klass = found
+            people = " ".join(x for x in (race, klass) if x)
+            what = ", ".join(x for x in (role, people) if x)
+            labels.append(f"{found_name} — {what}" if what else found_name)
+        return sorted(labels, key=str.lower)
 
     def _undeclared_note(self, args: dict) -> str:
         """A soft note listing `characters` names that no declaration covers.

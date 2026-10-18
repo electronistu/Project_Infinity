@@ -11,8 +11,8 @@ if str(REPO_ROOT) not in sys.path:
 
 from .eras import render_era_text
 from .gm_view import _trim_legend
-from .scenes import (current_scene_place, known_cast_names, known_npc_names,
-                     known_scene_places, mark_place_dead)
+from .scenes import (current_scene_place, known_cast_names, known_cast_people,
+                     known_npc_names, known_scene_places, mark_place_dead)
 from .places import _scene_key, name_key, places_feed
 from .player_file import _jump_reset_note, _sheet_body
 from .protocol import (
@@ -76,14 +76,18 @@ class SceneMixin:
             self._cast_display = {name_key(n): n for n in
                                  known_cast_names(self.base_dir / OUTPUT_DIR,
                                                   self.active_name or "")}
+            cast_people = known_cast_people(self.base_dir / OUTPUT_DIR, self.active_name or "")
         except Exception:  # noqa: BLE001
             self._cast_names = set()
             self._cast_display = {}
-        # Identity is learned from the era's places so the on-stage echo works from the
-        # first tool call on. It is never primed.
+            cast_people = []
+        # Identity is learned from the era's places AND the storyline cast: the per-turn tree
+        # reads the place rosters directly, while `_npc_people` backs the declaration checks
+        # and the on-demand record's cast footer (there is no late "on stage" echo).
         self._npc_people = {}
         for p in places:
             self._remember_people(p.get("main_npcs"))
+        self._remember_people(cast_people)
         self._sync_dead_display()
 
     def _sync_dead_display(self) -> None:

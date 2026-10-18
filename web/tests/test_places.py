@@ -17,7 +17,8 @@ from web.engine import GameSession  # noqa: E402
 from web.protocol import PLACE_ECHO_NUDGE, filter_tools, render_protocol  # noqa: E402
 from web.places import (  # noqa: E402
     KNOWN_PLACES_HEADER, KNOWN_PLACES_HEADER_TEXT, KNOWN_PLACES_EMPTY_TEXT, _npc_state,
-    _scene_key, path_label, places_query, render_places_answer, resolve_place_path,
+    _scene_key, path_label, places_feed, places_query, render_places_answer,
+    resolve_place_path,
 )
 from web.scenes import (  # noqa: E402
     SceneService, known_scene_places, known_npc_names, live_scene_manifest,
@@ -182,9 +183,11 @@ async def main() -> bool:
         rec("note_place updates the live place map",
             gs._scene_places.get(tuple(s.lower().replace(" ", "-") for s in PLACE))
             == ("London", "Wapping"), str(gs._scene_places))
-        rec("note_place adds the regular's race/class/role to the on-stage echo",
+        rec("note_place adds the regular's race/class/role to the live identity map",
             gs._npc_people.get("bess") == ("Bess", "the lamp-lighter", "halfling", "rogue"),
             str(gs._npc_people))
+        rec("... and the per-turn tree shows it",
+            "Bess — the lamp-lighter, halfling rogue" in gs._places_body(), gs._places_body())
         rec("note_place remembers the cast name",
             "corvin hale" in gs._cast_names, str(gs._cast_names))
         # The GM made the declaration: the ack is its acceptance and nothing else. The path,
@@ -199,15 +202,13 @@ async def main() -> bool:
         # keyed two declared names with an underscore (`Master_Guo` for the declared `Master
         # Guo`; the same call passed `npcs: ["Master Guo"]`). The exact `name.lower()` check
         # then told the GM, in the result of the call that declared them, that those names
-        # were undeclared -- and the identity echo (the one place a role/race/class rides)
-        # stayed silent for them. Folding the separators fixes both.
+        # were undeclared. Folding the separators fixes the declaration check.
         note = gs._undeclared_note({"characters": {"Corvin_Hale": "at the door",
                                                    "a stray dog": "in the alley"}})
         rec("an underscore-keyed declared name is not reported as undeclared",
             "Corvin_Hale" not in note and "a stray dog" in note, note)
-        echo = gs._on_stage_note({"characters": {"Corvin_Hale": "at the door"}})
-        rec("... and its identity still echoes on stage",
-            echo == "on stage: Corvin Hale (the bounty hunter)", echo)
+        rec("... and the cast's identity rides the on-demand footer, not a late echo",
+            gs._cast_labels() == ["Corvin Hale — the bounty hunter"], str(gs._cast_labels()))
 
         # ── the path resolver itself ─────────────────────────────────────────
         # `the`/`a`/`an` carry no identity, a known path may appear as the TAIL of a longer
@@ -528,8 +529,11 @@ async def main() -> bool:
             'PLACES IN "Wapping" (London)' in area
             and path_label(PLACE) in area and "Ropehaven Wharf — the crane · ← you are here" in area
             and "Ratcliffe Highway" not in area, area)
-        rec("... and gives the regulars the identity the per-turn block cannot afford",
+        rec("... and gives the regulars the identity the per-turn tree caps but shares",
             "NPC: Maera — the harbourmaster, dwarf rogue (dead)" in area, area)
+        block = places_feed(record, here, False)
+        rec("the per-turn tree carries the same identity and state",
+            "Maera — the harbourmaster, dwarf rogue (dead)" in block, block)
     
         kingdom = render_places_answer(record, here, "places: london")
         rec("a kingdom scope lists its settlements and their places",
@@ -712,7 +716,8 @@ async def main() -> bool:
             len(note) == 1 and "race and/or class" not in gse.messages[-1]["content"],
             gse.messages[-1]["content"])
         rec("... the per-turn block shows it",
-            "Stoica (petrified)" in gse._places_body(), gse._places_body())
+            "Stoica" in gse._places_body() and "(petrified)" in gse._places_body(),
+            gse._places_body())
         rec("... and the on-demand record shows it",
             "(petrified)" in render_places_answer(gse._primed, gse._current_place,
                                                   "places: Câmpulung"))
@@ -835,9 +840,10 @@ async def main() -> bool:
         gsc.era = ERA
         gsc._reload_era_scene_state()
         footer = render_places_answer(gsc._primed, gsc._current_place, "places",
-                                      cast=gsc._cast_display.values())
-        rec("the record lists the place-less recurring people the block never shows",
-            "OTHER PEOPLE YOU KNOW:" in footer and "Corvin Hale" in footer, footer)
+                                      cast=gsc._cast_labels())
+        rec("the record lists the place-less recurring people with their identity",
+            "OTHER PEOPLE YOU KNOW:" in footer
+            and "Corvin Hale — the bounty hunter" in footer, footer)
         gse.scene_images = False
         gse._run_role = real_run  # type: ignore[assignment]
     

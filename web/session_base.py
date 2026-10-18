@@ -187,9 +187,10 @@ class SessionBase:
         # folded raw entries are not re-read from disk and written back.
         self._timeline_kept: str | None = None
         self._era_started_turn = 0
-        # Declared NPC identity (role, race, class), by lowercased name ->
-        # (canonical name, role, race, class). Echoed with the character that appears,
-        # never primed: needed on the turn an NPC walks on stage, not on every turn.
+        # Declared NPC identity (role, race, class), by folded name ->
+        # (canonical name, role, race, class). Backs the declaration checks and the on-demand
+        # cast footer; the per-turn tree reads the place rosters directly (there is no late
+        # "on stage" echo).
         self._npc_people: dict[str, tuple[str, str, str, str]] = {}
         # Main NPC liveness for the era game. `_dead_perm` mirrors the manifest's permanent
         # `dead`; `_dead_provisional` holds deaths detected THIS visit, which a heal can

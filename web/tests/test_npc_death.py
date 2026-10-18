@@ -104,28 +104,28 @@ async def main() -> bool:
             _place_of(places, OTHER)["dead"] == [], str(_place_of(places, OTHER)))
 
         tree = format_known_places(places)
-        rec("the primed tree annotates the dead main NPC: `Maera (dead)`",
-            "Maera (dead)" in tree and "Bess" in tree and "Bess (dead)" not in tree, tree)
-        rec("the other place's clerk is not annotated", "the customs clerk (dead)" not in tree, tree)
+        rec("the primed tree annotates the dead main NPC: `Maera — the harbourmaster, dwarf rogue (dead)`",
+            "Maera — the harbourmaster, dwarf rogue (dead)" in tree and "Bess" in tree and "Bess — the lamp-lighter, halfling rogue (dead)" not in tree, tree)
+        rec("the other place's clerk is not annotated", "the customs clerk — the clerk (dead)" not in tree, tree)
         rec("the cast is never primed", "Corvin Hale" not in tree, tree)
 
         # ── the engine: provisional, heal, freeze at Save ─────────────────────
         gs = _session(td)
         rec("the loaded tree shows the dead NPC from the manifest on turn one",
-            "Maera (dead)" in gs._places_body(), gs._places_body())
+            "Maera — the harbourmaster, dwarf rogue (dead)" in gs._places_body(), gs._places_body())
 
         # A fresh visit: clear the manifest flag, then kill in-session.
         live["seeds"][key]["dead"] = []
         gs = _session(td)
-        rec("a live, healed NPC is not annotated", "Maera (dead)" not in gs._places_body())
+        rec("a live, healed NPC is not annotated", "Maera — the harbourmaster, dwarf rogue (dead)" not in gs._places_body())
         gs._track_main_npc_deaths(KILL)
         rec("a killed main_npc of the current place is annotated for this visit",
-            "Maera (dead)" in gs._places_body(), gs._places_body())
+            "Maera — the harbourmaster, dwarf rogue (dead)" in gs._places_body(), gs._places_body())
         rec("... but nothing is written to the manifest before the freeze",
             live_scene_manifest(out, "save")["seeds"][key].get("dead") == [])
         gs._track_main_npc_deaths(ALIVE)
         rec("a heal before the freeze clears it (provisional only)",
-            "Maera (dead)" not in gs._places_body(), gs._places_body())
+            "Maera — the harbourmaster, dwarf rogue (dead)" not in gs._places_body(), gs._places_body())
 
         gs._track_main_npc_deaths(KILL)
         gs._freeze_dead()
@@ -134,14 +134,14 @@ async def main() -> bool:
             str(live_scene_manifest(out, "save")["seeds"][key].get("dead")))
         gs._track_main_npc_deaths(ALIVE)
         rec("a heal AFTER the freeze does not clear it (permanent per era)",
-            "Maera (dead)" in gs._places_body(), gs._places_body())
+            "Maera — the harbourmaster, dwarf rogue (dead)" in gs._places_body(), gs._places_body())
 
         # ── persistence: commit, restart, the tree is still annotated ─────────
         commit_scene_manifest(out, "save")
         discard_scene_manifest(out, "save")
         gs2 = _session(td)
         rec("after a Save + reload the dead NPC is still fed as dead",
-            "Maera (dead)" in gs2._places_body(), gs2._places_body())
+            "Maera — the harbourmaster, dwarf rogue (dead)" in gs2._places_body(), gs2._places_body())
 
         # ── a declaration is a DELTA: it never removes a regular or a death ──
         # (Until 2026-10-18 the roster was REPLACED by the declaration, so re-declaring without
