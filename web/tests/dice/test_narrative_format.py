@@ -61,5 +61,47 @@ class EquipNarrativeTest(H.EngineCase):
         self.assertNotIn("AC", r["narrative_format"])
 
 
+class GmOnlyRefusalTest(H.EngineCase):
+    """A GM-correctable error must never compose a player-facing Mechanics line.
+
+    `web/session_turn.py::_collect_mechanics` turns every `narrative_format` into one, and
+    `_action_failure`'s contract says shape errors (a missing parameter, an invalid notation,
+    an unknown registry name) must NOT set it. Live 2026-10-18 a `register_combatants`
+    refusal ("Refused: a combatant cannot carry both `name` and `names`") was shown in the
+    Mechanics block while the GM retried the call correctly.
+    """
+
+    player_factory = staticmethod(H.fighter_l5)
+
+    def test_register_combatants_shape_refusals_are_gm_only(self):
+        cases = [
+            ({"name": "Neferhotep", "names": ["Night Watch 1"]}, "name_and_names"),
+            ({"names": []}, "empty_names"),
+            ({"names": ["Night Watch 1", "   "]}, "blank_name"),
+            ({"names": ["Night Watch 1", "night watch 1"]}, "duplicate_name"),
+        ]
+        for entry, error in cases:
+            with self.subTest(error=error):
+                r = H.ds.register_combatants([entry])
+                self.assertFalse(r.get("success"), r)
+                self.assertEqual(r.get("error"), error, r)
+                self.assertNotIn("narrative_format", r, r)
+
+    def test_update_combatant_invalid_status_is_gm_only(self):
+        H.ds.register_combatants([{"name": "Goblin", "hp": 7, "ac": 15}])
+        r = H.ds.update_combatant(name="Goblin", status="banana")
+        self.assertFalse(r.get("success"), r)
+        self.assertEqual(r.get("error"), "invalid_status")
+        self.assertNotIn("narrative_format", r)
+
+    def test_a_fiction_refusal_still_reaches_the_block(self):
+        # The other half of the convention: a spent or refused ACTION is a fact of the fiction
+        # and must still tell the player what happened.
+        H.ds.modify_player_numeric("current_hit_points", -44)  # exactly 0
+        r = H.ds.rest("long")
+        self.assertFalse(r.get("success"), r)
+        self.assertIn("0 HP", r.get("narrative_format", ""))
+
+
 if __name__ == "__main__":
     unittest.main()

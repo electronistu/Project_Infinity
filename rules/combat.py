@@ -1079,18 +1079,19 @@ def _expand_groups(combatants):
         if not isinstance(c, dict) or "names" not in c:
             out.append(c)
             continue
+        # Shape refusals are GM-CORRECTABLE: `error`/`reason` drive the retry, and they carry
+        # NO `narrative_format` -- that key IS the player-facing Mechanics block (see
+        # `_action_failure`), and a mistyped call is not a fact of the fiction.
         if "name" in c:
             return combatants, {}, {
                 "success": False, "error": "name_and_names",
                 "reason": "An entry has both `name` and `names`; use one or the other.",
-                "narrative_format": "Refused: a combatant cannot carry both `name` and `names`.",
             }
         names = c.get("names")
         if not isinstance(names, list) or not names:
             return combatants, {}, {
                 "success": False, "error": "empty_names",
                 "reason": "`names` must be a non-empty list of combatant names.",
-                "narrative_format": "Refused: `names` was empty.",
             }
         block = {k: v for k, v in c.items() if k != "names"}
         gid = next_gid
@@ -1102,13 +1103,11 @@ def _expand_groups(combatants):
                 return combatants, {}, {
                     "success": False, "error": "blank_name",
                     "reason": "`names` contains a blank entry.",
-                    "narrative_format": "Refused: `names` contains a blank entry.",
                 }
             if nm.lower() in seen:
                 return combatants, {}, {
                     "success": False, "error": "duplicate_name",
                     "reason": f"`names` lists '{nm}' more than once.",
-                    "narrative_format": f"Refused: '{nm}' is listed twice in `names`.",
                 }
             seen.add(nm.lower())
             group_of[nm] = gid

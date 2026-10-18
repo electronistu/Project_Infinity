@@ -229,9 +229,10 @@ def update_combatant(name: str, conditions_add: list[str] | None = None,
     is_player = bool(entry.get("is_player"))
     new_status = None if status is None else str(status).strip().lower()
     if new_status is not None and new_status not in ("active", "fled", "surrendered"):
+        # GM-correctable shape error: no `narrative_format` (see `_action_failure`) -- a bad
+        # parameter must never compose a player-facing Mechanics line.
         return {"success": False, "error": "invalid_status", "name": name,
-                "reason": f"status must be 'active', 'fled' or 'surrendered', not '{status}'.",
-                "narrative_format": f"{name}: refused — '{status}' is not a combat status."}
+                "reason": f"status must be 'active', 'fled' or 'surrendered', not '{status}'."}
     notes = []
     blocked = []
     already_present = []
