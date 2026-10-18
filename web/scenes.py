@@ -276,6 +276,8 @@ def _normalise_scene_manifest(data, scenes: Path, era: str = "") -> dict:
                 cplace = _place_path([current.get("location"), current.get("sublocation")])
             current = {k: v for k, v in current.items() if k not in ("location", "sublocation")}
             current["place"] = cplace
+            # A legacy pointer carries no era: like a seed, it belongs to the save's age.
+            current["era"] = str(current.get("era") or "").strip() or era
         else:
             current = {}
         return {"version": 8, "seeds": seeds, "cast": cast, "current": current}
@@ -415,22 +417,33 @@ def discard_scene_manifest(output_dir, stem: str, expected_generation: int | Non
         return generation
 
 
-def current_scene_place(output_dir, stem: str) -> dict | None:
+def current_scene_place(output_dir, stem: str, era: str | None = None) -> dict | None:
     """The save's current place pointer ({era, kingdom, area, place}), or None.
 
     Set by `record_place` / `ensure_scene`. The text-mode scene caption reads it: the engine
     knows the age and the place, never the time of day or the weather (only an image call
     carries those).
+
+    `era` scopes the pointer to one age: a pointer filed in another age is None here (the
+    Traveller has not stood anywhere in this one yet), and a legacy pointer with no era is
+    read as this age's -- the same rule the places use. It is also the era the manifest's
+    FIRST load is normalised with, so the session must make this read before any other.
     """
-    data = live_scene_manifest(output_dir, stem)
+    data = live_scene_manifest(output_dir, stem, era or "")
     current = data.get("current") if isinstance(data, dict) else None
     if not isinstance(current, dict) or not current:
         return None
+    want_era = None if era is None else str(era).strip().lower()
+    current_era = str(current.get("era") or "").strip().lower()
+    if want_era is not None:
+        if current_era and current_era != want_era:
+            return None
+        current_era = current_era or want_era
     place = _place_path(current.get("place"))
     area = str(current.get("area") or "").strip()
     if not place and not area:
         return None
-    return {"era": str(current.get("era") or "").strip().lower(),
+    return {"era": current_era,
             "kingdom": str(current.get("kingdom") or "").strip(),
             "area": area, "place": place}
 
@@ -445,8 +458,11 @@ def known_scene_places(output_dir, stem: str, era: str | None = None) -> list[di
     place whose picture has not been drawn yet). The engine treats known-but-unseeded as still
     needing `establishing`, so a recorded place cannot suppress the seed prompt.
 
-    `era` scopes the list to one era. A place with no era -- only possible from a
-    manifest written before v8, which the next write re-keys -- matches any era.
+    `era` scopes the list to exactly one era. An entry with no era is a legacy entry (a
+    manifest written before v8, or a writer that omitted it); it is stamped with the save's
+    era when the manifest is loaded (see `_normalise_scene_manifest`), so it matches only an
+    unscoped read (`era=None`, the classic game). A place must never leak into another age's
+    tree or the Device's picker.
     """
     data = live_scene_manifest(output_dir, stem, era or "")
     scenes = _scenes_dir_for(output_dir, stem)
@@ -457,7 +473,7 @@ def known_scene_places(output_dir, stem: str, era: str | None = None) -> list[di
         entry_era = str(entry.get("era") or "").strip()
         kingdom = str(entry.get("kingdom") or "").strip()
         area = str(entry.get("area") or "").strip()
-        if want_era is not None and entry_era.lower() not in (want_era, ""):
+        if want_era is not None and entry_era.lower() != want_era:
             continue
         place = _place_path(entry.get("place"))
         if not place:

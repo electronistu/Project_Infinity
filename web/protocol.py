@@ -350,7 +350,8 @@ LEGEND_ASK = (
 DEVICE_CLOSES = (
     "The Traveller turns the Device toward {name}. Narrate the last moment of this age -- "
     "the world letting go -- and end with {{{{remembers: <" + _MEMORY_SCOPE + ">}}}} and "
-    "nothing after it."
+    "nothing after it. Stay in this age: do not narrate the arrival or declare its place -- "
+    "the crossing is the next turn."
 )
 
 LEGEND_RECOVERY_NUDGE = (
@@ -428,6 +429,25 @@ SITUATION_RESUME = ("SITUATION: SESSION RESUMED — the story continues from the
                     "not a new landing and not a new game.")
 SITUATION_JUMP = ("SITUATION: DEVICE JUMP — the Traveller has crossed into {new}; the same story "
                   "continues. This is not a new game and not a session start.")
+
+# The session-start rules ride the message that carries the era/world file, never the always-on
+# protocol: they are read on the two occasions a file arrives (a session start, and a Device
+# jump that hands the new age's scaffold) and would be paid for on every other turn. The
+# situation line is the engine's own verdict -- it is derived from the save, so the GM never
+# has to read the timeline to decide whether this is a new game.
+OPENING_RULES = (
+    "The CHARACTER SHEET is already in your context. No tool batch, no pause token."
+)
+ERA_MODEL = (
+    "On receiving the ERA_FILE (the ERA INDEX above lists the rest; `lookup` fetches any era "
+    "or polity you need), build your era model from it; invent NPCs as the story needs. "
+    "Enter ACTIVE."
+)
+ERA_MODEL_AT_JUMP = "Build your era model from it; invent NPCs as the story needs."
+WORLD_MODEL = (
+    "On receiving the WORLD_FILE, build your world model from it; invent NPCs as the story "
+    "needs. Enter ACTIVE."
+)
 # Labels a jump's era scaffold so it cannot be read as the session's ERA_FILE.
 JUMP_ERA_LABEL = "THE AGE YOU HAVE ENTERED (the era file):"
 

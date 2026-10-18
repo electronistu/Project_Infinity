@@ -218,7 +218,7 @@ class TurnMixin:
         """Guarantee one scene image per turn: a quiet corrective round for the
         GM to author the call (asking for `establishing` when the seed is missing),
         else an engine fallback built from the narrative."""
-        if not self.scene_images or self._scene_requested_turn:
+        if self._crossing or not self.scene_images or self._scene_requested_turn:
             return
         rejected = self._scene_rejected_place
         prose_missing = not self._narrative_emitted_turn
@@ -282,11 +282,23 @@ class TurnMixin:
         the turn ended in -- the model has the prose by now, so it can). A declaration the
         engine refused counts as none (the GM has the refusal in its context, and this round is
         where it corrects)."""
+        if self._crossing:
+            return  # the age is ending: the Traveller is not declaring a place in it
         if self._landing_lock is not None:
             return  # the engine chose the landing; the GM does not have to declare it
         if self.scene_images or len(self._place_declarations) == 1:
             return
         await self._run_role(place_echo_nudge(self._place_declarations), "place-fix", quiet=True)
+
+    async def _ensure_opening_place(self) -> None:
+        """The opening's place, guaranteed: a new game's arrival is a move no inference can
+        recover, and text mode has no scene call to carry it. A resumed save already holds its
+        current place (the manifest's `current`), so it is never asked to repeat itself; any
+        declaration the opening made -- one, or several -- goes through the ordinary rule.
+        Images mode is answered by the scene call itself (`_ensure_place_note` returns)."""
+        if not self._place_declarations and (self._current_place or {}).get("place"):
+            return
+        await self._ensure_place_note()
 
     def _match_known_place(self, narrative: str) -> tuple[str, str, list[str]]:
         """Best known (kingdom, area, place) whose path appears in the narrative."""
@@ -404,6 +416,14 @@ class TurnMixin:
             self._remember_declared(args.get("npcs"))
         if name == COMPANION_TOOL and not is_error:
             self._remember_companion(args)
+        crossing = self._crossing
+        if crossing and name in (SCENE_TOOL, PLACE_TOOL):
+            # The Device is crossing: this turn ends the age. A place declared now is the
+            # DESTINATION the GM narrated ahead of the crossing (live 2026-10-18: Memphis and
+            # the Giza works were filed under Tang and offered by the Device there), so it is
+            # not recorded -- the arrival turn declares it in the new age.
+            self._place_note = ("NOTE: not recorded -- this age is ending; the arrival turn "
+                                "declares the place in the new age.")
         place_changed = False
         raw_place = args.get("place")
         filed = ([str(p) for p in raw_place if str(p or "").strip()]
@@ -413,7 +433,7 @@ class TurnMixin:
             # longer waits for a picture. Only the turn's FIRST accepted call applies (the
             # engine keeps one current place); a second one is already dropped by the
             # scene-request flag. The declarations it carries still buffer for the illustrator.
-            scene_applies = (warning is None and self.scene_images
+            scene_applies = (warning is None and self.scene_images and not crossing
                              and not self._scene_requested_turn and bool(filed))
             if scene_applies:
                 # kingdom/area are optional once a place is known: the record's first segment
@@ -428,7 +448,8 @@ class TurnMixin:
                 # what the place already holds is not a change and must write nothing.
                 roster_change = self._declares_roster_change(
                     filed, args.get("main_npcs"), era=era)
-            self._collect_declarations(args)
+            if not crossing:
+                self._collect_declarations(args)
             if scene_applies:
                 before = self._current_place
                 self._record_place_live(args, era=era)
@@ -436,7 +457,7 @@ class TurnMixin:
                 # even though it did not move `_current_place`.
                 place_changed = (not self._same_place(before, self._current_place)
                                  or roster_change or self._place_blocked_now)
-        if name == PLACE_TOOL and warning is None and not is_error:
+        if name == PLACE_TOOL and warning is None and not is_error and not crossing:
             before = self._current_place
             # Asked BEFORE `_record_place_live` applies the delta: a declaration that repeats
             # what the place already holds -- a regular, a field, an unchanged state -- is not
@@ -495,7 +516,8 @@ class TurnMixin:
                     self._mechanics_lines.append(line)
                     await self._emit({"type": "mechanics",
                                       "lines": list(self._mechanics_lines)})
-        if name == SCENE_TOOL and self.scene_images and warning is None and not self._scene_requested_turn:
+        if (name == SCENE_TOOL and self.scene_images and warning is None and not crossing
+                and not self._scene_requested_turn):
             self._scene_requested_turn = True
             place = filed
             kingdom = str(args.get("kingdom") or "")
@@ -769,10 +791,12 @@ class TurnMixin:
         A scene-sourced declaration must use the same era the server's `/api/scene` writer
         uses (`session.era or START_ERA`), or a classic+images save would file one place twice:
         file-less under no era, then seeded under the fallback era. Text mode keeps the save's
-        own convention (a classic save carries no era)."""
+        own convention (a classic save carries no era). The era game NEVER files a place
+        without an era: an era-less entry is a wildcard in the registry and would be offered
+        in every age's tree and Device picker."""
         if scene:
             return str(self.era or "") or START_ERA
-        return "" if self.classic else str(self.era or "")
+        return "" if self.classic else (str(self.era or "") or START_ERA)
 
     def _record_place_live(self, args: dict, era: str | None = None) -> None:
         """Apply a place declaration to the live session (the tree updates at once).

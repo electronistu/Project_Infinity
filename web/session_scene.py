@@ -16,9 +16,10 @@ from .scenes import (current_scene_place, known_cast_names, known_cast_people,
 from .places import _scene_key, name_key, path_label, places_feed
 from .player_file import _jump_reset_note, _sheet_body
 from .protocol import (
-    CARRY_NOTE, DEVICE_CLOSES, DEVICE_DECLARES, DEVICE_FIRES, DEVICE_MOVES, ERA_STATE_ASK,
-    HELP_TEXT, JUMP_ERA_LABEL, LEGEND_RECOVERY_NUDGE, SITUATION_DEVICE_MOVE, SITUATION_JUMP,
-    SITUATION_NEW, SITUATION_RESUME
+    CARRY_NOTE, DEVICE_CLOSES, DEVICE_DECLARES, DEVICE_FIRES, DEVICE_MOVES, ERA_MODEL,
+    ERA_MODEL_AT_JUMP, ERA_STATE_ASK, HELP_TEXT, JUMP_ERA_LABEL, LEGEND_RECOVERY_NUDGE,
+    OPENING_RULES, SITUATION_DEVICE_MOVE, SITUATION_JUMP, SITUATION_NEW, SITUATION_RESUME,
+    WORLD_MODEL
 )
 from .session_base import OUTPUT_DIR
 from .stats import build_stats
@@ -34,7 +35,8 @@ class SceneMixin:
         if self.classic:
             return False
         try:
-            current = current_scene_place(self.base_dir / OUTPUT_DIR, self.active_name or "")
+            current = current_scene_place(self.base_dir / OUTPUT_DIR, self.active_name or "",
+                                          self.era)
         except Exception:  # noqa: BLE001 - never fail a session over the arrival point
             return False
         if not isinstance(current, dict):
@@ -68,8 +70,9 @@ class SceneMixin:
         self._scene_seeded = {_scene_key(p["place"]) for p in places if p.get("seeded")}
         try:
             self._current_place = current_scene_place(
-                self.base_dir / OUTPUT_DIR, self.active_name or "")
-        except Exception:  # noqa: BLE001 - never fail a session over the caption
+                self.base_dir / OUTPUT_DIR, self.active_name or "",
+                None if self.classic else self.era)
+        except Exception:  # noqa: BLE001 - never fail the caption
             self._current_place = None
         try:
             self._cast_names = {name_key(n) for n in
@@ -229,8 +232,9 @@ class SceneMixin:
 
     def _era_opening(self, resumed: bool = False) -> str:
         """The lines the GM is handed with an era: which situation this is, where the Traveller
-        is in it, and that the kit is their own -- literal in every age. Written once, never
-        always-on: it rides the ERA_FILE at session start and the jump message after that."""
+        is in it, that the kit is their own -- literal in every age -- and the opening rules
+        (no batch, no pause token; build the era model). Written once, never always-on: it
+        rides the ERA_FILE at session start and the jump message after that."""
         parts = [SITUATION_RESUME if resumed else SITUATION_NEW]
         if resumed:
             at = f" You are already at {self.arrival}." if self.arrival else ""
@@ -239,6 +243,20 @@ class SceneMixin:
         elif self.arrival:
             parts.append(f"You arrive at {self.arrival}.")
         parts.append(CARRY_NOTE)
+        parts.append(OPENING_RULES)
+        parts.append(ERA_MODEL)
+        return "\n\n".join(parts)
+
+    def _world_opening(self, resumed: bool = False) -> str:
+        """The classic game's awakening: the situation and the opening rules, then the
+        WORLD_FILE itself. The era game's mirror is `_era_opening` -- the classic game has no
+        eras, so it gets no era index, no kit note and no `lookup` pointer."""
+        parts = [SITUATION_RESUME if resumed else SITUATION_NEW]
+        if resumed:
+            parts.append("The story continues from where it left off; you do not open a new "
+                         "scene.")
+        parts.append(OPENING_RULES)
+        parts.append(WORLD_MODEL)
         return "\n\n".join(parts)
 
     def _memory_message(self, just_left: str) -> str:
@@ -290,7 +308,14 @@ class SceneMixin:
         """
         ask = (ERA_STATE_ASK.format(era=self.era) + "\n\n"
                + DEVICE_CLOSES.format(name=device.era_label(era)))
-        await self._run_turn(ask, "closing")
+        # The closing turn ENDS this age: the registry is frozen for it, so a place the GM
+        # declares while narrating the departure's far side cannot be filed under the age
+        # being left (the arrival turn declares it in the new age).
+        self._crossing = True
+        try:
+            await self._run_turn(ask, "closing")
+        finally:
+            self._crossing = False
         await self._jump(to_era=era, area=area, arrival=arrival, group=group)
 
     async def _jump(self, to_era: str | None = None, area: str = "", arrival: str = "",
@@ -391,7 +416,8 @@ class SceneMixin:
         # tool call with narration (the protocol forbids that), and a model resolved the conflict
         # with a holding line -- "I'll consult the era first." -- which stalled the turn.
         if not self.classic:
-            jump = f"{jump}\n\n{JUMP_ERA_LABEL}\n{render_era_text(self.era)}"
+            jump = (f"{jump}\n\n{JUMP_ERA_LABEL}\n{render_era_text(self.era)}"
+                    f"\n\n{ERA_MODEL_AT_JUMP}")
         if landing:
             # The player chose the exact landing: it is authoritative for this turn, and it
             # reaches the manifest before the GM says a word. A declaration that invents a

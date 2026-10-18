@@ -46,7 +46,7 @@ class _Patch:
 
 engine_mod = _Patch()
 
-from web.protocol import DEVICE_DECLARES  # noqa: E402
+from web.protocol import DEVICE_DECLARES, ERA_MODEL_AT_JUMP  # noqa: E402
 from web.eras import render_era_index  # noqa: E402
 
 RESULTS = []
@@ -294,6 +294,8 @@ def main():
         "SITUATION: DEVICE JUMP" in solo_text)
     rec("... and the era file is labelled, so it is not read as a session start",
         "THE AGE YOU HAVE ENTERED" in solo_text)
+    rec("... and the GM is told to build the age's model from it",
+        ERA_MODEL_AT_JUMP in solo_text)
     rec("... the crossing resets the running spells",
         any(n == "device_jump_reset" for n, _a in solo.session.calls), str(solo.session.calls))
 
@@ -582,6 +584,82 @@ def main():
     print("\n-- the place control is base")
     rec("a chosen place is whitespace-collapsed",
         _session()._clean_place("  the east gate  ") == "the east gate")
+
+    # -- the crossing turn cannot write a place ------------------------------------------
+    print("\n-- the crossing turn freezes the registry")
+    gs_cross = _session(era="tang")
+    gs_cross.scene_images = False
+    gs_cross._primed = []
+    gs_cross._current_place = None
+    gs_cross._crossing = True
+    call = {"function": {"name": "note_place", "arguments": {
+        "kingdom": "Egypt", "area": "Memphis",
+        "place": ["the Giza plateau", "the pyramid works"]}}}
+    asyncio.run(gs_cross._execute_tool(call))
+    evts = _drain(gs_cross)
+    rec("a place declared on the crossing turn is not recorded",
+        gs_cross._primed == [] and gs_cross._place_declarations == [],
+        str(gs_cross._primed))
+    rec("... and no place_note reaches the client",
+        not any(e.get("type") == "place_note" for e in evts),
+        str([e.get("type") for e in evts]))
+    result = next((e for e in evts if e.get("type") == "tool_result"), {})
+    rec("... the GM is told why", "not recorded" in str(result.get("gm_text") or ""),
+        str(result.get("gm_text")))
+
+    gs_cross._crossing = False
+    asyncio.run(gs_cross._execute_tool(call))
+    rec("... while an ordinary turn records the same declaration",
+        any(p.get("area") == "Memphis" for p in gs_cross._primed), str(gs_cross._primed))
+
+    gs_scene = _session(era="tang")     # images on
+    gs_scene._primed = []
+    gs_scene._crossing = True
+    asyncio.run(gs_scene._execute_tool({"function": {
+        "name": "request_scene_image", "arguments": {
+            "description": "the world letting go",
+            "kingdom": "Egypt", "area": "Memphis",
+            "place": ["the Giza plateau", "the pyramid works"],
+            "establishing": "a half-built pyramid under a white sun"}}}))
+    scene_evts = _drain(gs_scene)
+    rec("a scene call on the crossing turn writes no place and sends no image request",
+        gs_scene._primed == []
+        and not any(e.get("type") in ("place_note", "scene_request") for e in scene_evts),
+        str([e.get("type") for e in scene_evts]))
+
+    # -- a place belongs to ONE age: the picker and the landing never cross --------------
+    print("\n-- place menus are era-scoped")
+    import os
+    import shutil
+
+    from web.scenes import SceneService, commit_scene_manifest, discard_scene_manifest
+
+    stem = f"device_ages_{os.getpid()}"
+    out = REPO / "output"
+    svc = SceneService(output_dir=out)
+    try:
+        discard_scene_manifest(out, stem)
+        svc.record_place(stem, era="tang", kingdom="the Tang empire", area="Chang'an",
+                         place=["West Market", "the camel yard"])
+        svc.record_place(stem, era="egypt", kingdom="the Old Kingdom", area="Giza",
+                         place=["The pyramid works", "the quarry road"])
+        commit_scene_manifest(out, stem)
+        gs_ages = _session(era="tang")
+        gs_ages.active_name = stem
+        gs_ages._reload_era_scene_state()
+        opts = gs_ages._place_options()
+        tang_areas = [a["area"] for a in opts.get("tang", {}).get("areas", [])]
+        egypt_areas = [a["area"] for a in opts.get("egypt", {}).get("areas", [])]
+        rec("the picker offers each age only its own areas",
+            tang_areas == ["Chang'an"] and egypt_areas == ["Giza"],
+            f"tang={tang_areas} egypt={egypt_areas}")
+        label = "The pyramid works — the quarry road"
+        rec("a landing cannot name another age's place",
+            gs_ages._landing_place("tang", "Giza", label) is None
+            and gs_ages._landing_place("egypt", "Giza", label) is not None)
+    finally:
+        discard_scene_manifest(out, stem)
+        shutil.rmtree(out / "images" / stem, ignore_errors=True)
 
     print(f"\n  RESULT: {'PASS' if all(RESULTS) else 'FAIL'} ({sum(RESULTS)}/{len(RESULTS)})")
     return 0 if all(RESULTS) else 1

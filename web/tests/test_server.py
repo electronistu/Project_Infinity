@@ -52,7 +52,7 @@ RESULTS: list[tuple[str, bool, str]] = []
 OPENING = "The lamp gutters and the room comes back to you in pieces: a low ceiling, wet stone."
 LOOKING = "You turn a slow circle, and the dark gives up one doorway and nothing else."
 OPENING_TEXT = "You come out of the dark into a market street that smells of smoke and spice."
-HALL = "The great hall is yours for the night, and the steward is already counting your coin."
+HALL = "The guest chamber is yours for the night, and the steward is already counting your coin."
 
 SCENE_CALL = {"description": "the protagonist stands at the threshold, lamp in hand",
               "kingdom": "Wallachia", "area": "Târgoviște",
@@ -63,14 +63,19 @@ PLACE_CALL = {"kingdom": "Wallachia", "area": "Târgoviște",
               "place": ["the princely court", "the great hall"],
               "main_npcs": [{"name": "Steward Radu", "role": "the prince's steward",
                              "race": "human", "class": "rogue"}]}
+# The action turn MOVES (a nested room), so the declaration is a change and reaches the
+# client: re-declaring the opening's place would correctly emit nothing.
+MOVE_CALL = {"place": ["the princely court", "the great hall", "the guest chamber"]}
 SCRIPT = [
     # session 1, images on: the awakening (prose + the opening image), then an action turn
     response(OPENING, [("request_scene_image", SCENE_CALL)]),
     *turn(LOOKING, batch=[("roll_dice", {"notation": "1d20"})],
           prose_calls=[("request_scene_image", dict(SCENE_CALL, description="the doorway"))]),
-    # session 2, images off: the awakening, then a move declared with `note_place`
+    # session 2, images off: the opening declares NO place, so the engine asks and the quiet
+    # round declares it (the net); then an action turn moves, declaring on the prose.
     response(OPENING_TEXT),
-    *turn(HALL, batch=[("note_place", PLACE_CALL)]),
+    response("", [("note_place", PLACE_CALL)]),
+    response(HALL, [("note_place", MOVE_CALL)]),
 ]
 
 
@@ -266,6 +271,11 @@ async def _session_two(client: httpx.AsyncClient, world: str) -> None:
             sink: list = []
             got = await recv_until(ws, lambda e: e["type"] == "awakening_end", 120, sink)
             rec("images off: the awakening completes", got is not None)
+            opening_notes = [e for e in sink if e.get("type") == "place_note"]
+            rec("images off: the opening's place is recorded (the engine asked)",
+                len(opening_notes) == 1
+                and opening_notes[0].get("place") == PLACE_CALL["place"],
+                str(opening_notes))
             ready = next((e for e in sink if e.get("type") == "ready"), None)
             tools = (ready or {}).get("tools") or []
             rec("images off: note_place offered, the scene tools hidden",
@@ -274,7 +284,7 @@ async def _session_two(client: httpx.AsyncClient, world: str) -> None:
 
             sink2: list = []
             await ws.send(json.dumps({"type": "action",
-                                      "text": "I take the hall for the night."}))
+                                      "text": "I take a guest chamber above the hall."}))
             got = await recv_until(ws, lambda e: e["type"] == "turn_end", 120, sink2)
             rec("images off: the action turn completes", got is not None)
             notes = [e for e in sink2 if e.get("type") == "place_note"]

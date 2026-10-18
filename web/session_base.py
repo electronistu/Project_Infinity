@@ -167,6 +167,11 @@ class SessionBase:
         self._landing_lock: dict | None = None
         self._landing_blocked = False
         self._place_blocked_now = False
+        # The Device is crossing: the closing turn ends the age, so the registry is frozen for
+        # it. A place declared there is the DESTINATION (the GM narrating ahead of the
+        # crossing); filing it under the age being left would offer it in that age's tree and
+        # Device picker. The arrival turn declares it in the new age.
+        self._crossing = False
         # Injected in tests so the "random" era is reproducible.
         self._rng = random.Random()
         # Where the always-on era messages live, so a jump can rewrite them in place
@@ -393,8 +398,10 @@ class SessionBase:
                     # "You arrive" -- the era file is framed before the GM reads it.
                     resumed = bool(kept) or bool(self._chronicle)
                     if self.classic:
-                        # The classic game hands the GM the world it was built on.
-                        key_content = render_world_text()
+                        # The classic game hands the GM the world it was built on; the opening
+                        # rules ride the WORLD_FILE, as they ride the ERA_FILE in the era game.
+                        key_content = (f"{self._world_opening(resumed)}\n\n"
+                                       f"{render_world_text()}")
                     else:
                         key_content = (f"{self._era_opening(resumed)}\n\n"
                                        f"{render_era_text(self.era)}")
@@ -464,16 +471,19 @@ class SessionBase:
 
                     # ── Session start: ERA_FILE -> tools -> pause token -> resume -> narrative ──
                     # (A new game opens the scene; a resumed save continues it -- the era file
-                    # carries the framing. The opening illustration is requested by the GM
-                    # itself, in the session-start tool batch -- see GameMaster_MCP.md.)
+                    # carries the framing. The opening's illustration and place ride the GM's
+                    # own prose, exactly as they do on a turn; the engine asks for the place
+                    # when text mode's opening declared none -- see `_ensure_opening_place`.)
                     self.busy = True
                     try:
                         await self._emit({"type": "busy", "value": True})
                         self._mechanics_lines = []
                         self._narrative_emitted_turn = False
+                        self._place_declarations = []   # the opening's place echo, as a turn
                         awakening = await self._run_role(key_content, "awakening")
                         awakening = await self._ensure_turn_prose(awakening)
                         await self._ensure_scene_image(awakening or "")
+                        await self._ensure_opening_place()
                         await self._emit({"type": "awakening_end", "text": awakening or ""})
                     finally:
                         self.busy = False
@@ -542,6 +552,8 @@ class SessionBase:
         self._scene_requested_turn = False  # at most one illustration per turn
         self._narrative_emitted_turn = False  # the turn's prose is emitted once
         self._place_declarations = []      # the turn's place echo (see _ensure_place_note)
+        self._scene_rejected = False       # a rejected scene call is per turn (a crossing
+        self._scene_rejected_place = None  # turn skips the corrective; the next must not inherit)
         self._mechanics_lines = []          # the engine-composed block is per turn
         previous = (self._capture_legend, self._capture_state)
         self._capture_legend, self._capture_state = capture_legend, capture_state

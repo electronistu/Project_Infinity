@@ -15,6 +15,7 @@ REPO = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO))
 
 from web.engine import GameSession  # noqa: E402
+from web.eras import START_ERA  # noqa: E402
 from web.protocol import (  # noqa: E402
     filter_tools, has_unknown_marker, is_pause, render_protocol, strip_markers,
     MAX_RESUME_ROUNDS,
@@ -987,6 +988,49 @@ async def main() -> bool:
         len(rounds16) == 2 and out16 == "__SYSTEM_PAUSE__",
         f"rounds={len(rounds16)} out={out16!r}")
 
+    # The opening's place: a new game's arrival is a move nothing can infer, so the engine
+    # asks when the opening declared none; a resumed save already holds its place.
+    opening_calls: list[str] = []
+
+    async def _opening_role(role_content, label, quiet=False):
+        opening_calls.append(label)
+
+    for label, images_on, declarations, current, want in [
+        ("a new game with no declaration asks", False, [], None, True),
+        ("a declaration in the opening prose is enough", False,
+         [["the market square", "the Stag inn"]], None, False),
+        ("a resumed save's recorded place needs no ask", False, [],
+         {"place": ["the great hall"], "area": "Târgoviște"}, False),
+        ("two declarations are resolved by the echo", False,
+         [["the market square", "the Stag inn"], ["the river", "the ford"]],
+         {"place": ["the market square", "the Stag inn"]}, True),
+        ("images mode is answered by the scene call", True, [], None, False),
+    ]:
+        gs_op = GameSession(base_dir=REPO, model="test", scene_images=images_on)
+        gs_op._place_declarations = [list(p) for p in declarations]
+        gs_op._current_place = dict(current) if current else None
+        gs_op._run_role = _opening_role  # type: ignore[assignment]
+        opening_calls.clear()
+        await gs_op._ensure_opening_place()
+        rec(f"opening place: {label}", (opening_calls == ["place-fix"]) == want,
+            str(opening_calls))
+
+    # The crossing turn freezes the registry: no place echo, no illustration request.
+    gs_cross = GameSession(base_dir=REPO, model="test", scene_images=True)
+    gs_cross._crossing = True
+    cross_calls: list[str] = []
+
+    async def _cross_role(role_content, label, quiet=False):
+        cross_calls.append(label)
+
+    gs_cross._run_role = _cross_role  # type: ignore[assignment]
+    await gs_cross._ensure_place_note()
+    await gs_cross._ensure_scene_image("the world lets go")
+    rec("the crossing turn asks for no place and no illustration",
+        cross_calls == []
+        and not any(e.get("type") == "scene_request" for e in drain(gs_cross._evt_q)),
+        str(cross_calls))
+
     # Tool results: the GM reads a trimmed view (new info + mechanics + errors); the
     # client keeps the full result for debugging.
     full_list = json.dumps({
@@ -1256,6 +1300,78 @@ async def main() -> bool:
             _SCENE_LOCK.release()
         release.set()
         worker.join(5)
+
+    # ── era scoping: a place belongs to ONE age (the Device picker, the GM's tree) ─────
+    with tempfile.TemporaryDirectory() as td:
+        out = Path(td) / "output"
+        svc = SceneService(out)
+        stem = "ages"
+        discard_scene_manifest(out, stem)
+        svc.record_place(stem, era="tang", kingdom="the Tang empire", area="Chang'an",
+                         place=["West Market", "the camel yard"])
+        svc.record_place(stem, era="egypt", kingdom="the Old Kingdom", area="Giza",
+                         place=["The pyramid works", "the quarry road"])
+        commit_scene_manifest(out, stem)
+        discard_scene_manifest(out, stem)          # a new session reloads from disk
+        current_scene_place(out, stem, "egypt")    # the session's first read, with its age
+        rec("an era-scoped read returns only that age's places",
+            [p["area"] for p in known_scene_places(out, stem, "tang")] == ["Chang'an"]
+            and [p["area"] for p in known_scene_places(out, stem, "egypt")] == ["Giza"],
+            str(known_scene_places(out, stem, "tang")))
+        # An entry with no era (a legacy writer) must not become a wildcard for the session.
+        live_scene_manifest(out, stem)["seeds"]["legacy"] = {
+            "era": "", "kingdom": "", "area": "Giza", "main_npcs": [], "dead": [],
+            "place": ["a place with no age", "a room"], "used": 1}
+        rec("an era-less entry is never offered under an age",
+            all(p["area"] != "Giza" for p in known_scene_places(out, stem, "tang"))
+            and all(p["place"] != ["a place with no age", "a room"]
+                    for p in known_scene_places(out, stem, "egypt")),
+            str(known_scene_places(out, stem, "tang")))
+        rec("... but an unscoped read (classic) still sees it",
+            any(p["place"] == ["a place with no age", "a room"]
+                for p in known_scene_places(out, stem)))
+        rec("the current place is the age's own",
+            (current_scene_place(out, stem, "egypt") or {}).get("place")
+            == ["The pyramid works", "the quarry road"]
+            and current_scene_place(out, stem, "tang") is None
+            and current_scene_place(out, stem, "wallachia") is None,
+            str(current_scene_place(out, stem, "egypt")))
+
+    # A legacy manifest loaded by the session's first read is stamped with the save's era.
+    with tempfile.TemporaryDirectory() as td:
+        out = Path(td) / "output"
+        scenes = out / "images" / "legacy" / "scenes"
+        scenes.mkdir(parents=True)
+        (scenes / "manifest.json").write_text(json.dumps({
+            "version": 8,
+            "seeds": {"the-princely-court|the-great-hall": {
+                "era": "", "kingdom": "Wallachia", "area": "Târgoviște",
+                "place": ["the princely court", "the great hall"],
+                "main_npcs": [], "dead": [], "used": 1}},
+            "cast": {},
+            "current": {"era": "", "kingdom": "Wallachia", "area": "Târgoviște",
+                        "place": ["the princely court", "the great hall"]},
+        }), encoding="utf-8")
+        discard_scene_manifest(out, "legacy")
+        first = current_scene_place(out, "legacy", "wallachia")
+        rec("the first read stamps a legacy place with the save's era",
+            first is not None and first.get("era") == "wallachia"
+            and [p["area"] for p in known_scene_places(out, "legacy", "wallachia")]
+            == ["Târgoviște"]
+            and known_scene_places(out, "legacy", "tang") == [],
+            str(known_scene_places(out, "legacy", "wallachia")))
+
+    # The era game never files a place without an era (the wildcard's only producer).
+    gs_era = GameSession(base_dir=REPO, model="test", scene_images=False)
+    gs_era.classic = False
+    gs_era.era = "tang"
+    rec("a time-traveler files a place under its age", gs_era._declaration_era() == "tang")
+    gs_era.era = ""
+    rec("... and never without one, even when the save's era is missing",
+        gs_era._declaration_era() == START_ERA, gs_era._declaration_era())
+    gs_era.classic = True
+    rec("... while a classic save keeps its no-era convention",
+        gs_era._declaration_era() == "")
 
     return all(RESULTS)
 

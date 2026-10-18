@@ -76,10 +76,8 @@ def main() -> bool:
     classic = render_protocol(proto, True, "hard", MODE_CLASSIC)
     tt = render_protocol(proto, True, "hard", MODE_TIME_TRAVELER)
     rec("no marker survives either mode", "<!--" not in classic and "<!--" not in tt)
-    rec("Classic gets the WORLD_FILE awakening", "WORLD_FILE" in classic)
     rec("Classic never hears about an ERA_FILE", "ERA_FILE" not in classic)
     rec("Classic has no THE PEOPLES block", "THE PEOPLES" not in classic)
-    rec("Time Traveler gets the ERA_FILE awakening", "ERA_FILE" in tt)
     rec("Time Traveler keeps THE PEOPLES", "THE PEOPLES" in tt)
     rec("... peopled by every class as well as every race (D35)",
         "all the common classes" in tt and "mercenary captain" in tt)
@@ -93,9 +91,16 @@ def main() -> bool:
     rec("the shared rules survive in both",
         "## INVARIANTS" in classic and "## INVARIANTS" in tt
         and "## FAILURE MODES" in classic and "## FAILURE MODES" in tt)
-    rec("the session-start section is named for what it is (not AWAKENING)",
-        "## SESSION START" in tt and "## SESSION START" in classic
-        and "AWAKENING" not in tt and "AWAKENING" not in classic)
+    rec("the opening rules are not always-on: they ride the era/world file",
+        "SESSION START" not in tt and "SESSION START" not in classic
+        and "build your era model" not in tt and "build your world model" not in classic)
+    off = render_protocol(proto, False, "hard", MODE_TIME_TRAVELER)
+    rec("the invariant forbids only MECHANICAL tool calls alongside prose",
+        "Never attach a mechanical tool call" in tt
+        and "Never attach a mechanical tool call" in classic)
+    rec("text mode says where note_place goes and that it never pauses",
+        "alone just before it" in off and "never pause for it" in off
+        and "not a mechanical batch" in off)
     rec("the difficulty gate still works alongside the mode",
         "Scale the ADVENTURE" not in render_protocol(proto, True, "hard", MODE_CLASSIC)
         and "Scale the ADVENTURE" in render_protocol(proto, True, "easy", MODE_CLASSIC)
@@ -114,6 +119,18 @@ def main() -> bool:
     rec("a resumed session is not framed as a new landing",
         "SESSION RESUMED" in resumed and "You arrive at" not in resumed
         and "the Grand Canal" in resumed, resumed[:80])
+    rec("the era awakening forbids a batch and a pause token",
+        "No tool batch, no pause token" in fresh
+        and "No tool batch, no pause token" in resumed)
+    rec("the era awakening carries the era-model rule",
+        "build your era model" in fresh and "Enter ACTIVE" in fresh)
+    w_fresh, w_resumed = gs_frame._world_opening(False), gs_frame._world_opening(True)
+    rec("the classic awakening carries the opening rules and the world-model rule",
+        "SITUATION: SESSION START" in w_fresh and "No tool batch, no pause token" in w_fresh
+        and "build your world model" in w_fresh and "Enter ACTIVE" in w_fresh)
+    rec("a resumed classic save is not framed as a new game",
+        "SESSION RESUMED" in w_resumed and "SESSION START" not in w_resumed
+        and "build your world model" in w_resumed)
 
     print("\n-- what the GM is offered")
     rec("lookup is offered in both games (the generic reference tool)",

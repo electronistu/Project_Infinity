@@ -351,7 +351,7 @@ def check_turn(record: dict) -> None:
     narrative_tools = NARRATIVE_PHASE_TOOLS | (set() if images else {PLACE_TOOL})
     batch_rounds = [i for i, r in enumerate(rounds)
                     if not prose_of(r["content"])
-                    and any(t not in NARRATIVE_PHASE_TOOLS for t in r["tools"])]
+                    and any(t not in narrative_tools for t in r["tools"])]
     prose_rounds = [i for i, r in enumerate(rounds) if prose_of(r["content"])]
     token_rounds = [i for i, r in enumerate(rounds) if is_pause(r["content"])]
     paused = sum(1 for f in frames if f.get("type") == "paused")
@@ -698,6 +698,15 @@ async def run_mode(args, mode: str) -> list[dict]:
             record["images"] = images
             record["mode"] = mode
             check_turn(record)
+            # The opening's place must exist before the first player turn: text mode carries it
+            # on the prose (the GM's own, or the engine's ask), images mode on the scene call.
+            # The fixture seeds a current place, so the STATE is what is asserted here.
+            rec(f"{mode} awakening: a place is current before the first turn",
+                bool((session._current_place or {}).get("place")),
+                str(session._current_place))
+            rec(f"{mode} awakening: the GM declared its place unaided",
+                declared_itself(record),
+                str([j.get("label") for j in record.get("journal") or []]), soft=True)
         for scenario in ran:
             before_place = dict(session._current_place or {})
             record = await drive.run_turn(scenario["id"], scenario["text"])
