@@ -6,7 +6,6 @@ import shutil
 from . import timeline
 from .eras import playable_eras
 from .gm_view import _clamp_block, _extract_met, _trim_legend
-from .places import name_key
 from .scenes import commit_scene_manifest
 from .ollama_stream import stream_chat
 from .protocol import (
@@ -16,7 +15,7 @@ from .protocol import (
 from .timeline import (
     _STATE_FIELDS, _TIMELINE_HEADER, MAX_MET_STORE, _entry_turn_range, _extract_state,
     _extract_states, _split_timeline_entries, _state_has_fields, load_state, load_states,
-    load_timeline
+    load_timeline, met_key
 )
 
 
@@ -251,20 +250,31 @@ class SaveMixin:
         return cleaned
 
     def _merge_met(self, era: str, names) -> None:
-        """Union the declared names into the age's register, marker order first.
+        """Append the declared names to the age's register, newest first.
 
-        The marker is written story-first; a name it omits but the save already holds is
-        appended, so a lossy rewrite never loses a person. Bounded by `MAX_MET_STORE`, the
-        tail (side characters) dropped first."""
+        The marker is APPEND-ONLY: it carries the people met since the last record, so the
+        new names go first and the stored roll follows (the cap then drops the oldest). A
+        repeat is collapsed by `met_key`, including a drifted article ("Knife-man" for "the
+        knife-man"), and the recorded spelling is kept, so a sloppy batch can never
+        duplicate a person."""
         if self.classic or not era:
             return
         incoming = [str(n).strip() for n in (names or []) if str(n or "").strip()]
         if not incoming:
             return
+        stored = list(self._met.get(era, []))
+        stored_keys = {met_key(n) for n in stored}
         out: list[str] = []
         seen: set[str] = set()
-        for name in incoming + list(self._met.get(era, [])):
-            key = name_key(name)
+        # New people first; a name that aliases one already recorded is dropped here, so the
+        # recorded spelling (and its place in the roll) survives below.
+        for name in incoming:
+            key = met_key(name)
+            if key and key not in seen and key not in stored_keys:
+                seen.add(key)
+                out.append(name)
+        for name in stored:
+            key = met_key(name)
             if key and key not in seen:
                 seen.add(key)
                 out.append(name)

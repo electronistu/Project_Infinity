@@ -337,8 +337,7 @@ class SceneMixin:
         thing in the turn.
         """
         ask = (ERA_STATE_ASK.format(era=self.era) + "\n\n"
-               + MET_ASK.format(known=", ".join(self._met.get(self.era, [])) or "none yet")
-               + "\n\n" + DEVICE_CLOSES.format(name=device.era_label(era)))
+               + MET_ASK + "\n\n" + DEVICE_CLOSES.format(name=device.era_label(era)))
         # The closing turn ENDS this age: the registry is frozen for it, so a place the GM
         # declares while narrating the departure's far side cannot be filed under the age
         # being left (the arrival turn declares it in the new age).

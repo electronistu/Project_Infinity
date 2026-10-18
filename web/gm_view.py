@@ -2,8 +2,7 @@ import json
 import re
 
 from .protocol import MAX_LEGEND_CHARS, MAX_LEGEND_EXTRACT, MET_RE, REMEMBERS_RE
-from .places import name_key
-from .timeline import MAX_MET_CHARS, parse_met_names
+from .timeline import MAX_MET_CHARS, met_key, parse_met_names
 
 
 # ── What the GM is shown of a tool result ─────────────────────────────────
@@ -209,7 +208,7 @@ def _story_first(names, legend: str) -> list[str]:
     first: list[str] = []
     rest: list[str] = []
     for name in names:
-        ident = name_key(name)
+        ident = met_key(name)
         leaf = ident.split()[-1] if ident else ""
         named = bool(ident and re.search(rf"\b{re.escape(ident)}\b", text))
         if not named and len(leaf) >= 3:
@@ -228,11 +227,11 @@ def render_met_block(era_label: str, names, dead=(), legend: str = "",
     ordered = _story_first(names, legend)
     if not ordered:
         return ""
-    dead_keys = {name_key(n) for n in (dead or []) if str(n or "").strip()}
+    dead_keys = {met_key(n) for n in (dead or []) if str(n or "").strip()}
     shown: list[str] = []
     used = 0
     for index, name in enumerate(ordered):
-        label = f"{name} (dead)" if name_key(name) in dead_keys else name
+        label = f"{name} (dead)" if met_key(name) in dead_keys else name
         extra = 2 if shown else 0
         if used + extra + len(label) > limit:
             hidden = len(ordered) - index

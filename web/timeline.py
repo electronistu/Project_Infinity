@@ -9,7 +9,7 @@ from .places import name_key
 # ── the save's timeline ─────────────────────────────────────────────
 # One file holds blocks with different lifetimes, each marked so it can be parsed back:
 #   `<!-- legend:era -->`   what an age remembers (diegetic, per-era)
-#   `<!-- met:era -->`      everyone the Traveller met there, names only, first-met order
+#   `<!-- met:era -->`      everyone the Traveller met there, names only, newest recorded first
 #   `<!-- state:key -->`     what is TRUE NOW: one page per age. A classic save keeps the
 #                           single unkeyed `<!-- state -->`. Rewritten every Save.
 #   `<!-- chronicle:A-B -->` old events collapsed into prose, at compaction
@@ -46,6 +46,19 @@ def parse_met_names(body) -> list[str]:
             continue
         out.append(name)
     return out
+
+
+def met_key(name) -> str:
+    """A met-roll identity: `name_key` with a leading article dropped.
+
+    The roll is append-only, so a new batch may repeat an old person under a drifted spelling
+    (`Knife-man` for `the knife-man`). Article-insensitive dedup keeps one entry; the spelling
+    already recorded is the one kept. Registry identity (places, cast) keeps `name_key`."""
+    key = name_key(name)
+    for article in ("the ", "a ", "an "):
+        if key.startswith(article):
+            return key[len(article):]
+    return key
 
 
 # The STATE page vocabulary -- one contract for both games. A page is the GM's own prose;
@@ -268,10 +281,10 @@ def append_legend(timeline_path, era: str, text: str) -> None:
 
 
 def load_met(timeline_path) -> dict:
-    """The met register per age: `{era: [names]}` in first-met order.
+    """The met register per age: `{era: [names]}` in recorded order, newest first.
 
-    Names only, deduplicated case/spacing-insensitively. A stored roll is bounded by
-    `MAX_MET_STORE`; the INJECTED block has its own, smaller bound."""
+    Names only, deduplicated article/case/spacing-insensitively (`met_key`). A stored roll is
+    bounded by `MAX_MET_STORE`; the INJECTED block has its own, smaller bound."""
     out: dict = {}
     for era, body in _MET_RE.findall(_read_timeline_file(timeline_path)):
         key = str(era or "").strip().lower()
@@ -280,7 +293,7 @@ def load_met(timeline_path) -> dict:
         names: list[str] = []
         seen: set[str] = set()
         for name in parse_met_names(body):
-            ident = name_key(name)
+            ident = met_key(name)
             if ident and ident not in seen:
                 seen.add(ident)
                 names.append(name)

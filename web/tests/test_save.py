@@ -50,12 +50,16 @@ def unit_tests() -> bool:
     gs.timeline_path = os.path.join(tempfile.mkdtemp(), "x.timeline")
     gs._met = {"tang": ["Old Bao", "Kang Sute"]}
     gs._merge_met("tang", ["Kang Sute", "the knife-man"])
-    order_ok = gs._met["tang"] == ["Kang Sute", "the knife-man", "Old Bao"]
+    order_ok = gs._met["tang"] == ["the knife-man", "Old Bao", "Kang Sute"]
     ok &= order_ok
-    print(f"    [{'ok' if order_ok else 'FAIL'}] the met roll unions marker-first, no duplicates")
+    print(f"    [{'ok' if order_ok else 'FAIL'}] the met roll appends new names first, no duplicates")
+    gs._merge_met("tang", ["Knife-man"])
+    alias_ok = gs._met["tang"] == ["the knife-man", "Old Bao", "Kang Sute"]
+    ok &= alias_ok
+    print(f"    [{'ok' if alias_ok else 'FAIL'}] a drifted article keeps the recorded spelling")
     gs._write_timeline(None)
     persisted = load_met(gs.timeline_path)
-    wrote_ok = persisted == {"tang": ["Kang Sute", "the knife-man", "Old Bao"]}
+    wrote_ok = persisted == {"tang": ["the knife-man", "Old Bao", "Kang Sute"]}
     ok &= wrote_ok
     print(f"    [{'ok' if wrote_ok else 'FAIL'}] the met roll is written and read back - {persisted}")
     return ok

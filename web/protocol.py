@@ -176,7 +176,7 @@ RULES:
 - Write current truth only — no "then", no "now freed", no "later".
 - Do not restate what the engine already tells you: the era, the year or time, the place, the place tree and its regulars, reputation, the companions the engine lists, the Device and its parts, HP, inventory.
 - Never write a `Companions` line: the engine lists the companions; a person's stance is a Hook, a settled truth Canon, an oath a Debt.
-- The met marker: the names ONLY of every NPC the Traveller has met in THIS age so far, including everyone this age's memory and the STATE page name; no companions, no descriptions.
+- The met marker: ONLY the NPCs the Traveller has met since the last met record in THIS age — names only, no companions, no descriptions. Do not repeat anyone already in WHO KNOWS HIM; omit the marker if no one new was met.
 - This page is this age's alone; another age's truth is not written here."""
 
 # The compaction output: the older entries, rewritten as one short in-voice chronicle. The
@@ -381,13 +381,14 @@ ERA_STATE_ASK = (
 )
 
 # Asked on the same closing turn, before the memory marker: the register of people. The age's
-# memory names the people the story turns on; this marker names EVERYONE the Traveller met,
-# story or not -- the next visit reads it as "who knows him". Names only, no descriptions.
+# memory names the people the story turns on; this marker adds everyone else the Traveller has
+# met since the last record. APPEND-ONLY: the engine keeps the roll already recorded and
+# dedups, so the GM never copies the old names back. Names only, no descriptions.
 MET_ASK = (
-    "Also write ONE marker listing the names ONLY of every NPC the Traveller has MET in this "
-    "age -- everyone he spoke with, fought, or was seen by, including everyone your memory "
-    "line names; no companions, no descriptions. Start with the people your memory names, then "
-    "the rest. Format exactly: {{{{met: Name, Name}}}}. Names already recorded: {known}."
+    "Also write ONE marker listing ONLY the NPCs the Traveller has MET since the last met "
+    "record in this age -- everyone he spoke with, fought, or was seen by; names only, no "
+    "companions. Do not repeat anyone already in WHO KNOWS HIM. If no one new was met, omit "
+    "the marker. Format exactly: {{met: Name, Name}}."
 )
 
 # Asked ONCE, tool-free, when a Save produced a state page with no core AND there is no page

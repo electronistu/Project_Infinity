@@ -97,12 +97,15 @@ def unit_tests() -> bool:
     rec("_trim_legend leaves a memory inside the limit untouched",
         _trim_legend(memory, 500) == memory)
 
-    # The met register: names only, per age, first-met order, stripped from entries.
+    # The met register: names only, append-only (newest first), stripped from entries.
     parsed = timeline.parse_met_names(
         "Old Bao, Kang Sute; <name>\nthe knife-man, "
         "a whole sentence that is not a person at all here")
     rec("met names split on commas/semicolons/newlines and reject placeholders/sentences",
         parsed == ["Old Bao", "Kang Sute", "the knife-man"], str(parsed))
+    rec("the met identity forgives a dropped article",
+        timeline.met_key("Knife-man") == timeline.met_key("the knife-man") == "knife man"
+        and timeline.met_key("Old Bao") == "old bao")
     names, cleaned = _extract_met("He vanishes.\n{{met: Old Bao, Kang Sute}}")
     rec("the met marker yields names and leaves the narrative",
         names == ["Old Bao", "Kang Sute"] and cleaned == "He vanishes.", repr(cleaned))
@@ -112,12 +115,12 @@ def unit_tests() -> bool:
     met_path = os.path.join(tempfile.mkdtemp(), "x.timeline")
     with open(met_path, "w", encoding="utf-8") as f:
         f.write("# Session Timeline\n\n"
-                "<!-- met:tang --> Old Bao, Kang Sute, old   bao\n"
+                "<!-- met:tang --> Old Bao, Kang Sute, old   bao, the knife-man, Knife-man\n"
                 "<!-- met:wallachia --> Bogdan the Rope-walker\n\n"
                 "## Turns 1-1 | shop | night\n**Key Events**:\n- one\n")
     loaded = load_met(met_path)
     rec("load_met reads one ordered, deduplicated roll per age",
-        loaded == {"tang": ["Old Bao", "Kang Sute"],
+        loaded == {"tang": ["Old Bao", "Kang Sute", "the knife-man"],
                    "wallachia": ["Bogdan the Rope-walker"]}, str(loaded))
     kept_entries = load_timeline(met_path)
     rec("the met block is stripped from the timeline entries",
@@ -125,9 +128,11 @@ def unit_tests() -> bool:
         and "Turns 1-1" in kept_entries, kept_entries)
 
     block = render_met_block("Tang", ["the knife-man", "Kang Sute", "Old Bao"],
-                             dead={"kang sute"}, legend="Old Bao saw him vanish.")
-    rec("the met block is story-first, marks the dead and states the rule",
-        block.startswith("WHO KNOWS HIM IN Tang\nOld Bao, the knife-man, Kang Sute (dead)")
+                             dead={"knife-man", "kang sute"},
+                             legend="Old Bao saw him vanish.")
+    rec("the met block is story-first, marks the dead (article-forgiving) and states the rule",
+        block.startswith("WHO KNOWS HIM IN Tang\nOld Bao, the knife-man (dead), "
+                         "Kang Sute (dead)")
         and "never present them as strangers" in block, block.splitlines()[1])
     capped = render_met_block("Tang", [f"Person {i}" for i in range(1, 200)])
     cap_line = capped.splitlines()[1]

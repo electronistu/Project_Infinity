@@ -602,13 +602,14 @@ async def main() -> bool:
 
     gs_dep = GameSession(base_dir=REPO, model="test", scene_images=True)
     gs_dep.era = "egypt"
+    gs_dep._met = {"egypt": ["Old Bao"]}
     gs_dep._stream = _stream_with(
         f"The world folds shut.\n{{{{remembers: {memory2}}}}}\n{state_block}\n{met_line}")
     out_dep = (await gs_dep._stream_assistant("closing"))[0]
     rec("... while a real departure still captures all three",
         gs_dep._pending_legend == memory2
         and gs_dep._pending_era_state is not None
-        and gs_dep._met.get("egypt") == ["Old Bao", "Kang Sute"]
+        and gs_dep._met.get("egypt") == ["Kang Sute", "Old Bao"]
         and "remembers" not in out_dep and "state:egypt" not in out_dep
         and "met:" not in out_dep, repr(out_dep))
 
