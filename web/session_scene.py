@@ -9,8 +9,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from .eras import render_era_text
-from .gm_view import _trim_legend
+from .eras import era_display, render_era_text
+from .gm_view import _trim_legend, render_met_block
 from .scenes import (current_scene_place, known_cast_names, known_cast_people,
                      known_npc_names, known_scene_places, mark_place_dead)
 from .places import _scene_key, name_key, path_label, places_feed
@@ -18,6 +18,7 @@ from .player_file import _jump_reset_note, _sheet_body
 from .protocol import (
     CARRY_NOTE, DEVICE_CLOSES, DEVICE_DECLARES, DEVICE_FIRES, DEVICE_MOVES, ERA_MODEL,
     ERA_MODEL_AT_JUMP, ERA_STATE_ASK, HELP_TEXT, JUMP_ERA_LABEL, LEGEND_RECOVERY_NUDGE,
+    MET_ASK,
     OPENING_RULES, SITUATION_DEVICE_MOVE, SITUATION_JUMP, SITUATION_NEW, SITUATION_RESUME,
     WORLD_MODEL
 )
@@ -260,13 +261,40 @@ class SceneMixin:
         return "\n\n".join(parts)
 
     def _memory_message(self, just_left: str) -> str:
-        """The eras' memory as one short block -- the compaction output."""
+        """The eras' memory as one short block -- the compaction output.
+
+        Labelled by role: the age the Traveller is in comes first, the one just left second.
+        The closing sentence is load-bearing: the age's story names its main people, so a
+        return must not play them as strangers. Everyone else is in the met register."""
         lines: list[str] = []
-        for era in (just_left, self.era):
+        seen: set[str] = set()
+        for era, label in ((self.era, "THE AGE YOU ARE IN"),
+                           (just_left, "THE AGE YOU LEFT")):
             line = self._legends.get(era, "")
-            if line and line not in lines:
-                lines.append(line)
-        return ("WHAT THE AGES REMEMBER\n" + "\n".join(lines)) if lines else ""
+            if not line or era in seen:
+                continue
+            seen.add(era)
+            lines.append(f"{label} ({era_display(era)}): {line}")
+        if not lines:
+            return ""
+        return ("WHAT THE AGES REMEMBER\n" + "\n".join(lines) +
+                "\nPeople the memory of the age you are in names have met the Traveller and "
+                "know him on sight; never present them as strangers.")
+
+    def _met_message(self) -> str:
+        """Who knows the Traveller in the age he stands in: names only, story-first.
+
+        The legend's names come first (they are the story's people), then the rest. The dead
+        of this age are marked, never dropped."""
+        names = self._met.get(self.era) or []
+        if not names:
+            return ""
+        dead: set[str] = set()
+        for (era, _place), keys in (self._dead_perm or {}).items():
+            if era == self.era:
+                dead |= {str(k) for k in (keys or ())}
+        return render_met_block(era_display(self.era), names,
+                                dead=dead, legend=self._legends.get(self.era, ""))
 
     async def _fetch_sheet(self) -> str:
         """The lean CHARACTER SHEET block from the live player DB; '' on any failure.
@@ -284,6 +312,8 @@ class SceneMixin:
             return ""
         store = db.get("companions") if isinstance(db, dict) else None
         companions = self._companions_block(store)
+        self._companion_people = ([dict(p) for p in store.values() if isinstance(p, dict)]
+                                  if isinstance(store, dict) else [])
         return f"{block}\n{companions}" if companions else block
 
     async def _ensure_legend(self) -> None:
@@ -307,7 +337,8 @@ class SceneMixin:
         thing in the turn.
         """
         ask = (ERA_STATE_ASK.format(era=self.era) + "\n\n"
-               + DEVICE_CLOSES.format(name=device.era_label(era)))
+               + MET_ASK.format(known=", ".join(self._met.get(self.era, [])) or "none yet")
+               + "\n\n" + DEVICE_CLOSES.format(name=device.era_label(era)))
         # The closing turn ENDS this age: the registry is frozen for it, so a place the GM
         # declares while narrating the departure's far side cannot be filed under the age
         # being left (the arrival turn declares it in the new age).

@@ -5,7 +5,8 @@ import os
 import shutil
 from . import timeline
 from .eras import playable_eras
-from .gm_view import _clamp_block, _trim_legend
+from .gm_view import _clamp_block, _extract_met, _trim_legend
+from .places import name_key
 from .scenes import commit_scene_manifest
 from .ollama_stream import stream_chat
 from .protocol import (
@@ -13,8 +14,9 @@ from .protocol import (
     TIMELINE_PROMPT_ERA, strip_markers
 )
 from .timeline import (
-    _STATE_FIELDS, _TIMELINE_HEADER, _entry_turn_range, _extract_state, _extract_states,
-    _split_timeline_entries, _state_has_fields, load_state, load_states, load_timeline
+    _STATE_FIELDS, _TIMELINE_HEADER, MAX_MET_STORE, _entry_turn_range, _extract_state,
+    _extract_states, _split_timeline_entries, _state_has_fields, load_state, load_states,
+    load_timeline
 )
 
 
@@ -162,16 +164,20 @@ class SaveMixin:
         else:
             prompt = (TIMELINE_PROMPT_ERA.replace("X-Y", f"{start}-{target_turn}")
                       .replace("{era}", self.era))
-        text = strip_markers(await self._plain_summary(prompt) or "")
-        reply = text
+        raw = await self._plain_summary(prompt) or ""
+        if not self.classic:
+            met, raw = _extract_met(raw)
+            if met:
+                self._merge_met(self.era, met)
+        reply = strip_markers(raw)
         if self.classic:
-            state, text = _extract_state(reply)
+            state, reply = _extract_state(reply)
             if state:
                 self._state = _clamp_block(state, MAX_STATE_CHARS)
         else:
-            pages, text = _extract_states(reply, [self.era])
+            pages, reply = _extract_states(reply, [self.era])
             await self._apply_state_page(self.era, pages.get(self.era, ""), reply, "Goal")
-        entry = text.strip()
+        entry = reply.strip()
         if entry and "**Key Events**" in entry:
             self.last_timeline_turn = target_turn
             await self._emit({"type": "timeline", "entry": entry})
@@ -242,6 +248,38 @@ class SaveMixin:
         if store and pages.get(self.era):
             self._pending_era_state = (self.era,
                                        _clamp_block(pages[self.era], MAX_STATE_CHARS))
+        return cleaned
+
+    def _merge_met(self, era: str, names) -> None:
+        """Union the declared names into the age's register, marker order first.
+
+        The marker is written story-first; a name it omits but the save already holds is
+        appended, so a lossy rewrite never loses a person. Bounded by `MAX_MET_STORE`, the
+        tail (side characters) dropped first."""
+        if self.classic or not era:
+            return
+        incoming = [str(n).strip() for n in (names or []) if str(n or "").strip()]
+        if not incoming:
+            return
+        out: list[str] = []
+        seen: set[str] = set()
+        for name in incoming + list(self._met.get(era, [])):
+            key = name_key(name)
+            if key and key not in seen:
+                seen.add(key)
+                out.append(name)
+        self._met[era] = out[:MAX_MET_STORE]
+
+    def _capture_met(self, text: str, store: bool = True) -> str:
+        """Capture the `{{met: ...}}` marker and strip it.
+
+        `store=False` is a same-age move: the marker is discarded, because the full history
+        still carries every meeting and the age is not being left."""
+        if self.classic:
+            return text
+        names, cleaned = _extract_met(text)
+        if store and names:
+            self._merge_met(self.era, names)
         return cleaned
 
     def _commit_departure_state(self, old: str) -> None:
@@ -364,13 +402,19 @@ class SaveMixin:
         source = self._timeline_kept
         self._timeline_kept = None
         session_text = source if source is not None else load_timeline(self.timeline_path)
-        if not (session_text or entry or self._legends or self._state
+        if not (session_text or entry or self._legends or self._met or self._state
                 or self._era_states or self._chronicle):
             return  # nothing to record yet: do not create an empty timeline
         blocks = [_TIMELINE_HEADER]
         if self._legends:
             blocks.append("\n".join(f"<!-- legend:{era} --> {text}"
                                     for era, text in self._legends.items()))
+        # Who the Traveller met, one line per age, first-met order: names only, so the roll
+        # stays cheap and the age's legend stays the story.
+        if self._met:
+            blocks.append("\n".join(
+                f"<!-- met:{era} --> {', '.join(names)}"
+                for era, names in sorted(self._met.items()) if names))
         # The STATE pages: a classic save's single unkeyed notebook, or one page per age.
         # Sorted, so a rewrite is byte-stable and two saves of the same state produce the
         # same file.

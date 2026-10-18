@@ -22,7 +22,7 @@ from .protocol import (
     DEFAULT_CONTEXT_WINDOW, MODE_CLASSIC, MODE_TIME_TRAVELER, SESSION_TIMELINE_HEADER,
     _tool_schema, filter_tools, render_protocol
 )
-from .timeline import _max_timeline_turn, load_chronicle, load_legends, load_timeline
+from .timeline import _max_timeline_turn, load_chronicle, load_legends, load_met, load_timeline
 from forge.world import render_world_text
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
@@ -197,6 +197,12 @@ class SessionBase:
         # save has one `_state`; the era game keeps one page per age, and a page captured on
         # the closing turn waits in `_pending_era_state` until the jump.
         self._state: str = ""
+        # Who the Traveller met, per age: `{era: [names]}`, names only, first-met order. The
+        # legend keeps the story; this keeps the roll the next visit reads as "who knows him".
+        self._met: dict[str, list[str]] = {}
+        # The party, as the sheet's own map: a person lookup must find a companion by name
+        # (they travel with the Traveller; there is no place to invent).
+        self._companion_people: list[dict] = []
         self._era_states: dict[str, str] = {}
         # The engine-injected lean CHARACTER SHEET block (see `_sheet_body`), rebuilt at session
         # build and at every jump. The GM never fetches it (`dump_player_db` is engine-only).
@@ -430,9 +436,13 @@ class SessionBase:
                     # What the ages remember: this era's legend, if it has one. The ages
                     # exist only in the era game, so a classic session never hears them.
                     self._legends = {} if self.classic else load_legends(self.timeline_path)
+                    self._met = {} if self.classic else load_met(self.timeline_path)
                     memory = "" if self.classic else self._memory_message("")
                     if memory:
                         self.messages.append({"role": "system", "content": memory})
+                    met = "" if self.classic else self._met_message()
+                    if met:
+                        self.messages.append({"role": "system", "content": met})
 
                     # The character sheet, engine-injected: the GM never fetches it, so it is
                     # always in context (and re-injected at every jump -- see `_compact`). Lean:
@@ -597,6 +607,9 @@ class SessionBase:
         memory = self._memory_message(just_left)
         if memory:
             head.append({"role": "system", "content": memory})
+        met = self._met_message()
+        if met:
+            head.append({"role": "system", "content": met})
         state = self._state_body()
         if state:
             head.append({"role": "system", "content": state})

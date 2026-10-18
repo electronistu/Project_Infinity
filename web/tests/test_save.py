@@ -40,6 +40,24 @@ def unit_tests() -> bool:
         got = _max_timeline_turn(text)
         ok &= got == expect
         print(f"    [{'ok' if got == expect else 'FAIL'}] {label} -> {got}")
+
+    import os
+    import tempfile
+
+    from web.timeline import load_met
+
+    gs = GameSession(base_dir=REPO, model="test")
+    gs.timeline_path = os.path.join(tempfile.mkdtemp(), "x.timeline")
+    gs._met = {"tang": ["Old Bao", "Kang Sute"]}
+    gs._merge_met("tang", ["Kang Sute", "the knife-man"])
+    order_ok = gs._met["tang"] == ["Kang Sute", "the knife-man", "Old Bao"]
+    ok &= order_ok
+    print(f"    [{'ok' if order_ok else 'FAIL'}] the met roll unions marker-first, no duplicates")
+    gs._write_timeline(None)
+    persisted = load_met(gs.timeline_path)
+    wrote_ok = persisted == {"tang": ["Kang Sute", "the knife-man", "Old Bao"]}
+    ok &= wrote_ok
+    print(f"    [{'ok' if wrote_ok else 'FAIL'}] the met roll is written and read back - {persisted}")
     return ok
 
 

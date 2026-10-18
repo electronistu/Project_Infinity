@@ -3,22 +3,51 @@
 import os
 import re
 
+from .places import name_key
+
 
 # ── the save's timeline ─────────────────────────────────────────────
 # One file holds blocks with different lifetimes, each marked so it can be parsed back:
 #   `<!-- legend:era -->`   what an age remembers (diegetic, per-era)
+#   `<!-- met:era -->`      everyone the Traveller met there, names only, first-met order
 #   `<!-- state:key -->`     what is TRUE NOW: one page per age. A classic save keeps the
 #                           single unkeyed `<!-- state -->`. Rewritten every Save.
 #   `<!-- chronicle:A-B -->` old events collapsed into prose, at compaction
 #   `## Turns X-Y ...`       recent events, kept verbatim
 _TIMELINE_HEADER = "# Session Timeline"
 _LEGEND_RE = re.compile(r"(?m)^<!-- legend:([a-z0-9_-]+) -->[ \t]*(.*?)[ \t]*$")
+_MET_RE = re.compile(r"(?m)^<!-- met:([a-z0-9_-]+) -->[ \t]*(.*?)[ \t]*$")
 _CHRONICLE_RE = re.compile(
     r"(?ms)^<!-- chronicle:(?P<a>\d+)-(?P<b>\d+) -->[ \t]*\n(?P<body>.*?)^<!-- /chronicle -->[ \t]*$")
 _STATE_KEYED_RE = re.compile(
     r"(?ms)^<!-- state:(?P<key>[a-z0-9_-]+) -->[ \t]*\n(?P<body>.*?)^<!-- /state:(?P=key) -->[ \t]*$")
 _STATE_LEGACY_RE = re.compile(
     r"(?ms)^<!-- state -->[ \t]*\n(?P<body>.*?)^<!-- /state -->[ \t]*$")
+# The met register: the names of everyone the Traveller met in an age, names only. The age's
+# legend keeps the story; this keeps the roll. The INJECTED block is bounded like the legend,
+# the stored roll is larger, so a lossy rewrite cannot silently shrink it.
+MAX_MET_CHARS = 1200
+MAX_MET_STORE = 400
+MAX_MET_NAME_CHARS = 60
+
+
+def parse_met_names(body) -> list[str]:
+    """The names in a `{{met: ...}}` payload or a stored met line: split, clean, bound.
+
+    Names are separated by commas, semicolons or newlines. A chunk that is empty, carries a
+    placeholder bracket, or is longer than a name (or than six words) is rejected, so a stray
+    sentence never becomes a person."""
+    out: list[str] = []
+    for chunk in re.split(r"[,;\n]+", str(body or "")):
+        name = " ".join(chunk.replace("*", " ").strip(" \t-–—").split())
+        if not name or "<" in name or ">" in name:
+            continue
+        if len(name) > MAX_MET_NAME_CHARS or len(name.split()) > 6:
+            continue
+        out.append(name)
+    return out
+
+
 # The STATE page vocabulary -- one contract for both games. A page is the GM's own prose;
 # the engine enforces the FIELD NAMES and their order, never the content. Companions are NOT
 # here: the engine lists their names itself (`_companions_line`), so the GM never writes them.
@@ -61,10 +90,11 @@ def _read_timeline_file(timeline_path) -> str:
 
 
 def load_timeline(timeline_path):
-    """The kept (recent) session entries: the header, the legends, the STATE pages and the
-    chronicle are stripped. This is what `_write_timeline` rebuilds from, and what turn
-    numbering reads."""
+    """The kept (recent) session entries: the header, the legends, the met rolls, the STATE
+    pages and the chronicle are stripped. This is what `_write_timeline` rebuilds from, and
+    what turn numbering reads."""
     text = _LEGEND_RE.sub("", _read_timeline_file(timeline_path))
+    text = _MET_RE.sub("", text)
     text = _STATE_KEYED_RE.sub("", text)
     text = _STATE_LEGACY_RE.sub("", text)
     text = _CHRONICLE_RE.sub("", text)
@@ -235,6 +265,28 @@ def load_legends(timeline_path) -> dict:
 def append_legend(timeline_path, era: str, text: str) -> None:
     """Record what an era now remembers, permanently."""
     append_timeline_file(timeline_path, f"<!-- legend:{era} --> {text}")
+
+
+def load_met(timeline_path) -> dict:
+    """The met register per age: `{era: [names]}` in first-met order.
+
+    Names only, deduplicated case/spacing-insensitively. A stored roll is bounded by
+    `MAX_MET_STORE`; the INJECTED block has its own, smaller bound."""
+    out: dict = {}
+    for era, body in _MET_RE.findall(_read_timeline_file(timeline_path)):
+        key = str(era or "").strip().lower()
+        if not key:
+            continue
+        names: list[str] = []
+        seen: set[str] = set()
+        for name in parse_met_names(body):
+            ident = name_key(name)
+            if ident and ident not in seen:
+                seen.add(ident)
+                names.append(name)
+        if names:
+            out.setdefault(key, names[:MAX_MET_STORE])
+    return out
 
 
 def append_timeline_file(timeline_path, entry):

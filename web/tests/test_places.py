@@ -17,8 +17,8 @@ from web.engine import GameSession  # noqa: E402
 from web.protocol import PLACE_ECHO_NUDGE, filter_tools, render_protocol  # noqa: E402
 from web.places import (  # noqa: E402
     KNOWN_PLACES_HEADER, KNOWN_PLACES_HEADER_TEXT, KNOWN_PLACES_EMPTY_TEXT, _npc_state,
-    _scene_key, path_label, places_feed, places_query, render_places_answer,
-    resolve_place_path,
+    _scene_key, npc_query, path_label, places_feed, places_query, render_npc_answer,
+    render_places_answer, resolve_place_path,
 )
 from web.scenes import (  # noqa: E402
     SceneService, known_scene_places, known_npc_names, live_scene_manifest,
@@ -583,6 +583,113 @@ async def main() -> bool:
         rec("... and every other lookup still reaches the MCP server",
             [c[0] for c in gsl.session.calls] == ["lookup"]
             and gsl.session.calls[0][1].get("query") == "here", str(gsl.session.calls))
+
+        # ── the on-demand person record: `lookup('npc: Name')` ────────────────
+        # Same registry, reverse index: a name -> identity, status, exact place and the
+        # place's other regulars. The per-turn block is area-scoped and `WHO KNOWS HIM`
+        # carries names only; this is the bridge between them.
+        people = [
+            {"kingdom": "the Tang empire", "area": "Chang'an",
+             "place": ["Western Market", "the Drunken Immortal"], "used": 2,
+             "dead": ["du zhaowen"], "main_npcs": [
+                 {"name": "Old Bao", "role": "doorkeeper", "race": "human",
+                  "class": "fighter", "state": ""},
+                 {"name": "Kang Sute", "role": "factor", "race": "human (Sogdian)",
+                  "class": "rogue", "state": ""},
+                 {"name": "Du Zhaowen", "role": "clerk", "race": "human",
+                  "class": "bard", "state": "dead"}]},
+            {"kingdom": "the Tang empire", "area": "Chang'an",
+             "place": ["Chongren Ward", "the pagoda"], "used": 1, "dead": [],
+             "main_npcs": [{"name": "Old Bao", "role": "doorkeeper", "race": "human",
+                            "class": "fighter", "state": ""}]},
+        ]
+        people_here = {"kingdom": "the Tang empire", "area": "Chang'an",
+                       "place": ["Western Market", "the Drunken Immortal"]}
+        rec("the npc grammar takes a colon or space scope",
+            npc_query("npc: Old Bao") == ("scope", "Old Bao")
+            and npc_query("NPC Old Bao") == ("scope", "Old Bao")
+            and npc_query("npc: 'Bao'") == ("scope", "Bao")
+            and npc_query("npc") == ("scope", ""),
+            str([npc_query(q) for q in ("npc: Old Bao", "NPC Old Bao", "npc: 'Bao'", "npc")]))
+        rec("... and never shadows places, eras or refs",
+            all(npc_query(q) is None for q in
+                ("places", "places: Wapping", "here", "tang", "ref:update_player_list", ""))
+            and render_npc_answer(people, people_here, "places: Wapping") == "")
+
+        bao = render_npc_answer(people, people_here, "npc: Bao")
+        sections = [line for line in bao.splitlines() if line.startswith("NPC: ")]
+        rec("a loose name finds the person (whole-token match), in every place they hold",
+            bao.startswith("NPC: Old Bao — doorkeeper, human fighter")
+            and len(sections) == 2
+            and "at: Western Market — the Drunken Immortal — Chang'an, the Tang empire"
+            in bao
+            and "· ← you are here" in bao.splitlines()[1], bao)
+        rec("... and lists the other regulars in that place, marking the dead",
+            "also there: Kang Sute — factor, human (Sogdian) rogue, "
+            "Du Zhaowen — clerk, human bard (dead)" in bao, bao)
+        exact = render_npc_answer(people, people_here, "npc: Du Zhaowen")
+        rec("an exact match keeps its status",
+            exact.startswith("NPC: Du Zhaowen — clerk, human bard (dead)")
+            and "← you are here" in exact, exact)
+
+        cast = [{"name": "Arthur Piggott", "role": "watchman", "race": "half-orc",
+                 "class": "fighter", "state": "gone"}]
+        companions = [{"name": "Su Lian", "race": "human", "class": "monk"}]
+        met = [("the knife-man", "Tang"), ("Arthur Piggott", "Wallachia")]
+        rec("the cast is place-less and carries its state",
+            render_npc_answer(people, people_here, "npc: Arthur", cast=cast)
+            .startswith("NPC: Arthur Piggott — watchman, half-orc fighter (gone)\n"
+                        "  cast — no fixed location"))
+        rec("a companion is travelling with the Traveller",
+            "companion — travelling with the Traveller"
+            in render_npc_answer(people, people_here, "npc: Su Lian", companions=companions))
+        met_text = render_npc_answer(people, people_here, "npc: knife-man", met=met)
+        rec("a name known only from the met roll says so, and invents no place",
+            met_text.startswith("NPC: the knife-man — no identity recorded")
+            and "met in Tang; no place recorded" in met_text, met_text)
+        rec("the cast beats a met-only match for the same person",
+            "cast — no fixed location"
+            in render_npc_answer(people, people_here, "npc: Arthur", cast=cast, met=met)
+            and "met in Wallachia" not in
+            render_npc_answer(people, people_here, "npc: Arthur", cast=cast, met=met))
+        miss = render_npc_answer(people, people_here, "npc: Nobody", cast=cast,
+                                 world_label="Tang")
+        rec("a miss names what is recorded and warns against inventing a place",
+            'no one called "Nobody" is recorded in Tang.' in miss
+            and "nearby: Old Bao, Kang Sute, Du Zhaowen, Arthur Piggott" in miss
+            and "never invent a place for them" in miss, miss)
+        classic = render_npc_answer(people, people_here, "npc: Nobody", cast=cast,
+                                    world_label="this world")
+        rec("classic wording has no age", "recorded in this world" in classic, classic)
+        rec("a bare npc query teaches the syntax",
+            render_npc_answer(people, people_here, "npc").startswith(
+                "NPC: give a name — `lookup('npc: Old Bao')`."))
+
+        # The engine's half: a person query is answered from the LIVE registry and never
+        # reaches the MCP server, which has no place tree.
+        gsn = GameSession(base_dir=Path(td), model="test", scene_images=False)
+        gsn.session = _FakeMCP()
+        gsn._primed = people
+        gsn._current_place = dict(people_here)
+        gsn.era = "tang"
+        gsn._met = {"tang": ["the knife-man"]}
+        await gsn._execute_tool({"function": {"name": "lookup",
+                                              "arguments": {"query": "npc: Bao"}}})
+        frames = drain(gsn._evt_q)
+        served = [e for e in frames if e.get("type") == "tool_result"]
+        rec("the engine serves a person query itself (no MCP call)",
+            gsn.session.calls == [] and len(served) == 1
+            and "Old Bao" in str(served[0].get("text")), f"{gsn.session.calls} / {served}")
+        rec("... and appends it as a tool result for the GM",
+            gsn.messages[-1].get("name") == "lookup"
+            and "Old Bao" in str(gsn.messages[-1].get("content")))
+        gsn.classic = True
+        await gsn._execute_tool({"function": {"name": "lookup",
+                                              "arguments": {"query": "npc: Nobody"}}})
+        classic_text = str(gsn.messages[-1].get("content"))
+        rec("... classic mode serves it too, with no age and no met register",
+            "recorded in this world" in classic_text and "met in" not in classic_text,
+            classic_text)
     
         # ── the block says where the record is, and admits what it hides ───────
         many = [{"kingdom": "London", "area": f"area {i}", "place": [f"place {i}"],

@@ -118,6 +118,15 @@ def pick_start_era(rng=None) -> str:
     return (rng or random).choice(options) if options else START_ERA
 
 
+def era_display(era_id: str) -> str:
+    """The age's own name for prompt headings: `tang` -> `Tang`.
+
+    The id, not the landing city: `device.era_label` names the settlement (`Chang'an`), which
+    is the wrong label for a per-age memory or a per-age register."""
+    text = " ".join(str(era_id or "").replace("_", " ").split())
+    return text.title() if text else str(era_id or "")
+
+
 def render_era_index(current: Optional[str] = None) -> str:
     """The always-on ERA INDEX: id, the year, and a one-line character.
 

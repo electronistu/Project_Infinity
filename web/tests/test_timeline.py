@@ -20,11 +20,11 @@ sys.path.insert(0, str(REPO))
 
 from web import timeline  # noqa: E402
 from web.engine import GameSession  # noqa: E402
-from web.gm_view import _clamp_block, _trim_legend  # noqa: E402
+from web.gm_view import _clamp_block, _extract_met, _trim_legend, render_met_block  # noqa: E402
 from web.timeline import (  # noqa: E402
     _clean_state_page, _entry_turn_range, _extract_state, _extract_states,
-    _split_timeline_entries, _state_has_fields, load_chronicle, load_state, load_states,
-    load_timeline,
+    _split_timeline_entries, _state_has_fields, load_chronicle, load_met, load_state,
+    load_states, load_timeline,
 )
 
 RESULTS = []
@@ -96,6 +96,43 @@ def unit_tests() -> bool:
         kept_sentences)
     rec("_trim_legend leaves a memory inside the limit untouched",
         _trim_legend(memory, 500) == memory)
+
+    # The met register: names only, per age, first-met order, stripped from entries.
+    parsed = timeline.parse_met_names(
+        "Old Bao, Kang Sute; <name>\nthe knife-man, "
+        "a whole sentence that is not a person at all here")
+    rec("met names split on commas/semicolons/newlines and reject placeholders/sentences",
+        parsed == ["Old Bao", "Kang Sute", "the knife-man"], str(parsed))
+    names, cleaned = _extract_met("He vanishes.\n{{met: Old Bao, Kang Sute}}")
+    rec("the met marker yields names and leaves the narrative",
+        names == ["Old Bao", "Kang Sute"] and cleaned == "He vanishes.", repr(cleaned))
+    names_p, _ = _extract_met("{{met: <names>}}")
+    rec("a placeholder met echo is rejected", names_p == [])
+
+    met_path = os.path.join(tempfile.mkdtemp(), "x.timeline")
+    with open(met_path, "w", encoding="utf-8") as f:
+        f.write("# Session Timeline\n\n"
+                "<!-- met:tang --> Old Bao, Kang Sute, old   bao\n"
+                "<!-- met:wallachia --> Bogdan the Rope-walker\n\n"
+                "## Turns 1-1 | shop | night\n**Key Events**:\n- one\n")
+    loaded = load_met(met_path)
+    rec("load_met reads one ordered, deduplicated roll per age",
+        loaded == {"tang": ["Old Bao", "Kang Sute"],
+                   "wallachia": ["Bogdan the Rope-walker"]}, str(loaded))
+    kept_entries = load_timeline(met_path)
+    rec("the met block is stripped from the timeline entries",
+        "met:" not in kept_entries and "Old Bao" not in kept_entries
+        and "Turns 1-1" in kept_entries, kept_entries)
+
+    block = render_met_block("Tang", ["the knife-man", "Kang Sute", "Old Bao"],
+                             dead={"kang sute"}, legend="Old Bao saw him vanish.")
+    rec("the met block is story-first, marks the dead and states the rule",
+        block.startswith("WHO KNOWS HIM IN Tang\nOld Bao, the knife-man, Kang Sute (dead)")
+        and "never present them as strangers" in block, block.splitlines()[1])
+    capped = render_met_block("Tang", [f"Person {i}" for i in range(1, 200)])
+    cap_line = capped.splitlines()[1]
+    rec("an over-cap roll truncates with +N",
+        "+" in cap_line and len(cap_line) <= timeline.MAX_MET_CHARS + 6, cap_line[-40:])
 
     # A state block must not affect turn numbering.
     rec("numbering ignores the chronicle/state", timeline._max_timeline_turn(kept) == 12)

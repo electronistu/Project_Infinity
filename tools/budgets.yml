@@ -123,3 +123,10 @@ budgets:
     status: enforced
     measure: injected_sheet
     note: "The engine-injected lean CHARACTER SHEET block (web/engine.py `_sheet_body` + `_companions_block`), set once at session build and re-injected at every jump -- never appended per turn. It replaces the GM's `dump_player_db` fetch, which was ~2,248 tok in context every turn for a level-20 caster. 445 measured at worst case: a level-20 caster plus the three companions of one world (name, identity and the capped look). It carries the fields the GM reads and the key-sets it addresses writes with; the combat math the engine owns (stats/saves/skills/proficiencies/AC/hit dice, the `_carrying`/`_equipment` internals) and the spell lists (the engine enforces spell knowledge now) are never shown."
+
+  - name: injected_met
+    ceiling: 470
+    unit: tokens
+    status: enforced
+    measure: injected_met
+    note: "The WHO KNOWS HIM IN <era> block (web/gm_view.py `render_met_block`), injected at session start and at every cross-age jump, once per age visit. The age's legend keeps the story; this keeps the roll of everyone the Traveller met, names only. Bounded at 1200 chars of names (MAX_MET_CHARS; the stored roll is larger, MAX_MET_STORE=400) plus the recognition sentence; a truncated roll says +N. 442 measured at the cap. It is the recognition channel across a jump -- the live history is compacted away -- so its cost is the price of NPC continuity, not a per-turn convenience."

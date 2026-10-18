@@ -382,10 +382,30 @@ def main():
     asyncio.run(no_era._device_release({"area": "Chang'an", "place": "whatever"}))
     rec("a release with no era is refused", no_era.era == "egypt")
 
+    # -- a return: the age's story and its register of people reach the GM ------
+    print("\n-- a return re-injects the age's memory and its people")
+    back = _session(era="wallachia")
+    back._legends = {"tang": "Old Bao saw a stranger vanish by the door.",
+                     "wallachia": "Bogdan saw a stranger in the yard and ran."}
+    back._met = {"tang": ["the knife-man", "Old Bao", "Kang Sute"]}
+    asyncio.run(back._device_release({"era": "tang"}))
+    back_text = "".join(str(m.get("content") or "") for m in back.messages)
+    rec("the return labels the age you are in and the one you left",
+        "THE AGE YOU ARE IN (Tang): Old Bao saw a stranger vanish by the door." in back_text
+        and "THE AGE YOU LEFT (Wallachia): Bogdan saw a stranger in the yard and ran."
+        in back_text, back_text[-240:])
+    rec("... and injects who knows him in the target age",
+        "WHO KNOWS HIM IN Tang" in back_text and "Kang Sute" in back_text)
+    rec("... story-first, so the age memory's people come first",
+        back_text.index("WHO KNOWS HIM IN Tang\nOld Bao") < back_text.index("the knife-man"))
+    rec("... with the recognition rule",
+        "never present them as strangers" in back_text)
+
     # -- a release into the current age is a MOVE, not a crossing --------------
     print("\n-- a release into the current age is a move")
     same = _session(era="egypt")
     same.active_name = "save"
+    same._met = {"egypt": ["Old Bao"]}
     same.messages.append({"role": "user", "content": "EARLIER-SCENE-MARKER"})
     before_count = len(same.messages)
     engine_mod.known_scene_places = lambda *a, **k: [
@@ -405,6 +425,7 @@ def main():
         and len(same.messages) > before_count, f"{before_count} -> {len(same.messages)}")
     rec("... the age's memory is not registered or shown",
         not same._legends and not same._pending_legend
+        and "WHO KNOWS HIM IN" not in same_text
         and not any(e.get("title") == "The Age Remembers" for e in events),
         str(same._legends))
     rec("... no era write, no journey append, no spell reset",

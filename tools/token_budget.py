@@ -202,6 +202,19 @@ def timeline_block(count):
     return text, count(text)
 
 
+# A worst-case met register: enough names to fill the injected cap, so the `+N` truncation
+# and the recognition sentence are both counted. Built by the production renderer.
+_MET_NAMES_SAMPLE = [f"Met Person {i}" for i in range(1, 121)]
+
+
+def met_block(count):
+    """The `WHO KNOWS HIM IN <era>` block at its cap, or None if the renderer is unavailable."""
+    from web.gm_view import render_met_block
+    text = render_met_block("Tang", _MET_NAMES_SAMPLE,
+                            legend="Old Bao and Kang Sute saw him vanish.")
+    return text, count(text)
+
+
 # A worst-case lean CHARACTER SHEET: a level-20 prepared caster with a full spell list, a
 # populated pack and every field the block carries. The engine builds this from the live
 # `dump_player_db` row map (`web/engine.py:_sheet_body`); here it is a fixed sample, injected
@@ -293,6 +306,15 @@ def _metric_injected_sheet(count):
     """The engine-injected CHARACTER SHEET block at worst case, or None if unavailable."""
     try:
         _, tokens = sheet_block(count)
+        return tokens
+    except Exception:
+        return None
+
+
+def _metric_injected_met(count):
+    """The injected WHO KNOWS HIM block at its cap, or None if unavailable."""
+    try:
+        _, tokens = met_block(count)
         return tokens
     except Exception:
         return None
@@ -440,6 +462,7 @@ def _metrics(prefix_on, prefix_off, era_index_tokens, count, rows=None,
         "lookup_schema": _metric_lookup_schema(rows),
         "injected_timeline": _metric_injected_timeline(count),
         "injected_sheet": _metric_injected_sheet(count),
+        "injected_met": _metric_injected_met(count),
         "always_on_total": always_on,
         "always_on_total_classic": classic_prefix_on,
         # Not built yet: named so a manifest row resolves; value unknown.

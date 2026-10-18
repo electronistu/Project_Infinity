@@ -9,7 +9,8 @@ import re
 # The tail of both headers is the one place the on-demand map is announced: the block is
 # capped, and this is where the GM finds itself looking when it needs a path it cannot see.
 # Said once here -- never again in the `lookup` row (one home, one phrasing).
-_LOOKUP_POINTER = "; anything not shown here: `lookup('places')`"
+_LOOKUP_POINTER = ("; anything not shown here: `lookup('places')`, or "
+                   "`lookup('npc: Name')` for a person")
 KNOWN_PLACES_HEADER = (
     "KNOWN PLACES (reuse these exact kingdom / area / place paths; reuse a place's "
     "NPCs by NAME and their recorded role / race / class, never their look; a new place "
@@ -397,6 +398,44 @@ def places_query(query) -> tuple[str, str] | None:
     return ("scope", arg) if arg else ("map", "")
 
 
+NPC_QUERY = "npc"
+# The on-demand person record: at most this many people, and this many of a place's other
+# regulars, so one lookup stays a lookup and not a second places tree.
+MAX_NPC_MATCHES = 8
+MAX_NPC_ROSTER = 12
+
+
+def npc_query(query) -> tuple[str, str] | None:
+    """A `lookup` query as `("scope", "<name>")`, else None.
+
+    `npc: <name>` (colon or space) searches the live registry for one person: identity,
+    status and exact place, with the other people in that place. The name is matched
+    forgivingly (`name_key`, then whole-token containment, then the leaf)."""
+    text = " ".join(str(query or "").split())
+    head, _, rest = text.partition(" ")
+    if head.rstrip(":").lower() != NPC_QUERY:
+        return None
+    arg = " ".join(rest.split()).lstrip(":").strip().strip("\"'").strip()
+    return ("scope", arg)
+
+
+def _npc_match_tier(name, wanted: str) -> int:
+    """3 exact key, 2 whole-token containment, 1 leaf match, 0 no match.
+
+    Token containment is what lets `Bao` find `Old Bao` without letting `Bao` find
+    `Baoding`: a substring inside one token is not a person."""
+    key = name_key(name)
+    if not key or not wanted:
+        return 0
+    if key == wanted:
+        return 3
+    if f" {wanted} " in f" {key} ":
+        return 2
+    if key.split()[-1] == wanted:
+        return 1
+    return 0
+
+
 def _kingdom_label(place: dict) -> str:
     return str(place.get("kingdom") or "").strip() or "(unknown kingdom)"
 
@@ -525,6 +564,159 @@ def render_places_answer(places: list[dict], current: dict | None, query, cast=(
         return "\n".join([f'"{arg}" is both a kingdom and a settlement here — both:',
                           *sections, *_cast_footer(cast)])
     return "\n".join([sections[0], *_cast_footer(cast)])
+
+
+def _npc_roster(place: dict, exclude: str) -> list[str]:
+    """A place's other regulars, capped: the record is a lookup, not a second tree."""
+    dead = {str(n).strip().lower() for n in (place.get("dead") or []) if str(n or "").strip()}
+    out: list[str] = []
+    for npc in place.get("main_npcs") or []:
+        if not isinstance(npc, dict) or name_key(npc.get("name")) == exclude:
+            continue
+        label = _npc_label(npc, dead, missing="no role recorded")
+        if label:
+            out.append(label)
+    shown = out[:MAX_NPC_ROSTER]
+    if len(out) > MAX_NPC_ROSTER:
+        shown.append(f"+{len(out) - MAX_NPC_ROSTER} more")
+    return shown
+
+
+def render_npc_answer(places, current, query, cast=(), companions=(), met=(),
+                      world_label="") -> str:
+    """The on-demand person record, or "" when the query is not an `npc` query.
+
+    Sources, in order: the age's places (identity, status, exact path, the place's other
+    regulars), the place-less cast, the companions, then the met roll (names only). Exact
+    matches suppress looser ones; a person found in two places is shown in both. A miss
+    names what IS recorded and tells the GM never to invent a place for a person it only
+    narrated."""
+    parsed = npc_query(query)
+    if parsed is None:
+        return ""
+    wanted = name_key(parsed[1])
+    world = str(world_label or "").strip()
+    in_world = f" in {world}" if world else ""
+    here = _scene_key((current or {}).get("place") or [])
+    here_area = (str((current or {}).get("kingdom") or "").strip(),
+                 str((current or {}).get("area") or "").strip())
+    matched: set[str] = set()
+    sections: list[list[str]] = []
+
+    if wanted:
+        place_hits: list[tuple[int, bool, dict, dict]] = []
+        for p in places or []:
+            path = _path_of(p)
+            if not path:
+                continue
+            is_here = bool(here) and _scene_key(path) == here
+            for npc in p.get("main_npcs") or []:
+                if not isinstance(npc, dict):
+                    continue
+                tier = _npc_match_tier(npc.get("name"), wanted)
+                if tier:
+                    place_hits.append((tier, is_here, p, npc))
+        cast_hits = [(t, p) for p in (cast or [])
+                     if (t := _npc_match_tier((p or {}).get("name"), wanted))]
+        comp_hits = [(t, p) for p in (companions or [])
+                     if (t := _npc_match_tier((p or {}).get("name"), wanted))]
+        met_hits = [(t, n, e) for n, e in (met or [])
+                    if (t := _npc_match_tier(n, wanted))]
+        best = max([h[0] for h in place_hits + cast_hits + comp_hits + met_hits] or [0])
+        if best == 3:
+            place_hits = [h for h in place_hits if h[0] == 3]
+            cast_hits = [h for h in cast_hits if h[0] == 3]
+            comp_hits = [h for h in comp_hits if h[0] == 3]
+            met_hits = [h for h in met_hits if h[0] == 3]
+        place_hits.sort(key=lambda h: (-h[0], not h[1], path_label(_path_of(h[2])).lower()))
+
+        seen_place: set[tuple] = set()
+        for _tier, is_here, place, npc in place_hits[:MAX_NPC_MATCHES]:
+            key = name_key(npc.get("name"))
+            ident = (_scene_key(_path_of(place)), key)
+            if ident in seen_place:
+                continue
+            seen_place.add(ident)
+            matched.add(key)
+            dead = {str(n).strip().lower() for n in (place.get("dead") or [])
+                    if str(n or "").strip()}
+            label = _npc_label(npc, dead, missing="no role recorded")
+            where = (f"at: {path_label(_path_of(place))} — "
+                     f"{_area_label(place)}, {_kingdom_label(place)}")
+            if is_here:
+                where += " · ← you are here"
+            roster = _npc_roster(place, key)
+            section = [f"NPC: {label}", f"  {where}"]
+            if roster:
+                section.append("  also there: " + ", ".join(roster))
+            sections.append(section)
+        for _tier, person in cast_hits:
+            key = name_key(person.get("name"))
+            if key in matched:
+                continue
+            matched.add(key)
+            sections.append([f"NPC: {_npc_label(person, set(), missing='no role recorded')}",
+                             "  cast — no fixed location"])
+        for _tier, person in comp_hits:
+            key = name_key(person.get("name"))
+            if key in matched:
+                continue
+            matched.add(key)
+            sections.append([f"NPC: {_npc_label(person, set(), missing='no role recorded')}",
+                             "  companion — travelling with the Traveller"])
+        for _tier, name, era in met_hits:
+            key = name_key(name)
+            if key in matched:
+                continue
+            matched.add(key)
+            sections.append([f"NPC: {name} — no identity recorded",
+                             f"  met in {era}; no place recorded"])
+        if sections:
+            out: list[str] = []
+            for section in sections[:MAX_NPC_MATCHES]:
+                if out:
+                    out.append("")
+                out.extend(section)
+            if len(sections) > MAX_NPC_MATCHES:
+                out.append(f"  +{len(sections) - MAX_NPC_MATCHES} more matches")
+            return "\n".join(out)
+
+    # Miss (or a bare `npc`): teach the recorded names, never invent a place.
+    nearby: list[str] = []
+    seen_near: set[str] = set()
+    for p in places or []:
+        if not _path_of(p):
+            continue
+        if here_area[0] or here_area[1]:
+            if (str(p.get("kingdom") or "").strip(),
+                    str(p.get("area") or "").strip()) != here_area:
+                continue
+        for npc in p.get("main_npcs") or []:
+            if not isinstance(npc, dict):
+                continue
+            name = str(npc.get("name") or "").strip()
+            key = name_key(name)
+            if key and key not in seen_near:
+                seen_near.add(key)
+                nearby.append(name)
+        if len(nearby) >= MAX_NPC_MATCHES:
+            break
+    for person in cast or []:
+        name = str((person or {}).get("name") or "").strip()
+        key = name_key(name)
+        if key and key not in seen_near:
+            seen_near.add(key)
+            nearby.append(name)
+        if len(nearby) >= MAX_NPC_MATCHES + 4:
+            break
+    head = ("NPC: give a name — `lookup('npc: Old Bao')`." if not wanted else
+            f'NPC: no one called "{parsed[1]}" is recorded{in_world}.')
+    lines = [head]
+    if nearby:
+        lines.append("  nearby: " + ", ".join(nearby[:MAX_NPC_MATCHES]))
+    lines.append("  If this person was only narrated, declare them with note_place — "
+                 "never invent a place for them.")
+    return "\n".join(lines)
 
 
 def _crowded_body(places: list[dict], kingdom: str, area: str, path: list[str]) -> list[str]:

@@ -72,6 +72,9 @@ function stripTokens(s) {
   return String(s)
     .replace(/\{\{\s*_*\s*remembers?\s*:?\s*[\s\S]*?\s*_*\s*\}\}/gi, "")
     .replace(/\{\{\s*_*\s*remembers?[\s\S]*$/gi, "")
+    // The met register rides the closing turn / save summary: names only, never shown.
+    .replace(/\{\{\s*_*\s*met\s*:?\s*[\s\S]*?\s*_*\s*\}\}/gi, "")
+    .replace(/\{\{\s*_*\s*met[\s\S]*$/gi, "")
     .replace(/\{\{\s*_*\s*(?:paus|resum)(?:e[sd]?|ing)?\s*_*\s*\}\}/gi, "")
     .replace(/\{\{\s*_*\s*(?:paus|resum)(?:e[sd]?|ing)?\s*_*\s*$/gi, "")
     // A departure STATE page rides the closing turn as a hidden HTML comment; the engine

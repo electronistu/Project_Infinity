@@ -1,11 +1,12 @@
 """The turn loop and the GM tool dispatch."""
 
 import json
-from .eras import START_ERA
+from .eras import START_ERA, era_display
 from .gm_view import _extract_legend, _gm_tool_view
-from .scenes import _merge_npc_lists, known_scene_places
-from .places import (_people_list, _scene_key, name_key, path_label, places_query,
-                     render_places_answer, resolve_place_path)
+from .scenes import _merge_npc_lists, known_cast_people, known_scene_places
+from .places import (_people_list, _scene_key, name_key, npc_query, path_label,
+                     places_query, render_npc_answer, render_places_answer,
+                     resolve_place_path)
 from .protocol import (
     AWAKENING_RESUME, COMPANION_TOOL, MAX_RESUME_ROUNDS, MAX_THINKING_RETRIES,
     NARRATIVE_PHASE_TOOLS, NARRATIVE_RECOVERY_NUDGE, NPC_TOOL, PLACE_TOOL,
@@ -100,6 +101,10 @@ class TurnMixin:
         # A departure STATE page rides the closing turn the same way, and is stripped here
         # rather than at the jump so it can never reach the client.
         content = self._capture_state_pages(content, store=self._capture_state)
+        # Who the Traveller met in this age: names only, stripped like the STATE page. The
+        # same capture flag applies -- a same-age move discards a stray marker (the full
+        # history still carries every meeting; the age is not being left).
+        content = self._capture_met(content, store=self._capture_state)
         # A narrative has reached the player this turn; never ask for it again. This must test
         # the CLEANED text: a marker is emitted as *content*, so a bare `{{pause}}` used to mark
         # a turn as narrated that had no prose at all -- which defeated the narrative guarantee
@@ -390,6 +395,11 @@ class TurnMixin:
             # A place query is answered here, from the live registry, and never reaches the
             # MCP server (which knows eras and polities, not where the story stands).
             await self._serve_places_lookup(args, fn.get("id"))
+            return
+        if name == "lookup" and npc_query(args.get("query")) is not None:
+            # Name -> identity, status and exact place, from the same live registry. Same
+            # rule: the MCP server has no registry, and must never answer a person query.
+            await self._serve_npc_lookup(args, fn.get("id"))
             return
         warning = None
         if name == SCENE_TOOL:
@@ -1087,6 +1097,30 @@ class TurnMixin:
         if self.provider == "gemini" and call_id:
             self.messages[-1]["id"] = str(call_id)
 
+    async def _serve_npc_lookup(self, args: dict, call_id=None) -> None:
+        """Answer a `lookup` about a person from the live registry -- never the MCP server.
+
+        The per-turn KNOWN PLACES block is area-scoped and capped; `WHO KNOWS HIM` carries
+        names only. This is the reverse index between them: a name -> identity, status and
+        the exact place path to reuse, with the place's other regulars. Sources are the live
+        place tree (the age the Traveller is in), the place-less cast, the companions and the
+        met roll (names only). In classic there is no met roll and no age in the wording."""
+        met: list[tuple[str, str]] = []
+        if not self.classic:
+            for era in [self.era] + [e for e in self._met if e != self.era]:
+                for name in self._met.get(era, []):
+                    met.append((name, era_display(era)))
+        text = render_npc_answer(
+            self._primed, self._current_place, args.get("query"),
+            cast=self._cast_people(), companions=self._companion_people, met=met,
+            world_label="this world" if self.classic else era_display(self.era))
+        gm_text = _gm_tool_view("lookup", text)
+        await self._emit({"type": "tool_result", "name": "lookup", "text": text,
+                          "gm_text": gm_text, "is_error": False})
+        self.messages.append({"role": "tool", "content": gm_text, "name": "lookup"})
+        if self.provider == "gemini" and call_id:
+            self.messages[-1]["id"] = str(call_id)
+
     async def _emit_place_note(self, args: dict, era: str | None = None) -> None:
         """Tell the server to persist the place (the manifest's single writer).
 
@@ -1156,6 +1190,32 @@ class TurnMixin:
             what = ", ".join(x for x in (role, people) if x)
             labels.append(f"{found_name} — {what}" if what else found_name)
         return sorted(labels, key=str.lower)
+
+    def _cast_people(self) -> list[dict]:
+        """The place-less recurring people with identity and status, for a person lookup.
+
+        The live identity map (`_npc_people`) wins for name/role/race/class; the manifest's
+        cast carries the recorded `state`. Only `_cast_display` keys are used -- that map is
+        the cast (place regulars live in the tree, not here)."""
+        manifest: dict[str, dict] = {}
+        try:
+            for person in known_cast_people(self.base_dir / OUTPUT_DIR,
+                                            self.active_name or ""):
+                manifest[name_key(person.get("name"))] = person
+        except Exception:  # noqa: BLE001 - never fail a lookup over the manifest
+            manifest = {}
+        out: list[dict] = []
+        for key, display in self._cast_display.items():
+            found = self._npc_people.get(key)
+            base = manifest.get(key) or {}
+            out.append({
+                "name": found[0] if found else display,
+                "role": found[1] if found else str(base.get("role") or ""),
+                "race": found[2] if found else str(base.get("race") or ""),
+                "class": found[3] if found else str(base.get("class") or ""),
+                "state": str(base.get("state") or ""),
+            })
+        return sorted(out, key=lambda p: str(p.get("name") or "").lower())
 
     def _undeclared_note(self, args: dict) -> str:
         """A soft note listing `characters` names that no declaration covers.

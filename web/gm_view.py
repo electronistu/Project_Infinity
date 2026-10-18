@@ -1,7 +1,9 @@
 import json
 import re
 
-from .protocol import MAX_LEGEND_CHARS, MAX_LEGEND_EXTRACT, REMEMBERS_RE
+from .protocol import MAX_LEGEND_CHARS, MAX_LEGEND_EXTRACT, MET_RE, REMEMBERS_RE
+from .places import name_key
+from .timeline import MAX_MET_CHARS, parse_met_names
 
 
 # ── What the GM is shown of a tool result ─────────────────────────────────
@@ -177,6 +179,74 @@ def _trim_legend(text: str, limit: int = MAX_LEGEND_CHARS) -> str:
             break
         kept = candidate
     return kept or text[-limit:].lstrip()
+
+
+# The met register, written on the closing turn and on Save: `{{met: Name, Name}}`. The age's
+# memory names the people the story turns on; this names everyone the Traveller met. The
+# client hides the marker while streaming; the engine strips it and stores the names.
+
+def _extract_met(text: str) -> tuple[list[str], str]:
+    """Pull the `{{met: ...}}` marker out of a reply.
+
+    Returns ``(names, cleaned_text)``. A placeholder echo is rejected; the marker is stripped
+    either way. A message without the marker returns no names and its text untouched."""
+    raw = text or ""
+    match = MET_RE.search(raw)
+    if not match:
+        return [], raw
+    names = parse_met_names(match.group(1))
+    return names, MET_RE.sub("", raw).strip()
+
+
+def _story_first(names, legend: str) -> list[str]:
+    """Order a met roll so the people the age's memory names come first.
+
+    Ordering only -- it never adds or drops a name. The full name, or its last word when it is
+    at least three characters, matched on a word boundary, counts as named in the legend."""
+    text = str(legend or "").lower()
+    if not text:
+        return list(names)
+    first: list[str] = []
+    rest: list[str] = []
+    for name in names:
+        ident = name_key(name)
+        leaf = ident.split()[-1] if ident else ""
+        named = bool(ident and re.search(rf"\b{re.escape(ident)}\b", text))
+        if not named and len(leaf) >= 3:
+            named = bool(re.search(rf"\b{re.escape(leaf)}\b", text))
+        (first if named else rest).append(name)
+    return first + rest
+
+
+def render_met_block(era_label: str, names, dead=(), legend: str = "",
+                     limit: int = MAX_MET_CHARS) -> str:
+    """The `WHO KNOWS HIM IN <era>` block: names, story-first, bounded.
+
+    The block is the register the next visit reads. It is bounded by the names' characters;
+    the recognition sentence rides after it, so the whole block is a little over `limit`.
+    A truncated roll says `+N` -- the rest stay in the save, not in the prompt."""
+    ordered = _story_first(names, legend)
+    if not ordered:
+        return ""
+    dead_keys = {name_key(n) for n in (dead or []) if str(n or "").strip()}
+    shown: list[str] = []
+    used = 0
+    for index, name in enumerate(ordered):
+        label = f"{name} (dead)" if name_key(name) in dead_keys else name
+        extra = 2 if shown else 0
+        if used + extra + len(label) > limit:
+            hidden = len(ordered) - index
+            if hidden:
+                shown.append(f"+{hidden}")
+            break
+        shown.append(label)
+        used += extra + len(label)
+    line = ", ".join(shown)
+    return (
+        f"WHO KNOWS HIM IN {era_label}\n{line}\n"
+        "These people have met the Traveller, and so has anyone this age's memory names; "
+        "never present them as strangers. Anyone in neither has not met him."
+    )
 
 
 def _clamp_block(text: str, limit: int) -> str:

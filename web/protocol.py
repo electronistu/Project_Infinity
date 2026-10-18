@@ -6,13 +6,14 @@ from .tool_schema import compact_schema
 
 # ── The engine's markers ──────────────────────────────────────────────────
 #
-# Three markers, each with ONE canonical spelling and no leading underscore: a `_NAME` right
+# Four markers, each with ONE canonical spelling and no leading underscore: a `_NAME` right
 # after `{{` reads as a mangled dunder, so the model "repairs" it to `{{__NAME}}` and the
 # token stops matching.
 #
 #   {{pause}}                          GM -> engine: the batch is done, resume me
 #   {{resume}}                         engine -> GM (and the GM's echo of it)
 #   {{remembers: <the age's memory>}}  the closing turn's era memory
+#   {{met: <names>}}                   who the Traveller met in this age, names only
 #
 # Recognition is tolerant on the MARKER -- padding underscores, stray spaces, case, and the
 # one word's `-s`/`-d`/`-ing` tail -- and strict on the payload. The accepted set is the
@@ -26,7 +27,10 @@ RESUME_MARKER_RE = re.compile(_MARKER_HEAD + r"resum(?:e[sd]?|ing)?" + _MARKER_T
 # The era memory's payload is the age's whole memory, not one sentence (`_MEMORY_SCOPE`).
 # Non-greedy with DOTALL, so it closes at the first `}}`.
 REMEMBERS_RE = re.compile(r"\{\{\s*_*\s*remembers?\s*:?\s*(.*?)\s*_*\s*\}\}", re.I | re.S)
-# Any marker shape left after the three above are stripped: the residue guard.
+# Who the Traveller met in this age: names only, written on the closing turn and on Save.
+# Like the memory marker, the payload is the point; it is parsed by `timeline.parse_met_names`.
+MET_RE = re.compile(r"\{\{\s*_*\s*met\s*:?\s*(.*?)\s*_*\s*\}\}", re.I | re.S)
+# Any marker shape left after the four above are stripped: the residue guard.
 UNKNOWN_MARKER_RE = re.compile(r"\{\{[^}]{0,80}\}\}")
 
 
@@ -39,9 +43,10 @@ def strip_markers(text: str) -> str:
     """Every engine marker removed, with the result stripped.
 
     Used to decide whether the player actually saw prose, and to keep a marker out of the
-    timeline summaries. The remembers marker takes its payload with it.
+    timeline summaries. The remembers and met markers take their payloads with them.
     """
     text = REMEMBERS_RE.sub("", text or "")
+    text = MET_RE.sub("", text)
     text = PAUSE_MARKER_RE.sub("", text)
     text = RESUME_MARKER_RE.sub("", text)
     return text.strip()
@@ -149,7 +154,7 @@ RULES:
 # `state:<era>` page holds this age's fields alone; the age the Traveller is not in is on
 # disk and never injected. `{era}` is replaced with the age he stands in. Companions are
 # listed by the engine, never written here.
-TIMELINE_PROMPT_ERA = """SYSTEM INSTRUCTION: The player is saving the game. Output TWO blocks covering the turns listed below, in this EXACT order and format. Replace bracketed text with actual content. Keep it concise. Output ONLY these blocks — no extra narration, no tool calls.
+TIMELINE_PROMPT_ERA = """SYSTEM INSTRUCTION: The player is saving the game. Output THREE parts covering the turns listed below, in this EXACT order and format. Replace bracketed text with actual content. Keep it concise. Output ONLY these parts — no extra narration, no tool calls.
 
 ## Turns X-Y | [current location] | [in-game time]
 **Key Events**:
@@ -165,10 +170,13 @@ TIMELINE_PROMPT_ERA = """SYSTEM INSTRUCTION: The player is saving the game. Outp
 **Unpaid**: [foreshadowing planted here but not yet paid off]
 <!-- /state:{era} -->
 
+{{met: Name, Name, Name}}
+
 RULES:
 - Write current truth only — no "then", no "now freed", no "later".
 - Do not restate what the engine already tells you: the era, the year or time, the place, the place tree and its regulars, reputation, the companions the engine lists, the Device and its parts, HP, inventory.
 - Never write a `Companions` line: the engine lists the companions; a person's stance is a Hook, a settled truth Canon, an oath a Debt.
+- The met marker: the names ONLY of every NPC the Traveller has met in THIS age so far, including everyone this age's memory and the STATE page name; no companions, no descriptions.
 - This page is this age's alone; another age's truth is not written here."""
 
 # The compaction output: the older entries, rewritten as one short in-voice chronicle. The
@@ -328,9 +336,12 @@ PLACE_MENU_RECENT = 12
 # this leaving means); it may write a few sentences, up to roughly the cap below.
 _MEMORY_SCOPE = (
     "one or a few sentences, up to about 1200 characters -- what this age now remembers about "
-    "the Traveller. Rewrite the age's whole memory: keep what still matters and add what this "
-    "leaving means. Only what was seen to happen or what was left behind; never the Traveller's "
-    "look, name or kit unless a witness lived to speak of it"
+    "the Traveller's story here. Rewrite the age's whole memory: keep what still matters and "
+    "add what this leaving means. Name the people the story turns on -- who they are to him "
+    "and what they know -- and use the same names the met list uses. Everyone he merely met is "
+    "recorded separately, so this stays the story, not a register. Only what was seen to happen "
+    "or what was left behind; never the Traveller's look, name or kit unless a witness lived "
+    "to speak of it"
 )
 
 # An era's memory is one growing paragraph; bound it so the always-on memory block stays cheap.
@@ -367,6 +378,16 @@ ERA_STATE_ASK = (
     "Before that, write this age's STATE page exactly as in a save reply -- a "
     "<!-- state:{era} --> … <!-- /state:{era} --> block with this age's fields, scoped to "
     "THIS age. It comes BEFORE the {{{{remembers}}}} marker, which stays last."
+)
+
+# Asked on the same closing turn, before the memory marker: the register of people. The age's
+# memory names the people the story turns on; this marker names EVERYONE the Traveller met,
+# story or not -- the next visit reads it as "who knows him". Names only, no descriptions.
+MET_ASK = (
+    "Also write ONE marker listing the names ONLY of every NPC the Traveller has MET in this "
+    "age -- everyone he spoke with, fought, or was seen by, including everyone your memory "
+    "line names; no companions, no descriptions. Start with the people your memory names, then "
+    "the rest. Format exactly: {{{{met: Name, Name}}}}. Names already recorded: {known}."
 )
 
 # Asked ONCE, tool-free, when a Save produced a state page with no core AND there is no page

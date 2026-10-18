@@ -499,7 +499,7 @@ def known_cast_people(output_dir, stem: str) -> list[dict]:
 
     The per-turn block shows place regulars only, so the on-demand record carries these as a
     footer: the GM declared them, and must never re-describe or re-invent them. Returns
-    `{name, role, race, class}` in name order (no look: looks are image-only)."""
+    `{name, role, race, class, state}` in name order (no look: looks are image-only)."""
     data = live_scene_manifest(output_dir, stem)
     raw = data.get("cast") if isinstance(data, dict) else None
     people: list[dict] = []
@@ -507,7 +507,8 @@ def known_cast_people(output_dir, stem: str) -> list[dict]:
         for entry in raw.values():
             fields = _npc_fields(entry)
             if fields["name"]:
-                people.append({k: fields[k] for k in ("name", "role", "race", "class")})
+                people.append({k: fields[k]
+                               for k in ("name", "role", "race", "class", "state")})
     return sorted(people, key=lambda p: p["name"].lower())
 
 

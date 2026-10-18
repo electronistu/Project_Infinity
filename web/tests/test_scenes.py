@@ -571,10 +571,11 @@ async def main() -> bool:
     legend_p, cleaned_p = _extract_legend("{{remembers: <one or a few sentences>}}")
     rec("a placeholder echo is rejected", legend_p == "" and "<" not in cleaned_p)
 
-    # A same-age move strips a stray memory/STATE block but never registers it; a real
-    # departure still captures both. The flags cover the whole turn, recovery rounds included.
+    # A same-age move strips a stray memory/STATE/met block but never registers them; a real
+    # departure still captures all three. The flags cover the whole turn, recovery rounds included.
     memory2 = "The age remembers a stranger who vanished and returned."
     state_block = "<!-- state:egypt -->\n**Goal**: find the tomb\n<!-- /state:egypt -->"
+    met_line = "{{met: Old Bao, Kang Sute}}"
 
     def _stream_with(text):
         async def _gen(messages, tools):
@@ -585,27 +586,31 @@ async def main() -> bool:
     gs_move = GameSession(base_dir=REPO, model="test", scene_images=True)
     gs_move.era = "egypt"
     gs_move._stream = _stream_with(
-        f"You step out of the air.\n{{{{remembers: {memory2}}}}}\n{state_block}")
+        f"You step out of the air.\n{{{{remembers: {memory2}}}}}\n{state_block}\n{met_line}")
     previous = (gs_move._capture_legend, gs_move._capture_state)
     gs_move._capture_legend = gs_move._capture_state = False
     try:
         out_move = (await gs_move._stream_assistant("jump"))[0]
     finally:
         gs_move._capture_legend, gs_move._capture_state = previous
-    rec("a same-age move strips a stray memory/STATE block without registering it",
+    rec("a same-age move strips a stray memory/STATE/met block without registering it",
         gs_move._pending_legend == "" and gs_move._pending_era_state is None
+        and gs_move._met == {}
         and "remembers" not in out_move and "state:egypt" not in out_move
+        and "met:" not in out_move
         and out_move.strip() == "You step out of the air.", repr(out_move))
 
     gs_dep = GameSession(base_dir=REPO, model="test", scene_images=True)
     gs_dep.era = "egypt"
     gs_dep._stream = _stream_with(
-        f"The world folds shut.\n{{{{remembers: {memory2}}}}}\n{state_block}")
+        f"The world folds shut.\n{{{{remembers: {memory2}}}}}\n{state_block}\n{met_line}")
     out_dep = (await gs_dep._stream_assistant("closing"))[0]
-    rec("... while a real departure still captures both",
+    rec("... while a real departure still captures all three",
         gs_dep._pending_legend == memory2
         and gs_dep._pending_era_state is not None
-        and "remembers" not in out_dep and "state:egypt" not in out_dep, repr(out_dep))
+        and gs_dep._met.get("egypt") == ["Old Bao", "Kang Sute"]
+        and "remembers" not in out_dep and "state:egypt" not in out_dep
+        and "met:" not in out_dep, repr(out_dep))
 
     # The residue guard's payoff through the real loop: a round whose only text is an
     # unrecognized marker is not prose, so the turn still earns its recovery round.
