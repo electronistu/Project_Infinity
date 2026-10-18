@@ -13,6 +13,10 @@ const state = {
   saving: false,                        // a save is in flight: lock send/save/load/end + the Device
   connected: false,
   ready: false,
+  connEpoch: 0,          // bumped whenever a socket or reconnect loop is abandoned
+  reconnectAttempt: 0,
+  reconnectTimer: null,
+  ending: false,         // an explicit end is in progress: never reconnect
   lastCommandType: null,
   cur: null,       // current streaming assistant bubble
   lastTool: null,  // last tool block awaiting a result
@@ -445,6 +449,7 @@ function updateThinkingLabel() {
   const el = $("thinking-label");
   if (!el) return;
   el.textContent = state.thinkEnabled ? "thinking on" : "thinking off";
+  el.hidden = !state.thinkEnabled;
   el.classList.toggle("on", state.thinkEnabled);
 }
 
@@ -499,11 +504,11 @@ function fillToolResult(el, text, isError, gmText) {
 
 /* ── stats rendering ──────────────────────────────────────── */
 
-/* Foldable sheet sections. Every section starts collapsed; the player's
-   choices persist in localStorage as a global UI preference (slug-keyed by
+/* Foldable sheet sections. Character and Combat start open; the rest collapsed. The
+   player's choices persist in localStorage as a global UI preference (slug-keyed by
    title, so they survive the sidebar rebuild on every refresh). */
 
-const SHEET_KEY = "infinity.sheet.collapsed";
+const SHEET_KEY = "infinity.sheet.collapsed.v2";
 let collapsedSet = null;     // Set<string> of collapsed section slugs
 let collapsedSaved = false;  // did localStorage hold a value yet?
 let cardSeq = 0;             // unique ids for aria-controls
@@ -527,13 +532,24 @@ function loadCollapsed() {
   } catch (e) { /* ignore */ }
 }
 
-// No saved preference yet -> everything collapsed; otherwise remember per section.
+// No saved preference yet -> the two live sections open, the rest collapsed. Once a
+// preference exists, the stored set is authoritative; unlisted sections default open is
+// NOT used, because one toggle must not expand the whole sheet on the next render.
+const DEFAULT_OPEN = new Set(["character", "combat"]);
 function isCollapsed(slug) {
   loadCollapsed();
-  return collapsedSaved ? collapsedSet.has(slug) : true;
+  return collapsedSaved ? collapsedSet.has(slug) : !DEFAULT_OPEN.has(slug);
 }
 
 function persistCollapsed() {
+  if (!collapsedSaved) {
+    // Freeze every section's CURRENT state on the first explicit choice. Without this,
+    // expanding one section persisted an empty set and the next rebuild opened all of them.
+    statsBox.querySelectorAll(".card").forEach((c) => {
+      if (c.classList.contains("collapsed")) collapsedSet.add(c.dataset.section);
+      else collapsedSet.delete(c.dataset.section);
+    });
+  }
   collapsedSaved = true;
   try { localStorage.setItem(SHEET_KEY, JSON.stringify([...collapsedSet])); } catch (e) { /* ignore */ }
 }
@@ -666,6 +682,14 @@ function loadSheetMode() {
 function applySheetModeUI() {
   document.querySelectorAll(".sheet-mode-input").forEach((el) => {
     el.checked = (el.value === state.sheetMode);
+  });
+  applyIconModelVisibility();
+}
+
+function applyIconModelVisibility() {
+  const show = state.sheetMode === "generate" && state.imageStatus.available;
+  document.querySelectorAll(".icon-model-row").forEach((el) => {
+    el.classList.toggle("hidden", !show);
   });
 }
 
@@ -1034,6 +1058,40 @@ function tagList(items) {
   return d;
 }
 
+/* The character's four identity chips: the icon alone is unreadable on a touch
+   screen, so the name sits under it. Missing icons keep the plain text chip. */
+const ALIGNMENT_ABBR = {
+  "lawful good": "LG", "neutral good": "NG", "chaotic good": "CG",
+  "lawful neutral": "LN", "true neutral": "N", "neutral": "N",
+  "chaotic neutral": "CN", "lawful evil": "LE", "neutral evil": "NE",
+  "chaotic evil": "CE",
+};
+
+function alignmentAbbr(name) {
+  return ALIGNMENT_ABBR[String(name || "").trim().toLowerCase()] || name;
+}
+
+function identityTags(items) {
+  const d = document.createElement("div");
+  d.className = "identity-tags";
+  (items || []).forEach((item) => {
+    const chip = descTag(item);
+    if (!chip.classList.contains("icon-only")) {
+      d.appendChild(chip);
+      return;
+    }
+    const wrap = document.createElement("div");
+    wrap.className = "identity-chip";
+    wrap.appendChild(chip);
+    const label = document.createElement("span");
+    label.className = "identity-label";
+    label.textContent = item.short || item.name || "";
+    wrap.appendChild(label);
+    d.appendChild(wrap);
+  });
+  return d;
+}
+
 /* Consumable as an icon-only tile with a count badge (text chip until an icon
    exists, so nothing is lost). */
 function consumableTile(name, count, iconKey) {
@@ -1054,17 +1112,39 @@ function consumableTile(name, count, iconKey) {
   return tile;
 }
 
-/* Icon-only tile with a value badge (stats, ability scores, HP/AC/…). */
+/* Icon-only tile with a value badge (stats, ability scores, HP/AC/…). The label under
+   the medallion is what makes the icon legible on a touch screen, where hover is gone. */
+const TILE_LABELS = {
+  "Level": "LV", "Gold": "GOLD", "Experience": "XP",
+  "Hit Points": "HP", "Armor Class": "AC", "Speed": "SPD", "Proficiency": "PROF",
+  "Hit Dice": "HD", "Temporary Hit Points": "TEMP HP",
+  "Spell Save DC": "DC", "Spell Attack": "ATK",
+  "Strength": "STR", "Dexterity": "DEX", "Constitution": "CON",
+  "Intelligence": "INT", "Wisdom": "WIS", "Charisma": "CHA",
+};
+
+function tileLabel(name) {
+  const key = String(name || "");
+  return TILE_LABELS[key] || key.split(/\s+/)[0].slice(0, 6).toUpperCase();
+}
+
 function valueTile(name, value, iconKey, tip) {
   const img = iconImg(iconKey, "tile-icon");
   if (!img) return row(name, value);
   const tile = document.createElement("div");
   tile.className = "stat-tile";
-  tile.appendChild(img);
+  const art = document.createElement("span");
+  art.className = "tile-art";
+  art.appendChild(img);
   const badge = document.createElement("span");
   badge.className = "tile-count";
   badge.textContent = (value === null || value === undefined || value === "") ? "—" : String(value);
-  tile.appendChild(badge);
+  art.appendChild(badge);
+  tile.appendChild(art);
+  const label = document.createElement("span");
+  label.className = "tile-label";
+  label.textContent = tileLabel(name);
+  tile.appendChild(label);
   tile.setAttribute("data-icon", state.iconUrls[iconKey]);
   tile.setAttribute("data-name", tip || name);
   tile.setAttribute("tabindex", "0");
@@ -1334,11 +1414,11 @@ function renderStats(d) {
   const c = d.character || {};
   $("sheet-title").textContent = c.name || "Character";
   statsBox.appendChild(card("Character", [
-    tagList([
+    identityTags([
       { name: c.race, description: c.race_desc, icon: c.race_icon },
       { name: c.character_class, description: c.character_class_desc, icon: c.class_icon },
       { name: c.background, description: c.background_desc, icon: c.background_icon },
-      { name: c.alignment, description: "", icon: c.alignment_icon },
+      { name: c.alignment, short: alignmentAbbr(c.alignment), description: "", icon: c.alignment_icon },
     ]),
     tileRow([
       valueTile("Level", c.level, c.level_icon, `Level ${c.level}`),
@@ -1747,6 +1827,28 @@ function updateCtxMeter(tokens, window) {
   const t = Number(tokens) || 0;
   const pct = w > 0 ? Math.max(0, Math.min(100, (t / w) * 100)) : 0;
   fill.style.width = pct + "%";
+  const meter = $("ctx-meter");
+  if (meter) meter.title = w ? `Context ${fmtNum(t)} / ${fmtNum(w)} tokens (${pct.toFixed(1)}%)` : "Context usage";
+}
+
+function contextLabel(tokens, window) {
+  const w = Number(window) || 0;
+  const t = Number(tokens) || 0;
+  if (!w) return "context —";
+  const pct = (t / w) * 100;
+  const shown = pct === 0 ? "0" : (pct < 10 ? pct.toFixed(1) : String(Math.round(pct)));
+  return `context ${shown}%`;
+}
+
+function setContextUsage(tokens, window) {
+  const w = Number(window) || 0;
+  const t = Number(tokens) || 0;
+  const label = $("ctx-label");
+  if (label) {
+    label.textContent = contextLabel(t, w);
+    label.title = w ? `${fmtNum(t)} / ${fmtNum(w)} tokens` : "Context usage";
+  }
+  updateCtxMeter(t, w);
 }
 
 /* ── theme (dark default, light optional) ────────────────── */
@@ -1765,22 +1867,143 @@ function toggleTheme() {
   applyTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light");
 }
 
-/* ── mobile character-sheet drawer ───────────────────────── */
+/* ── character-sheet width, collapse, drawer ─────────────── */
+
+const SHEET_W_KEY = "infinity.sheet.width";
+const SHEET_COLLAPSED_KEY = "infinity.sheet.collapsed";
+const SHEET_W_DEFAULT = 360;
+const SHEET_W_MIN = 320;
+const SHEET_W_MAX = 900;
+let sheetWidth = SHEET_W_DEFAULT;
+
+function deskSheet() { return matchMedia("(min-width: 1025px)").matches; }
+
+function sheetMaxWidth() {
+  if (!deskSheet()) return SHEET_W_MAX;
+  return Math.max(SHEET_W_MIN, Math.min(SHEET_W_MAX, Math.round(window.innerWidth * 0.5)));
+}
+
+function applySheetWidth(width, persist = false) {
+  const max = sheetMaxWidth();
+  const w = Math.max(SHEET_W_MIN, Math.min(max, Math.round(Number(width) || SHEET_W_DEFAULT)));
+  sheetWidth = w;
+  document.documentElement.style.setProperty("--sheet-w", w + "px");
+  const handle = $("sheet-resize");
+  if (handle) {
+    handle.setAttribute("aria-valuemin", String(SHEET_W_MIN));
+    handle.setAttribute("aria-valuemax", String(max));
+    handle.setAttribute("aria-valuenow", String(w));
+  }
+  if (persist) {
+    try { localStorage.setItem(SHEET_W_KEY, String(w)); } catch (e) { /* ignore */ }
+  }
+}
+
+function initSheetWidth() {
+  let w = SHEET_W_DEFAULT;
+  try {
+    const raw = localStorage.getItem(SHEET_W_KEY);
+    if (raw !== null) w = Number(raw);
+  } catch (e) { /* ignore */ }
+  applySheetWidth(w);
+}
+
+function updateSheetToggle() {
+  const btn = $("sheet-toggle");
+  if (!btn) return;
+  const collapsed = $("app").classList.contains("sheet-collapsed");
+  const open = deskSheet() ? !collapsed : $("sidebar").classList.contains("open");
+  btn.setAttribute("aria-expanded", String(open));
+  btn.setAttribute("aria-label", open ? "Hide character sheet" : "Show character sheet");
+  btn.title = open ? "Hide character sheet" : "Show character sheet";
+}
+
+function setSheetCollapsed(collapsed, persist = true) {
+  $("app").classList.toggle("sheet-collapsed", !!collapsed);
+  if (persist) {
+    try { localStorage.setItem(SHEET_COLLAPSED_KEY, collapsed ? "1" : "0"); } catch (e) { /* ignore */ }
+  }
+  updateSheetToggle();
+}
+
+function initSheetCollapsed() {
+  let collapsed = false;
+  try { collapsed = localStorage.getItem(SHEET_COLLAPSED_KEY) === "1"; } catch (e) { /* ignore */ }
+  setSheetCollapsed(collapsed, false);
+}
 
 function openSheet() {
   $("sidebar").classList.add("open");
   const b = $("sheet-backdrop");
   b.hidden = false;
   requestAnimationFrame(() => b.classList.add("open"));
+  updateSheetToggle();
 }
+
 function closeSheet() {
   $("sidebar").classList.remove("open");
   const b = $("sheet-backdrop");
   b.classList.remove("open");
   setTimeout(() => { b.hidden = true; }, 200);
+  updateSheetToggle();
 }
+
 function toggleSheet() {
-  if ($("sidebar").classList.contains("open")) closeSheet(); else openSheet();
+  if (deskSheet()) {
+    setSheetCollapsed(!$("app").classList.contains("sheet-collapsed"));
+  } else if ($("sidebar").classList.contains("open")) {
+    closeSheet();
+  } else {
+    openSheet();
+  }
+}
+
+function closeSheetOrCollapse() {
+  if (deskSheet()) setSheetCollapsed(true);
+  else closeSheet();
+}
+
+function initSheetResize() {
+  const handle = $("sheet-resize");
+  if (!handle) return;
+  let dragging = false;
+  const end = () => {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove("dragging");
+    document.body.classList.remove("sheet-resizing");
+    applySheetWidth(sheetWidth, true);
+  };
+  handle.addEventListener("pointerdown", (e) => {
+    if (!deskSheet() || $("app").classList.contains("sheet-collapsed")) return;
+    dragging = true;
+    handle.classList.add("dragging");
+    document.body.classList.add("sheet-resizing");
+    handle.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  handle.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    applySheetWidth(window.innerWidth - e.clientX);
+  });
+  handle.addEventListener("pointerup", end);
+  handle.addEventListener("pointercancel", end);
+  handle.addEventListener("keydown", (e) => {
+    let next = null;
+    if (e.key === "ArrowLeft") next = sheetWidth + 20;
+    else if (e.key === "ArrowRight") next = sheetWidth - 20;
+    else if (e.key === "Home") next = SHEET_W_MIN;
+    else if (e.key === "End") next = sheetMaxWidth();
+    if (next !== null) {
+      e.preventDefault();
+      applySheetWidth(next, true);
+    }
+  });
+  handle.addEventListener("dblclick", () => applySheetWidth(SHEET_W_DEFAULT, true));
+  window.addEventListener("resize", () => {
+    if (deskSheet()) applySheetWidth(Math.min(sheetWidth, sheetMaxWidth()));
+    updateSheetToggle();
+  });
 }
 
 function updateComposer() {
@@ -1838,8 +2061,7 @@ function handleEvent(evt) {
       state.contextWindow = evt.context_window || 0;
       $("world-label").textContent = evt.world || "";
       $("model-label").textContent = evt.model || "";
-      $("ctx-label").textContent = `context 0 / ${fmtNum(state.contextWindow)}`;
-      updateCtxMeter(0, state.contextWindow);
+      setContextUsage(0, state.contextWindow);
       state.turn = evt.turn || 0;
       updateTurn();
       updateDevice(evt.cadence);
@@ -1850,7 +2072,7 @@ function handleEvent(evt) {
       state.cur = null;
       state.sceneCaption = "";   // the engine sends a fresh `caption` right after `ready`
       updateSheetPortrait();
-      addSystem(`Session ready · ${evt.tools ? evt.tools.length : 0} engine tools · ${evt.model}`);
+      addSystem(`Session ready · ${evt.model}`);
       break;
 
     case "caption":
@@ -1929,8 +2151,7 @@ function handleEvent(evt) {
 
     case "context":
       state.contextTokens = evt.tokens || 0;
-      $("ctx-label").textContent = `context ${fmtNum(evt.tokens)} / ${fmtNum(evt.window)}`;
-      updateCtxMeter(evt.tokens, evt.window);
+      setContextUsage(evt.tokens, evt.window);
       break;
 
     case "paused":
@@ -2059,6 +2280,7 @@ function handleEvent(evt) {
 
     case "closed":
       state.ready = false;
+      state.busy = false;
       updateComposer();
       setStatus("Session closed");
       break;
@@ -2070,20 +2292,97 @@ function handleEvent(evt) {
 
 /* ── bootstrap ────────────────────────────────────────────── */
 
-function connect() {
+function connect(resumed = false) {
+  state.connEpoch += 1;
+  const epoch = state.connEpoch;
   setConn("connecting", "off");
   const proto = location.protocol === "https:" ? "wss" : "ws";
   const ws = new WebSocket(`${proto}://${location.host}/ws/${state.sessionId}`);
   state.ws = ws;
   ws.onopen = () => {
+    if (epoch !== state.connEpoch) return;
     state.connected = true;
+    state.reconnectAttempt = 0;
     setConn("connected", "on");
     updateComposer();
     setStatus("Loading…");
+    if (resumed) void syncSessionState(epoch);
   };
-  ws.onclose = () => { state.connected = false; state.saving = false; setConn("disconnected", "off"); updateComposer(); setStatus("Disconnected"); };
-  ws.onerror = () => setConn("error", "err");
+  ws.onclose = () => {
+    if (epoch !== state.connEpoch) return;
+    state.connected = false;
+    state.saving = false;
+    state.ws = null;
+    if (state.sessionId && !state.ending) {
+      void reconnect(epoch);
+    } else {
+      setConn("disconnected", "off");
+      updateComposer();
+      setStatus("Disconnected");
+    }
+  };
+  ws.onerror = () => { if (epoch === state.connEpoch) setConn("error", "err"); };
   ws.onmessage = (e) => { try { handleEvent(JSON.parse(e.data)); } catch (err) { console.error(err); } };
+}
+
+/* The socket dropped. Ask whether the session survived, then retry with backoff; a 404 or
+   a dead run loop means it was reaped (or failed) and the only honest move is the home
+   screen with a reason. */
+async function reconnect(epoch) {
+  if (epoch !== state.connEpoch) return;
+  setConn("reconnecting", "off");
+  updateComposer();
+  setStatus("Reconnecting…");
+  let gone = false;
+  try {
+    const r = await fetch(`/api/sessions/${state.sessionId}`, { cache: "no-store" });
+    if (epoch !== state.connEpoch) return;
+    if (r.status === 404) {
+      gone = true;
+    } else if (r.ok) {
+      const info = await r.json();
+      if (epoch !== state.connEpoch) return;
+      gone = info.alive === false;
+      if (!gone) {
+        state.ready = true;
+        state.busy = !!info.busy;
+      }
+    }
+  } catch (e) {
+    // Server unreachable: the session may be fine; keep retrying.
+  }
+  if (gone) { sessionExpired(); return; }
+  const delays = [1000, 2000, 4000, 8000, 15000, 30000];
+  const delay = delays[Math.min(state.reconnectAttempt, delays.length - 1)];
+  state.reconnectAttempt += 1;
+  clearTimeout(state.reconnectTimer);
+  state.reconnectTimer = setTimeout(() => {
+    if (epoch === state.connEpoch) connect(true);
+  }, delay);
+}
+
+/* A resumed socket may have missed the `busy` event that would unlock the composer. */
+async function syncSessionState(epoch) {
+  try {
+    const r = await fetch(`/api/sessions/${state.sessionId}`, { cache: "no-store" });
+    if (epoch !== state.connEpoch || !r.ok) return;
+    const info = await r.json();
+    if (epoch !== state.connEpoch) return;
+    state.busy = !!info.busy;
+    state.ready = info.alive !== false;
+    updateComposer();
+    if (state.ready && !state.busy) setStatus("Awaiting your action");
+  } catch (e) { /* the next event or reconnect will settle it */ }
+}
+
+function sessionExpired() {
+  state.connEpoch += 1;  // abandon any pending timer or socket handler
+  clearTimeout(state.reconnectTimer);
+  state.reconnectTimer = null;
+  state.reconnectAttempt = 0;
+  if (state.ws) { try { state.ws.close(); } catch (e) { /* ignore */ } state.ws = null; }
+  resetToHome();
+  showStartError("That session ended after being disconnected. Anything since your last Save was lost; load the save to continue.");
 }
 
 function showStartError(msg) {
@@ -2098,6 +2397,12 @@ async function startSession(save) {
   // defaults), so its temperature input is disabled and no value is sent.
   const tempInput = $("temp-input");
   const temperature = tempInput.disabled ? null : parseFloat(tempInput.value);
+  // Abandon the old socket and any reconnect loop before swapping sessions.
+  state.connEpoch += 1;
+  clearTimeout(state.reconnectTimer);
+  state.reconnectTimer = null;
+  state.reconnectAttempt = 0;
+  state.ending = false;
   if (state.sessionId) {
     try { await fetch(`/api/sessions/${state.sessionId}`, { method: "DELETE" }); } catch (e) { /* ignore */ }
   }
@@ -2130,8 +2435,7 @@ async function startSession(save) {
   state.activeSaveName = (data.world || save).replace(/\.player$/i, "");
   $("world-label").textContent = data.world || save;
   $("model-label").textContent = data.model || model;
-  $("ctx-label").textContent = `context 0 / ${fmtNum(state.contextWindow)}`;
-  updateCtxMeter(0, state.contextWindow);
+  setContextUsage(0, state.contextWindow);
   $("start-overlay").classList.add("hidden");
   updateComposer();
   connect();
@@ -2315,7 +2619,11 @@ function applyImagesToggles() {
         : "Icon generation unavailable — set GEMINI_API_KEY on the server";
     }
   });
+  document.querySelectorAll(".image-only").forEach((el) => {
+    el.classList.toggle("hidden", !state.imagesEnabled);
+  });
   applyModelSelects();
+  applyIconModelVisibility();
 }
 
 function applyModelSelects() {
@@ -2563,17 +2871,21 @@ function renderLoadList() {
     btn.className = "load-item";
     const diff = w.difficulty === "easy" ? "Easy" : (w.difficulty === "hard" ? "Hard" : "");
     const game = w.mode === "time_traveler" ? "Time Traveler" : (w.mode ? "Classic" : "");
-    const who = w.character ? `${w.character} — ${w.class || "?"} L${w.level == null ? "?" : w.level}${diff ? " · " + diff : ""}${game ? " · " + game : ""}` : "unknown character";
+    const who = w.character
+      ? `${w.character} — ${w.class || "?"} L${w.level == null ? "?" : w.level}`
+      : "unknown character";
     const when = w.modified ? new Date(w.modified * 1000).toLocaleString() : "";
+    const meta = [w.file, diff, game, when].filter(Boolean).join(" · ");
     const thumb = w.portrait
       ? `<img class="load-thumb" src="${escapeHtml(w.portrait)}?t=${portraitBust(w)}" alt="" />`
       : `<span class="load-thumb empty"></span>`;
     btn.innerHTML =
       thumb +
       `<span class="load-text">` +
-      `<span class="load-file">${escapeHtml(w.file)}</span>` +
-      `<span class="load-meta">${escapeHtml(who)}${when ? " · " + escapeHtml(when) : ""}</span>` +
-      `</span>`;
+      `<span class="load-name">${escapeHtml(who)}</span>` +
+      `<span class="load-file">${escapeHtml(meta)}</span>` +
+      `</span>` +
+      `<span class="load-go">Load</span>`;
     btn.onclick = () => loadGame(w.file);
 
     const del = document.createElement("button");
@@ -2640,6 +2952,12 @@ function endWithoutSaving() {
 
 async function finishEnd() {
   const sid = state.sessionId;
+  // The socket is about to close on purpose: no reconnect, no expired notice.
+  state.ending = true;
+  state.connEpoch += 1;
+  clearTimeout(state.reconnectTimer);
+  state.reconnectTimer = null;
+  state.reconnectAttempt = 0;
   if (sid) {
     try { await fetch(`/api/sessions/${sid}`, { method: "DELETE" }); } catch (e) { /* ignore */ }
   }
@@ -2648,6 +2966,12 @@ async function finishEnd() {
 }
 
 function resetToHome() {
+  state.connEpoch += 1;          // abandon any pending reconnect timer or socket handler
+  clearTimeout(state.reconnectTimer);
+  state.reconnectTimer = null;
+  state.reconnectAttempt = 0;
+  state.ending = false;
+  state.ws = null;
   state.sessionId = null;
   state.connected = false;
   state.ready = false;
@@ -2671,8 +2995,7 @@ function resetToHome() {
   setStatus("Not connected");
   $("world-label").textContent = "no world";
   $("model-label").textContent = "no model";
-  $("ctx-label").textContent = "context —";
-  updateCtxMeter(0, 0);
+  setContextUsage(0, 0);
   $("start-overlay").classList.remove("hidden");
   $("sheet-portrait").classList.add("hidden");
   $("sheet-portrait-img").removeAttribute("src");
@@ -2684,7 +3007,7 @@ function resetToHome() {
 
 /* ── character creation wizard ───────────────────────────── */
 
-const createState = { id: null, step: 0, current: null, busy: false };
+const createState = { id: null, step: 0, current: null, busy: false, history: [] };
 
 function openCreate() {
   $("create-overlay").classList.remove("hidden");
@@ -2693,7 +3016,10 @@ function openCreate() {
   $("create-prompt").textContent = "Starting the Forge…";
   $("create-error").classList.add("hidden");
   $("create-submit").disabled = true;
-  createState.id = null; createState.step = 0; createState.current = null; createState.busy = false;
+  $("create-submit").textContent = "Continue";
+  $("create-back").disabled = true;
+  createState.id = null; createState.step = 0; createState.current = null;
+  createState.busy = false; createState.history = [];
   startCreation();
 }
 
@@ -2730,12 +3056,19 @@ function appendCreateStep(step) {
 
 function renderCreatePrompt(step) {
   createState.current = step;
-  createState.step += 1;
+  if (!step.retry) createState.step = createState.history.length + 1;
   $("create-progress").textContent = `step ${createState.step}`;
+  const sectionEl = $("create-section");
+  if (sectionEl) {
+    sectionEl.textContent = step.section || "";
+    sectionEl.classList.toggle("hidden", !step.section);
+  }
   $("create-prompt").textContent = step.prompt;
   const controls = $("create-controls");
   controls.innerHTML = "";
+  controls.classList.remove("grid");
   $("create-error").classList.add("hidden");
+  $("create-submit").textContent = step.kind === "confirm" ? "Create character" : "Continue";
 
   if (step.kind === "text" || step.kind === "number") {
     const inp = document.createElement("input");
@@ -2743,19 +3076,24 @@ function renderCreatePrompt(step) {
     inp.type = step.kind === "number" ? "number" : "text";
     if (step.kind === "number") { inp.min = step.min; inp.max = step.max; }
     if (step.max_length) inp.maxLength = step.max_length;
-    if (step.default !== undefined && step.default !== null) inp.value = step.default;
+    const seed = (step.value !== undefined && step.value !== null) ? step.value : step.default;
+    if (seed !== undefined && seed !== null) inp.value = seed;
     controls.appendChild(inp);
     setTimeout(() => { inp.focus(); if (inp.select) inp.select(); }, 0);
   } else if (step.kind === "single") {
+    const chosen = (step.value === undefined || step.value === null) ? null : String(step.value);
     (step.options || []).forEach((opt) => {
+      const checked = chosen === String(opt.id) ? "checked" : "";
       const lab = document.createElement("label");
       lab.className = "opt";
-      lab.innerHTML = `<input type="radio" name="c-single" value="${escapeHtml(opt.id)}"> <span>${escapeHtml(opt.label)}</span>`;
+      lab.innerHTML = `<input type="radio" name="c-single" value="${escapeHtml(opt.id)}" ${checked}> <span>${escapeHtml(opt.label)}</span>`;
       controls.appendChild(lab);
     });
+    maybeGridOptions(step, controls);
   } else if (step.kind === "multi") {
+    const chosen = new Set(((step.value || step.default_checked || [])).map(String));
     (step.options || []).forEach((opt) => {
-      const checked = (step.default_checked || []).includes(opt.id) ? "checked" : "";
+      const checked = chosen.has(String(opt.id)) ? "checked" : "";
       const lab = document.createElement("label");
       lab.className = "opt";
       lab.innerHTML = `<input type="checkbox" name="c-multi" value="${escapeHtml(opt.id)}" ${checked}> <span>${escapeHtml(opt.label)}</span>`;
@@ -2764,16 +3102,78 @@ function renderCreatePrompt(step) {
     if (step.min_choices || step.max_choices != null) {
       const hint = document.createElement("div");
       hint.className = "wizard-hint";
-      const lo = step.min_choices ? `at least ${step.min_choices}` : "";
-      const hi = step.max_choices != null ? `at most ${step.max_choices}` : "";
-      hint.textContent = "select " + [lo, hi].filter(Boolean).join(", ");
+      const min = step.min_choices || 0;
+      const max = step.max_choices;
+      hint.dataset.base = (min && max != null && min === max)
+        ? `select exactly ${min}`
+        : ["select " + (min ? `at least ${min}` : ""),
+           (max != null ? `at most ${max}` : "")].filter(Boolean).join(", ");
+      hint.dataset.max = max == null ? "" : String(max);
       controls.appendChild(hint);
     }
+    maybeGridOptions(step, controls);
   } else if (step.kind === "pointbuy") {
     renderPointBuy(step);
+  } else if (step.kind === "confirm") {
+    const box = document.createElement("div");
+    box.className = "wizard-summary";
+    (step.summary || []).forEach((line) => {
+      const row = document.createElement("div");
+      row.textContent = String(line);
+      box.appendChild(row);
+    });
+    controls.appendChild(box);
   }
   if (step.error) showCreateError(step.error);
-  if (step.kind !== "pointbuy") $("create-submit").disabled = false;
+  $("create-back").disabled = createState.history.length === 0 || createState.busy;
+  if (step.kind === "pointbuy") {
+    // renderPointBuy owns the submit state (it watches the 27-point budget).
+  } else if (step.kind === "confirm") {
+    $("create-submit").disabled = false;
+  } else {
+    updateCreateSubmitState();
+  }
+}
+
+/* Classes, races and alignments are short lists; a two-column grid shows all of them
+   without the tiny 40vh scroll. Long descriptions stay in one readable column. */
+function maybeGridOptions(step, controls) {
+  const opts = step.options || [];
+  const short = opts.every((o) => String(o.label || "").length <= 40);
+  controls.classList.toggle("grid", opts.length > 6 && short);
+}
+
+function updateCreateSubmitState() {
+  if (createState.busy) return;
+  const step = createState.current;
+  if (!step) return;
+  if (step.kind === "pointbuy") return;
+  let ok = true;
+  if (step.kind === "text") {
+    const el = $("create-input");
+    ok = !!(el && el.value.trim());
+  } else if (step.kind === "number") {
+    const el = $("create-input");
+    const n = Number(el && el.value);
+    ok = !!(el && el.value.trim() !== "" && n >= Number(step.min) && n <= Number(step.max));
+  } else if (step.kind === "single") {
+    ok = !!document.querySelector('input[name="c-single"]:checked');
+  } else if (step.kind === "multi") {
+    const n = document.querySelectorAll('input[name="c-multi"]:checked').length;
+    const min = step.min_choices || 0;
+    const max = step.max_choices;
+    ok = n >= min && (max == null || n <= max);
+    updateMultiHint(n);
+  } else if (step.kind === "confirm") {
+    ok = true;
+  }
+  $("create-submit").disabled = !ok;
+}
+
+function updateMultiHint(count) {
+  const hint = document.querySelector("#create-controls .wizard-hint");
+  if (!hint) return;
+  hint.textContent = `${hint.dataset.base} — ${count}/${hint.dataset.max || "?"} selected`;
 }
 
 /* ── point-buy: all six abilities at once ─────────────────── */
@@ -2794,8 +3194,9 @@ function renderPointBuy(step) {
   const max = step.max != null ? step.max : 15;
   const budget = step.budget != null ? step.budget : 27;
   const alloc = {};
+  const source = step.value || step.default || {};
   (step.abilities || []).forEach((a) => {
-    const d = Number(step.default && step.default[a.key]);
+    const d = Number(source[a.key]);
     alloc[a.key] = isFinite(d) ? d : min;
   });
 
@@ -2810,7 +3211,7 @@ function renderPointBuy(step) {
   function refresh() {
     rows.forEach(({ a, input, dec, inc, finalEl }) => {
       if (document.activeElement !== input) input.value = alloc[a.key];
-      finalEl.textContent = "\u2192 " + (alloc[a.key] + (a.bonus || 0));
+      finalEl.textContent = "final " + (alloc[a.key] + (a.bonus || 0));
       finalEl.title = a.bonus ? `+${a.bonus} racial bonus` : "no racial bonus";
       dec.disabled = alloc[a.key] <= min;
       const next = alloc[a.key] + 1;
@@ -2840,6 +3241,7 @@ function renderPointBuy(step) {
     input.className = "pb-val";
     input.dataset.ability = a.key;
     input.min = min; input.max = max;
+    input.setAttribute("inputmode", "numeric");
     input.setAttribute("aria-label", a.label);
 
     const inc = document.createElement("button");
@@ -2872,8 +3274,18 @@ function renderPointBuy(step) {
     (step.abilities || []).forEach((a) => { alloc[a.key] = min; });
     refresh();
   });
-  wrap.appendChild(reset);
-  wrap.appendChild(remainingEl);
+  const head = document.createElement("div");
+  head.className = "pb-head";
+  head.appendChild(remainingEl);
+  head.appendChild(reset);
+  // The live budget and reset stay visible while the rows scroll.
+  wrap.insertBefore(head, wrap.firstChild);
+  const costs = step.costs || {};
+  const legend = document.createElement("div");
+  legend.className = "pb-costs";
+  legend.textContent = "cost: " + Object.keys(costs).map(Number).sort((a, b) => a - b)
+    .map((score) => `${score}=${costs[score]}`).join(" · ");
+  wrap.appendChild(legend);
 
   controls.appendChild(wrap);
   refresh();
@@ -2899,6 +3311,7 @@ function collectCreateAnswer() {
     });
     return alloc;
   }
+  if (step.kind === "confirm") return true;
   return null;
 }
 
@@ -2916,6 +3329,7 @@ function describeAnswer(step, value) {
   if (step.kind === "pointbuy") {
     return (step.abilities || []).map((a) => `${a.label} ${value[a.key]}`).join(", ");
   }
+  if (step.kind === "confirm") return "Create";
   return String(value);
 }
 
@@ -2927,11 +3341,8 @@ async function submitCreateAnswer() {
   if (value === null) { showCreateError("Please make a selection."); return; }
   createState.busy = true;
   $("create-submit").disabled = true;
-  const row = document.createElement("div");
-  row.className = "wizard-choice";
-  row.textContent = `${step.prompt} → ${describeAnswer(step, value)}`;
-  $("create-transcript").appendChild(row);
-  $("create-transcript").scrollTop = $("create-transcript").scrollHeight;
+  $("create-back").disabled = true;
+  let terminal = false;
   try {
     const res = await fetch(`/api/creation/${createState.id}/answer`, {
       method: "POST",
@@ -2939,16 +3350,66 @@ async function submitCreateAnswer() {
       body: JSON.stringify({ value }),
     });
     if (!res.ok) throw new Error("HTTP " + res.status + " — " + (await res.text()));
-    handleCreateResponse(await res.json());
+    const data = await res.json();
+    if (data.accepted) {
+      if (step.kind !== "confirm") {
+        createState.history.push({
+          prompt: step.prompt, answer: describeAnswer(step, value), value,
+        });
+        const row = document.createElement("div");
+        row.className = "wizard-choice";
+        row.textContent = `${step.prompt} → ${describeAnswer(step, value)}`;
+        $("create-transcript").appendChild(row);
+        $("create-transcript").scrollTop = $("create-transcript").scrollHeight;
+      }
+    }
+    if (data.terminal) {
+      terminal = true;
+      createState.current = null;
+    }
+    handleCreateResponse(data);
   } catch (err) {
     showCreateError(String(err.message || err));
-    $("create-submit").disabled = false;
   } finally {
     createState.busy = false;
+    if (!terminal) {
+      $("create-back").disabled = createState.history.length === 0;
+      updateCreateSubmitState();
+    }
+  }
+}
+
+async function backCreate() {
+  if (!createState.id || createState.busy || createState.history.length === 0) return;
+  createState.busy = true;
+  $("create-back").disabled = true;
+  $("create-submit").disabled = true;
+  let terminal = false;
+  try {
+    const res = await fetch(`/api/creation/${createState.id}/back`, { method: "POST" });
+    if (!res.ok) throw new Error("HTTP " + res.status + " — " + (await res.text()));
+    const data = await res.json();
+    createState.history.pop();
+    const rows = $("create-transcript").querySelectorAll(".wizard-choice");
+    if (rows.length) rows[rows.length - 1].remove();
+    if (data.terminal) {
+      terminal = true;
+      createState.current = null;
+    }
+    handleCreateResponse(data);
+  } catch (err) {
+    showCreateError(String(err.message || err));
+  } finally {
+    createState.busy = false;
+    if (!terminal) {
+      $("create-back").disabled = createState.history.length === 0;
+      updateCreateSubmitState();
+    }
   }
 }
 
 async function cancelCreate() {
+  if (!window.confirm("Discard this character? Nothing has been saved.")) return;
   if (createState.id) {
     try { await fetch(`/api/creation/${createState.id}/cancel`, { method: "POST" }); } catch (e) { /* ignore */ }
   }
@@ -2963,6 +3424,7 @@ function showCreateError(msg) {
 
 async function finishCreate(terminal) {
   $("create-submit").disabled = true;
+  $("create-back").disabled = true;
   if (terminal.type === "done") {
     const ok = document.createElement("div");
     ok.className = "wizard-done";
@@ -3509,6 +3971,9 @@ async function init() {
   $("begin").addEventListener("click", begin);
   $("open-create").addEventListener("click", openCreate);
   $("create-cancel").addEventListener("click", cancelCreate);
+  $("create-back").addEventListener("click", backCreate);
+  $("create-controls").addEventListener("change", updateCreateSubmitState);
+  $("create-controls").addEventListener("input", updateCreateSubmitState);
   $("create-submit").addEventListener("click", submitCreateAnswer);
   $("create-controls").addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitCreateAnswer(); }
@@ -3539,6 +4004,28 @@ async function init() {
   });
   $("theme-toggle").addEventListener("click", toggleTheme);
   $("sheet-toggle").addEventListener("click", toggleSheet);
+  const headerActions = $("header-actions");
+  const moreToggle = $("more-toggle");
+  const closeHeaderMenu = () => {
+    headerActions.classList.remove("open");
+    moreToggle.setAttribute("aria-expanded", "false");
+  };
+  moreToggle.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const open = headerActions.classList.toggle("open");
+    moreToggle.setAttribute("aria-expanded", String(open));
+  });
+  document.addEventListener("click", (e) => {
+    if (!headerActions.classList.contains("open")) return;
+    if (headerActions.contains(e.target) || moreToggle.contains(e.target)) return;
+    closeHeaderMenu();
+  });
+  headerActions.addEventListener("click", (e) => {
+    if (e.target.closest("button")) closeHeaderMenu();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeHeaderMenu();
+  });
   $("combat-toggle").addEventListener("click", toggleCombatBar);
   $("combat-close").addEventListener("click", dismissCombatBar);
   $("dev-open").addEventListener("click", openDev);
@@ -3547,7 +4034,10 @@ async function init() {
   $("dev-tab-gm").addEventListener("click", () => switchDevTab("gm"));
   $("dev-apply").addEventListener("click", applyDev);
   $("dev-revert").addEventListener("click", revertDev);
-  $("sheet-close").addEventListener("click", closeSheet);
+  $("sheet-close").addEventListener("click", closeSheetOrCollapse);
+  initSheetWidth();
+  initSheetCollapsed();
+  initSheetResize();
   $("portrait-regen").addEventListener("click", regeneratePortrait);
   $("sheet-backdrop").addEventListener("click", closeSheet);
   document.addEventListener("keydown", (e) => {

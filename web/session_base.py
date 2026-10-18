@@ -4,6 +4,7 @@ import asyncio
 import os
 import random
 import sys
+import time
 import traceback
 
 from pathlib import Path
@@ -98,6 +99,11 @@ class SessionBase:
         self._cmd_q: asyncio.Queue = asyncio.Queue()
         self._evt_q: asyncio.Queue = asyncio.Queue()
         self._task: asyncio.Task | None = None
+        # True while a command is being handled (or the opening turn runs). The idle
+        # sweeper refuses to reap a busy session even when no client is attached, unless
+        # the turn has hung past its hard cap (`busy_since`, see SessionManager).
+        self._busy = False
+        self.busy_since: float | None = None
         self._scene_requested_turn = False
         # True once narrative prose has reached the player this turn; guards against
         # asking the GM to narrate a second time (duplicate segment).
@@ -286,9 +292,28 @@ class SessionBase:
                 pass
         self._task = None
         # Drop the memory-only registry: a session that ends without saving must not leak
-        # its places/NPCs into the next one.
+        # its places/NPCs into the next one. The generation ticket makes a stale close a
+        # no-op: a newer session on the same save owns the registry now.
         if self.player_path:
-            discard_scene_manifest(os.path.dirname(self.player_path), self.active_name)
+            discard_scene_manifest(os.path.dirname(self.player_path), self.active_name,
+                                   expected_generation=self.scene_generation)
+
+    @property
+    def busy(self) -> bool:
+        return self._busy
+
+    @busy.setter
+    def busy(self, value) -> None:
+        value = bool(value)
+        if value == self._busy:
+            return
+        self._busy = value
+        self.busy_since = time.time() if value else None
+
+    @property
+    def alive(self) -> bool:
+        """The run loop is still attached to a live engine and can accept commands."""
+        return self._task is not None and not self._task.done()
 
     # ── internals ─────────────────────────────────────────────────────────
 
@@ -432,14 +457,18 @@ class SessionBase:
                     # (A new game opens the scene; a resumed save continues it -- the era file
                     # carries the framing. The opening illustration is requested by the GM
                     # itself, in the session-start tool batch -- see GameMaster_MCP.md.)
-                    await self._emit({"type": "busy", "value": True})
-                    self._mechanics_lines = []
-                    self._narrative_emitted_turn = False
-                    awakening = await self._run_role(key_content, "awakening")
-                    awakening = await self._ensure_turn_prose(awakening)
-                    await self._ensure_scene_image(awakening or "")
-                    await self._emit({"type": "awakening_end", "text": awakening or ""})
-                    await self._emit({"type": "busy", "value": False})
+                    self.busy = True
+                    try:
+                        await self._emit({"type": "busy", "value": True})
+                        self._mechanics_lines = []
+                        self._narrative_emitted_turn = False
+                        awakening = await self._run_role(key_content, "awakening")
+                        awakening = await self._ensure_turn_prose(awakening)
+                        await self._ensure_scene_image(awakening or "")
+                        await self._emit({"type": "awakening_end", "text": awakening or ""})
+                    finally:
+                        self.busy = False
+                        await self._emit({"type": "busy", "value": False})
 
                     while True:
                         cmd = await self._cmd_q.get()
@@ -466,27 +495,31 @@ class SessionBase:
             await self._evt_q.put(None)
 
     async def _handle_command(self, cmd: dict) -> None:
-        kind = cmd.get("type")
-        if kind == "action":
-            await self._handle_action(cmd.get("text", ""))
-        elif kind == "slash":
-            await self._handle_slash(cmd.get("command", ""))
-        elif kind == "resume":
-            await self._emit({"type": "busy", "value": True})
-            try:
-                self._narrative_emitted_turn = False
-                text = await self._run_role("{{resume}}", "resume")
-                await self._emit({"type": "turn_end", "text": text or ""})
-            finally:
-                await self._emit({"type": "busy", "value": False})
-        elif kind == "save":
-            await self._handle_save_command()
-        elif kind == "device":
-            await self._handle_device_command(cmd)
-        elif kind == "dev":
-            await self._handle_dev_command(cmd)
-        elif kind == "close":
-            await self._cmd_q.put(None)
+        self.busy = True
+        try:
+            kind = cmd.get("type")
+            if kind == "action":
+                await self._handle_action(cmd.get("text", ""))
+            elif kind == "slash":
+                await self._handle_slash(cmd.get("command", ""))
+            elif kind == "resume":
+                await self._emit({"type": "busy", "value": True})
+                try:
+                    self._narrative_emitted_turn = False
+                    text = await self._run_role("{{resume}}", "resume")
+                    await self._emit({"type": "turn_end", "text": text or ""})
+                finally:
+                    await self._emit({"type": "busy", "value": False})
+            elif kind == "save":
+                await self._handle_save_command()
+            elif kind == "device":
+                await self._handle_device_command(cmd)
+            elif kind == "dev":
+                await self._handle_dev_command(cmd)
+            elif kind == "close":
+                await self._cmd_q.put(None)
+        finally:
+            self.busy = False
 
     async def _run_turn(self, content: str, label: str) -> None:
         """One GM turn: the prose, at most one illustration, then the turn counter.

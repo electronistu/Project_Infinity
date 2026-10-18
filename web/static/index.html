@@ -19,18 +19,19 @@
         <span class="sep">·</span>
         <span id="ctx-label">context —</span>
       </div>
-      <div class="actions">
-        <label class="chk" title="Show tool calls"><input type="checkbox" id="toggle-tools" /> tools</label>
-        <label class="chk" title="Show model thinking"><input type="checkbox" id="toggle-thinking" /> thinking</label>
+      <div class="actions" id="header-actions">
+        <label class="chk" title="Show the GM's tool calls"><input type="checkbox" id="toggle-tools" /> tool calls</label>
+        <label class="chk" title="Show the model's thinking"><input type="checkbox" id="toggle-thinking" /> show thinking</label>
         <button id="save-open" class="ghost" type="button" title="Save game">save</button>
         <button id="dev-open" class="ghost dev-only hidden" type="button" title="Developer mode">dev</button>
         <button id="load-open" class="ghost" type="button" title="Load game">load</button>
         <button id="end-session" class="ghost danger" type="button" title="End session and return home">end</button>
         <button id="combat-toggle" class="ghost hidden" type="button" title="Combat tracker">combat</button>
         <button id="theme-toggle" class="icon-btn" type="button" title="Toggle light / dark" aria-label="Toggle light or dark theme">◐</button>
-        <button id="sheet-toggle" class="icon-btn sheet-toggle" type="button" title="Character sheet" aria-label="Open character sheet">☰</button>
-        <span id="conn" class="conn off">disconnected</span>
       </div>
+      <button id="sheet-toggle" class="icon-btn sheet-toggle" type="button" title="Character sheet" aria-label="Open character sheet">☰</button>
+      <span id="conn" class="conn off">disconnected</span>
+      <button id="more-toggle" class="icon-btn more-toggle" type="button" title="More controls" aria-label="More controls" aria-expanded="false">⋯</button>
     </header>
 
     <main>
@@ -61,6 +62,8 @@
         </div>
         <div id="stats" class="stats"><div class="muted">Start a session to load your sheet.</div></div>
       </aside>
+      <div id="sheet-resize" class="sheet-resize" role="separator" aria-orientation="vertical"
+           aria-label="Resize character sheet" tabindex="0"></div>
       <div id="sheet-backdrop" class="sheet-backdrop" hidden></div>
     </main>
 
@@ -82,38 +85,46 @@
   <div id="start-overlay" class="overlay">
     <div class="start-card">
       <h1>Project <span>Infinity</span></h1>
-      <label>World
-        <div class="world-row">
-          <select id="world-select"></select>
-          <button id="world-delete" class="ghost danger" type="button" title="Delete the selected world">Delete</button>
+      <div class="start-grid">
+        <div class="start-col">
+          <label>World
+            <div class="world-row">
+              <select id="world-select"></select>
+              <button id="world-delete" class="ghost danger" type="button" title="Delete the selected world">Delete</button>
+            </div>
+          </label>
+          <div id="start-portrait" class="start-portrait hidden">
+            <img id="start-portrait-img" alt="Character portrait" />
+            <div id="start-portrait-meta" class="portrait-meta"></div>
+          </div>
         </div>
-      </label>
-      <div id="start-portrait" class="start-portrait hidden">
-        <img id="start-portrait-img" alt="Character portrait" />
-        <div id="start-portrait-meta" class="portrait-meta"></div>
+        <div class="start-col">
+          <label>Model<select id="model-select"></select></label>
+          <label>Temperature<input id="temp-input" type="number" min="0" max="2" step="0.1" value="1.0" /></label>
+          <label class="chk images-chk" title="Paint the character portrait and illustrate the story's key moments"><input type="checkbox" id="toggle-images" class="images-toggle" /> images</label>
+          <label class="chk" title="Developer mode: edit live state and inspect everything sent to the GM"><input type="checkbox" id="toggle-dev" /> developer mode</label>
+          <label class="model-row image-only hidden" title="Model for the character portrait and storyline scene images">Story model
+            <select id="image-model-select" class="image-model-select"></select>
+          </label>
+          <label class="model-row image-only hidden" title="Optional art style for portraits and scenes — e.g. 'in the style of Day of the Tentacle'. Empty = the default dark-fantasy sourcebook.">Art style
+            <input id="image-style-input" class="image-style-input" type="text" maxlength="300" placeholder="default: dark-fantasy sourcebook" />
+          </label>
+          <label class="model-row icon-model-row hidden" title="Model for the character-sheet icons">Icon model
+            <select id="icon-model-select" class="icon-model-select"></select>
+          </label>
+          <fieldset class="sheet-mode">
+            <legend>Character sheet</legend>
+            <label class="chk"><input type="radio" name="sheet-mode-start" value="icons" class="sheet-mode-input" /> cached icons only; no generation</label>
+            <label class="chk"><input type="radio" name="sheet-mode-start" value="generate" class="sheet-mode-input" /> cached icons + generate on new ones</label>
+            <label class="chk"><input type="radio" name="sheet-mode-start" value="text" class="sheet-mode-input" /> text only</label>
+          </fieldset>
+        </div>
       </div>
-      <label>Model<select id="model-select"></select></label>
-      <label>Temperature<input id="temp-input" type="number" min="0" max="2" step="0.1" value="1.0" /></label>
-      <label class="chk images-chk" title="Paint the character portrait and illustrate the story's key moments"><input type="checkbox" id="toggle-images" class="images-toggle" /> images</label>
-      <label class="chk" title="Developer mode: edit live state and inspect everything sent to the GM"><input type="checkbox" id="toggle-dev" /> developer mode</label>
-      <label class="model-row" title="Model for the character portrait and storyline scene images">Story model
-        <select id="image-model-select" class="image-model-select"></select>
-      </label>
-      <label class="model-row" title="Optional art style for portraits and scenes — e.g. 'in the style of Day of the Tentacle'. Empty = the default dark-fantasy sourcebook.">Art style
-        <input id="image-style-input" class="image-style-input" type="text" maxlength="300" placeholder="default: dark-fantasy sourcebook" />
-      </label>
-      <label class="model-row" title="Model for the character-sheet icons">Icon model
-        <select id="icon-model-select" class="icon-model-select"></select>
-      </label>
-      <fieldset class="sheet-mode">
-        <legend>Character sheet</legend>
-        <label class="chk"><input type="radio" name="sheet-mode-start" value="icons" class="sheet-mode-input" /> cached icons only; no generation</label>
-        <label class="chk"><input type="radio" name="sheet-mode-start" value="generate" class="sheet-mode-input" /> cached icons + generate on new ones</label>
-        <label class="chk"><input type="radio" name="sheet-mode-start" value="text" class="sheet-mode-input" /> text only</label>
-      </fieldset>
-      <button id="begin" class="primary">Begin session</button>
-      <button id="open-create" class="ghost wide">Forge a new character…</button>
-      <div id="start-error" class="error hidden"></div>
+      <div class="start-actions">
+        <div id="start-error" class="error hidden"></div>
+        <button id="begin" class="primary">Begin session</button>
+        <button id="open-create" class="ghost wide">Forge a new character…</button>
+      </div>
     </div>
   </div>
 
@@ -125,10 +136,12 @@
         <button id="create-cancel" class="ghost">cancel</button>
       </div>
       <div id="create-transcript" class="wizard-transcript"></div>
+      <div id="create-section" class="wizard-section-label hidden"></div>
       <div id="create-prompt" class="wizard-prompt"></div>
       <div id="create-controls" class="wizard-controls"></div>
       <div id="create-error" class="error hidden"></div>
       <div class="wizard-actions">
+        <button id="create-back" class="ghost" type="button" disabled>Back</button>
         <button id="create-submit" class="primary">Continue</button>
       </div>
     </div>
@@ -137,7 +150,7 @@
   <div id="save-overlay" class="overlay hidden">
     <div class="dialog-card">
       <h1>Save game</h1>
-      <p class="muted">Writes the timeline and the player database to <code>output/</code>.</p>
+      <p class="muted">Saves your progress to the active save.</p>
       <div class="save-target">Saving to <code id="save-target">—</code></div>
       <div id="save-error" class="error hidden"></div>
       <div class="dialog-actions">
@@ -153,23 +166,26 @@
         <h1>Load game</h1>
         <button id="load-cancel" class="ghost" type="button">cancel</button>
       </div>
-      <label class="chk images-chk" title="Paint the character portrait and illustrate the story's key moments"><input type="checkbox" id="load-toggle-images" class="images-toggle" /> images</label>
-      <label class="model-row" title="Model for the character portrait and storyline scene images">Story model
-        <select id="load-image-model-select" class="image-model-select"></select>
-      </label>
-      <label class="model-row" title="Optional art style for portraits and scenes — e.g. 'in the style of Day of the Tentacle'. Empty = the default dark-fantasy sourcebook.">Art style
-        <input id="load-image-style-input" class="image-style-input" type="text" maxlength="300" placeholder="default: dark-fantasy sourcebook" />
-      </label>
-      <label class="model-row" title="Model for the character-sheet icons">Icon model
-        <select id="load-icon-model-select" class="icon-model-select"></select>
-      </label>
-      <fieldset class="sheet-mode">
-        <legend>Character sheet</legend>
-        <label class="chk"><input type="radio" name="sheet-mode-load" value="icons" class="sheet-mode-input" /> cached icons only; no generation</label>
-        <label class="chk"><input type="radio" name="sheet-mode-load" value="generate" class="sheet-mode-input" /> cached icons + generate on new ones</label>
-        <label class="chk"><input type="radio" name="sheet-mode-load" value="text" class="sheet-mode-input" /> text only</label>
-      </fieldset>
       <div id="load-list" class="load-list"></div>
+      <details class="load-options">
+        <summary>Session options</summary>
+        <label class="chk images-chk" title="Paint the character portrait and illustrate the story's key moments"><input type="checkbox" id="load-toggle-images" class="images-toggle" /> images</label>
+        <label class="model-row image-only hidden" title="Model for the character portrait and storyline scene images">Story model
+          <select id="load-image-model-select" class="image-model-select"></select>
+        </label>
+        <label class="model-row image-only hidden" title="Optional art style for portraits and scenes — e.g. 'in the style of Day of the Tentacle'. Empty = the default dark-fantasy sourcebook.">Art style
+          <input id="load-image-style-input" class="image-style-input" type="text" maxlength="300" placeholder="default: dark-fantasy sourcebook" />
+        </label>
+        <label class="model-row icon-model-row hidden" title="Model for the character-sheet icons">Icon model
+          <select id="load-icon-model-select" class="icon-model-select"></select>
+        </label>
+        <fieldset class="sheet-mode">
+          <legend>Character sheet</legend>
+          <label class="chk"><input type="radio" name="sheet-mode-load" value="icons" class="sheet-mode-input" /> cached icons only; no generation</label>
+          <label class="chk"><input type="radio" name="sheet-mode-load" value="generate" class="sheet-mode-input" /> cached icons + generate on new ones</label>
+          <label class="chk"><input type="radio" name="sheet-mode-load" value="text" class="sheet-mode-input" /> text only</label>
+        </fieldset>
+      </details>
       <div id="load-error" class="error hidden"></div>
     </div>
   </div>

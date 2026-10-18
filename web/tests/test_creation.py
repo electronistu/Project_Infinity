@@ -45,6 +45,8 @@ def preclean(name, output_dir=None):
 
 def auto_answer(step, counters, name, prefer=""):
     kind = step["kind"]
+    if kind == "confirm":
+        return True
     if kind == "text":
         counters["text"] += 1
         return name if counters["text"] == 1 else (step.get("default") or "Unknown")
@@ -138,6 +140,40 @@ async def run_http_creation(name):
             cid = resp["creation_id"]
             counters = {"text": 0, "number": 0}
             prompts = 0
+
+            # Name, then gender; go back once and prove the gender prompt returns
+            # with the dropped answer attached for the UI to prefill.
+            prompt = [s for s in resp.get("steps", []) if s.get("type") == "prompt"][-1]
+            resp = (await client.post(f"/api/creation/{cid}/answer",
+                                      json={"value": name})).json()
+            prompt = [s for s in resp.get("steps", []) if s.get("type") == "prompt"][-1]
+            resp = (await client.post(f"/api/creation/{cid}/answer",
+                                      json={"value": "Unknown"})).json()
+            back = (await client.post(f"/api/creation/{cid}/back")).json()
+            back_prompt = [s for s in back.get("steps", []) if s.get("type") == "prompt"][-1]
+            back_ok = (back_prompt.get("kind") == "text"
+                       and "gender" in str(back_prompt.get("prompt", "")).lower()
+                       and back_prompt.get("value") == "Unknown")
+            print(f"  [http] back -> {back_prompt.get('prompt')} "
+                  f"value={back_prompt.get('value')!r} ok={back_ok}")
+            if not back_ok:
+                return {"type": "error", "message": "back did not return the previous prompt"}, prompts
+            counters["text"] = 2  # name + the re-answered gender
+            resp = (await client.post(f"/api/creation/{cid}/answer",
+                                      json={"value": "Female"})).json()
+
+            # An invalid single-select is rejected with retry=true, does not advance,
+            # and is not recorded in the accepted history.
+            bad = (await client.post(f"/api/creation/{cid}/answer",
+                                     json={"value": "999"})).json()
+            bad_prompt = [s for s in bad.get("steps", []) if s.get("type") == "prompt"][-1]
+            retry_ok = bad.get("accepted") is False and bad_prompt.get("retry") is True
+            print(f"  [http] invalid answer accepted={bad.get('accepted')} "
+                  f"retry={bad_prompt.get('retry')} ok={retry_ok}")
+            if not retry_ok:
+                return {"type": "error", "message": "invalid answer was not marked retry"}, prompts
+            resp = bad
+
             while True:
                 if resp.get("terminal"):
                     return resp["terminal"], prompts

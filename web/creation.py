@@ -14,6 +14,7 @@ Flow
 
 import contextlib
 import os
+import random
 import sys
 import threading
 import time
@@ -30,6 +31,23 @@ from .naming import slugify, unique_paths  # noqa: E402
 PROMPT_TIMEOUT_SECONDS = 900.0
 
 _MISSING = object()
+
+
+def _section_for(prompt: str) -> str:
+    """A coarse label for the wizard header; the Forge itself has no sections."""
+    p = str(prompt or "").lower()
+    if "create this character" in p:
+        return "Review"
+    if "ability scores" in p or "stat points" in p:
+        return "Ability Scores"
+    if any(k in p for k in ("skill", "gaming set", "instrument", "artisan", "language",
+                            "fighting style", "terrain", "expertise")):
+        return "Skills & Training"
+    if any(k in p for k in ("equipment", "weapon", "armor")):
+        return "Equipment"
+    if any(k in p for k in ("spell", "cantrip")):
+        return "Spells"
+    return "Identity"
 
 
 class CreationCancelled(Exception):
@@ -50,6 +68,13 @@ class CreationBridge:
         self._answer = _MISSING
         self._waiting = False
         self._terminal: dict | None = None
+        # A back operation restarts the worker: `_replay` feeds the already-accepted
+        # answers, `_prefill` puts the dropped answer on the target prompt, and
+        # `history` is rebuilt by the handlers as each valid answer is accepted.
+        self.history: list[dict] = []
+        self.initial_random_state = None
+        self._replay: list = []
+        self._prefill = None
 
     # ── worker side ───────────────────────────────────────────────────────
 
@@ -59,10 +84,35 @@ class CreationBridge:
             self._steps.append(step)
             self._cond.notify_all()
 
+    def record(self, value, prompt: str = "") -> None:
+        """Remember one ACCEPTED answer (used only by the back/replay path)."""
+        with self._cond:
+            self.history.append({"value": value, "prompt": str(prompt or "")})
+
+    def confirm(self, summary: list[str]) -> bool:
+        """Ask the player to review the assembled character before the file is written."""
+        value = self.request({
+            "type": "prompt",
+            "kind": "confirm",
+            "prompt": "Create this character?",
+            "summary": list(summary),
+            "section": "Review",
+        })
+        return bool(value)
+
     def request(self, step: dict):
         """Emit a blocking prompt and wait for the client's answer."""
         with self._cond:
-            self._steps.append(step)
+            # Replay answers are internal: the client sees only the prompt being
+            # returned to, never the prompts already answered on its behalf.
+            if self._replay:
+                return self._replay.pop(0)
+            prompt_step = dict(step)
+            # A back's target prompt shows the answer the player is returning to.
+            if self._prefill is not None:
+                prompt_step["value"] = self._prefill
+                self._prefill = None
+            self._steps.append(prompt_step)
             self._waiting = True
             self._cond.notify_all()
             while self._answer is _MISSING and self._terminal is None:
@@ -140,6 +190,7 @@ def _select_single(bridge, prompt, options, display_fn=None):
         "type": "prompt",
         "kind": "single",
         "prompt": str(prompt),
+        "section": _section_for(prompt),
         "options": [
             {"id": str(i), "label": (display_fn(opt) if display_fn else str(opt))}
             for i, opt in enumerate(options)
@@ -150,10 +201,12 @@ def _select_single(bridge, prompt, options, display_fn=None):
         try:
             idx = int(value)
             if 0 <= idx < len(options):
+                bridge.record(str(idx), str(prompt))
                 return options[idx]
         except (TypeError, ValueError):
             pass
-        step = {**step, "error": "Invalid selection — choose again."}
+        step = {**step, "error": "Invalid selection — choose again.",
+                "retry": True, "value": value}
 
 
 def _select_multiple(bridge, prompt, options, min_choices=0, max_choices=None,
@@ -172,6 +225,7 @@ def _select_multiple(bridge, prompt, options, min_choices=0, max_choices=None,
         "type": "prompt",
         "kind": "multi",
         "prompt": str(prompt),
+        "section": _section_for(prompt),
         "options": [
             {"id": str(i), "label": (display_fn(opt) if display_fn else str(opt))}
             for i, opt in enumerate(options)
@@ -193,42 +247,52 @@ def _select_multiple(bridge, prompt, options, min_choices=0, max_choices=None,
             except (TypeError, ValueError):
                 pass
         if min_choices and len(idxs) < min_choices:
-            step = {**step, "error": f"Select at least {min_choices}."}
+            step = {**step, "error": f"Select at least {min_choices}.",
+                    "retry": True, "value": list(value)}
             continue
         if max_choices is not None and len(idxs) > max_choices:
-            step = {**step, "error": f"Select at most {max_choices}."}
+            step = {**step, "error": f"Select at most {max_choices}.",
+                    "retry": True, "value": list(value)}
             continue
+        bridge.record(list(value), str(prompt))
         return [options[i] for i in idxs]
 
 
 def _input_dialog_val(bridge, prompt, default="", max_length=50):
     step = {"type": "prompt", "kind": "text", "prompt": str(prompt),
-            "default": default, "max_length": max_length}
+            "section": _section_for(prompt), "default": default, "max_length": max_length}
     while True:
         value = bridge.request(step)
         value = "" if value is None else str(value)
         if not value.strip():
-            step = {**step, "error": "Input cannot be empty."}
+            step = {**step, "error": "Input cannot be empty.",
+                    "retry": True, "value": value}
             continue
         if len(value) > max_length:
-            step = {**step, "error": f"Must be at most {max_length} characters."}
+            step = {**step, "error": f"Must be at most {max_length} characters.",
+                    "retry": True, "value": value}
             continue
+        bridge.record(value.strip(), str(prompt))
         return value.strip()
 
 
 def _input_number(bridge, prompt, min_val=0, max_val=99, default=""):
     step = {"type": "prompt", "kind": "number", "prompt": str(prompt),
-            "min": min_val, "max": max_val, "default": default}
+            "section": _section_for(prompt), "min": min_val, "max": max_val,
+            "default": default}
     while True:
         value = bridge.request(step)
         try:
             number = int(value)
         except (TypeError, ValueError):
-            step = {**step, "error": "Enter a valid integer."}
+            step = {**step, "error": "Enter a valid integer.",
+                    "retry": True, "value": value}
             continue
         if number < min_val or number > max_val:
-            step = {**step, "error": f"Value must be {min_val}-{max_val}."}
+            step = {**step, "error": f"Value must be {min_val}-{max_val}.",
+                    "retry": True, "value": value}
             continue
+        bridge.record(number, str(prompt))
         return number
 
 
@@ -260,6 +324,7 @@ def _point_buy(bridge, prompt, costs, budget=27, default=None, min_val=8, max_va
         "type": "prompt",
         "kind": "pointbuy",
         "prompt": str(prompt),
+        "section": _section_for(prompt),
         "abilities": [
             {"key": a, "label": a[:3].upper(), "bonus": int(bonuses.get(a, 0))}
             for a in abilities
@@ -271,10 +336,13 @@ def _point_buy(bridge, prompt, costs, budget=27, default=None, min_val=8, max_va
         "default": {a: int(default.get(a, min_val)) for a in abilities},
     }
     while True:
-        normalized = _validate_point_buy(bridge.request(step), abilities, costs, budget, min_val, max_val)
+        value = bridge.request(step)
+        normalized = _validate_point_buy(value, abilities, costs, budget, min_val, max_val)
         if normalized is not None:
+            bridge.record(normalized, str(prompt))
             return normalized
-        step = {**step, "error": f"Spend all {budget} points (each score {min_val}-{max_val})."}
+        step = {**step, "error": f"Spend all {budget} points (each score {min_val}-{max_val}).",
+                "retry": True, "value": value if isinstance(value, dict) else None}
 
 
 def _show_message(bridge, text):
@@ -370,12 +438,44 @@ def _make_streams_safe() -> None:
             pass
 
 
+def _character_summary(player_character) -> list[str]:
+    """The lines the player reviews before the `.player` is written."""
+    stats = getattr(player_character, "stats", None)
+    abilities = ""
+    if stats is not None:
+        abilities = (f"STR {stats.strength} · DEX {stats.dexterity} · CON {stats.constitution} "
+                     f"· INT {stats.intelligence} · WIS {stats.wisdom} · CHA {stats.charisma}")
+    skills = [str(getattr(s, "name", s)) for s in getattr(player_character, "skills", [])
+              if getattr(s, "proficient", False)]
+    equipment = getattr(player_character, "equipment", None)
+    inventory = [str(getattr(i, "name", i)) for i in getattr(equipment, "inventory", []) or []]
+    return [
+        f"{player_character.name} — {player_character.race} {player_character.character_class} "
+        f"L{player_character.level}",
+        f"{player_character.background} · {player_character.alignment} · "
+        f"Age {getattr(player_character, 'age', '—')}",
+        abilities,
+        f"HP {getattr(player_character, 'current_hit_points', '—')}/"
+        f"{getattr(player_character, 'total_hit_points', '—')} · "
+        f"AC {getattr(player_character, 'armor_class', '—')}",
+        f"Skills: {', '.join(skills) or '—'}",
+        f"Equipment: {', '.join(inventory) or '—'}",
+        f"{getattr(player_character, 'mode', 'classic')} · "
+        f"{getattr(player_character, 'difficulty', 'hard')}",
+    ]
+
+
 def _run_creation(bridge: CreationBridge) -> None:
     try:
         import forge.character_creator as character_creator
         _make_streams_safe()
+        if bridge.initial_random_state is not None:
+            random.setstate(bridge.initial_random_state)
         with _installed_ui(bridge):
             player_character = character_creator.create_character(bridge.config)
+        if not bridge.confirm(_character_summary(player_character)):
+            bridge.finish_cancelled()
+            return
         result = _generate_world(bridge.config, player_character, bridge.output_dir)
         bridge.finish_ok(result)
     except CreationCancelled:
@@ -401,8 +501,41 @@ class CreationManager:
             from forge.config_loader import load_config
             config = load_config()
             bridge = CreationBridge(config, self.output_dir)
+            bridge.initial_random_state = random.getstate()
             self._active[bridge.id] = bridge
             self._current_id = bridge.id
+            thread = threading.Thread(target=_run_creation, args=(bridge,), daemon=True)
+            bridge.thread = thread
+            thread.start()
+            return bridge
+
+    def back(self, creation_id: str) -> CreationBridge:
+        """Re-run the Forge to the previous accepted prompt.
+
+        The worker cannot be rewound in place: cancel it, start a fresh one with the
+        same RNG state, replay every accepted answer except the last, and let the
+        target prompt wait for the client again. The dropped answer rides along as
+        `value` so the client can prefill the control."""
+        with self._lock:
+            current = self._active.get(creation_id)
+            if current is None:
+                raise KeyError(creation_id)
+            if current.terminal is not None:
+                raise RuntimeError("creation already finished")
+            if not current.history:
+                raise RuntimeError("no previous step")
+            target = current.history[:-1]
+            dropped = current.history[-1]
+            current.cancel()
+            if current.thread is not None:
+                current.thread.join(timeout=2)
+            bridge = CreationBridge(current.config, self.output_dir)
+            bridge.id = creation_id
+            bridge.initial_random_state = current.initial_random_state
+            bridge._replay = [item.get("value") for item in target]
+            bridge._prefill = dropped.get("value")
+            self._active[creation_id] = bridge
+            self._current_id = creation_id
             thread = threading.Thread(target=_run_creation, args=(bridge,), daemon=True)
             bridge.thread = thread
             thread.start()

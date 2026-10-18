@@ -164,8 +164,14 @@ class SceneMixin:
         just after a jump). Never time of day or weather -- text mode has no scene tool to carry
         them, so they are dropped."""
         parts: list[str] = []
+
+        def add(part: str) -> None:
+            part = str(part or "").strip()
+            if part and (not parts or parts[-1].casefold() != part.casefold()):
+                parts.append(part)
+
         if not self.classic and self.era:
-            parts.append(str(device.era_label(self.era) or "").strip())
+            add(device.era_label(self.era) or "")
         placed = False
         current = self._current_place
         if isinstance(current, dict):
@@ -176,14 +182,12 @@ class SceneMixin:
                 place = " — ".join(str(p).strip() for p in (current.get("place") or [])
                                    if str(p or "").strip())
                 if area:
-                    parts.append(area)
+                    add(area)
                 if place:
-                    parts.append(place)
+                    add(place)
                 placed = bool(area or place)
         if not placed:
-            arrival = str(self.arrival or "").strip()
-            if arrival:
-                parts.append(arrival)
+            add(self.arrival or "")
         return " · ".join(p for p in parts if p)
 
     async def _emit_caption(self) -> None:

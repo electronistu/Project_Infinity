@@ -32,6 +32,8 @@ def rec(name, cond, detail=""):
 
 def auto_answer_easy(step, counters, name):
     kind = step["kind"]
+    if kind == "confirm":
+        return True
     if kind == "text":
         counters["text"] += 1
         return name if counters["text"] == 1 else (step.get("default") or "Unknown")

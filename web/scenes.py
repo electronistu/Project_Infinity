@@ -393,17 +393,24 @@ def commit_scene_manifest(output_dir, stem: str) -> dict | None:
             "pruned": pruned}
 
 
-def discard_scene_manifest(output_dir, stem: str) -> int:
+def discard_scene_manifest(output_dir, stem: str, expected_generation: int | None = None) -> int:
     """Drop the live manifest so the next read reloads the save from disk.
 
     This is the session boundary, so it also bumps the save's registry generation. The session
     starting here captures the returned value and hands it to its writers; a write that still
-    carries an older generation is refused (see `mutate_scene_manifest`)."""
+    carries an older generation is refused (see `mutate_scene_manifest`).
+
+    When `expected_generation` is given, the discard is a no-op unless that ticket is the
+    current one. A session that outlived its own boundary must not clear a newer session's
+    registry (the stale-close side of the same generation contract)."""
     scenes = _scenes_dir_for(output_dir, stem)
     key = _scene_cache_key(scenes)
     with _SCENE_LOCK:
+        current = _SCENE_GENERATIONS.get(key, 0)
+        if expected_generation is not None and expected_generation != current:
+            return current
         _SCENE_MANIFESTS.pop(key, None)
-        generation = _SCENE_GENERATIONS.get(key, 0) + 1
+        generation = current + 1
         _SCENE_GENERATIONS[key] = generation
         return generation
 

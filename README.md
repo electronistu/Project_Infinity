@@ -48,6 +48,8 @@ python3 web_server.py                     # Linux / macOS
 
 Open **http://127.0.0.1:8000**. The server binds to localhost only. Flags: `--host`, `--port`, `--reload`, `--log-level`.
 
+A browser that stays connected keeps its game alive indefinitely, however long you pause. After the last browser disconnects, the session is kept for `PI_SESSION_TTL_SECONDS` (default `3600`, `0` = never reap) so a dropped connection can reconnect; `PI_SESSION_SWEEP_SECONDS` (default `60`) sets how often that cleanup runs.
+
 ---
 
 ## Creating a character

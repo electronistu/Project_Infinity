@@ -49,7 +49,7 @@ from .models import (
     resolve_image_model,
     resolve_model,
 )
-from .session_manager import SessionManager
+from .session_manager import SessionBusyError, SessionManager
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = REPO_ROOT / "output"
@@ -601,10 +601,13 @@ async def create_session(body: CreateSessionBody):
         raise HTTPException(status_code=404, detail=f"unknown save: {body.save}")
     if body.model and resolve_model(body.model) is None:
         raise HTTPException(status_code=400, detail=f"unknown model: {body.model}")
-    sid, session = await manager.create(
-        body.save, model=body.model, temperature=body.temperature, think=body.think,
-        scene_images=body.scene_images, dev=body.dev,
-    )
+    try:
+        sid, session = await manager.create(
+            body.save, model=body.model, temperature=body.temperature, think=body.think,
+            scene_images=body.scene_images, dev=body.dev,
+        )
+    except SessionBusyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
     return {
         "session_id": sid,
         "world": body.save,
@@ -658,14 +661,19 @@ def _persist_place_note(session, evt: dict) -> None:
 @app.websocket("/ws/{sid}")
 async def ws_endpoint(websocket: WebSocket, sid: str):
     session = manager.get(sid)
-    if session is None:
+    if session is None or not session.alive:
         await websocket.accept()
         await websocket.send_json({"type": "error", "message": "unknown session"})
         await websocket.close(code=4404)
         return
 
     await websocket.accept()
-    manager.touch(sid)
+    # A live websocket is what keeps a session alive; the sweeper only reaps the ones
+    # nobody is attached to (see SessionManager.detach / _sweep_once).
+    if not manager.attach(sid):
+        await websocket.send_json({"type": "error", "message": "unknown session"})
+        await websocket.close(code=4404)
+        return
 
     async def pump_events():
         async for evt in session.events():
@@ -721,6 +729,7 @@ async def ws_endpoint(websocket: WebSocket, sid: str):
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
+        manager.detach(sid)
         try:
             await websocket.close()
         except Exception:  # noqa: BLE001
@@ -753,7 +762,26 @@ async def answer_creation(creation_id: str, body: CreationAnswerBody):
     steps, terminal = await asyncio.to_thread(bridge.take_steps)
     if terminal is not None:
         creation_manager.forget(creation_id)
-    return {"creation_id": creation_id, "steps": steps, "terminal": terminal}
+    accepted = terminal is not None or not any(
+        isinstance(s, dict) and s.get("type") == "prompt" and s.get("retry")
+        for s in steps)
+    return {"creation_id": creation_id, "steps": steps, "terminal": terminal,
+            "accepted": accepted}
+
+
+@app.post("/api/creation/{creation_id}/back")
+async def back_creation(creation_id: str):
+    try:
+        bridge = await asyncio.to_thread(creation_manager.back, creation_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="unknown creation")
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    steps, terminal = await asyncio.to_thread(bridge.take_steps)
+    if terminal is not None:
+        creation_manager.forget(creation_id)
+    return {"creation_id": creation_id, "steps": steps, "terminal": terminal,
+            "back": True}
 
 
 @app.post("/api/creation/{creation_id}/cancel")
