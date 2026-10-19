@@ -240,6 +240,17 @@ def main():
         "Known eras" in eras.lookup("atlantis", "egypt"))
     rec("lookup defaults an empty current era to START_ERA",
         "the Old Kingdom" in eras.lookup("here", ""))
+    other = eras.lookup("wallachia", "egypt")
+    rec("lookup(<another era>) is labelled reference-only",
+        "NOT the era you are in" in other and "you are in egypt" in other, other[:120])
+    rec("lookup('here') and a polity carry no cross-era warning",
+        "NOT the era you are in" not in eras.lookup("here", "egypt")
+        and "NOT the era you are in" not in polity)
+    rec("foreign_realm names the era that owns a declared realm",
+        eras.foreign_realm("tang", "the Old Kingdom") == "egypt"
+        and eras.foreign_realm("egypt", "the Old Kingdom") is None
+        and eras.foreign_realm("tang", "the Tang empire") is None
+        and eras.foreign_realm("tang", "the Kingdom of Kush") is None)
 
     return all(RESULTS)
 

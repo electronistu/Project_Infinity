@@ -198,6 +198,31 @@ async def main() -> bool:
         rec("the place ack is the bare acceptance (no echo of the declaration)",
             json.loads(ack) == {"status": "noted"}, gs.messages[-1]["content"])
 
+        # ── a realm of another era is refused before it reaches the registry ──
+        gx = GameSession(base_dir=Path(td), model="test", scene_images=False)
+        gx.session = _FakeMCP()
+        gx.active_name = "save"
+        gx.era = "tang"
+        await gx._execute_tool({"function": {"name": "note_place", "arguments": {
+            "kingdom": "the Old Kingdom", "area": "Giza",
+            "place": ["the Giza plateau", "the foot of the great ramp"]}}})
+        evts = drain(gx._evt_q)
+        refused = [e for e in evts if e.get("type") == "tool_result"][-1]
+        rec("a place from another era is refused before it is recorded",
+            "NOT recorded" in str(refused.get("text") or "")
+            and "egypt" in str(refused.get("text") or ""), str(refused)[:300])
+        rec("... the refusal emits no place_note and does not move the Traveller",
+            not [e for e in evts if e.get("type") == "place_note"]
+            and not (gx._current_place or {}).get("area"),
+            str([e.get("type") for e in evts]))
+        rec("... and the engine was never called", not gx.session.calls, str(gx.session.calls))
+        await gx._execute_tool({"function": {"name": "note_place", "arguments": {
+            "kingdom": "the Tang empire", "area": "Chang'an",
+            "place": ["the West Market ward", "the Blue Camel caravanserai"]}}})
+        evts = drain(gx._evt_q)
+        rec("a realm of the era the Traveller is in is accepted",
+            any(e.get("type") == "place_note" for e in evts), str(evts)[:300])
+
         # The `characters` key is the model's own spelling of a name, and live 2026-10-16 it
         # keyed two declared names with an underscore (`Master_Guo` for the declared `Master
         # Guo`; the same call passed `npcs: ["Master Guo"]`). The exact `name.lower()` check
@@ -732,12 +757,12 @@ async def main() -> bool:
             == ["the Drowned Lantern", "the common room"])
     
         svc_e = SceneService(out)
-        svc_e.record_place("echo", era=ERA, kingdom="Wallachia", area="Câmpulung",
+        svc_e.record_place("echo", era="wallachia", kingdom="Wallachia", area="Câmpulung",
                            place=court)
         gse = GameSession(base_dir=Path(td), model="test", scene_images=False)
         gse.session = _FakeMCP()
         gse.active_name = "echo"
-        gse.era = ERA
+        gse.era = "wallachia"
         gse._reload_era_scene_state()
         drain(gse._evt_q)
     

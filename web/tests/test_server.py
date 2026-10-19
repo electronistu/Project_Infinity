@@ -124,6 +124,8 @@ def diag(sink: list) -> None:
 
 def _build_temp_save():
     """Generate a throwaway world + character so the test never touches a user save."""
+    from unittest.mock import patch
+
     from forge.config_loader import load_config
     from forge.character_creator import create_debug_character
     from web.creation import _generate_world
@@ -134,7 +136,10 @@ def _build_temp_save():
     # (A classic save is the other fixture; `test_modes.py` covers both creation branches.)
     pc = create_debug_character(config)
     pc.mode = "time_traveler"
-    gen = _generate_world(config, pc, out)
+    # The scripted GM declares Wallachia places; pin the rolled first age to that era so the
+    # fixture and the script agree (and the run is deterministic).
+    with patch("web.eras.pick_start_era", return_value="wallachia"):
+        gen = _generate_world(config, pc, out)
     stem = gen["slug"]
     return out / gen["player"], out / f"{stem}.timeline"
 

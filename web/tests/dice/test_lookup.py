@@ -57,7 +57,10 @@ class LookupTest(H.EngineCase):
         _, count, exact = _counter()
         if not exact:  # pragma: no cover - the gate refuses without tiktoken
             self.skipTest("tiktoken not installed")
-        self.assertLessEqual(count(H.ds.lookup("wallachia")), 450)
+        # Measure the scaffold itself: a lookup of an era the save is not in also carries the
+        # reference-only guard, which is not part of the `era_scaffold` ceiling.
+        with H.load(dict(H.fighter_l5(), era="wallachia")):
+            self.assertLessEqual(count(H.ds.lookup("here")), 450)
 
     # ── the on-demand tool references (`ref:TOOL`) ─────────────────────────────
 

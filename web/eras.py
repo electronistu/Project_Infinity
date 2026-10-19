@@ -181,6 +181,47 @@ def render_polity(p: dict) -> str:
     return "\n".join(["polities:", *_polity_lines(p)])
 
 
+def _norm_name(text) -> str:
+    return " ".join(str(text or "").split()).casefold()
+
+
+def _realm_names(era_id: str, meta: dict, body: dict) -> set[str]:
+    """Every name a realm of this era may be declared under: its polities and the era itself."""
+    names = {_norm_name(era_id), _norm_name(meta.get("name"))}
+    names.update(_norm_name(p.get("name")) for p in body.get("polities") or [])
+    names.discard("")
+    return names
+
+
+def foreign_realm(current: str, kingdom: str) -> Optional[str]:
+    """The other era that owns this realm name, or None.
+
+    A place declaration's ``kingdom`` is a realm of the era the story is in. A name that
+    belongs to another era's scaffold is a place declared in an age the Traveller has not
+    reached: recording it would file it under the current age and offer it from that age's
+    tree and Device picker (live 2026-10-20: "the Old Kingdom" / Giza filed under Tang).
+    Exact names only -- an invented realm is not a match, and so is never blocked.
+    """
+    wanted = _norm_name(kingdom)
+    current = str(current or "").strip().lower()
+    if not wanted or not current:
+        return None
+    for entry in load_all():
+        era_id = str(entry["meta"].get("id") or "")
+        if wanted in _realm_names(era_id, entry["meta"], entry["body"]):
+            return None if era_id == current else era_id
+    return None
+
+
+def _era_reference(text: str, target: str, current: str) -> str:
+    """A scaffold fetched for an era the story is not in: reference, never a landing."""
+    if not current or target == current:
+        return text
+    return (f"NOTE: {target} is NOT the era you are in (you are in {current}). Do not narrate "
+            "any jump, crossing or arrival in it; the Device is the player's to release.\n\n"
+            + text)
+
+
 def lookup(query: str, current: str = "") -> str:
     """Resolve a `lookup` query to era text -- the whole brain of the `lookup` tool.
 
@@ -203,14 +244,15 @@ def lookup(query: str, current: str = "") -> str:
             return render_era_text(current)
         return f"unknown current era {current!r}. Known eras: {', '.join(known)}"
     if q in known:
-        return render_era_text(q)
+        return _era_reference(render_era_text(q), q, current)
     if current in known:
         for polity in load_era(current)["body"].get("polities") or []:
             if q in str(polity.get("name") or "").lower():
                 return render_polity(polity)
     for meta in list_era_meta():
         if q in str(meta.get("name") or "").lower() or q in str(meta.get("id") or ""):
-            return render_era_text(str(meta["id"]))
+            target = str(meta["id"])
+            return _era_reference(render_era_text(target), target, current)
     return (f"no match for {q!r}. Known eras: {', '.join(known)}. "
             "Try 'here' for the era you are in.")
 

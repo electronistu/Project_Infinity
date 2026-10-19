@@ -1,7 +1,7 @@
 """The turn loop and the GM tool dispatch."""
 
 import json
-from .eras import START_ERA, era_display
+from .eras import START_ERA, era_display, foreign_realm
 from .gm_view import _extract_legend, _gm_tool_view
 from .scenes import _merge_npc_lists, known_cast_people, known_scene_places
 from .places import (_people_list, _scene_key, move_placements, name_key, npc_query,
@@ -413,9 +413,11 @@ class TurnMixin:
             await self._serve_npc_lookup(args, fn.get("id"))
             return
         warning = None
-        if name == SCENE_TOOL:
+        if name in (SCENE_TOOL, PLACE_TOOL):
+            warning = self._foreign_realm_warning(args)
+        if warning is None and name == SCENE_TOOL:
             warning = self._scene_seed_warning(args)
-        elif name == PLACE_TOOL:
+        elif warning is None and name == PLACE_TOOL:
             warning = self._place_address_warning(args)
         if warning is not None:
             text, is_error = warning, True
@@ -1449,6 +1451,29 @@ class TurnMixin:
             "with `establishing` = a short description of the place (empty and unpopulated — no "
             "people, creatures or animals), plus the same action `description`. The establishing "
             "view is generated once and is never shown to the player."
+        )
+
+    def _foreign_realm_warning(self, args: dict) -> str | None:
+        """Refuse a declaration whose realm belongs to an era the Traveller is not in.
+
+        Live 2026-10-20 the GM treated an announced destination as a Device release, looked up
+        egypt, and declared Giza while the save was in Tang: the place would have been filed
+        under Tang and offered by its tree and picker. A prompt rule is advisory; this is the
+        state gate. A real crossing is exempt -- the closing turn's declarations are already
+        dropped, and the arrival turn runs with the new era.
+        """
+        if self.classic or self._crossing:
+            return None
+        kingdom = " ".join(str(args.get("kingdom") or "").split())
+        if not kingdom:
+            return None
+        other = foreign_realm(self.era, kingdom)
+        if not other:
+            return None
+        return (
+            f"REFUSED and NOT recorded: '{kingdom}' is a realm of {other}, not the era you "
+            f"are in ({self.era}). Do not narrate a jump or crossing; the Device is the "
+            "player's to release. Declare only a place in the era you are in."
         )
 
     def _place_address_warning(self, args: dict) -> str | None:

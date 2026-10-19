@@ -629,6 +629,7 @@ def main():
         str(result.get("gm_text")))
 
     gs_cross._crossing = False
+    gs_cross.era = "egypt"           # the arrival turn runs in the new age
     asyncio.run(gs_cross._execute_tool(call))
     rec("... while an ordinary turn records the same declaration",
         any(p.get("area") == "Memphis" for p in gs_cross._primed), str(gs_cross._primed))
